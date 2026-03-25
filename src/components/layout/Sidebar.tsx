@@ -19,6 +19,8 @@ const NAV_ITEMS = [
   { href: '/kanban', label: 'Kanban', icon: '🗂', section: null, badgeKey: 'kanban' },
   { href: '/contacts', label: 'Tutti i Contatti', icon: '👥', section: 'Contatti', badgeKey: 'contacts' },
   { href: '/speaqi', label: 'Rete SPEAQI', icon: '⚡', section: null, badgeKey: 'speaqi' },
+  { href: '/projects', label: 'Progetti', icon: '📁', section: 'Contenuti' },
+  { href: '/news', label: 'News', icon: '📰', section: null },
   { href: '/calendario', label: 'Calendario Chiamate', icon: '📅', section: 'Strumenti', badgeKey: 'oggi', badgeRed: true },
   { href: '/voice', label: 'Note Vocali', icon: '🎤', section: null },
 ]
