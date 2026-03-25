@@ -1,9 +1,21 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+let resendClient: Resend | null = null
+
+function getResendClient() {
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error('RESEND_API_KEY is not configured')
+  }
+
+  if (!resendClient) {
+    resendClient = new Resend(process.env.RESEND_API_KEY)
+  }
+
+  return resendClient
+}
 
 export async function sendFollowupEmail(to: string, contactName: string, cardName: string) {
-  return resend.emails.send({
+  return getResendClient().emails.send({
     from: 'SPEAQI CRM <crm@speaqi.it>',
     to,
     subject: `Follow-up: ${cardName}`,
@@ -27,7 +39,7 @@ export async function sendReminderEmail(to: string, calls: Array<{ name: string;
     .map(c => `<li style="margin-bottom:8px"><strong>${c.name}</strong>${c.time ? ` — ${c.time}` : ''}</li>`)
     .join('')
 
-  return resend.emails.send({
+  return getResendClient().emails.send({
     from: 'SPEAQI CRM <crm@speaqi.it>',
     to,
     subject: `📅 Chiamate di oggi — ${new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}`,
@@ -50,7 +62,7 @@ export async function sendReminderEmail(to: string, calls: Array<{ name: string;
 }
 
 export async function sendCustomEmail(to: string, subject: string, html: string) {
-  return resend.emails.send({
+  return getResendClient().emails.send({
     from: 'SPEAQI CRM <crm@speaqi.it>',
     to,
     subject,
