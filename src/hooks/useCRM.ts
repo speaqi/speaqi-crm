@@ -23,7 +23,7 @@ export function useCRM() {
 
   const persist = useCallback(async (newState: CRMState, uid_: string) => {
     const supabase = createClient()
-    await supabase.from('user_state').upsert({
+    const { error } = await supabase.from('user_state').upsert({
       user_id: uid_,
       cards: newState.cards,
       contacts: newState.contacts,
@@ -33,6 +33,7 @@ export function useCRM() {
       call_scheduled: newState.callScheduled,
       updated_at: new Date().toISOString(),
     })
+    if (error) console.error('[CRM persist error]', error)
   }, [])
 
   const loadState = useCallback(async (uid_: string) => {
