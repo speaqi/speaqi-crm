@@ -9,4 +9,4 @@ cmds = ["npm ci --include=dev --legacy-peer-deps"]
 cmds = ["npm run build"]
 
 [start]
-cmd = "HOSTNAME=0.0.0.0 node .next/standalone/server.js"
+cmd = "node railway-start.cjs"

@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "HOSTNAME=0.0.0.0 node .next/standalone/server.js",
+    "startCommand": "node railway-start.cjs",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 60,
     "restartPolicyType": "ON_FAILURE"
