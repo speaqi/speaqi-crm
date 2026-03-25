@@ -1,11 +1,12 @@
 [variables]
 NODE_VERSION = "20"
+NPM_CONFIG_PRODUCTION = "false"
 
 [phases.install]
-cmds = ["npm install --legacy-peer-deps"]
+cmds = ["npm ci --include=dev --legacy-peer-deps"]
 
 [phases.build]
 cmds = ["npm run build"]
 
 [start]
-cmd = "npm start"
+cmd = "HOSTNAME=0.0.0.0 node .next/standalone/server.js"
