@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "speaqi-crm": {
+      "url": "http://localhost:3000/api/mcp",
+      "description": "SPEAQI CRM - gestione contatti, kanban, email"
+    }
+  }
+}
