@@ -1,96 +1,38 @@
 'use client'
 
-import { useState } from 'react'
+import Link from 'next/link'
+import { useMemo, useState } from 'react'
+import { ContactModal } from '@/components/crm/ContactModal'
+import { formatDateTime, priorityBadgeClass, priorityLabel } from '@/lib/data'
 import { useCRMContext } from '../layout'
-import { Modal } from '@/components/ui/Modal'
-import type { Contact } from '@/types'
-
-const CT_CATS = ['Tutti', 'Sindaco', 'Persona', 'Azienda', 'Istituzione', 'Ristorante', 'Media']
-
-const EMPTY_CONTACT: Omit<Contact, '_u'> = {
-  n: '', ref: '', role: '', comune: '', st: 'da-contattare', p: '', cat: 'Persona', notes: '',
-}
-
-function stTag(st: string) {
-  const cls: Record<string, string> = {
-    contattato: 'ctag-contattato',
-    'da-contattare': 'ctag-dacontattare',
-    referenziato: 'ctag-referenziato',
-  }
-  const labels: Record<string, string> = {
-    contattato: 'Contattato',
-    'da-contattare': 'Da Contattare',
-    referenziato: 'Referenziato',
-  }
-  return { cls: cls[st] || '', label: labels[st] || st }
-}
-
-function getBorderClass(c: Contact) {
-  if (c.p === 'Alta') return 'cc-alta'
-  if (c.p === 'Media') return 'cc-media'
-  if (c.p === 'Bassa') return 'cc-bassa'
-  if (c.cat === 'Istituzione') return 'cc-istituzione'
-  if (c.cat === 'Ristorante') return 'cc-ristorante'
-  if (c.cat === 'Sindaco') return 'cc-alta'
-  return ''
-}
+import type { CRMContact } from '@/types'
 
 export default function ContactsPage() {
-  const { contacts, addContact, updateContact, deleteContact, showToast } = useCRMContext()
+  const { contacts, stages, createContact, updateContact, deleteContact, showToast } = useCRMContext()
   const [search, setSearch] = useState('')
-  const [catFilter, setCatFilter] = useState('Tutti')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [sourceFilter, setSourceFilter] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
-  const [editUid, setEditUid] = useState<string | null>(null)
-  const [form, setForm] = useState({ ...EMPTY_CONTACT })
+  const [editingContact, setEditingContact] = useState<CRMContact | null>(null)
 
-  const filtered = contacts.filter(c => {
-    const q = search.toLowerCase()
-    if (q && !c.n.toLowerCase().includes(q)) return false
-    if (catFilter !== 'Tutti' && c.cat !== catFilter) return false
-    return true
-  })
+  const sources = Array.from(new Set(contacts.map((contact) => contact.source).filter(Boolean))).sort()
 
-  const groups: Record<string, Contact[]> = { contattato: [], 'da-contattare': [], referenziato: [] }
-  filtered.forEach(c => { if (groups[c.st]) groups[c.st].push(c) })
-
-  const sectionLabels: Record<string, string> = {
-    contattato: '✅ Contattati',
-    'da-contattare': '📋 Da Contattare',
-    referenziato: '🔗 Referenziati',
-  }
-
-  function openNew() {
-    setEditUid(null)
-    setForm({ ...EMPTY_CONTACT })
-    setModalOpen(true)
-  }
-
-  function openEdit(uid: string) {
-    const c = contacts.find(x => x._u === uid)
-    if (!c) return
-    setEditUid(uid)
-    setForm({ n: c.n, ref: c.ref || '', role: c.role || '', comune: c.comune || '', st: c.st, p: c.p || '', cat: c.cat, notes: c.notes || '' })
-    setModalOpen(true)
-  }
-
-  function handleSave() {
-    if (!form.n.trim()) { alert('Inserisci un nome'); return }
-    if (editUid) {
-      updateContact(editUid, form)
-      showToast('Contatto aggiornato!')
-    } else {
-      addContact(form)
-      showToast('Contatto aggiunto!')
-    }
-    setModalOpen(false)
-  }
-
-  function handleDelete() {
-    if (!editUid || !confirm('Eliminare?')) return
-    deleteContact(editUid)
-    setModalOpen(false)
-    showToast('Eliminato')
-  }
+  const filtered = useMemo(() => {
+    return contacts.filter((contact) => {
+      const query = search.toLowerCase()
+      if (
+        query &&
+        !contact.name.toLowerCase().includes(query) &&
+        !(contact.email || '').toLowerCase().includes(query) &&
+        !(contact.phone || '').toLowerCase().includes(query)
+      ) {
+        return false
+      }
+      if (statusFilter && contact.status !== statusFilter) return false
+      if (sourceFilter && contact.source !== sourceFilter) return false
+      return true
+    })
+  }, [contacts, search, sourceFilter, statusFilter])
 
   return (
     <>
@@ -99,176 +41,95 @@ export default function ContactsPage() {
           <span style={{ color: 'var(--text3)' }}>🔍</span>
           <input
             type="text"
-            placeholder="Cerca contatto…"
+            placeholder="Cerca contatto, email, telefono..."
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={(event) => setSearch(event.target.value)}
           />
         </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {CT_CATS.map(cat => (
-            <div
-              key={cat}
-              className={`filter-chip ${catFilter === cat ? 'active' : ''}`}
-              onClick={() => setCatFilter(cat)}
-            >
-              {cat}
-            </div>
+        <select className="filter-select" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          <option value="">Tutti gli stadi</option>
+          {stages.map((stage) => (
+            <option key={stage.id} value={stage.name}>
+              {stage.name}
+            </option>
           ))}
-        </div>
-        <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={openNew}>
+        </select>
+        <select className="filter-select" value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
+          <option value="">Tutte le origini</option>
+          {sources.map((source) => (
+            <option key={source} value={source || ''}>
+              {source}
+            </option>
+          ))}
+        </select>
+        <button
+          className="btn btn-primary btn-sm"
+          style={{ marginLeft: 'auto' }}
+          onClick={() => {
+            setEditingContact(null)
+            setModalOpen(true)
+          }}
+        >
           ＋ Contatto
         </button>
       </div>
 
       <div className="contacts-content">
-        <div id="contacts-body">
-          {(['contattato', 'da-contattare', 'referenziato'] as const).map(status => {
-            const group = groups[status]
-            if (!group.length) return null
-            return (
-              <div key={status}>
-                <div className="section-header">
-                  {sectionLabels[status]} ({group.length})
-                </div>
-                <div className="contacts-grid">
-                  {group.map(c => {
-                    const tag = stTag(c.st)
-                    return (
-                      <div
-                        key={c._u}
-                        className={`contact-card ${getBorderClass(c)}`}
-                        onClick={() => openEdit(c._u!)}
-                      >
-                        <div className="contact-name">{c.n}</div>
-                        {c.role && <div className="contact-meta">🎭 {c.role}</div>}
-                        {c.comune && <div className="contact-meta">📍 {c.comune}</div>}
-                        {c.ref && <div className="contact-meta">🔗 {c.ref}</div>}
-                        {!c.role && !c.comune && c.cat && (
-                          <div className="contact-meta">📁 {c.cat}</div>
-                        )}
-                        <div className="contact-tags">
-                          <span className={`ctag ${tag.cls}`}>{tag.label}</span>
-                          {c.p && (
-                            <span className={`ctag tag-${c.p.toLowerCase()}`}>{c.p}</span>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
+        <div className="contacts-grid">
+          {filtered.length === 0 ? (
+            <p style={{ color: 'var(--text3)' }}>Nessun contatto trovato.</p>
+          ) : (
+            filtered.map((contact) => (
+              <div key={contact.id} className="contact-card contact-card-rich">
+                <Link href={`/contacts/${contact.id}`} className="contact-card-link">
+                  <div className="contact-name">{contact.name}</div>
+                  <div className="contact-meta">{contact.email || 'Nessuna email'}</div>
+                  <div className="contact-meta">{contact.phone || 'Nessun telefono'}</div>
+                  <div className="contact-meta">Origine: {contact.source || 'manual'}</div>
+                  <div className="contact-meta">Follow-up: {formatDateTime(contact.next_followup_at)}</div>
+                  <div className="contact-tags">
+                    <span className="ctag ctag-contattato">{contact.status}</span>
+                    <span className={`ctag ${priorityBadgeClass(contact.priority)}`}>{priorityLabel(contact.priority)}</span>
+                  </div>
+                </Link>
+                <div className="card-actions-row">
+                  <button className="btn btn-ghost btn-sm" onClick={() => { setEditingContact(contact); setModalOpen(true) }}>
+                    Modifica
+                  </button>
+                  <Link href={`/contacts/${contact.id}`} className="btn btn-primary btn-sm">
+                    Scheda
+                  </Link>
                 </div>
               </div>
-            )
-          })}
-          {filtered.length === 0 && (
-            <p style={{ color: 'var(--text3)', padding: '20px' }}>Nessun contatto trovato.</p>
+            ))
           )}
         </div>
       </div>
 
-      <Modal
+      <ContactModal
         open={modalOpen}
+        title={editingContact ? 'Modifica Contatto' : 'Nuovo Contatto'}
+        stages={stages}
+        initialContact={editingContact}
         onClose={() => setModalOpen(false)}
-        title={editUid ? '✏️ Modifica Contatto' : '＋ Nuovo Contatto'}
-        footer={
-          <>
-            {editUid && (
-              <button className="btn btn-del" onClick={handleDelete}>🗑 Elimina</button>
-            )}
-            <button className="btn btn-ghost" onClick={() => setModalOpen(false)}>Annulla</button>
-            <button className="btn btn-primary" onClick={handleSave}>Salva</button>
-          </>
+        onSave={async (payload) => {
+          if (editingContact) {
+            await updateContact(editingContact.id, payload)
+            showToast('Contatto aggiornato')
+          } else {
+            await createContact(payload)
+            showToast('Contatto creato')
+          }
+        }}
+        onDelete={
+          editingContact
+            ? async () => {
+                await deleteContact(editingContact.id)
+                showToast('Contatto eliminato')
+              }
+            : undefined
         }
-      >
-        <div className="fg">
-          <label className="fl">Nome / Organizzazione *</label>
-          <input
-            className="fi"
-            placeholder="Es. Mario Rossi"
-            value={form.n}
-            onChange={e => setForm(f => ({ ...f, n: e.target.value }))}
-          />
-        </div>
-        <div className="frow">
-          <div className="fg">
-            <label className="fl">Ruolo / Carica</label>
-            <input
-              className="fi"
-              placeholder="Es. Sindaco, CEO..."
-              value={form.role || ''}
-              onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
-            />
-          </div>
-          <div className="fg">
-            <label className="fl">Comune / Città</label>
-            <input
-              className="fi"
-              placeholder="Es. Roma (RM)"
-              value={form.comune || ''}
-              onChange={e => setForm(f => ({ ...f, comune: e.target.value }))}
-            />
-          </div>
-        </div>
-        <div className="frow">
-          <div className="fg">
-            <label className="fl">Riferimento</label>
-            <input
-              className="fi"
-              placeholder="Chi ha fatto il riferimento"
-              value={form.ref || ''}
-              onChange={e => setForm(f => ({ ...f, ref: e.target.value }))}
-            />
-          </div>
-          <div className="fg">
-            <label className="fl">Categoria</label>
-            <select
-              className="fi"
-              value={form.cat}
-              onChange={e => setForm(f => ({ ...f, cat: e.target.value }))}
-            >
-              {['Sindaco', 'Persona', 'Azienda', 'Istituzione', 'Ristorante', 'Media', 'SPEAQI', 'Altro'].map(c => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="frow">
-          <div className="fg">
-            <label className="fl">Stato</label>
-            <select
-              className="fi"
-              value={form.st}
-              onChange={e => setForm(f => ({ ...f, st: e.target.value as Contact['st'] }))}
-            >
-              <option value="da-contattare">Da Contattare</option>
-              <option value="contattato">Contattato</option>
-              <option value="referenziato">Referenziato</option>
-            </select>
-          </div>
-          <div className="fg">
-            <label className="fl">Priorità</label>
-            <select
-              className="fi"
-              value={form.p || ''}
-              onChange={e => setForm(f => ({ ...f, p: e.target.value }))}
-            >
-              <option value="">Nessuna</option>
-              <option value="Alta">Alta</option>
-              <option value="Media">Media</option>
-              <option value="Bassa">Bassa</option>
-            </select>
-          </div>
-        </div>
-        <div className="fg">
-          <label className="fl">Email / Telefono / Note</label>
-          <textarea
-            className="fi"
-            rows={2}
-            style={{ resize: 'vertical' }}
-            value={form.notes || ''}
-            onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-          />
-        </div>
-      </Modal>
+      />
     </>
   )
 }

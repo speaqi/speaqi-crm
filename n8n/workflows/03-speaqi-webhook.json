@@ -1,0 +1,84 @@
+{
+  "name": "SPEAQI Lead Ingestion",
+  "nodes": [
+    {
+      "id": "incoming_webhook",
+      "name": "Incoming Speaqi Lead",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        260,
+        260
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "speaqi-lead",
+        "responseMode": "responseNode"
+      }
+    },
+    {
+      "id": "send_to_crm",
+      "name": "Insert Lead in CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        520,
+        260
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.APP_BASE_URL + '/api/speaqi/leads' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-webhook-secret",
+              "value": "={{ $env.SPEAQI_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}"
+      }
+    },
+    {
+      "id": "respond",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        780,
+        260
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      }
+    }
+  ],
+  "connections": {
+    "Incoming Speaqi Lead": {
+      "main": [
+        [
+          {
+            "node": "Insert Lead in CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Lead in CRM": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

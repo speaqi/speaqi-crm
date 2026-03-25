@@ -1,0 +1,65 @@
+{
+  "name": "SPEAQI Stale Leads",
+  "nodes": [
+    {
+      "id": "cron_stale",
+      "name": "Every Morning",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 2,
+      "position": [
+        260,
+        260
+      ],
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyDay",
+              "hour": 9,
+              "minute": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "call_stale_api",
+      "name": "Fetch Stale Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        520,
+        260
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.APP_BASE_URL + '/api/automation/stale-leads' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-automation-secret",
+              "value": "={{ $env.AUTOMATION_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"stale_days\":5}"
+      }
+    }
+  ],
+  "connections": {
+    "Every Morning": {
+      "main": [
+        [
+          {
+            "node": "Fetch Stale Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

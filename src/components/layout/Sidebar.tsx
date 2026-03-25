@@ -9,6 +9,7 @@ interface SidebarProps {
     contacts: number
     speaqi: number
     oggi: number
+    tasks: number
   }
   isRecording?: boolean
   onQuickRecord?: () => void
@@ -16,18 +17,16 @@ interface SidebarProps {
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: '🏠', section: 'Principale' },
-  { href: '/kanban', label: 'Kanban', icon: '🗂', section: null, badgeKey: 'kanban' },
-  { href: '/contacts', label: 'Tutti i Contatti', icon: '👥', section: 'Contatti', badgeKey: 'contacts' },
-  { href: '/speaqi', label: 'Rete SPEAQI', icon: '⚡', section: null, badgeKey: 'speaqi' },
-  { href: '/projects', label: 'Progetti', icon: '📁', section: 'Contenuti' },
-  { href: '/news', label: 'News', icon: '📰', section: null },
-  { href: '/calendario', label: 'Calendario Chiamate', icon: '📅', section: 'Strumenti', badgeKey: 'oggi', badgeRed: true },
-  { href: '/voice', label: 'Note Vocali', icon: '🎤', section: null },
+  { href: '/kanban', label: 'Pipeline', icon: '🗂', badgeKey: 'kanban' as const },
+  { href: '/contacts', label: 'Contatti', icon: '👥', section: 'CRM', badgeKey: 'contacts' as const },
+  { href: '/attivita', label: 'Attività & Follow-up', icon: '⚙️', badgeKey: 'tasks' as const },
+  { href: '/calendario', label: 'Calendario', icon: '📅', badgeKey: 'oggi' as const, badgeRed: true },
+  { href: '/speaqi', label: 'Lead Speaqi', icon: '⚡', section: 'Origini', badgeKey: 'speaqi' as const },
+  { href: '/voice', label: 'Note Vocali', icon: '🎤' },
 ]
 
 export function Sidebar({ counts, isRecording = false, onQuickRecord }: SidebarProps) {
   const pathname = usePathname()
-
   let currentSection: string | null = null
 
   return (
@@ -36,7 +35,7 @@ export function Sidebar({ counts, isRecording = false, onQuickRecord }: SidebarP
         <div className="logo-mark">⚡</div>
         <div>
           <div className="logo-text">SPEAQI CRM</div>
-          <div className="logo-sub">v2.0</div>
+          <div className="logo-sub">relational</div>
         </div>
       </div>
 
@@ -45,18 +44,12 @@ export function Sidebar({ counts, isRecording = false, onQuickRecord }: SidebarP
           const showSection = item.section && item.section !== currentSection
           if (showSection) currentSection = item.section
 
-          const isActive = pathname === item.href
-          const badgeCount = item.badgeKey ? counts[item.badgeKey as keyof typeof counts] : null
+          const badgeCount = item.badgeKey ? counts[item.badgeKey] : null
 
           return (
             <div key={item.href}>
-              {showSection && (
-                <div className="nav-section">{item.section}</div>
-              )}
-              <Link
-                href={item.href}
-                className={`nav-item ${isActive ? 'active' : ''}`}
-              >
+              {showSection && <div className="nav-section">{item.section}</div>}
+              <Link href={item.href} className={`nav-item ${pathname === item.href ? 'active' : ''}`}>
                 <span className="icon">{item.icon}</span>
                 {item.label}
                 {badgeCount !== null && badgeCount !== undefined && (

@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server'
-import { sendFollowupEmail, sendReminderEmail, sendCustomEmail } from '@/lib/email'
-import { createClient } from '@/lib/supabase'
+import { sendCustomEmail, sendFollowupEmail, sendReminderEmail } from '@/lib/email'
+import { createServiceRoleClient, getBearerToken, createPublicServerClient } from '@/lib/server/supabase'
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const body = await req.json()
+    const body = await request.json()
     const { to, subject, html, type } = body
 
     if (!to) {
@@ -14,11 +14,9 @@ export async function POST(req: NextRequest) {
     let result
 
     if (type === 'followup') {
-      const { contactName, cardName } = body
-      result = await sendFollowupEmail(to, contactName || '', cardName || '')
+      result = await sendFollowupEmail(to, body.contactName || '', body.cardName || '')
     } else if (type === 'reminder') {
-      const { calls } = body
-      result = await sendReminderEmail(to, calls || [])
+      result = await sendReminderEmail(to, body.calls || [])
     } else {
       if (!subject || !html) {
         return Response.json({ error: 'Missing subject or html for custom email' }, { status: 400 })
@@ -26,23 +24,34 @@ export async function POST(req: NextRequest) {
       result = await sendCustomEmail(to, subject, html)
     }
 
-    // Log to Supabase
+    let userId: string | null = null
+    const token = getBearerToken(request)
+    if (token) {
+      const authClient = createPublicServerClient()
+      const {
+        data: { user },
+      } = await authClient.auth.getUser(token)
+      userId = user?.id || null
+    }
+
     try {
-      const supabase = createClient()
-      await supabase.from('email_logs').insert({
+      const admin = createServiceRoleClient()
+      await admin.from('email_logs').insert({
+        user_id: userId,
         to,
         subject: subject || type,
         type: type || 'custom',
         status: 'sent',
-        created_at: new Date().toISOString(),
       })
     } catch {
-      // Non-critical, ignore logging errors
+      // Ignore email log failures.
     }
 
     return Response.json({ success: true, id: (result as { id?: string }).id })
   } catch (error) {
-    console.error('Email error:', error)
-    return Response.json({ error: 'Failed to send email' }, { status: 500 })
+    return Response.json(
+      { error: error instanceof Error ? error.message : 'Failed to send email' },
+      { status: 500 }
+    )
   }
 }

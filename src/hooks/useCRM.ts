@@ -1,270 +1,238 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { apiFetch } from '@/lib/api'
 import { createClient } from '@/lib/supabase'
-import { SEED_CARDS, SEED_CONTACTS, SEED_SPEAQI } from '@/lib/data'
-import type { Card, Contact, SpeaqiContact, VoiceNote, CRMState } from '@/types'
+import type {
+  ActivityInput,
+  ContactDetail,
+  ContactInput,
+  CRMContact,
+  CRMState,
+  PipelineStage,
+  TaskInput,
+  TaskWithContact,
+  VoiceNote,
+} from '@/types'
 
-function uid(prefix: string) {
-  return prefix + Date.now() + '_' + Math.random().toString(36).slice(2, 6)
+const VOICE_NOTES_KEY = 'speaqi_voice_notes_v2'
+
+function readVoiceNotes() {
+  if (typeof window === 'undefined') return []
+
+  try {
+    const raw = window.localStorage.getItem(VOICE_NOTES_KEY)
+    return raw ? (JSON.parse(raw) as VoiceNote[]) : []
+  } catch {
+    return []
+  }
+}
+
+function writeVoiceNotes(notes: VoiceNote[]) {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(VOICE_NOTES_KEY, JSON.stringify(notes))
 }
 
 export function useCRM() {
   const [state, setState] = useState<CRMState>({
-    cards: [],
+    stages: [],
     contacts: [],
-    speaqi: [],
-    vNotes: [],
-    callDone: {},
-    callScheduled: {},
+    tasks: [],
   })
+  const [vNotes, setVNotes] = useState<VoiceNote[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
 
-  const persist = useCallback(async (newState: CRMState, uid_: string) => {
-    const supabase = createClient()
-    const { error } = await supabase.from('user_state').upsert({
-      user_id: uid_,
-      cards: newState.cards,
-      contacts: newState.contacts,
-      speaqi: newState.speaqi,
-      voice_notes: newState.vNotes,
-      call_done: newState.callDone,
-      call_scheduled: newState.callScheduled,
-      updated_at: new Date().toISOString(),
-    })
-    if (error) console.error('[CRM persist error]', error)
-  }, [])
+  const speaqiContacts = useMemo(
+    () => state.contacts.filter((contact) => contact.source === 'speaqi'),
+    [state.contacts]
+  )
 
-  const loadState = useCallback(async (uid_: string) => {
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('user_state')
-      .select('*')
-      .eq('user_id', uid_)
-      .single()
+  const dueTodayCount = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const tomorrow = new Date(today)
+    tomorrow.setDate(tomorrow.getDate() + 1)
 
-    const hasData = data && (data.cards?.length > 0 || data.contacts?.length > 0)
+    return state.tasks.filter((task) => {
+      if (task.status !== 'pending' || !task.due_date) return false
+      const due = new Date(task.due_date)
+      return due >= today && due < tomorrow
+    }).length
+  }, [state.tasks])
 
-    if (hasData) {
-      const loaded: CRMState = {
-        cards: data.cards || [],
-        contacts: data.contacts || [],
-        speaqi: data.speaqi || [],
-        vNotes: data.voice_notes || [],
-        callDone: data.call_done || {},
-        callScheduled: data.call_scheduled || {},
+  const loadAll = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const [stagesResponse, contactsResponse, tasksResponse] = await Promise.all([
+        apiFetch<{ stages: PipelineStage[] }>('/api/pipeline-stages'),
+        apiFetch<{ contacts: CRMContact[] }>('/api/contacts'),
+        apiFetch<{ tasks: TaskWithContact[] }>('/api/tasks?status=pending'),
+      ])
+
+      let contacts = contactsResponse.contacts || []
+      let tasks = tasksResponse.tasks || []
+
+      if (!contacts.length) {
+        await apiFetch<{ migrated_contacts: number; migrated_tasks: number }>('/api/import/legacy', {
+          method: 'POST',
+        })
+
+        const [reloadedContacts, reloadedTasks] = await Promise.all([
+          apiFetch<{ contacts: CRMContact[] }>('/api/contacts'),
+          apiFetch<{ tasks: TaskWithContact[] }>('/api/tasks?status=pending'),
+        ])
+
+        contacts = reloadedContacts.contacts || []
+        tasks = reloadedTasks.tasks || []
       }
-      setState(loaded)
-    } else {
-      // First access: load seed data
-      const newState: CRMState = {
-        cards: SEED_CARDS.map((c, i) => ({ ...c, _u: 'c' + i })),
-        contacts: SEED_CONTACTS.map((c, i) => ({ ...c, _u: 'k' + i })),
-        speaqi: SEED_SPEAQI.map((c, i) => ({ ...c, _u: 's' + i })),
-        vNotes: [],
-        callDone: {},
-        callScheduled: {},
-      }
-      setState(newState)
-      await persist(newState, uid_)
+
+      setState({
+        stages: stagesResponse.stages || [],
+        contacts,
+        tasks,
+      })
+      setVNotes(readVoiceNotes())
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Impossibile caricare il CRM')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-  }, [persist])
+  }, [])
 
   useEffect(() => {
     const supabase = createClient()
+    let mounted = true
+
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return
       if (session?.user) {
         setUserId(session.user.id)
-        loadState(session.user.id)
+        loadAll()
       } else {
         setLoading(false)
       }
     })
-  }, [loadState])
 
-  const updateState = useCallback(async (updater: (prev: CRMState) => CRMState) => {
-    setState(prev => {
-      const next = updater(prev)
-      if (userId) persist(next, userId)
-      return next
-    })
-  }, [userId, persist])
+    return () => {
+      mounted = false
+    }
+  }, [loadAll])
 
-  // ── CARDS ──────────────────────────────────────────
+  const createContact = useCallback(
+    async (payload: ContactInput) => {
+      const response = await apiFetch<{ contact: CRMContact }>('/api/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      await loadAll()
+      return response.contact
+    },
+    [loadAll]
+  )
 
-  const addCard = useCallback((card: Omit<Card, '_u'>) => {
-    updateState(prev => ({
-      ...prev,
-      cards: [...prev.cards, { ...card, _u: uid('c') }],
-    }))
-  }, [updateState])
+  const updateContact = useCallback(
+    async (id: string, payload: Partial<ContactInput>) => {
+      const response = await apiFetch<{ contact: CRMContact }>(`/api/contacts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      await loadAll()
+      return response.contact
+    },
+    [loadAll]
+  )
 
-  const updateCard = useCallback((_u: string, updates: Partial<Card>) => {
-    updateState(prev => ({
-      ...prev,
-      cards: prev.cards.map(c => c._u === _u ? { ...c, ...updates } : c),
-    }))
-  }, [updateState])
+  const deleteContact = useCallback(
+    async (id: string) => {
+      await apiFetch<{ success: boolean }>(`/api/contacts/${id}`, {
+        method: 'DELETE',
+      })
+      await loadAll()
+    },
+    [loadAll]
+  )
 
-  const deleteCard = useCallback((_u: string) => {
-    updateState(prev => ({
-      ...prev,
-      cards: prev.cards.filter(c => c._u !== _u),
-    }))
-  }, [updateState])
+  const addActivity = useCallback(
+    async (contactId: string, payload: ActivityInput) => {
+      const response = await apiFetch(`/api/contacts/${contactId}/activities`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      await loadAll()
+      return response
+    },
+    [loadAll]
+  )
 
-  const moveCard = useCallback((_u: string, newStatus: string) => {
-    updateState(prev => ({
-      ...prev,
-      cards: prev.cards.map(c => c._u === _u ? { ...c, s: newStatus } : c),
-    }))
-  }, [updateState])
+  const addTask = useCallback(
+    async (contactId: string, payload: TaskInput) => {
+      const response = await apiFetch(`/api/contacts/${contactId}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      await loadAll()
+      return response
+    },
+    [loadAll]
+  )
 
-  // ── CONTACTS ───────────────────────────────────────
+  const completeTask = useCallback(
+    async (taskId: string) => {
+      await apiFetch(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'done' }),
+      })
+      await loadAll()
+    },
+    [loadAll]
+  )
 
-  const addContact = useCallback((contact: Omit<Contact, '_u'>) => {
-    updateState(prev => ({
-      ...prev,
-      contacts: [...prev.contacts, { ...contact, _u: uid('k') }],
-    }))
-  }, [updateState])
-
-  const updateContact = useCallback((_u: string, updates: Partial<Contact>) => {
-    updateState(prev => ({
-      ...prev,
-      contacts: prev.contacts.map(c => c._u === _u ? { ...c, ...updates } : c),
-    }))
-  }, [updateState])
-
-  const deleteContact = useCallback((_u: string) => {
-    updateState(prev => ({
-      ...prev,
-      contacts: prev.contacts.filter(c => c._u !== _u),
-    }))
-  }, [updateState])
-
-  // ── SPEAQI ─────────────────────────────────────────
-
-  const addSpeaqi = useCallback((contact: Omit<SpeaqiContact, '_u'>) => {
-    updateState(prev => ({
-      ...prev,
-      speaqi: [...prev.speaqi, { ...contact, _u: uid('s') }],
-    }))
-  }, [updateState])
-
-  const updateSpeaqi = useCallback((_u: string, updates: Partial<SpeaqiContact>) => {
-    updateState(prev => ({
-      ...prev,
-      speaqi: prev.speaqi.map(c => c._u === _u ? { ...c, ...updates } : c),
-    }))
-  }, [updateState])
-
-  const deleteSpeaqi = useCallback((_u: string) => {
-    updateState(prev => ({
-      ...prev,
-      speaqi: prev.speaqi.filter(c => c._u !== _u),
-    }))
-  }, [updateState])
-
-  // ── VOICE NOTES ────────────────────────────────────
+  const loadContactDetail = useCallback(async (id: string) => {
+    return apiFetch<ContactDetail>(`/api/contacts/${id}`)
+  }, [])
 
   const addVoiceNote = useCallback((note: Omit<VoiceNote, '_u'>) => {
-    updateState(prev => ({
-      ...prev,
-      vNotes: [{ ...note, _u: uid('v') }, ...prev.vNotes],
-    }))
-  }, [updateState])
-
-  const deleteVoiceNote = useCallback((_u: string) => {
-    updateState(prev => ({
-      ...prev,
-      vNotes: prev.vNotes.filter(v => v._u !== _u),
-    }))
-  }, [updateState])
-
-  // ── CALLS ─────────────────────────────────────────
-
-  const toggleCallDone = useCallback((cardUid: string, dateStr: string) => {
-    updateState(prev => {
-      const key = cardUid + '_' + dateStr
-      const next = { ...prev.callDone }
-      if (next[key]) delete next[key]
-      else next[key] = true
-      return { ...prev, callDone: next }
+    setVNotes((previous) => {
+      const next = [{ ...note, _u: `v${Date.now()}` }, ...previous]
+      writeVoiceNotes(next)
+      return next
     })
-  }, [updateState])
+  }, [])
 
-  const scheduleCall = useCallback((cardUid: string, dateStr: string) => {
-    updateState(prev => ({
-      ...prev,
-      callScheduled: { ...prev.callScheduled, [cardUid]: dateStr },
-    }))
-  }, [updateState])
-
-  const unscheduleCall = useCallback((cardUid: string) => {
-    updateState(prev => {
-      const next = { ...prev.callScheduled }
-      delete next[cardUid]
-      return { ...prev, callScheduled: next }
+  const deleteVoiceNote = useCallback((uid: string) => {
+    setVNotes((previous) => {
+      const next = previous.filter((note) => note._u !== uid)
+      writeVoiceNotes(next)
+      return next
     })
-  }, [updateState])
-
-  const scheduleAll = useCallback(() => {
-    const callCards = state.cards.filter(c => c.s === 'Da Richiamare' || c.s === 'Da fare')
-    const unscheduled = callCards.filter(c => !state.callScheduled[c._u!])
-    if (!unscheduled.length) return 0
-
-    const sorted = [...unscheduled].sort((a, b) => {
-      const po: Record<string, number> = { Alta: 0, Media: 1, '': 2, Bassa: 3 }
-      return (po[a.p || ''] ?? 2) - (po[b.p || ''] ?? 2)
-    })
-
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    let day = new Date(today)
-    const dayCount: Record<string, number> = {}
-    const newScheduled = { ...state.callScheduled }
-    let i = 0
-
-    while (i < sorted.length) {
-      const dk = day.toISOString().split('T')[0]
-      const dow = day.getDay()
-      if (dow === 0 || dow === 6) { day.setDate(day.getDate() + 1); continue }
-      const existing = callCards.filter(c => newScheduled[c._u!] === dk).length
-      const used = (dayCount[dk] || 0) + existing
-      if (used < 5) {
-        newScheduled[sorted[i]._u!] = dk
-        dayCount[dk] = (dayCount[dk] || 0) + 1
-        i++
-      } else { day.setDate(day.getDate() + 1) }
-    }
-
-    updateState(prev => ({ ...prev, callScheduled: newScheduled }))
-    return sorted.length
-  }, [state, updateState])
+  }, [])
 
   return {
     ...state,
+    speaqiContacts,
+    dueTodayCount,
+    vNotes,
     loading,
+    error,
     userId,
-    addCard,
-    updateCard,
-    deleteCard,
-    moveCard,
-    addContact,
+    refresh: loadAll,
+    createContact,
     updateContact,
     deleteContact,
-    addSpeaqi,
-    updateSpeaqi,
-    deleteSpeaqi,
+    addActivity,
+    addTask,
+    completeTask,
+    loadContactDetail,
     addVoiceNote,
     deleteVoiceNote,
-    toggleCallDone,
-    scheduleCall,
-    unscheduleCall,
-    scheduleAll,
-    setState,
   }
 }

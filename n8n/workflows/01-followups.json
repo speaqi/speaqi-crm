@@ -1,0 +1,65 @@
+{
+  "name": "SPEAQI Followups",
+  "nodes": [
+    {
+      "id": "cron_followups",
+      "name": "Every 10 Minutes",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 2,
+      "position": [
+        260,
+        260
+      ],
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 10,
+              "unit": "minutes"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "call_followups_api",
+      "name": "Run Followup Automation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        520,
+        260
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.APP_BASE_URL + '/api/automation/followups' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-automation-secret",
+              "value": "={{ $env.AUTOMATION_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"email\":\"{{$env.REMINDER_EMAIL}}\"}"
+      }
+    }
+  ],
+  "connections": {
+    "Every 10 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Run Followup Automation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

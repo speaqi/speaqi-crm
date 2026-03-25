@@ -1,170 +1,120 @@
-import type { KanbanColumn, Card, Contact, SpeaqiContact } from '@/types'
+import type { ContactInput, PipelineStage } from '@/types'
 
-export const COLS: KanbanColumn[] = [
-  { id: 'Da fare',         label: 'Da Fare',         color: '#8b5cf6', e: '📋' },
-  { id: 'Da Richiamare',   label: 'Da Richiamare',   color: '#f59e0b', e: '📞' },
-  { id: 'In Attesa',       label: 'In Attesa',       color: '#3b82f6', e: '⏳' },
-  { id: 'In corso',        label: 'In Corso',        color: '#10b981', e: '🔄' },
-  { id: 'Revisione',       label: 'Revisione',       color: '#6366f1', e: '🔍' },
-  { id: 'Completato',      label: 'Completato',      color: '#059669', e: '✅' },
-  { id: 'Non Interessato', label: 'Non Interessato', color: '#6b7280', e: '❌' },
-  { id: 'Perso',           label: 'Perso',           color: '#ef4444', e: '💔' },
+export const DEFAULT_PIPELINE_STAGES: Array<Omit<PipelineStage, 'id'>> = [
+  { name: 'New', order: 0, color: '#3b82f6', system_key: 'new' },
+  { name: 'Contacted', order: 1, color: '#f59e0b', system_key: 'contacted' },
+  { name: 'Interested', order: 2, color: '#10b981', system_key: 'interested' },
+  { name: 'Call booked', order: 3, color: '#7c3aed', system_key: 'call_booked' },
+  { name: 'Closed', order: 4, color: '#059669', system_key: 'closed' },
 ]
 
-export const SEED_CARDS: Card[] = [
-  { id: '1',   n: 'MARCO MARSILI',                               s: 'Completato',      p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '',    n: 'FULL HEADS',                                  s: 'Completato',      p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '21',  n: 'STUDIO CROMA',                               s: 'Revisione',       p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '3',   n: 'ICE – Santori',                              s: 'Da Richiamare',   p: 'Alta',  r: 'Roberto Santori',            d: '2026-03-20', $: '',      note: '' },
-  { id: '4',   n: 'GENOVA',                                     s: 'In Attesa',       p: 'Alta',  r: 'Crovetto',                   d: '',           $: '',      note: '' },
-  { id: '5',   n: 'WE MAKE FUTURE',                             s: 'Da Richiamare',   p: '',      r: 'Cosimano Lombardo',          d: '',           $: '',      note: '' },
-  { id: '6',   n: 'GIACOMO SILVESTRI',                          s: 'Da Richiamare',   p: 'Alta',  r: '',                           d: '',           $: '',      note: '' },
-  { id: '7',   n: 'Roberto Pagliara – Museo di Parma',          s: 'Da Richiamare',   p: 'Alta',  r: '',                           d: '',           $: '',      note: '' },
-  { id: '8',   n: 'JustMo',                                     s: 'Da Richiamare',   p: '',      r: 'Nella Rescigno',             d: '',           $: '',      note: '' },
-  { id: '9',   n: 'La Paranza',                                 s: 'Da Richiamare',   p: '',      r: 'Gianni Maraviglia',          d: '',           $: '',      note: '' },
-  { id: '10',  n: 'Comune di Roma',                             s: 'Da Richiamare',   p: 'Alta',  r: 'Antonella Melito',           d: '',           $: '',      note: '' },
-  { id: '11',  n: 'BRIDGESTONE',                                s: 'In Attesa',       p: 'Media', r: 'Riccardo Ugolini',           d: '2026-03-18', $: '55000', note: 'Sequenza email' },
-  { id: '12',  n: 'Zambon',                                     s: 'In Attesa',       p: '',      r: '',                           d: '',           $: '5845',  note: '' },
-  { id: '13',  n: 'Kaywa – Confindustria',                      s: 'In corso',        p: 'Alta',  r: '',                           d: '',           $: '169',   note: '' },
-  { id: '14',  n: 'FEDERAZIONE FARE',                           s: 'In Attesa',       p: '',      r: 'Cinzia – Elia',              d: '',           $: '',      note: '' },
-  { id: '15',  n: 'Challenge Network – NEW',                    s: 'In Attesa',       p: 'Media', r: 'Roberto Marinucci',          d: '',           $: '55000', note: '' },
-  { id: '16',  n: 'Challenge Network – OLD',                    s: 'In Attesa',       p: '',      r: '',                           d: '',           $: '77000', note: '' },
-  { id: '17',  n: 'Challenge Network – Avatar',                 s: 'Da fare',         p: '',      r: '',                           d: '',           $: '23000', note: '' },
-  { id: '18',  n: "Camillo D'Alessandro – DALIBRà",             s: 'In Attesa',       p: '',      r: "Camillo D'Alessandro",       d: '',           $: '6000',  note: '' },
-  { id: '19',  n: 'Segreteria Made in Italy',                   s: 'Completato',      p: '',      r: 'Claudia Caramelli',          d: '',           $: '1704',  note: '' },
-  { id: '20',  n: 'Purgatorio Ad Arco',                         s: 'In corso',        p: 'Alta',  r: 'Vittoria Vaino',             d: '',           $: '1200',  note: '' },
-  { id: '22',  n: 'Peppe Guida',                                s: 'In Attesa',       p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '23',  n: 'Calabritto28',                               s: 'In Attesa',       p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '24',  n: 'La Tuja',                                    s: 'In Attesa',       p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '25',  n: 'Adolfo Colagiovanni',                        s: 'In Attesa',       p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '26',  n: 'Unicampus',                                  s: 'In Attesa',       p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '27',  n: 'NAPOLI TOURS',                               s: 'In Attesa',       p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '28',  n: 'MARINELLA',                                  s: 'Perso',           p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '29',  n: 'IL Principe',                                s: 'Da Richiamare',   p: '',      r: 'Marco Carlì',                d: '',           $: '',      note: '' },
-  { id: '30',  n: 'Regione Emilia',                             s: 'Da Richiamare',   p: '',      r: 'Francesca',                  d: '',           $: '',      note: '' },
-  { id: '31',  n: 'Il Re della Pasta',                          s: 'Da Richiamare',   p: '',      r: 'Valentina Canfora',          d: '',           $: '',      note: '' },
-  { id: '32',  n: 'RDS',                                        s: 'Da Richiamare',   p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '33',  n: 'Leonardo Costagliola',                       s: 'In Attesa',       p: 'Alta',  r: '',                           d: '',           $: '',      note: '' },
-  { id: '34',  n: 'ChocoHotel',                                 s: 'Da Richiamare',   p: '',      r: 'Sandra',                     d: '',           $: '',      note: '' },
-  { id: '35',  n: 'SNAV S.p.A.',                                s: 'In Attesa',       p: 'Alta',  r: 'Rosario Piscitelli',         d: '',           $: '',      note: '' },
-  { id: '36',  n: 'Skylab Studios',                             s: 'Da Richiamare',   p: '',      r: 'Leonardo Tosoni',            d: '',           $: '',      note: '' },
-  { id: '37',  n: 'Destinazione Cioccolato Srl SB',             s: 'Da Richiamare',   p: '',      r: 'Andrea Solinas',             d: '',           $: '',      note: '' },
-  { id: '38',  n: 'Iessi Ravello Tours',                        s: 'Da Richiamare',   p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '39',  n: 'Federalberghi Costa del Vesuvio',            s: 'In Attesa',       p: 'Alta',  r: 'Viviana / Maria Martinez',   d: '',           $: '',      note: '' },
-  { id: '40',  n: 'Torre Fiore Hotel Masseria',                 s: 'Da Richiamare',   p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '41',  n: 'Hotel Cinquentenario & Conference',          s: 'Da Richiamare',   p: '',      r: 'Paulo Reis',                 d: '',           $: '',      note: '' },
-  { id: '42',  n: 'Itinera Turismo – I Viaggi di Rodrigo',      s: 'Da Richiamare',   p: '',      r: 'Rodrigo Vaz de Carvalho',    d: '',           $: '',      note: '' },
-  { id: '43',  n: 'Grimaldi Lines',                             s: 'Da Richiamare',   p: '',      r: 'Simona De Stefano',          d: '',           $: '',      note: '' },
-  { id: '44',  n: 'Campi Flegrei Active',                       s: 'Da Richiamare',   p: '',      r: 'Giulio Gambardella',         d: '',           $: '',      note: '' },
-  { id: '46',  n: "Luca D'ambra",                               s: 'Da Richiamare',   p: 'Alta',  r: '',                           d: '',           $: '',      note: '' },
-  { id: '47',  n: 'Alessandro Manna',                           s: 'In Attesa',       p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '48',  n: 'Ugo Chirico Azero',                          s: 'Da Richiamare',   p: 'Alta',  r: '',                           d: '',           $: '',      note: '' },
-  { id: '49',  n: 'Luigi di Martino Regione',                   s: 'Da Richiamare',   p: 'Alta',  r: '',                           d: '',           $: '',      note: '' },
-  { id: '50',  n: 'Giovanni Sea La Manna Crotone',              s: 'Da Richiamare',   p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '51',  n: 'Amatruda – Fondo Cultura Calabria',          s: 'Da Richiamare',   p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '52',  n: 'Comune di Cupello',                          s: 'Da Richiamare',   p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '54',  n: 'Alex Marinescu – PiazzaVillage',             s: 'Da Richiamare',   p: 'Alta',  r: '',                           d: '',           $: '',      note: '' },
-  { id: '55',  n: 'Regione Toscana – Federica / Angelo Muoio',  s: 'Da Richiamare',   p: '',      r: '',                           d: '',           $: '',      note: 'promozione@toscanapromozione.it' },
-  { id: '57',  n: 'Turismo Anacapri',                           s: 'Da Richiamare',   p: '',      r: '',                           d: '',           $: '',      note: 'schiamo@comunedianacapri.it' },
-  { id: '59',  n: 'Anita Carmonini – Ass. Turismo VDA',         s: 'Da Richiamare',   p: '',      r: 'Anita Carmonini',            d: '',           $: '',      note: 'a.carmonini@regione.vda.it' },
-  { id: '61',  n: 'Miro Scariot',                               s: 'Da Richiamare',   p: 'Alta',  r: '',                           d: '',           $: '',      note: '' },
-  { id: '62',  n: 'Marco Zuppeetta',                            s: 'Da Richiamare',   p: 'Alta',  r: '',                           d: '',           $: '',      note: '' },
-  { id: '63',  n: 'Mario Di Morra',                             s: 'Da Richiamare',   p: 'Alta',  r: '',                           d: '',           $: '',      note: '' },
-  { id: '64',  n: 'Ristorazione Bottone',                       s: 'Da Richiamare',   p: 'Alta',  r: '',                           d: '',           $: '',      note: '' },
-  { id: '65',  n: 'SantaChiara',                                s: 'Da Richiamare',   p: '',      r: 'Giuseppe Autorino',          d: '',           $: '',      note: '' },
-  { id: '67',  n: 'Alfa21',                                     s: 'Da fare',         p: 'Bassa', r: 'Gregorio Mungari Cotruzzolà', d: '',          $: '',      note: '' },
-  { id: '68',  n: 'Leroy Merlin Italia',                        s: 'Da Richiamare',   p: '',      r: 'Agostino Pocobelli',         d: '',           $: '',      note: '' },
-  { id: '69',  n: 'Monopoly Edizioni Custom (A)',               s: 'Da fare',         p: 'Bassa', r: 'Antonello',                  d: '',           $: '',      note: '' },
-  { id: '70',  n: 'Monopoly Edizioni Custom (B)',               s: 'Da fare',         p: 'Bassa', r: 'Bruno',                      d: '',           $: '',      note: '' },
-  { id: '71',  n: 'Volotea',                                    s: 'Da Richiamare',   p: '',      r: 'Valeria Rebasti',            d: '',           $: '',      note: '' },
-  { id: '72',  n: 'Federalberghi Isole Minori',                 s: 'Da Richiamare',   p: '',      r: 'Ermando Mennella',           d: '',           $: '',      note: '' },
-  { id: '73',  n: 'Il Re della Pasta (2)',                      s: 'Da Richiamare',   p: '',      r: 'Valentina Carfora',          d: '',           $: '',      note: '' },
-  { id: '74',  n: 'Regione Lombardia',                          s: 'Da Richiamare',   p: '',      r: 'Federica Dato',              d: '',           $: '',      note: '' },
-  { id: '75',  n: 'Sky Italia',                                 s: 'Da Richiamare',   p: '',      r: 'Massimo Airaghi',            d: '',           $: '',      note: '' },
-  { id: '76',  n: 'Grand Hotel Santa Lucia',                    s: 'Da Richiamare',   p: '',      r: 'Alba Trudi',                 d: '',           $: '',      note: '' },
-  { id: '77',  n: 'Comune di Napoli',                           s: 'Da Richiamare',   p: '',      r: 'Antonio Caiazzo',            d: '',           $: '',      note: '' },
-  { id: '78',  n: 'Vesuvian Holidays',                          s: 'Non Interessato', p: '',      r: 'Marco Panichi',              d: '',           $: '',      note: '' },
-  { id: '79',  n: 'CHOCO HOTEL',                                s: 'In Attesa',       p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '81',  n: 'SNAV',                                       s: 'In Attesa',       p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '83',  n: 'Federalberghi Ischia',                       s: 'In Attesa',       p: '',      r: "Luca D'ambra",               d: '',           $: '',      note: '' },
-  { id: '84',  n: 'Federalberghi Costa del Vesuvio (2)',        s: 'In Attesa',       p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '85',  n: 'Federalberghi Campi Flegrei',                s: 'In Attesa',       p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '86',  n: 'Regione Lombardia (2)',                      s: 'In Attesa',       p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '87',  n: 'Regione VDA',                                s: 'Da Richiamare',   p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '90',  n: 'Unioncamere',                                s: 'Da Richiamare',   p: '',      r: 'Luca Lanza',                 d: '',           $: '',      note: '' },
-  { id: '97',  n: 'SNAV (2)',                                   s: 'Da Richiamare',   p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '103', n: 'Luca Boriello',                              s: 'Da Richiamare',   p: '',      r: '',                           d: '',           $: '',      note: '' },
-  { id: '104', n: 'SITI REALI',                                 s: 'Da Richiamare',   p: '',      r: 'Alessandro Manna',           d: '',           $: '',      note: '' },
+export const SOURCE_OPTIONS = ['manual', 'speaqi', 'evento', 'import', 'legacy-kanban']
+
+export const ACTIVITY_TYPES = ['call', 'email', 'msg', 'note']
+
+export const TASK_TYPES = ['follow-up', 'call', 'email']
+
+export const PRIORITY_OPTIONS = [
+  { value: 0, label: 'Nessuna' },
+  { value: 1, label: 'Bassa' },
+  { value: 2, label: 'Media' },
+  { value: 3, label: 'Alta' },
 ]
 
-export const SEED_CONTACTS: Contact[] = [
-  { n: 'LECIZIO',               ref: 'LECIZIO',              role: '',                comune: '',                     st: 'contattato',   p: '',     cat: 'Azienda' },
-  { n: 'Josi Della Ragione',    ref: '',                     role: '',                comune: '',                     st: 'referenziato', p: '',     cat: 'Persona' },
-  { n: 'Rosanna Mazzia',        ref: 'calabrialuxuryvillas', role: '',                comune: '',                     st: 'contattato',   p: 'Alta', cat: 'Persona' },
-  { n: 'Pierluigi Oddi',        ref: 'Alessio Matrone',      role: '',                comune: '',                     st: 'contattato',   p: 'Alta', cat: 'Persona' },
-  { n: 'Giovanni MastroGiovanni', ref: '',                   role: 'Sindaco',         comune: 'Scanno (AQ)',          st: 'contattato',   p: 'Alta', cat: 'Sindaco' },
-  { n: 'Tommaso Naclerio',      ref: '',                     role: 'Sindaco',         comune: 'Agerola (NA)',         st: 'contattato',   p: 'Alta', cat: 'Sindaco' },
-  { n: 'Catia Benarrivato',     ref: 'Enrico Franza',        role: 'Sindaca',         comune: 'Arielli (CH)',         st: 'contattato',   p: 'Alta', cat: 'Sindaco' },
-  { n: 'Marco Pisanu',          ref: 'Fernando Gatta',       role: 'Sindaco',         comune: 'Siddi (SU)',           st: 'contattato',   p: 'Alta', cat: 'Sindaco' },
-  { n: 'Gianluca Ugolini',      ref: '',                     role: 'Sindaco',         comune: 'Coriano (RN)',         st: 'contattato',   p: 'Alta', cat: 'Sindaco' },
-  { n: 'Franco Capponi',        ref: '',                     role: 'Sindaco',         comune: 'Treia (MC)',           st: 'contattato',   p: 'Alta', cat: 'Sindaco' },
-  { n: 'Marco Andriano',        ref: 'VARAZZE',              role: 'Sindaco',         comune: 'Roddino (CN)',         st: 'contattato',   p: 'Alta', cat: 'Sindaco' },
-  { n: 'Nicola Conte',          ref: 'Giusy Colantoni',      role: 'Sindaco',         comune: 'Missanello (PZ)',      st: 'referenziato', p: 'Alta', cat: 'Sindaco' },
-  { n: 'Enrico Franza',         ref: 'Francesco Italia',     role: 'Sindaco',         comune: 'Ariano Irpino (AV)',   st: 'contattato',   p: 'Alta', cat: 'Sindaco' },
-  { n: 'Fernando Gatta',        ref: '',                     role: 'Sindaco',         comune: 'Villalago (AQ)',       st: 'contattato',   p: 'Alta', cat: 'Sindaco' },
-  { n: 'Stefano Pisani',        ref: 'Pecoraro Scanio',      role: 'Sindaco',         comune: 'Pollica (SA)',         st: 'referenziato', p: 'Alta', cat: 'Sindaco' },
-  { n: 'Giusy Colantoni',       ref: 'Marco Pisanu',         role: 'Sindaca',         comune: 'Villetta Barrea (AQ)', st: 'contattato',   p: 'Alta', cat: 'Sindaco' },
-  { n: 'Pietro Apolito',        ref: '',                     role: 'Sindaco',         comune: 'Perito (SA)',          st: 'contattato',   p: 'Alta', cat: 'Sindaco' },
-  { n: 'Filippo Sinisgalli',    ref: 'Tommaso Naclerio',     role: 'Ex Sindaco',      comune: '',                     st: 'referenziato', p: '',     cat: 'Sindaco' },
-  { n: 'Lorenzo Berardinetti',  ref: "Umberto D'Oriano",     role: 'Sindaco – Uncem Abruzzo', comune: 'Sante Marie (AQ)', st: 'contattato', p: 'Alta', cat: 'Sindaco' },
-  { n: 'Mario Cicero',          ref: 'Olga Kovaleva',        role: 'Sindaco',         comune: 'Castelbuono (PA)',     st: 'contattato',   p: 'Alta', cat: 'Sindaco' },
-  { n: 'Francesco Italia',      ref: '',                     role: 'Sindaco',         comune: 'Siracusa (SR)',        st: 'da-contattare', p: 'Alta', cat: 'Sindaco' },
-  { n: 'Gerlando Piparo',       ref: '',                     role: 'Assessore',       comune: 'Agrigento (AG)',       st: 'da-contattare', p: '',    cat: 'Sindaco' },
-  { n: 'Marialuisa Forte',      ref: '',                     role: 'Sindaca',         comune: 'Campobasso (CB)',      st: 'da-contattare', p: 'Alta', cat: 'Sindaco' },
-  { n: 'Osteria Francescana',   ref: 'Giuseppe Autorino',    role: '',                comune: 'Modena',               st: 'contattato',   p: 'Alta', cat: 'Ristorante' },
-  { n: 'La Pergola',            ref: '',                     role: '',                comune: 'Roma',                 st: 'da-contattare', p: 'Alta', cat: 'Ristorante' },
-  { n: 'Enrico Bartolini al Mudec', ref: '',                 role: '',                comune: 'Milano',               st: 'da-contattare', p: '',    cat: 'Ristorante' },
-  { n: 'Enoteca Pinchiorri',    ref: '',                     role: '',                comune: 'Firenze',              st: 'da-contattare', p: '',    cat: 'Ristorante' },
-  { n: 'Casa Perbellini',       ref: '',                     role: '',                comune: 'Verona',               st: 'da-contattare', p: '',    cat: 'Ristorante' },
-  { n: '12 Apostoli',           ref: '',                     role: '',                comune: 'Verona',               st: 'da-contattare', p: '',    cat: 'Ristorante' },
-  { n: 'Uliassi',               ref: '',                     role: '',                comune: 'Senigallia (AN)',       st: 'da-contattare', p: '',    cat: 'Ristorante' },
-  { n: 'Reale',                 ref: '',                     role: '',                comune: 'Castel di Sangro (AQ)', st: 'da-contattare', p: '',   cat: 'Ristorante' },
-  { n: 'Da Vittorio',           ref: '',                     role: '',                comune: 'Brusaporto (BG)',       st: 'da-contattare', p: '',   cat: 'Ristorante' },
-  { n: 'Norbert Niederkofler',  ref: '',                     role: '',                comune: 'Val Badia (BZ)',        st: 'da-contattare', p: '',   cat: 'Ristorante' },
-  { n: 'Piazza Duomo',          ref: '',                     role: '',                comune: 'Alba (CN)',             st: 'da-contattare', p: '',   cat: 'Ristorante' },
-  { n: 'Dal Pescatore',         ref: '',                     role: '',                comune: 'Runate (MN)',           st: 'da-contattare', p: '',   cat: 'Ristorante' },
-  { n: 'Quattro Passi',         ref: '',                     role: '',                comune: 'Nerano (NA)',           st: 'da-contattare', p: '',   cat: 'Ristorante' },
-  { n: 'Villa Crespi',          ref: '',                     role: '',                comune: 'Orta San Giulio (NO)',  st: 'da-contattare', p: '',   cat: 'Ristorante' },
-  { n: 'Le Calandre',           ref: '',                     role: '',                comune: 'Sarmeola di Rubano (PD)', st: 'da-contattare', p: '', cat: 'Ristorante' },
-]
+export const EMPTY_CONTACT_INPUT: ContactInput = {
+  name: '',
+  email: '',
+  phone: '',
+  status: 'New',
+  source: 'manual',
+  priority: 0,
+  responsible: '',
+  value: null,
+  note: '',
+  next_followup_at: '',
+}
 
-export const SEED_SPEAQI: SpeaqiContact[] = [
-  { n: 'MARINELLA',                        role: '',                             cat: 'Ristorante',  st: 'contattato',    p: 'Alta', note: '' },
-  { n: 'Antonella Melito',                 role: '',                             cat: 'Persona',     st: 'contattato',    p: '',     note: '' },
-  { n: 'Kaywa',                            role: '',                             cat: 'Azienda',     st: 'contattato',    p: '',     note: '' },
-  { n: 'Sire Ricevimenti',                 role: '',                             cat: 'Azienda',     st: 'contattato',    p: '',     note: '' },
-  { n: 'Sergio Nicodemo',                  role: '',                             cat: 'Persona',     st: 'contattato',    p: '',     note: '' },
-  { n: 'Gaetano Manfredi',                 role: '',                             cat: 'Persona',     st: 'contattato',    p: '',     note: '' },
-  { n: 'Alessandra Clemente',              role: '',                             cat: 'Persona',     st: 'contattato',    p: '',     note: '' },
-  { n: 'Luigi Carbone',                    role: '',                             cat: 'Persona',     st: 'contattato',    p: '',     note: '' },
-  { n: 'Gerardo De Sio',                   role: '',                             cat: 'Persona',     st: 'contattato',    p: '',     note: '' },
-  { n: 'Francesca AMirante',               role: '',                             cat: 'Persona',     st: 'contattato',    p: '',     note: '' },
-  { n: 'ISNART',                           role: 'FONDAMENTALE',                 cat: 'Istituzione', st: 'da-contattare', p: 'Alta', note: '' },
-  { n: 'Gianni Ciccia',                    role: 'Professore hospitality f2',    cat: 'Persona',     st: 'contattato',    p: 'Alta', note: '' },
-  { n: 'FONDAZIONE SYMBOLA',               role: 'Roberto di Vincenzo',          cat: 'Istituzione', st: 'da-contattare', p: 'Alta', note: '' },
-  { n: 'GAL MOLISE',                       role: 'Adolfo Colagiovanni',          cat: 'Istituzione', st: 'da-contattare', p: '',     note: '' },
-  { n: "BORGHI AUTENTICI D'ITALIA",        role: '',                             cat: 'Istituzione', st: 'da-contattare', p: 'Alta', note: '' },
-  { n: 'CArsa – Touring Club Italiano',    role: 'Gianmauro Zurbo',              cat: 'Istituzione', st: 'da-contattare', p: 'Alta', note: '' },
-  { n: 'Città del Vino',                   role: 'Angelo Radica',                cat: 'Istituzione', st: 'da-contattare', p: '',     note: '' },
-  { n: 'Castrocielo',                      role: '',                             cat: 'Comune',      st: 'da-contattare', p: '',     note: '' },
-  { n: 'Campobasso – Sindaca',             role: '',                             cat: 'Comune',      st: 'da-contattare', p: '',     note: '' },
-  { n: 'Rachele di Benedetto',             role: 'KPMG',                         cat: 'Persona',     st: 'da-contattare', p: '',     note: '' },
-  { n: 'Caterina De Martino',              role: 'KPMG',                         cat: 'Persona',     st: 'da-contattare', p: '',     note: '' },
-  { n: 'Nino Germano',                     role: 'Vice Caporedattore RAI',       cat: 'Media',       st: 'da-contattare', p: 'Alta', note: '' },
-  { n: 'Visionaria',                       role: '',                             cat: 'Azienda',     st: 'da-contattare', p: '',     note: '' },
-  { n: 'Giada Garofalo / Massimo De Toma', role: '',                             cat: 'Persona',     st: 'da-contattare', p: '',     note: '' },
-  { n: 'Comune di Summonte',               role: '',                             cat: 'Comune',      st: 'da-contattare', p: '',     note: '' },
-  { n: 'Cilento Interno',                  role: '',                             cat: 'Azienda',     st: 'da-contattare', p: '',     note: '' },
-  { n: 'Wenatour',                         role: '',                             cat: 'Azienda',     st: 'contattato',    p: '',     note: '' },
-  { n: 'Raffaele Spalloni',                role: 'MISE',                         cat: 'Istituzione', st: 'contattato',    p: 'Alta', note: 'Raffaele.spalloni@mise.gov.it' },
-]
+export function priorityLabel(priority?: number | null) {
+  return PRIORITY_OPTIONS.find((option) => option.value === Number(priority ?? 0))?.label || 'Nessuna'
+}
+
+export function priorityBadgeClass(priority?: number | null) {
+  const value = Number(priority ?? 0)
+  if (value >= 3) return 'tag-alta'
+  if (value === 2) return 'tag-media'
+  if (value === 1) return 'tag-bassa'
+  return ''
+}
+
+export function stageColor(status: string, stages: PipelineStage[]) {
+  return stages.find((stage) => stage.name === status)?.color || '#4f6ef7'
+}
+
+export function formatDateTime(value?: string | null) {
+  if (!value) return 'Non pianificato'
+  return new Date(value).toLocaleString('it-IT', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+export function toDatetimeLocalValue(value?: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  const minute = String(date.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day}T${hour}:${minute}`
+}
+
+export function fromDatetimeLocalValue(value?: string | null) {
+  if (!value) return null
+  return new Date(value).toISOString()
+}
+
+export function isClosedStatus(status: string) {
+  return status.toLowerCase() === 'closed'
+}
+
+export function isOverdue(value?: string | null) {
+  if (!value) return false
+  return new Date(value).getTime() < Date.now()
+}
+
+export function mapLegacyStatus(status?: string | null) {
+  switch ((status || '').trim()) {
+    case 'Da fare':
+      return 'New'
+    case 'Da Richiamare':
+      return 'Contacted'
+    case 'In Attesa':
+      return 'Interested'
+    case 'In corso':
+    case 'Revisione':
+      return 'Call booked'
+    case 'Completato':
+    case 'Non Interessato':
+    case 'Perso':
+      return 'Closed'
+    default:
+      return 'New'
+  }
+}
+
+export function mapLegacyPriority(priority?: string | null) {
+  switch ((priority || '').trim().toLowerCase()) {
+    case 'alta':
+      return 3
+    case 'media':
+      return 2
+    case 'bassa':
+      return 1
+    default:
+      return 0
+  }
+}

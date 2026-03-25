@@ -1,78 +1,149 @@
 'use client'
 
+import { useMemo } from 'react'
 import { useCRMContext } from '../layout'
-import { COLS } from '@/lib/data'
+import { formatDateTime, isOverdue, priorityLabel } from '@/lib/data'
 
 export default function DashboardPage() {
-  const { cards, contacts, speaqi } = useCRMContext()
+  const { contacts, tasks, stages, speaqiContacts } = useCRMContext()
 
-  const total = cards.length
-  const alta = cards.filter(c => c.p === 'Alta').length
-  const done = cards.filter(c => c.s === 'Completato').length
-  const val = cards.filter(c => c.$).reduce((s, c) => s + Number(c.$), 0)
-  const daContattare = speaqi.filter(x => x.st === 'da-contattare').length
+  const openContacts = contacts.filter((contact) => contact.status !== 'Closed')
+  const overdueContacts = contacts.filter((contact) => isOverdue(contact.next_followup_at) && contact.status !== 'Closed')
+  const overdueTasks = tasks.filter((task) => task.due_date && isOverdue(task.due_date))
 
-  const kpis = [
-    { icon: '🗂', val: total, label: 'Card Totali', color: '#4f6ef7' },
-    { icon: '🔴', val: alta, label: 'Alta Priorità', color: '#ef4444' },
-    { icon: '✅', val: done, label: 'Completati', color: '#10b981' },
-    { icon: '💰', val: '€' + val.toLocaleString('it'), label: 'Valore Totale', color: '#f59e0b' },
-    { icon: '👥', val: contacts.length + speaqi.length, label: 'Contatti Totali', color: '#7c3aed' },
-    { icon: '⚡', val: daContattare, label: 'Da Contattare', color: '#059669' },
-  ]
+  const pipeline = useMemo(
+    () =>
+      stages.map((stage) => ({
+        ...stage,
+        count: contacts.filter((contact) => contact.status === stage.name).length,
+      })),
+    [contacts, stages]
+  )
 
-  const colCounts = COLS.map(col => ({
-    ...col,
-    count: cards.filter(c => c.s === col.id).length,
-  }))
-  const maxCount = Math.max(...colCounts.map(c => c.count), 1)
+  const maxCount = Math.max(...pipeline.map((stage) => stage.count), 1)
+  const hotContacts = [...contacts]
+    .filter((contact) => contact.priority >= 2 && contact.status !== 'Closed')
+    .sort((left, right) => (right.priority - left.priority) || left.name.localeCompare(right.name))
+    .slice(0, 8)
 
-  const hot = cards.filter(c => c.p === 'Alta' && c.s === 'Da Richiamare').slice(0, 10)
-  const hotColor = COLS.find(c => c.id === 'Da Richiamare')?.color || '#f59e0b'
+  const totalValue = contacts.reduce((sum, contact) => sum + Number(contact.value || 0), 0)
 
   return (
     <div className="dash-content">
       <div className="kpi-grid">
-        {kpis.map((kpi, i) => (
-          <div key={i} className="kpi" style={{ borderLeftColor: kpi.color }}>
-            <div className="kpi-icon">{kpi.icon}</div>
-            <div className="kpi-val" style={{ color: kpi.color }}>{kpi.val}</div>
-            <div className="kpi-label">{kpi.label}</div>
-          </div>
-        ))}
+        <div className="kpi" style={{ borderLeftColor: '#4f6ef7' }}>
+          <div className="kpi-icon">👥</div>
+          <div className="kpi-val" style={{ color: '#4f6ef7' }}>{contacts.length}</div>
+          <div className="kpi-label">Contatti Totali</div>
+        </div>
+        <div className="kpi" style={{ borderLeftColor: '#10b981' }}>
+          <div className="kpi-icon">🟢</div>
+          <div className="kpi-val" style={{ color: '#10b981' }}>{openContacts.length}</div>
+          <div className="kpi-label">Pipeline Aperta</div>
+        </div>
+        <div className="kpi" style={{ borderLeftColor: '#ef4444' }}>
+          <div className="kpi-icon">⏰</div>
+          <div className="kpi-val" style={{ color: '#ef4444' }}>{overdueContacts.length}</div>
+          <div className="kpi-label">Follow-up Scaduti</div>
+        </div>
+        <div className="kpi" style={{ borderLeftColor: '#f59e0b' }}>
+          <div className="kpi-icon">✅</div>
+          <div className="kpi-val" style={{ color: '#f59e0b' }}>{tasks.length}</div>
+          <div className="kpi-label">Task Pending</div>
+        </div>
+        <div className="kpi" style={{ borderLeftColor: '#7c3aed' }}>
+          <div className="kpi-icon">⚡</div>
+          <div className="kpi-val" style={{ color: '#7c3aed' }}>{speaqiContacts.length}</div>
+          <div className="kpi-label">Lead da Speaqi</div>
+        </div>
+        <div className="kpi" style={{ borderLeftColor: '#059669' }}>
+          <div className="kpi-icon">💰</div>
+          <div className="kpi-val" style={{ color: '#059669' }}>€{totalValue.toLocaleString('it-IT')}</div>
+          <div className="kpi-label">Valore Stimato</div>
+        </div>
       </div>
 
       <div className="dash-grid">
         <div className="dash-card">
-          <div className="dash-card-title">📊 Distribuzione Stato</div>
+          <div className="dash-card-title">Pipeline per Stadio</div>
           <div className="prog-list">
-            {colCounts.map(col => (
-              <div key={col.id} className="prog-row">
-                <span className="prog-label">{col.e} {col.label}</span>
+            {pipeline.map((stage) => (
+              <div key={stage.id} className="prog-row">
+                <span className="prog-label">{stage.name}</span>
                 <div className="prog-bar">
                   <div
                     className="prog-fill"
-                    style={{ width: `${Math.round(col.count / maxCount * 100)}%`, background: col.color }}
+                    style={{
+                      width: `${Math.round((stage.count / maxCount) * 100)}%`,
+                      background: stage.color || '#4f6ef7',
+                    }}
                   />
                 </div>
-                <span className="prog-num">{col.count}</span>
+                <span className="prog-num">{stage.count}</span>
               </div>
             ))}
           </div>
         </div>
 
         <div className="dash-card">
-          <div className="dash-card-title">🔥 Alta Priorità — Da Richiamare</div>
+          <div className="dash-card-title">Lead da sbloccare subito</div>
           <div className="activity-list">
-            {hot.length > 0 ? hot.map((c, i) => (
-              <div key={i} className="activity-item">
-                <div className="activity-dot" style={{ background: hotColor }} />
-                <span className="activity-name">{c.n}</span>
-                <span className="activity-stato">{c.r || '—'}</span>
-              </div>
-            )) : (
-              <p style={{ color: 'var(--text3)', fontSize: 13 }}>Nessun elemento alta priorità.</p>
+            {hotContacts.length === 0 ? (
+              <p style={{ color: 'var(--text3)', fontSize: 13 }}>Nessun lead prioritario.</p>
+            ) : (
+              hotContacts.map((contact) => (
+                <div key={contact.id} className="activity-item">
+                  <div className="activity-dot" style={{ background: contact.priority >= 3 ? '#ef4444' : '#f59e0b' }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="activity-name">{contact.name}</div>
+                    <div className="activity-stato">
+                      {priorityLabel(contact.priority)} · {contact.status} · {formatDateTime(contact.next_followup_at)}
+                    </div>
+                  </div>
+                </div>
+              ))
             )}
+          </div>
+        </div>
+      </div>
+
+      <div className="dash-grid" style={{ marginTop: 20 }}>
+        <div className="dash-card">
+          <div className="dash-card-title">Task in ritardo</div>
+          <div className="activity-list">
+            {overdueTasks.length === 0 ? (
+              <p style={{ color: 'var(--text3)', fontSize: 13 }}>Nessun task in ritardo.</p>
+            ) : (
+              overdueTasks.slice(0, 8).map((task) => (
+                <div key={task.id} className="activity-item">
+                  <div className="activity-dot" style={{ background: '#ef4444' }} />
+                  <span className="activity-name">{task.contact?.name || 'Contatto'}</span>
+                  <span className="activity-stato">{formatDateTime(task.due_date)}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="dash-card">
+          <div className="dash-card-title">Disciplina commerciale</div>
+          <div className="dash-meta-grid">
+            <div className="meta-card">
+              <strong>{contacts.filter((contact) => !contact.next_followup_at && contact.status !== 'Closed').length}</strong>
+              <span>lead aperti senza follow-up</span>
+            </div>
+            <div className="meta-card">
+              <strong>{contacts.filter((contact) => !!contact.last_contact_at).length}</strong>
+              <span>contatti con ultimo contatto tracciato</span>
+            </div>
+            <div className="meta-card">
+              <strong>{contacts.filter((contact) => contact.source === 'speaqi').length}</strong>
+              <span>lead arrivati dal prodotto</span>
+            </div>
+            <div className="meta-card">
+              <strong>{contacts.filter((contact) => contact.status === 'Closed').length}</strong>
+              <span>lead chiusi</span>
+            </div>
           </div>
         </div>
       </div>

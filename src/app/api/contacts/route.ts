@@ -1,0 +1,114 @@
+import { NextRequest } from 'next/server'
+import { ensurePipelineStages } from '@/lib/server/crm'
+import { requireRouteUser } from '@/lib/server/supabase'
+import { isClosedStatus } from '@/lib/data'
+
+function normalizeText(value: unknown) {
+  const normalized = String(value || '').trim()
+  return normalized || null
+}
+
+function normalizeNumber(value: unknown) {
+  if (value === null || value === undefined || value === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+export async function GET(request: NextRequest) {
+  const auth = await requireRouteUser(request)
+  if ('error' in auth) return auth.error
+
+  try {
+    await ensurePipelineStages(auth.supabase, auth.user.id)
+
+    const { data, error } = await auth.supabase
+      .from('contacts')
+      .select('*')
+      .eq('user_id', auth.user.id)
+      .order('next_followup_at', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    return Response.json({ contacts: data || [] })
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : 'Failed to load contacts' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const auth = await requireRouteUser(request)
+  if ('error' in auth) return auth.error
+
+  try {
+    await ensurePipelineStages(auth.supabase, auth.user.id)
+
+    const body = await request.json()
+    const name = String(body.name || '').trim()
+    const status = String(body.status || 'New')
+    const nextFollowupAt = normalizeText(body.next_followup_at)
+
+    if (!name) {
+      return Response.json({ error: 'Il nome del contatto è obbligatorio' }, { status: 400 })
+    }
+
+    if (!isClosedStatus(status) && !nextFollowupAt) {
+      return Response.json(
+        { error: 'Ogni contatto aperto deve avere un prossimo follow-up' },
+        { status: 400 }
+      )
+    }
+
+    const insertPayload = {
+      user_id: auth.user.id,
+      name,
+      email: normalizeText(body.email),
+      phone: normalizeText(body.phone),
+      status,
+      source: normalizeText(body.source) || 'manual',
+      priority: Math.max(0, Math.min(3, Number(body.priority || 0))),
+      responsible: normalizeText(body.responsible),
+      value: normalizeNumber(body.value),
+      note: normalizeText(body.note),
+      next_followup_at: nextFollowupAt,
+      last_activity_summary: normalizeText(body.note),
+    }
+
+    const { data: contact, error } = await auth.supabase
+      .from('contacts')
+      .insert(insertPayload)
+      .select('*')
+      .single()
+
+    if (error) throw error
+
+    let task = null
+    if (contact.next_followup_at) {
+      const { data: createdTask, error: taskError } = await auth.supabase
+        .from('tasks')
+        .insert({
+          user_id: auth.user.id,
+          contact_id: contact.id,
+          type: 'follow-up',
+          due_date: contact.next_followup_at,
+          status: 'pending',
+          note: `Follow-up iniziale per ${contact.name}`,
+        })
+        .select('*')
+        .single()
+
+      if (taskError) throw taskError
+      task = createdTask
+    }
+
+    return Response.json({ contact, task }, { status: 201 })
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : 'Failed to create contact' },
+      { status: 500 }
+    )
+  }
+}
