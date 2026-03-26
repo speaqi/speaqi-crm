@@ -17,8 +17,14 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Copy the bootstrap proxy
 COPY --from=builder /app/railway-start.cjs ./railway-start.cjs
-COPY --from=builder /app/.next/standalone ./.next/standalone
+COPY --from=builder /app/package.json ./package.json
+
+# Copy the standalone server (includes its own node_modules)
+COPY --from=builder /app/.next/standalone ./
+
+# Copy static assets where the standalone server expects them
 COPY --from=builder /app/.next/static ./.next/static
 
 EXPOSE 3000
