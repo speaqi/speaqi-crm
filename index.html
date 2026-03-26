@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SPEAQI CRM</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 /* ── RESET & TOKENS ─────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -328,6 +329,7 @@ select.filter-select{padding:6px 10px;border:1px solid var(--border);border-radi
     <div class="topbar-actions">
       <button class="btn btn-ghost btn-sm" onclick="exportCSV()">📥 Esporta CSV</button>
       <button class="btn btn-primary btn-sm" onclick="openNewCard()">＋ Nuova Card</button>
+      <button class="btn btn-ghost btn-sm" onclick="doLogout()" title="Esci" style="margin-left:4px">🚪</button>
     </div>
   </div>
 
@@ -619,9 +621,39 @@ select.filter-select{padding:6px 10px;border:1px solid var(--border);border-radi
   </div>
 </div>
 
+<!-- ── LOGIN ─────────────────────────────────── -->
+<div id="login-overlay" style="position:fixed;inset:0;background:#16192e;z-index:9999;display:none;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;padding:40px 36px;width:360px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="width:52px;height:52px;background:#4f6ef7;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 14px">⚡</div>
+      <div style="font-size:20px;font-weight:700;color:#111827">SPEAQI CRM</div>
+      <div style="font-size:13px;color:#6b7280;margin-top:4px">Accedi per continuare</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <input id="login-email" type="email" placeholder="Email" style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;font-size:14px;width:100%;font-family:inherit;outline:none" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
+      <input id="login-pass" type="password" placeholder="Password" style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;font-size:14px;width:100%;font-family:inherit;outline:none" onkeydown="if(event.key==='Enter')doLogin()">
+      <div id="login-err" style="color:#ef4444;font-size:12px;display:none;padding:8px 12px;background:#fee2e2;border-radius:6px"></div>
+      <button id="login-btn" onclick="doLogin()" style="background:#4f6ef7;color:white;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:4px">Accedi</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── LOADING ────────────────────────────────── -->
+<div id="loading-overlay" style="position:fixed;inset:0;background:#16192e;z-index:9998;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px">
+  <div style="width:52px;height:52px;background:#4f6ef7;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px">⚡</div>
+  <div style="color:rgba(255,255,255,.6);font-size:14px">Caricamento...</div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
+// ════════════════════════════════════════════
+//  SUPABASE
+// ════════════════════════════════════════════
+const SUPABASE_URL = 'https://drlaoxxodjltsycbbdvn.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_RJQ95z2xFC57CCfCDtHbWA_YZtF-bfl';
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
 // ════════════════════════════════════════════
 //  DATA CONSTANTS
 // ════════════════════════════════════════════
@@ -802,13 +834,26 @@ const SEED_SPEAQI = [
 // ════════════════════════════════════════════
 //  STATE
 // ════════════════════════════════════════════
-let cards    = load('speaqi_cards')    || SEED_CARDS.map((c,i)=>({...c,_u:'c'+i}));
-let contacts = load('speaqi_contacts') || SEED_CONTACTS.map((c,i)=>({...c,_u:'k'+i}));
-let speaqi   = load('speaqi_speaqi')   || SEED_SPEAQI.map((c,i)=>({...c,_u:'s'+i}));
-let vNotes   = load('speaqi_vnotes')   || [];
+let cards         = [];
+let contacts      = [];
+let speaqi        = [];
+let vNotes        = [];
+let callDone      = {};
+let callScheduled = {};
 
-function load(k){ try{return JSON.parse(localStorage.getItem(k))}catch(e){return null} }
-function persist(){ localStorage.setItem('speaqi_cards',JSON.stringify(cards)); localStorage.setItem('speaqi_contacts',JSON.stringify(contacts)); localStorage.setItem('speaqi_speaqi',JSON.stringify(speaqi)); localStorage.setItem('speaqi_vnotes',JSON.stringify(vNotes)); }
+function load(k){ return null; } // dati caricati da Supabase all'avvio
+async function persist(){
+  const { data:{ user } } = await db.auth.getUser();
+  if(!user) return;
+  await db.from('user_state').upsert({
+    user_id: user.id,
+    cards, contacts, speaqi,
+    voice_notes: vNotes,
+    call_done: callDone,
+    call_scheduled: callScheduled,
+    updated_at: new Date().toISOString()
+  });
+}
 
 // ════════════════════════════════════════════
 //  NAVIGATION
@@ -1019,8 +1064,6 @@ function renderSpeaqi(){
 // ════════════════════════════════════════════
 let calWeekOffset = 0;
 let calFilter_ = 'all';
-let callDone = load('speaqi_calldone') || {}; // uid -> date
-let callScheduled = load('speaqi_callsched') || {}; // uid -> 'YYYY-MM-DD'
 
 function dateKey(d){ return d.toISOString().split('T')[0]; }
 function todayKey(){ return dateKey(new Date()); }
@@ -1144,13 +1187,13 @@ function renderQueue(q){
 function toggleCallDone(uid,dateStr){
   const k=uid+'_'+dateStr;
   if(callDone[k]) delete callDone[k]; else callDone[k]=true;
-  localStorage.setItem('speaqi_calldone',JSON.stringify(callDone));
+  persist();
   renderCalendario();
 }
 
 function scheduleToday(uid){
   callScheduled[uid] = dateKey(new Date());
-  localStorage.setItem('speaqi_callsched',JSON.stringify(callScheduled));
+  persist();
   renderCalendario();
   toast('Chiamata aggiunta per oggi!');
 }
@@ -1161,7 +1204,7 @@ function selectDay(dk){
   const next = unscheduled[0];
   if(confirm(`Pianificare "${next.n}" per ${dk.split('-').reverse().join('/')}?`)){
     callScheduled[next._u]=dk;
-    localStorage.setItem('speaqi_callsched',JSON.stringify(callScheduled));
+    persist();
     renderCalendario(); toast('Chiamata pianificata!');
   }
 }
@@ -1174,7 +1217,7 @@ function addToDay(dk){
   const name = prompt(`Quale contatto pianificare per ${dk.split('-').reverse().join('/')}?\n\nContatti disponibili:\n${names}\n\nScrivi il nome:`);
   if(!name) return;
   const found = unscheduled.find(c=>c.n.toLowerCase().includes(name.toLowerCase()));
-  if(found){ callScheduled[found._u]=dk; localStorage.setItem('speaqi_callsched',JSON.stringify(callScheduled)); renderCalendario(); toast('Aggiunto!'); }
+  if(found){ callScheduled[found._u]=dk; persist(); renderCalendario(); toast('Aggiunto!'); }
   else toast('Contatto non trovato');
 }
 
@@ -1208,7 +1251,7 @@ function scheduleAll(){
       i++;
     } else { day=addDays(day,1); }
   }
-  localStorage.setItem('speaqi_callsched',JSON.stringify(callScheduled));
+  persist();
   renderCalendario();
   toast(`✅ ${unscheduled.length} chiamate pianificate automaticamente!`);
 }
@@ -1434,12 +1477,81 @@ function syncKanbanToContacts(){
 }
 
 // ════════════════════════════════════════════
-//  INIT
+//  AUTH & INIT
 // ════════════════════════════════════════════
-applyPatches();
-syncKanbanToContacts();
-updateBadges();
-renderDash();
+async function doLogin(){
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  const err   = document.getElementById('login-err');
+  const btn   = document.getElementById('login-btn');
+  err.style.display = 'none';
+  btn.textContent = 'Accesso in corso…'; btn.disabled = true;
+  const { error } = await db.auth.signInWithPassword({ email, password: pass });
+  if(error){
+    err.textContent = error.message;
+    err.style.display = '';
+    btn.textContent = 'Accedi'; btn.disabled = false;
+  }
+}
+
+async function doLogout(){
+  await db.auth.signOut();
+  location.reload();
+}
+
+async function loadState(userId){
+  const { data } = await db.from('user_state').select('*').eq('user_id', userId).single();
+  const hasData = data && (data.cards?.length > 0 || data.contacts?.length > 0);
+  if(hasData){
+    cards         = data.cards          || [];
+    contacts      = data.contacts       || [];
+    speaqi        = data.speaqi         || [];
+    vNotes        = data.voice_notes    || [];
+    callDone      = data.call_done      || {};
+    callScheduled = data.call_scheduled || {};
+  } else {
+    // Primo accesso o DB vuoto: carica i dati seed
+    cards         = SEED_CARDS.map((c,i)=>({...c,_u:'c'+i}));
+    contacts      = SEED_CONTACTS.map((c,i)=>({...c,_u:'k'+i}));
+    speaqi        = SEED_SPEAQI.map((c,i)=>({...c,_u:'s'+i}));
+    vNotes        = [];
+    callDone      = {};
+    callScheduled = {};
+    applyPatches();
+    syncKanbanToContacts();
+    await persist();
+  }
+}
+
+async function startApp(user){
+  const loadingEl = document.getElementById('loading-overlay');
+  const loginEl   = document.getElementById('login-overlay');
+  loginEl.style.display   = 'none';
+  loadingEl.style.display = 'flex';
+  await loadState(user.id);
+  applyPatches();
+  syncKanbanToContacts();
+  updateBadges();
+  renderDash();
+  loadingEl.style.display = 'none';
+}
+
+function showLogin(){
+  document.getElementById('loading-overlay').style.display = 'none';
+  document.getElementById('login-overlay').style.display   = 'flex';
+}
+
+// Check sessione esistente al caricamento
+db.auth.getSession().then(({ data: { session } }) => {
+  if(session?.user) startApp(session.user);
+  else showLogin();
+}).catch(() => showLogin());
+
+// Aggiorna se l'utente fa login/logout
+db.auth.onAuthStateChange((event, session) => {
+  if(event === 'SIGNED_IN' && session?.user) startApp(session.user);
+  if(event === 'SIGNED_OUT') showLogin();
+});
 </script>
 </body>
 </html>
