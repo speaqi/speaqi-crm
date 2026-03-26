@@ -27,4 +27,4 @@ COPY --from=builder /app/.next/static ./.next/static
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["node", "-e", "process.env.PORT='3000';process.env.HOSTNAME='0.0.0.0';require('./server.js')"]
