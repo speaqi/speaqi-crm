@@ -5,11 +5,16 @@ const { spawn } = require('child_process')
 
 const port = parseInt(process.env.PORT || '3000', 10)
 const host = '0.0.0.0'
+const childHost = '127.0.0.1'
+const childPort = parseInt(process.env.RAILWAY_CHILD_PORT || String(port + 1), 10)
 const target = path.join(__dirname, '.next', 'standalone', 'server.js')
 const maxLogLines = 200
+const healthcheckPath = '/api/railway-health'
 
-let fallbackStarted = false
 let child = null
+let childReady = false
+let probeTimer = null
+let statusMessage = 'Bootstrap server starting'
 const bootLogs = []
 
 function pushLog(prefix, chunk) {
@@ -24,14 +29,18 @@ function pushLog(prefix, chunk) {
   }
 }
 
-function diagnosticsPayload(reason) {
+function diagnosticsPayload() {
   return {
-    status: 'degraded',
-    reason,
+    status: childReady ? 'ok' : 'booting',
+    reason: statusMessage,
     target,
     exists: fs.existsSync(target),
     cwd: process.cwd(),
     node: process.version,
+    ports: {
+      public: port,
+      child: childPort,
+    },
     env: {
       PORT: process.env.PORT || null,
       NODE_ENV: process.env.NODE_ENV || null,
@@ -46,47 +55,6 @@ function diagnosticsPayload(reason) {
   }
 }
 
-function startFallback(reason) {
-  if (fallbackStarted) return
-  fallbackStarted = true
-
-  const payload = diagnosticsPayload(reason)
-  const server = http.createServer((req, res) => {
-    if (req.url === '/api/health') {
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
-      res.end(JSON.stringify(payload, null, 2))
-      return
-    }
-
-    res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8' })
-    res.end(`
-      <!doctype html>
-      <html lang="en">
-        <head>
-          <meta charset="utf-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1" />
-          <title>SPEAQI CRM bootstrap error</title>
-          <style>
-            body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #111827; color: #f9fafb; margin: 0; padding: 24px; }
-            h1 { font-family: system-ui, sans-serif; font-size: 28px; margin: 0 0 16px; }
-            p { font-family: system-ui, sans-serif; color: #d1d5db; }
-            pre { background: #030712; border: 1px solid #374151; border-radius: 12px; padding: 16px; overflow: auto; white-space: pre-wrap; }
-          </style>
-        </head>
-        <body>
-          <h1>SPEAQI CRM bootstrap error</h1>
-          <p>The Next.js process crashed before becoming healthy. Diagnostics are below.</p>
-          <pre>${escapeHtml(JSON.stringify(payload, null, 2))}</pre>
-        </body>
-      </html>
-    `)
-  })
-
-  server.listen(port, host, () => {
-    console.error(`[railway-start] fallback server listening on ${host}:${port}`)
-  })
-}
-
 function escapeHtml(value) {
   return value
     .replaceAll('&', '&amp;')
@@ -94,9 +62,111 @@ function escapeHtml(value) {
     .replaceAll('>', '&gt;')
 }
 
+function sendJson(res, statusCode, payload) {
+  res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' })
+  res.end(JSON.stringify(payload, null, 2))
+}
+
+function sendHtml(res, statusCode, payload) {
+  res.writeHead(statusCode, { 'Content-Type': 'text/html; charset=utf-8' })
+  res.end(`
+    <!doctype html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>SPEAQI CRM bootstrap status</title>
+        <style>
+          body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #111827; color: #f9fafb; margin: 0; padding: 24px; }
+          h1 { font-family: system-ui, sans-serif; font-size: 28px; margin: 0 0 16px; }
+          p { font-family: system-ui, sans-serif; color: #d1d5db; }
+          pre { background: #030712; border: 1px solid #374151; border-radius: 12px; padding: 16px; overflow: auto; white-space: pre-wrap; }
+        </style>
+      </head>
+      <body>
+        <h1>SPEAQI CRM bootstrap status</h1>
+        <p>The Next.js child process is not ready yet. Diagnostics are below.</p>
+        <pre>${escapeHtml(JSON.stringify(payload, null, 2))}</pre>
+      </body>
+    </html>
+  `)
+}
+
+function setReady(reason) {
+  if (childReady) return
+  childReady = true
+  statusMessage = reason
+  pushLog('bootstrap', reason)
+  if (probeTimer) {
+    clearInterval(probeTimer)
+    probeTimer = null
+  }
+}
+
+function setBooting(reason) {
+  childReady = false
+  statusMessage = reason
+  pushLog('bootstrap', reason)
+}
+
+function proxyRequest(req, res) {
+  const upstream = http.request(
+    {
+      hostname: childHost,
+      port: childPort,
+      method: req.method,
+      path: req.url,
+      headers: {
+        ...req.headers,
+        host: `${childHost}:${childPort}`,
+      },
+    },
+    (upstreamRes) => {
+      res.writeHead(upstreamRes.statusCode || 502, upstreamRes.headers)
+      upstreamRes.pipe(res)
+    }
+  )
+
+  upstream.on('error', (error) => {
+    setBooting(`Proxy error: ${error.message}`)
+    const payload = diagnosticsPayload()
+    if ((req.url || '').startsWith('/api/')) {
+      sendJson(res, 503, payload)
+      return
+    }
+    sendHtml(res, 503, payload)
+  })
+
+  req.pipe(upstream)
+}
+
+function probeChild() {
+  if (!child || childReady) return
+
+  const request = http.get(
+    {
+      hostname: childHost,
+      port: childPort,
+      path: '/api/health',
+      timeout: 1500,
+    },
+    (res) => {
+      res.resume()
+      if ((res.statusCode || 500) < 500) {
+        setReady(`Next child is healthy on ${childHost}:${childPort}`)
+      }
+    }
+  )
+
+  request.on('timeout', () => request.destroy(new Error('healthcheck timeout')))
+  request.on('error', (error) => {
+    pushLog('probe', error.message)
+  })
+}
+
 function startStandalone() {
   if (!fs.existsSync(target)) {
-    startFallback('Standalone server.js not found')
+    setBooting('Standalone server.js not found')
     return
   }
 
@@ -104,15 +174,20 @@ function startStandalone() {
     cwd: __dirname,
     env: {
       ...process.env,
-      HOSTNAME: host,
-      PORT: String(port),
+      HOSTNAME: childHost,
+      PORT: String(childPort),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 
+  pushLog('spawn', `pid=${child.pid} target=${target} child=${childHost}:${childPort}`)
+
   child.stdout.on('data', (chunk) => {
     process.stdout.write(chunk)
     pushLog('stdout', chunk)
+    if (String(chunk).includes('Ready in')) {
+      setReady(`Next child reported ready on ${childHost}:${childPort}`)
+    }
   })
 
   child.stderr.on('data', (chunk) => {
@@ -121,24 +196,48 @@ function startStandalone() {
   })
 
   child.on('error', (error) => {
-    pushLog('spawn', error.stack || error.message)
-    startFallback(`Spawn error: ${error.message}`)
+    setBooting(`Spawn error: ${error.message}`)
   })
 
   child.on('exit', (code, signal) => {
-    pushLog('exit', `code=${code} signal=${signal}`)
-    startFallback(`Standalone process exited (code=${code}, signal=${signal})`)
+    setBooting(`Standalone process exited (code=${code}, signal=${signal})`)
   })
+
+  probeTimer = setInterval(probeChild, 1000)
+  probeChild()
 }
 
-process.on('SIGTERM', () => {
-  if (child) child.kill('SIGTERM')
-  process.exit(0)
+const bootstrapServer = http.createServer((req, res) => {
+  if (req.url === healthcheckPath) {
+    sendJson(res, 200, diagnosticsPayload())
+    return
+  }
+
+  if (childReady) {
+    proxyRequest(req, res)
+    return
+  }
+
+  const payload = diagnosticsPayload()
+  if (req.url === '/api/health' || (req.url || '').startsWith('/api/')) {
+    sendJson(res, 503, payload)
+    return
+  }
+
+  sendHtml(res, 503, payload)
 })
 
-process.on('SIGINT', () => {
-  if (child) child.kill('SIGINT')
-  process.exit(0)
+bootstrapServer.listen(port, host, () => {
+  console.error(`[railway-start] bootstrap server listening on ${host}:${port}`)
+  startStandalone()
 })
 
-startStandalone()
+function shutdown(signal) {
+  if (probeTimer) clearInterval(probeTimer)
+  if (child) child.kill(signal)
+  bootstrapServer.close(() => process.exit(0))
+  setTimeout(() => process.exit(0), 1000).unref()
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))
