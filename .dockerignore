@@ -1,9 +1,7 @@
+node_modules
+.next
 .git
 .gitignore
-.next
-node_modules
-.env.local
+.gemini
+*.md
 .env*
-!.env.local.example
-tsconfig.tsbuildinfo
-.DS_Store
