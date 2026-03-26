@@ -10,6 +10,7 @@ const childPort = parseInt(process.env.RAILWAY_CHILD_PORT || String(port + 1), 1
 const target = path.join(__dirname, '.next', 'standalone', 'server.js')
 const maxLogLines = 200
 const healthcheckPath = '/api/railway-health'
+const legacyHealthPaths = new Set(['/', '/api/health', healthcheckPath])
 
 let child = null
 let childReady = false
@@ -90,6 +91,10 @@ function sendHtml(res, statusCode, payload) {
       </body>
     </html>
   `)
+}
+
+function isHealthRequest(url) {
+  return legacyHealthPaths.has(url || '/')
 }
 
 function setReady(reason) {
@@ -219,7 +224,16 @@ const bootstrapServer = http.createServer((req, res) => {
   }
 
   const payload = diagnosticsPayload()
-  if (req.url === '/api/health' || (req.url || '').startsWith('/api/')) {
+  if (isHealthRequest(req.url)) {
+    if ((req.url || '').startsWith('/api/')) {
+      sendJson(res, 200, payload)
+      return
+    }
+    sendHtml(res, 200, payload)
+    return
+  }
+
+  if ((req.url || '').startsWith('/api/')) {
     sendJson(res, 503, payload)
     return
   }
