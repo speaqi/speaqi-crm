@@ -3,6 +3,7 @@ import { createActivities, ensurePipelineStages, formatActivityDate } from '@/li
 import { requireRouteUser } from '@/lib/server/supabase'
 
 const ALLOWED_STATUSES = new Set(['New', 'Contacted', 'Interested', 'Call booked', 'Closed'])
+const INVALID_LEGACY_IDS = new Set(['#REF!', '#N/A', 'N/A', 'NULL', 'null', 'NaN', 'nan'])
 
 function parseCsvText(text: string) {
   const rows: string[][] = []
@@ -75,6 +76,22 @@ function normalizeText(value: unknown) {
   return normalized || null
 }
 
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === 'object') {
+    if ('message' in error && (error as { message?: unknown }).message) {
+      return String((error as { message?: unknown }).message)
+    }
+    if ('details' in error && (error as { details?: unknown }).details) {
+      return String((error as { details?: unknown }).details)
+    }
+    if ('hint' in error && (error as { hint?: unknown }).hint) {
+      return String((error as { hint?: unknown }).hint)
+    }
+  }
+  return fallback
+}
+
 function normalizeNumber(value: unknown) {
   const normalized = normalizeText(value)
   if (!normalized) return null
@@ -100,6 +117,28 @@ function chunk<T>(items: T[], size = 100) {
   return batches
 }
 
+function makeUniqueLegacyId(rawValue: unknown, index: number, seen: Set<string>) {
+  const normalized = normalizeText(rawValue)
+  const base =
+    normalized && !INVALID_LEGACY_IDS.has(normalized)
+      ? normalized
+      : `csv-import-${index + 1}`
+
+  if (!seen.has(base)) {
+    seen.add(base)
+    return base
+  }
+
+  let attempt = 2
+  let candidate = `${base}-${attempt}`
+  while (seen.has(candidate)) {
+    attempt += 1
+    candidate = `${base}-${attempt}`
+  }
+  seen.add(candidate)
+  return candidate
+}
+
 export async function POST(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
@@ -118,12 +157,13 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Il CSV non contiene righe importabili' }, { status: 400 })
     }
 
+    const seenLegacyIds = new Set<string>()
     const records = parsedRows.map((row, index) => {
       const status = normalizeText(row.status)
       const nextFollowupAt = normalizeText(row.next_followup_at)
       return {
         user_id: auth.user.id,
-        legacy_id: normalizeText(row.legacy_id) || `csv-import-${index + 1}`,
+        legacy_id: makeUniqueLegacyId(row.legacy_id, index, seenLegacyIds),
         name: normalizeText(row.name) || `Lead legacy ${index + 1}`,
         email: normalizeText(row.email),
         phone: normalizeText(row.phone),
@@ -238,7 +278,7 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     return Response.json(
-      { error: error instanceof Error ? error.message : 'Failed to import CSV' },
+      { error: errorMessage(error, 'Failed to import CSV') },
       { status: 500 }
     )
   }

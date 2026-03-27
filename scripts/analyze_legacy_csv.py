@@ -46,6 +46,7 @@ MATCH_HEADERS = [
     "contact_email",
     "auto_selected",
 ]
+INVALID_LEGACY_IDS = {"#REF!", "#N/A", "N/A", "NULL", "null", "NaN", "nan"}
 
 
 @dataclass
@@ -334,6 +335,24 @@ def make_output_dir(legacy_csv: Path, output_dir: str | None) -> Path:
     return path
 
 
+def make_unique_legacy_id(raw_value: str | None, index: int, seen: set[str]) -> str:
+    candidate = (raw_value or "").strip()
+    if not candidate or candidate in INVALID_LEGACY_IDS:
+        candidate = f"legacy-row-{index:04d}"
+
+    if candidate not in seen:
+        seen.add(candidate)
+        return candidate
+
+    attempt = 2
+    unique_candidate = f"{candidate}-{attempt}"
+    while unique_candidate in seen:
+        attempt += 1
+        unique_candidate = f"{candidate}-{attempt}"
+    seen.add(unique_candidate)
+    return unique_candidate
+
+
 def write_csv(path: Path, headers: list[str], rows: list[dict[str, str]]) -> None:
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=headers)
@@ -427,9 +446,10 @@ def main() -> int:
     auto_selected_count = 0
     followup_from_legacy_count = 0
     followup_defaulted_count = 0
+    seen_legacy_ids: set[str] = set()
 
     for index, row in enumerate(rows, start=1):
-        legacy_id = row.get("ID", "").strip() or f"legacy-row-{index:04d}"
+        legacy_id = make_unique_legacy_id(row.get("ID"), index, seen_legacy_ids)
         activity = row.get("Attività", "").strip()
         responsible = row.get("Responsabile", "").strip()
         existing_phone = normalize_phone(row.get("Numero di telefono"))
