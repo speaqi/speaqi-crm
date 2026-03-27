@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { ensurePipelineStages } from '@/lib/server/crm'
+import { createActivities, ensurePipelineStages, formatActivityDate, updateContactSummary } from '@/lib/server/crm'
 import { requireRouteUser } from '@/lib/server/supabase'
 import { isClosedStatus } from '@/lib/data'
 
@@ -103,6 +103,25 @@ export async function POST(request: NextRequest) {
       if (taskError) throw taskError
       task = createdTask
     }
+
+    const activityContent = [
+      'Contatto creato nel CRM.',
+      `Stato iniziale: ${contact.status}.`,
+      contact.next_followup_at ? `Follow-up iniziale: ${formatActivityDate(contact.next_followup_at)}.` : null,
+      task ? 'Task di follow-up creato automaticamente.' : null,
+    ]
+      .filter(Boolean)
+      .join(' ')
+
+    await createActivities(auth.supabase, [
+      {
+        user_id: auth.user.id,
+        contact_id: contact.id,
+        type: 'system',
+        content: activityContent,
+      },
+    ])
+    await updateContactSummary(auth.supabase, contact.id, activityContent)
 
     return Response.json({ contact, task }, { status: 201 })
   } catch (error) {

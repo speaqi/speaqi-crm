@@ -38,6 +38,27 @@ export function priorityLabel(priority?: number | null) {
   return PRIORITY_OPTIONS.find((option) => option.value === Number(priority ?? 0))?.label || 'Nessuna'
 }
 
+export function activityTypeLabel(type: string) {
+  switch (type) {
+    case 'call':
+      return 'Chiamata'
+    case 'email':
+      return 'Email'
+    case 'msg':
+      return 'Messaggio'
+    case 'note':
+      return 'Nota'
+    case 'task':
+      return 'Task'
+    case 'system':
+      return 'Sistema'
+    case 'import':
+      return 'Import'
+    default:
+      return type
+  }
+}
+
 export function priorityBadgeClass(priority?: number | null) {
   const value = Number(priority ?? 0)
   if (value >= 3) return 'tag-alta'

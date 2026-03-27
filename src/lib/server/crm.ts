@@ -1,5 +1,30 @@
 import { DEFAULT_PIPELINE_STAGES, isClosedStatus, mapLegacyPriority, mapLegacyStatus } from '@/lib/data'
 
+function chunk<T>(items: T[], size = 100) {
+  const batches: T[][] = []
+  for (let index = 0; index < items.length; index += size) {
+    batches.push(items.slice(index, index + size))
+  }
+  return batches
+}
+
+function summarizeContent(content: string) {
+  return content.trim().replace(/\s+/g, ' ').slice(0, 180)
+}
+
+export function formatActivityDate(value?: string | null) {
+  if (!value) return 'non pianificato'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'non pianificato'
+  return date.toLocaleString('it-IT', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 export async function ensurePipelineStages(
   supabase: any,
   userId: string
@@ -51,7 +76,7 @@ export async function updateContactAfterActivity(
   content: string,
   nextFollowupAt?: string | null
 ) {
-  const summary = content.trim().slice(0, 180)
+  const summary = summarizeContent(content)
   const payload: Record<string, unknown> = {
     last_contact_at: new Date().toISOString(),
     last_activity_summary: summary,
@@ -68,6 +93,66 @@ export async function updateContactAfterActivity(
     .eq('id', contactId)
 
   if (error) throw error
+}
+
+export async function updateContactSummary(
+  supabase: any,
+  contactId: string,
+  content: string,
+  options?: {
+    nextFollowupAt?: string | null
+    touchLastContactAt?: boolean
+  }
+) {
+  const summary = summarizeContent(content)
+  if (!summary) return
+
+  const payload: Record<string, unknown> = {
+    last_activity_summary: summary,
+    updated_at: new Date().toISOString(),
+  }
+
+  if (options?.nextFollowupAt !== undefined) {
+    payload.next_followup_at = options.nextFollowupAt
+  }
+
+  if (options?.touchLastContactAt) {
+    payload.last_contact_at = new Date().toISOString()
+  }
+
+  const { error } = await supabase
+    .from('contacts')
+    .update(payload)
+    .eq('id', contactId)
+
+  if (error) throw error
+}
+
+export async function createActivities(
+  supabase: any,
+  activities: Array<{
+    user_id: string
+    contact_id: string
+    type: string
+    content: string
+  }>
+) {
+  const payload = activities
+    .map((activity) => ({
+      ...activity,
+      content: activity.content.trim(),
+    }))
+    .filter((activity) => activity.content)
+
+  if (!payload.length) return
+
+  for (const batch of chunk(payload)) {
+    const { error } = await supabase
+      .from('activities')
+      .insert(batch)
+
+    if (error) throw error
+  }
 }
 
 export async function ensureNextAction(

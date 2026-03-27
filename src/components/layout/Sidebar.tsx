@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: '🏠', section: 'Principale' },
   { href: '/kanban', label: 'Pipeline', icon: '🗂', badgeKey: 'kanban' as const },
   { href: '/contacts', label: 'Contatti', icon: '👥', section: 'CRM', badgeKey: 'contacts' as const },
+  { href: '/import', label: 'Import CSV', icon: '📥' },
   { href: '/attivita', label: 'Attività & Follow-up', icon: '⚙️', badgeKey: 'tasks' as const },
   { href: '/calendario', label: 'Calendario', icon: '📅', badgeKey: 'oggi' as const, badgeRed: true },
   { href: '/speaqi', label: 'Lead Speaqi', icon: '⚡', section: 'Origini', badgeKey: 'speaqi' as const },

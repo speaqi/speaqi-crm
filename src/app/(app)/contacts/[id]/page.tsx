@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { ContactModal } from '@/components/crm/ContactModal'
-import { ACTIVITY_TYPES, TASK_TYPES, formatDateTime, fromDatetimeLocalValue, priorityLabel, toDatetimeLocalValue } from '@/lib/data'
+import { ACTIVITY_TYPES, TASK_TYPES, activityTypeLabel, formatDateTime, fromDatetimeLocalValue, priorityLabel, toDatetimeLocalValue } from '@/lib/data'
 import { useCRMContext } from '../../layout'
 import type { ContactDetail } from '@/types'
 
@@ -141,9 +141,9 @@ export default function ContactDetailPage() {
               ) : (
                 activities.map((activity) => (
                   <div key={activity.id} className="timeline-item">
-                    <div className="timeline-marker" />
+                      <div className="timeline-marker" />
                     <div>
-                      <div className="timeline-title">{activity.type}</div>
+                      <div className="timeline-title">{activityTypeLabel(activity.type)}</div>
                       <div className="timeline-time">{formatDateTime(activity.created_at)}</div>
                       <div className="timeline-body">{activity.content || 'Nessun contenuto'}</div>
                     </div>

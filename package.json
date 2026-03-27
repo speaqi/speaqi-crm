@@ -3,6 +3,8 @@
   "version": "2.0.0",
   "private": true,
   "scripts": {
+    "analyze:legacy": "python3 scripts/analyze_legacy_csv.py",
+    "import:contacts-csv": "python3 scripts/import_contacts_csv.py",
     "dev": "next dev",
     "build": "next build",
     "start": "node start.cjs",

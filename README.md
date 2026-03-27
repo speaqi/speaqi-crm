@@ -46,6 +46,34 @@ npm run dev
 
 Alla prima apertura, se il nuovo schema è vuoto, l'app prova a importare i dati dalla tabella legacy `user_state`.
 
+Per analizzare un CSV legacy esterno e produrre un CSV pulito compatibile con il modello `contacts`:
+
+```bash
+npm run analyze:legacy -- "/percorso/file.csv" --contacts-csv "/percorso/rubrica.csv"
+```
+
+Lo script genera in `/tmp`:
+
+- `report.md`: riepilogo qualità dati + mappatura proposta
+- `contacts_import.csv`: CSV pulito pronto per import/mapping
+- `matches_review.csv`: match trovati contro la rubrica, utile per revisione manuale
+
+Per i contatti aperti senza `Scadenza`, lo script assegna automaticamente un `next_followup_at` a `+3` giorni per restare compatibile con le regole del CRM.
+
+Per importare il CSV pulito dentro Supabase e farlo comparire nel CRM:
+
+```bash
+npm run import:contacts-csv -- "/percorso/contacts_import.csv" --email "utente@dominio.it" --password "********"
+```
+
+Lo script:
+
+- crea gli stage standard se non esistono
+- fa upsert su `contacts` usando `legacy_id`
+- crea i task `follow-up` mancanti per i contatti aperti
+
+In alternativa, se hai la service role in `.env.local`, puoi usare `--user-id "<uuid>"`.
+
 ## n8n
 
 I workflow template sono in:

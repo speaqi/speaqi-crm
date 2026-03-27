@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { ensureNextAction } from '@/lib/server/crm'
+import { createActivities, ensureNextAction, formatActivityDate, updateContactSummary } from '@/lib/server/crm'
 import { requireRouteUser } from '@/lib/server/supabase'
 
 type RouteContext = {
@@ -15,6 +15,49 @@ function normalizeNumber(value: unknown) {
   if (value === null || value === undefined || value === '') return null
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function displayValue(value: unknown) {
+  const normalized = value === null || value === undefined ? '' : String(value).trim()
+  return normalized || 'vuoto'
+}
+
+function buildContactUpdateSummary(current: any, next: any) {
+  const changes: string[] = []
+
+  if (current.name !== next.name) {
+    changes.push(`nome ${displayValue(current.name)} -> ${displayValue(next.name)}`)
+  }
+  if (current.status !== next.status) {
+    changes.push(`stato ${displayValue(current.status)} -> ${displayValue(next.status)}`)
+  }
+  if ((current.email || null) !== (next.email || null)) {
+    changes.push(`email ${displayValue(current.email)} -> ${displayValue(next.email)}`)
+  }
+  if ((current.phone || null) !== (next.phone || null)) {
+    changes.push(`telefono ${displayValue(current.phone)} -> ${displayValue(next.phone)}`)
+  }
+  if ((current.responsible || null) !== (next.responsible || null)) {
+    changes.push(`responsabile ${displayValue(current.responsible)} -> ${displayValue(next.responsible)}`)
+  }
+  if ((current.source || null) !== (next.source || null)) {
+    changes.push(`origine ${displayValue(current.source)} -> ${displayValue(next.source)}`)
+  }
+  if (Number(current.priority || 0) !== Number(next.priority || 0)) {
+    changes.push(`priorità ${current.priority} -> ${next.priority}`)
+  }
+  if ((current.value ?? null) !== (next.value ?? null)) {
+    changes.push(`valore ${displayValue(current.value)} -> ${displayValue(next.value)}`)
+  }
+  if ((current.note || null) !== (next.note || null)) {
+    changes.push('note aggiornate')
+  }
+  if ((current.next_followup_at || null) !== (next.next_followup_at || null)) {
+    changes.push(`follow-up ${formatActivityDate(current.next_followup_at)} -> ${formatActivityDate(next.next_followup_at)}`)
+  }
+
+  if (!changes.length) return null
+  return `Scheda aggiornata: ${changes.join('; ')}.`
 }
 
 async function getContactRecord(supabase: any, userId: string, id: string) {
@@ -111,6 +154,21 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       .single()
 
     if (error) throw error
+
+    const activityContent = buildContactUpdateSummary(current, data)
+    if (activityContent) {
+      await createActivities(auth.supabase, [
+        {
+          user_id: auth.user.id,
+          contact_id: id,
+          type: 'system',
+          content: activityContent,
+        },
+      ])
+      await updateContactSummary(auth.supabase, id, activityContent, {
+        nextFollowupAt: nextFollowupAt,
+      })
+    }
 
     return Response.json({ contact: data })
   } catch (error) {

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createServiceRoleClient } from '@/lib/server/supabase'
-import { ensurePipelineStages } from '@/lib/server/crm'
+import { createActivities, ensurePipelineStages, formatActivityDate, updateContactSummary } from '@/lib/server/crm'
 
 function unauthorized() {
   return Response.json({ error: 'Unauthorized webhook' }, { status: 401 })
@@ -62,14 +62,31 @@ export async function POST(request: NextRequest) {
 
     if (taskError) throw taskError
 
-    if (body.note) {
-      await supabase.from('activities').insert({
+    const activities = [
+      {
         user_id: userId,
         contact_id: contact.id,
-        type: 'note',
-        content: String(body.note),
-      })
-    }
+        type: 'import',
+        content: [
+          'Lead creato da integrazione Speaqi.',
+          `Follow-up iniziale: ${formatActivityDate(nextFollowupAt)}.`,
+          'Task di follow-up creato automaticamente.',
+        ].join(' '),
+      },
+      ...(body.note
+        ? [
+            {
+              user_id: userId,
+              contact_id: contact.id,
+              type: 'note',
+              content: String(body.note),
+            },
+          ]
+        : []),
+    ]
+
+    await createActivities(supabase, activities)
+    await updateContactSummary(supabase, contact.id, 'Lead creato da integrazione Speaqi')
 
     return Response.json({ contact, task }, { status: 201 })
   } catch (error) {

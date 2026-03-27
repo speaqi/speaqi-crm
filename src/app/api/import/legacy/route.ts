@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { ensurePipelineStages, mapLegacyStateToRecords } from '@/lib/server/crm'
+import { createActivities, ensurePipelineStages, formatActivityDate, mapLegacyStateToRecords } from '@/lib/server/crm'
 import { requireRouteUser } from '@/lib/server/supabase'
 
 export async function POST(request: NextRequest) {
@@ -58,15 +58,36 @@ export async function POST(request: NextRequest) {
       }))
 
     let migratedTasks = 0
+    const createdTaskContactIds = new Set<string>()
     if (pendingTasks.length) {
       const { data: createdTasks, error: taskError } = await auth.supabase
         .from('tasks')
         .insert(pendingTasks)
-        .select('id')
+        .select('id, contact_id')
 
       if (taskError) throw taskError
       migratedTasks = createdTasks?.length || 0
+      for (const task of createdTasks || []) {
+        if (task.contact_id) createdTaskContactIds.add(task.contact_id)
+      }
     }
+
+    await createActivities(
+      auth.supabase,
+      (inserted || []).map((contact: any) => ({
+        user_id: auth.user.id,
+        contact_id: contact.id,
+        type: 'import',
+        content: [
+          'Contatto creato da import legacy.',
+          `Stato: ${contact.status}.`,
+          contact.next_followup_at ? `Follow-up: ${formatActivityDate(contact.next_followup_at)}.` : null,
+          createdTaskContactIds.has(contact.id) ? 'Task di follow-up creato automaticamente.' : null,
+        ]
+          .filter(Boolean)
+          .join(' '),
+      }))
+    )
 
     return Response.json({
       migrated_contacts: inserted?.length || 0,
