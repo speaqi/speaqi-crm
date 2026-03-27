@@ -1,6 +1,14 @@
 import { NextRequest } from 'next/server'
 import { requireRouteUser } from '@/lib/server/supabase'
 
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message?: unknown }).message || fallback)
+  }
+  return fallback
+}
+
 function normalizeTaskRow(row: any) {
   return {
     ...row,
@@ -30,7 +38,7 @@ export async function GET(request: NextRequest) {
     return Response.json({ tasks: (data || []).map(normalizeTaskRow) })
   } catch (error) {
     return Response.json(
-      { error: error instanceof Error ? error.message : 'Failed to load tasks' },
+      { error: errorMessage(error, 'Failed to load tasks') },
       { status: 500 }
     )
   }

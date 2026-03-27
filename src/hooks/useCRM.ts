@@ -33,6 +33,14 @@ function writeVoiceNotes(notes: VoiceNote[]) {
   window.localStorage.setItem(VOICE_NOTES_KEY, JSON.stringify(notes))
 }
 
+function extractMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message?: unknown }).message || fallback)
+  }
+  return fallback
+}
+
 export function useCRM() {
   const [state, setState] = useState<CRMState>({
     stages: [],
@@ -66,38 +74,57 @@ export function useCRM() {
     setLoading(true)
     setError(null)
 
+    let nextStages: PipelineStage[] | null = null
+    let nextContacts: CRMContact[] | null = null
+    let nextTasks: TaskWithContact[] | null = null
+    const warnings: string[] = []
+
     try {
-      const [stagesResponse, contactsResponse, tasksResponse] = await Promise.all([
+      const [stagesResult, contactsResult] = await Promise.allSettled([
         apiFetch<{ stages: PipelineStage[] }>('/api/pipeline-stages'),
         apiFetch<{ contacts: CRMContact[] }>('/api/contacts'),
-        apiFetch<{ tasks: TaskWithContact[] }>('/api/tasks?status=pending'),
       ])
 
-      let contacts = contactsResponse.contacts || []
-      let tasks = tasksResponse.tasks || []
-
-      if (!contacts.length) {
-        await apiFetch<{ migrated_contacts: number; migrated_tasks: number }>('/api/import/legacy', {
-          method: 'POST',
-        })
-
-        const [reloadedContacts, reloadedTasks] = await Promise.all([
-          apiFetch<{ contacts: CRMContact[] }>('/api/contacts'),
-          apiFetch<{ tasks: TaskWithContact[] }>('/api/tasks?status=pending'),
-        ])
-
-        contacts = reloadedContacts.contacts || []
-        tasks = reloadedTasks.tasks || []
+      if (stagesResult.status === 'fulfilled') {
+        nextStages = stagesResult.value.stages || []
+      } else {
+        warnings.push(`Stage: ${extractMessage(stagesResult.reason, 'Errore caricando gli stage')}`)
       }
 
-      setState({
-        stages: stagesResponse.stages || [],
-        contacts,
-        tasks,
-      })
+      if (contactsResult.status === 'fulfilled') {
+        nextContacts = contactsResult.value.contacts || []
+      } else {
+        warnings.push(`Contatti: ${extractMessage(contactsResult.reason, 'Errore caricando i contatti')}`)
+      }
+
+      if (nextContacts && !nextContacts.length) {
+        try {
+          await apiFetch<{ migrated_contacts: number; migrated_tasks: number }>('/api/import/legacy', {
+            method: 'POST',
+          })
+          const reloadedContacts = await apiFetch<{ contacts: CRMContact[] }>('/api/contacts')
+          nextContacts = reloadedContacts.contacts || []
+        } catch (legacyError) {
+          warnings.push(`Import legacy: ${extractMessage(legacyError, 'Errore importando i dati legacy')}`)
+        }
+      }
+
+      try {
+        const tasksResponse = await apiFetch<{ tasks: TaskWithContact[] }>('/api/tasks?status=pending')
+        nextTasks = tasksResponse.tasks || []
+      } catch (tasksError) {
+        warnings.push(`Task: ${extractMessage(tasksError, 'Errore caricando i task')}`)
+      }
+
+      setState((previous) => ({
+        stages: nextStages ?? previous.stages,
+        contacts: nextContacts ?? previous.contacts,
+        tasks: nextTasks ?? previous.tasks,
+      }))
       setVNotes(readVoiceNotes())
+      setError(warnings.length ? warnings.join(' | ') : null)
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Impossibile caricare il CRM')
+      setError(extractMessage(loadError, 'Impossibile caricare il CRM'))
     } finally {
       setLoading(false)
     }
