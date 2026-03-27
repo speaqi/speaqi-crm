@@ -2,14 +2,14 @@
 
 import { useMemo } from 'react'
 import { useCRMContext } from '../layout'
-import { formatDateTime, isOverdue, isPipelineVisible, priorityLabel } from '@/lib/data'
+import { formatDateTime, isClosedStatus, isOverdue, isPipelineVisible, priorityLabel, statusLabel } from '@/lib/data'
 
 export default function DashboardPage() {
   const { contacts, tasks, stages, speaqiContacts } = useCRMContext()
 
   const pipelineContacts = contacts.filter(isPipelineVisible)
-  const openContacts = pipelineContacts.filter((contact) => contact.status !== 'Closed')
-  const overdueContacts = contacts.filter((contact) => isOverdue(contact.next_followup_at) && contact.status !== 'Closed')
+  const openContacts = pipelineContacts.filter((contact) => !isClosedStatus(contact.status))
+  const overdueContacts = contacts.filter((contact) => isOverdue(contact.next_followup_at) && !isClosedStatus(contact.status))
   const overdueTasks = tasks.filter((task) => task.due_date && isOverdue(task.due_date))
 
   const pipeline = useMemo(
@@ -23,7 +23,7 @@ export default function DashboardPage() {
 
   const maxCount = Math.max(...pipeline.map((stage) => stage.count), 1)
   const hotContacts = [...contacts]
-    .filter((contact) => contact.priority >= 2 && contact.status !== 'Closed')
+    .filter((contact) => contact.priority >= 2 && !isClosedStatus(contact.status))
     .sort((left, right) => (right.priority - left.priority) || left.name.localeCompare(right.name))
     .slice(0, 8)
 
@@ -70,7 +70,7 @@ export default function DashboardPage() {
           <div className="prog-list">
             {pipeline.map((stage) => (
               <div key={stage.id} className="prog-row">
-                <span className="prog-label">{stage.name}</span>
+                <span className="prog-label">{statusLabel(stage.name)}</span>
                 <div className="prog-bar">
                   <div
                     className="prog-fill"
@@ -98,7 +98,7 @@ export default function DashboardPage() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="activity-name">{contact.name}</div>
                     <div className="activity-stato">
-                      {priorityLabel(contact.priority)} · {contact.status} · {formatDateTime(contact.next_followup_at)}
+                      {priorityLabel(contact.priority)} · {statusLabel(contact.status)} · {formatDateTime(contact.next_followup_at)}
                     </div>
                   </div>
                 </div>
@@ -130,7 +130,7 @@ export default function DashboardPage() {
           <div className="dash-card-title">Disciplina commerciale</div>
           <div className="dash-meta-grid">
             <div className="meta-card">
-              <strong>{contacts.filter((contact) => !contact.next_followup_at && contact.status !== 'Closed').length}</strong>
+              <strong>{contacts.filter((contact) => !contact.next_followup_at && !isClosedStatus(contact.status)).length}</strong>
               <span>lead aperti senza follow-up</span>
             </div>
             <div className="meta-card">
@@ -140,6 +140,10 @@ export default function DashboardPage() {
             <div className="meta-card">
               <strong>{contacts.filter((contact) => contact.source === 'speaqi').length}</strong>
               <span>lead inbound</span>
+            </div>
+            <div className="meta-card">
+              <strong>{contacts.filter((contact) => contact.status === 'Lost').length}</strong>
+              <span>lead persi</span>
             </div>
             <div className="meta-card">
               <strong>{contacts.filter((contact) => contact.status === 'Closed').length}</strong>

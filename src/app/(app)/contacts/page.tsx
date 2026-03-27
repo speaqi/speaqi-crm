@@ -10,6 +10,7 @@ import {
   priorityBadgeClass,
   priorityLabel,
   sourceLabel,
+  statusLabel,
 } from '@/lib/data'
 import { useCRMContext } from '../layout'
 import type { CRMContact } from '@/types'
@@ -65,7 +66,7 @@ export default function ContactsPage() {
           <option value="">Tutti gli stadi</option>
           {stages.map((stage) => (
             <option key={stage.id} value={stage.name}>
-              {stage.name}
+              {statusLabel(stage.name)}
             </option>
           ))}
         </select>
@@ -120,7 +121,7 @@ export default function ContactsPage() {
                   <div className="contact-meta">Origine: {sourceLabel(contact.source)}</div>
                   <div className="contact-meta">Follow-up: {formatDateTime(contact.next_followup_at)}</div>
                   <div className="contact-tags">
-                    <span className="ctag ctag-contattato">{contact.status}</span>
+                    <span className="ctag ctag-contattato">{statusLabel(contact.status)}</span>
                     <span className={`ctag ${priorityBadgeClass(contact.priority)}`}>{priorityLabel(contact.priority)}</span>
                     {isNeverContacted(contact) && <span className="ctag ctag-dacontattare">Mai contattato</span>}
                   </div>

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { ContactModal } from '@/components/crm/ContactModal'
-import { formatDateTime, priorityBadgeClass, priorityLabel, sourceLabel } from '@/lib/data'
+import { formatDateTime, priorityBadgeClass, priorityLabel, sourceLabel, statusLabel } from '@/lib/data'
 import { useCRMContext } from '../layout'
 import type { CRMContact } from '@/types'
 
@@ -63,7 +63,7 @@ export default function SpeaqiPage() {
                   <div className="contact-meta">Follow-up: {formatDateTime(contact.next_followup_at)}</div>
                   <div className="contact-tags">
                     <span className="ctag ctag-speaqi">{sourceLabel('speaqi')}</span>
-                    <span className="ctag ctag-contattato">{contact.status}</span>
+                    <span className="ctag ctag-contattato">{statusLabel(contact.status)}</span>
                     <span className={`ctag ${priorityBadgeClass(contact.priority)}`}>{priorityLabel(contact.priority)}</span>
                   </div>
                 </Link>

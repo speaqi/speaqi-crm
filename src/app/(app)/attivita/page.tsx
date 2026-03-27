@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
-import { formatDateTime, isOverdue, priorityBadgeClass, priorityLabel } from '@/lib/data'
+import { formatDateTime, isClosedStatus, isOverdue, priorityBadgeClass, priorityLabel, statusLabel } from '@/lib/data'
 import { useCRMContext } from '../layout'
 import type { CRMContact, TaskWithContact } from '@/types'
 
@@ -14,7 +14,7 @@ export default function AttivitaPage() {
   const [outcomeContact, setOutcomeContact] = useState<CRMContact | null>(null)
   const [outcomeTask, setOutcomeTask] = useState<TaskWithContact | null>(null)
 
-  const missingNextStep = contacts.filter((contact) => contact.status !== 'Closed' && !contact.next_followup_at)
+  const missingNextStep = contacts.filter((contact) => !isClosedStatus(contact.status) && !contact.next_followup_at)
   const overdueTasks = tasks.filter((task) => task.due_date && isOverdue(task.due_date))
   const tasksByContact = useMemo(() => {
     const map = new Map<string, TaskWithContact>()
@@ -25,7 +25,7 @@ export default function AttivitaPage() {
   }, [tasks])
   const callsToday = [...contacts]
     .filter((contact) => {
-      if (contact.status === 'Closed' || !contact.next_followup_at) return false
+      if (isClosedStatus(contact.status) || !contact.next_followup_at) return false
       return new Date(contact.next_followup_at).getTime() < tomorrow.getTime()
     })
     .sort((left, right) => {
@@ -71,7 +71,7 @@ export default function AttivitaPage() {
                 <div>
                   <strong>{contact.name}</strong>
                   <div className="task-date">
-                    {contact.status} · {formatDateTime(contact.next_followup_at)}
+                    {statusLabel(contact.status)} · {formatDateTime(contact.next_followup_at)}
                   </div>
                   <div className="task-note">
                     {contact.phone || 'Telefono mancante'} · {contact.last_activity_summary || 'Nessuna attività registrata'}
@@ -185,7 +185,7 @@ export default function AttivitaPage() {
                   <div className="timeline-title">
                     <Link href={`/contacts/${contact.id}`}>{contact.name}</Link>
                   </div>
-                  <div className="timeline-time">{contact.status} · {priorityLabel(contact.priority)}</div>
+                  <div className="timeline-time">{statusLabel(contact.status)} · {priorityLabel(contact.priority)}</div>
                   <div className={`ctag ${priorityBadgeClass(contact.priority)}`}>Senza next step</div>
                 </div>
               </div>
@@ -210,12 +210,12 @@ export default function AttivitaPage() {
             await completeTask(outcomeTask.id, { refresh: false })
           }
 
-          if (payload.status !== outcomeContact.status || payload.status === 'Closed') {
+          if (payload.status !== outcomeContact.status || isClosedStatus(payload.status)) {
             await updateContact(
               outcomeContact.id,
               {
                 status: payload.status,
-                next_followup_at: payload.status === 'Closed' ? '' : payload.next_followup_at,
+                next_followup_at: isClosedStatus(payload.status) ? '' : payload.next_followup_at,
               },
               { refresh: false }
             )
@@ -226,7 +226,7 @@ export default function AttivitaPage() {
             {
               type: 'call',
               content: payload.content,
-              next_followup_at: payload.status === 'Closed' ? undefined : payload.next_followup_at,
+              next_followup_at: isClosedStatus(payload.status) ? undefined : payload.next_followup_at,
               task_type: payload.task_type,
             },
             { refresh: false }

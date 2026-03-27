@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
 import { ContactModal } from '@/components/crm/ContactModal'
-import { ACTIVITY_TYPES, TASK_TYPES, activityTypeLabel, formatDateTime, fromDatetimeLocalValue, priorityLabel, sourceLabel, toDatetimeLocalValue } from '@/lib/data'
+import { ACTIVITY_TYPES, TASK_TYPES, activityTypeLabel, formatDateTime, fromDatetimeLocalValue, isClosedStatus, priorityLabel, sourceLabel, statusLabel, toDatetimeLocalValue } from '@/lib/data'
 import { useCRMContext } from '../../layout'
 import type { ContactDetail } from '@/types'
 
@@ -58,7 +58,7 @@ export default function ContactDetailPage() {
             <Link href="/contacts" className="back-link">← Torna ai contatti</Link>
             <h1 className="detail-title">{contact.name}</h1>
             <div className="detail-subtitle">
-              {contact.status} · {priorityLabel(contact.priority)} · {sourceLabel(contact.source)}
+              {statusLabel(contact.status)} · {priorityLabel(contact.priority)} · {sourceLabel(contact.source)}
             </div>
           </div>
           <div className="detail-actions">
@@ -265,12 +265,12 @@ export default function ContactDetailPage() {
 
           await completeTask(task.id, { refresh: false })
 
-          if (payload.status !== contact.status || payload.status === 'Closed') {
+          if (payload.status !== contact.status || isClosedStatus(payload.status)) {
             await updateContact(
               contact.id,
               {
                 status: payload.status,
-                next_followup_at: payload.status === 'Closed' ? '' : payload.next_followup_at,
+                next_followup_at: isClosedStatus(payload.status) ? '' : payload.next_followup_at,
               },
               { refresh: false }
             )
@@ -281,7 +281,7 @@ export default function ContactDetailPage() {
             {
               type: 'call',
               content: payload.content,
-              next_followup_at: payload.status === 'Closed' ? undefined : payload.next_followup_at,
+              next_followup_at: isClosedStatus(payload.status) ? undefined : payload.next_followup_at,
               task_type: payload.task_type,
             },
             { refresh: false }

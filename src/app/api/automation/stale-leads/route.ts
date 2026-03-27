@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
       .from('contacts')
       .select('*')
       .neq('status', 'Closed')
+      .neq('status', 'Lost')
       .or(`last_contact_at.is.null,last_contact_at.lt.${cutoff}`)
       .order('updated_at', { ascending: true })
 

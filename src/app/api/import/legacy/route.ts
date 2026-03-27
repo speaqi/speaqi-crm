@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createActivities, ensurePipelineStages, formatActivityDate, mapLegacyStateToRecords } from '@/lib/server/crm'
+import { isClosedStatus } from '@/lib/data'
 import { requireRouteUser } from '@/lib/server/supabase'
 
 export async function POST(request: NextRequest) {
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
     if (error) throw error
 
     const pendingTasks = (inserted || [])
-      .filter((contact: any) => contact.next_followup_at && contact.status !== 'Closed')
+      .filter((contact: any) => contact.next_followup_at && !isClosedStatus(contact.status))
       .map((contact: any) => ({
         user_id: auth.user.id,
         contact_id: contact.id,

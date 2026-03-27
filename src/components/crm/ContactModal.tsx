@@ -9,6 +9,7 @@ import {
   fromDatetimeLocalValue,
   isClosedStatus,
   sourceLabel,
+  statusLabel,
   toDatetimeLocalValue,
 } from '@/lib/data'
 import type { CRMContact, ContactInput, PipelineStage } from '@/types'
@@ -168,7 +169,7 @@ export function ContactModal({
           >
             {stages.map((stage) => (
               <option key={stage.id} value={stage.name}>
-                {stage.name}
+                {statusLabel(stage.name)}
               </option>
             ))}
           </select>

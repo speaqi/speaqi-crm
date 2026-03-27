@@ -1,4 +1,5 @@
 import { DEFAULT_PIPELINE_STAGES, isClosedStatus, mapLegacyPriority, mapLegacyStatus } from '@/lib/data'
+import type { PipelineStage } from '@/types'
 
 function chunk<T>(items: T[], size = 100) {
   const batches: T[][] = []
@@ -37,33 +38,89 @@ async function readPipelineStages(supabase: any, userId: string) {
     .order('order', { ascending: true })
 
   if (error) throw error
-  return data || []
+  return (data || []) as PipelineStage[]
+}
+
+async function shiftStageOrders(
+  supabase: any,
+  userId: string,
+  stages: PipelineStage[],
+  fromOrder: number
+) {
+  const toShift = [...stages]
+    .filter((stage) => Number(stage.order ?? 0) >= fromOrder)
+    .sort((left, right) => Number(right.order ?? 0) - Number(left.order ?? 0))
+
+  for (const stage of toShift) {
+    const nextOrder = Number(stage.order ?? 0) + 1
+    const { error } = await supabase
+      .from('pipeline_stages')
+      .update({ order: nextOrder })
+      .eq('user_id', userId)
+      .eq('id', stage.id)
+
+    if (error) throw error
+  }
 }
 
 export async function ensurePipelineStages(
   supabase: any,
   userId: string
 ) {
-  const existing = await readPipelineStages(supabase, userId)
-  if (existing.length) return sortStages(existing)
+  let existing: PipelineStage[] = await readPipelineStages(supabase, userId)
+  if (!existing.length) {
+    const { error: insertError } = await supabase
+      .from('pipeline_stages')
+      .insert(
+        DEFAULT_PIPELINE_STAGES.map((stage) => ({
+          ...stage,
+          user_id: userId,
+        }))
+      )
 
-  const { error: insertError } = await supabase
-    .from('pipeline_stages')
-    .insert(
-      DEFAULT_PIPELINE_STAGES.map((stage) => ({
-        ...stage,
-        user_id: userId,
-      }))
-    )
+    if (insertError) {
+      const afterInsertFailure = await readPipelineStages(supabase, userId)
+      if (afterInsertFailure.length) return sortStages(afterInsertFailure)
+      throw insertError
+    }
 
-  if (insertError) {
-    const afterInsertFailure = await readPipelineStages(supabase, userId)
-    if (afterInsertFailure.length) return sortStages(afterInsertFailure)
-    throw insertError
+    const inserted = await readPipelineStages(supabase, userId)
+    return sortStages(inserted)
   }
 
-  const inserted = await readPipelineStages(supabase, userId)
-  return sortStages(inserted)
+  for (const stage of DEFAULT_PIPELINE_STAGES) {
+    const match = existing.find((item) => item.system_key === stage.system_key || item.name === stage.name)
+
+    if (!match) {
+      await shiftStageOrders(supabase, userId, existing, stage.order)
+      const { error } = await supabase
+        .from('pipeline_stages')
+        .insert({
+          ...stage,
+          user_id: userId,
+        })
+
+      if (error) throw error
+      existing = await readPipelineStages(supabase, userId)
+      continue
+    }
+
+    const updatePayload: Record<string, unknown> = {}
+    if (!match.system_key) updatePayload.system_key = stage.system_key
+    if ((match.color || null) !== (stage.color || null)) updatePayload.color = stage.color
+
+    if (Object.keys(updatePayload).length) {
+      const { error } = await supabase
+        .from('pipeline_stages')
+        .update(updatePayload)
+        .eq('user_id', userId)
+        .eq('id', match.id)
+
+      if (error) throw error
+    }
+  }
+
+  return sortStages(await readPipelineStages(supabase, userId))
 }
 
 export async function getPendingTaskCount(

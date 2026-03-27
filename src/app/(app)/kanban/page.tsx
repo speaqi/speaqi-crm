@@ -10,6 +10,7 @@ import {
   priorityBadgeClass,
   priorityLabel,
   sourceLabel,
+  statusLabel,
   stageColor,
 } from '@/lib/data'
 import { useCRMContext } from '../layout'
@@ -125,7 +126,7 @@ export default function KanbanPage() {
                 <div key={stage.id} className="col">
                   <div className="col-head">
                     <div className="col-dot" style={{ background: stage.color || '#4f6ef7' }} />
-                    <div className="col-name">{stage.name}</div>
+                    <div className="col-name">{statusLabel(stage.name)}</div>
                     <div className="col-count">{stageContacts.length}</div>
                   </div>
                   <div
@@ -181,7 +182,7 @@ export default function KanbanPage() {
                               Apri scheda
                             </Link>
                             <span className="stage-pill" style={{ background: stageColor(contact.status, stages) }}>
-                              {contact.status}
+                              {statusLabel(contact.status)}
                             </span>
                           </div>
                         </div>

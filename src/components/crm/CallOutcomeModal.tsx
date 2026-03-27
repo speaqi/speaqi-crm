@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import {
   TASK_TYPES,
-  isCallableDate,
-  nextCallableDateTime,
-  toDatetimeLocalValue,
   fromDatetimeLocalValue,
+  isCallableDate,
+  isClosedStatus,
+  nextCallableDateTime,
+  statusLabel,
+  toDatetimeLocalValue,
 } from '@/lib/data'
 import type { CRMContact, PipelineStage, TaskWithContact } from '@/types'
 
@@ -62,7 +64,7 @@ export function CallOutcomeModal({
     setNextFollowupAt(initial.nextFollowupAt)
   }, [contact, open, task])
 
-  const followupRequired = status !== 'Closed'
+  const followupRequired = !isClosedStatus(status)
   const nextFollowupIso = fromDatetimeLocalValue(nextFollowupAt)
 
   async function handleSave() {
@@ -119,7 +121,7 @@ export function CallOutcomeModal({
         <select className="fi" value={status} onChange={(event) => setStatus(event.target.value)}>
           {stages.map((stage) => (
             <option key={stage.id} value={stage.name}>
-              {stage.name}
+              {statusLabel(stage.name)}
             </option>
           ))}
         </select>

@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server'
 import { createActivities, ensurePipelineStages, formatActivityDate } from '@/lib/server/crm'
+import { isClosedStatus } from '@/lib/data'
 import { requireRouteUser } from '@/lib/server/supabase'
 
-const ALLOWED_STATUSES = new Set(['New', 'Contacted', 'Interested', 'Call booked', 'Closed'])
+const ALLOWED_STATUSES = new Set(['New', 'Contacted', 'Interested', 'Call booked', 'Lost', 'Closed'])
 const INVALID_LEGACY_IDS = new Set(['#REF!', '#N/A', 'N/A', 'NULL', 'null', 'NaN', 'nan'])
 
 function parseCsvText(text: string) {
@@ -160,6 +161,7 @@ export async function POST(request: NextRequest) {
     const seenLegacyIds = new Set<string>()
     const records = parsedRows.map((row, index) => {
       const status = normalizeText(row.status)
+      const normalizedStatus = status && ALLOWED_STATUSES.has(status) ? status : 'New'
       const nextFollowupAt = normalizeText(row.next_followup_at)
       return {
         user_id: auth.user.id,
@@ -167,14 +169,14 @@ export async function POST(request: NextRequest) {
         name: normalizeText(row.name) || `Lead legacy ${index + 1}`,
         email: normalizeText(row.email),
         phone: normalizeText(row.phone),
-        status: status && ALLOWED_STATUSES.has(status) ? status : 'New',
+        status: normalizedStatus,
         source: normalizeText(row.source) || 'legacy-kanban',
         priority: normalizePriority(row.priority),
         responsible: normalizeText(row.responsible),
         value: normalizeNumber(row.value),
         note: normalizeText(row.note),
-        last_activity_summary: `Import CSV legacy (${status && ALLOWED_STATUSES.has(status) ? status : 'New'})`,
-        next_followup_at: nextFollowupAt || (status === 'Closed' ? null : defaultFollowupAt()),
+        last_activity_summary: `Import CSV legacy (${normalizedStatus})`,
+        next_followup_at: nextFollowupAt || (isClosedStatus(normalizedStatus) ? null : defaultFollowupAt()),
       }
     })
 
@@ -213,7 +215,7 @@ export async function POST(request: NextRequest) {
       contacts.push(...(data || []))
     }
 
-    const openContacts = contacts.filter((contact) => contact.status !== 'Closed' && contact.next_followup_at)
+    const openContacts = contacts.filter((contact) => !isClosedStatus(contact.status) && contact.next_followup_at)
     const existingTaskContactIds = new Set<string>()
 
     for (const batch of chunk(openContacts.map((contact) => contact.id))) {

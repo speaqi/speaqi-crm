@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
       .from('contacts')
       .select('*')
       .neq('status', 'Closed')
+      .neq('status', 'Lost')
       .not('next_followup_at', 'is', null)
       .lte('next_followup_at', new Date().toISOString())
       .order('next_followup_at', { ascending: true })

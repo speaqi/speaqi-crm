@@ -6,10 +6,12 @@ import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
 import {
   formatDateTime,
   isCallableDate,
+  isClosedStatus,
   isOverdue,
   nextCallableDateTime,
   priorityBadgeClass,
   priorityLabel,
+  statusLabel,
   toLocalDateKey,
 } from '@/lib/data'
 import { useCRMContext } from '../layout'
@@ -53,7 +55,7 @@ export default function CalendarioPage() {
   const scheduledContacts = useMemo(
     () =>
       [...contacts]
-        .filter((contact) => contact.status !== 'Closed' && !!contact.next_followup_at)
+        .filter((contact) => !isClosedStatus(contact.status) && !!contact.next_followup_at)
         .sort(compareScheduledContacts),
     [contacts]
   )
@@ -223,7 +225,7 @@ export default function CalendarioPage() {
                     <div>
                       <strong>{contact.name}</strong>
                       <div className="task-date">
-                        {contact.status} · {formatDateTime(contact.next_followup_at)}
+                        {statusLabel(contact.status)} · {formatDateTime(contact.next_followup_at)}
                       </div>
                       <div className="task-note">
                         {contact.phone || 'Telefono mancante'} · {contact.last_activity_summary || 'Nessuna attività registrata'}
@@ -276,12 +278,12 @@ export default function CalendarioPage() {
             await completeTask(outcomeTask.id, { refresh: false })
           }
 
-          if (payload.status !== outcomeContact.status || payload.status === 'Closed') {
+          if (payload.status !== outcomeContact.status || isClosedStatus(payload.status)) {
             await updateContact(
               outcomeContact.id,
               {
                 status: payload.status,
-                next_followup_at: payload.status === 'Closed' ? '' : payload.next_followup_at,
+                next_followup_at: isClosedStatus(payload.status) ? '' : payload.next_followup_at,
               },
               { refresh: false }
             )
@@ -292,7 +294,7 @@ export default function CalendarioPage() {
             {
               type: 'call',
               content: payload.content,
-              next_followup_at: payload.status === 'Closed' ? undefined : payload.next_followup_at,
+              next_followup_at: isClosedStatus(payload.status) ? undefined : payload.next_followup_at,
               task_type: payload.task_type,
             },
             { refresh: false }

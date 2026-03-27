@@ -5,7 +5,8 @@ export const DEFAULT_PIPELINE_STAGES: Array<Omit<PipelineStage, 'id'>> = [
   { name: 'Contacted', order: 1, color: '#f59e0b', system_key: 'contacted' },
   { name: 'Interested', order: 2, color: '#10b981', system_key: 'interested' },
   { name: 'Call booked', order: 3, color: '#7c3aed', system_key: 'call_booked' },
-  { name: 'Closed', order: 4, color: '#059669', system_key: 'closed' },
+  { name: 'Lost', order: 4, color: '#ef4444', system_key: 'lost' },
+  { name: 'Closed', order: 5, color: '#059669', system_key: 'closed' },
 ]
 
 export const SOURCE_OPTIONS = ['manual', 'speaqi', 'evento', 'import', 'legacy-kanban']
@@ -52,6 +53,25 @@ export function sourceLabel(source?: string | null) {
       return 'Legacy Kanban'
     default:
       return source || 'Manuale'
+  }
+}
+
+export function statusLabel(status?: string | null) {
+  switch (status || '') {
+    case 'New':
+      return 'Nuovo'
+    case 'Contacted':
+      return 'Contattato'
+    case 'Interested':
+      return 'Interessato'
+    case 'Call booked':
+      return 'Call fissata'
+    case 'Lost':
+      return 'Perso'
+    case 'Closed':
+      return 'Chiuso'
+    default:
+      return status || ''
   }
 }
 
@@ -153,7 +173,8 @@ export function fromDatetimeLocalValue(value?: string | null) {
 }
 
 export function isClosedStatus(status: string) {
-  return status.toLowerCase() === 'closed'
+  const normalized = status.toLowerCase()
+  return normalized === 'closed' || normalized === 'lost'
 }
 
 export function isOverdue(value?: string | null) {
@@ -185,9 +206,10 @@ export function mapLegacyStatus(status?: string | null) {
     case 'Revisione':
       return 'Call booked'
     case 'Completato':
+      return 'Closed'
     case 'Non Interessato':
     case 'Perso':
-      return 'Closed'
+      return 'Lost'
     default:
       return 'New'
   }
