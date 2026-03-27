@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { BrandLockup } from '@/components/layout/BrandLockup'
 import { createClient } from '@/lib/supabase'
 
 export default function LoginPage() {
@@ -34,9 +35,7 @@ export default function LoginPage() {
     <div className="login-page">
       <div className="login-box">
         <div className="login-logo">
-          <div className="login-logo-mark">⚡</div>
-          <div className="login-title">SPEAQI CRM</div>
-          <div className="login-sub">Accedi per continuare</div>
+          <BrandLockup subtitle="Accedi per continuare" tone="light" size="hero" centered />
         </div>
 
         <form className="login-form" onSubmit={handleLogin}>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createContext, useContext } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { BrandLockup } from '@/components/layout/BrandLockup'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Topbar } from '@/components/layout/Topbar'
 import { Toast } from '@/components/ui/Toast'
@@ -56,7 +57,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (!authChecked || crm.loading) {
     return (
       <div className="loading-screen">
-        <div className="loading-logo">⚡</div>
+        <BrandLockup tone="dark" size="hero" centered />
         <div className="loading-text">Caricamento CRM...</div>
       </div>
     )

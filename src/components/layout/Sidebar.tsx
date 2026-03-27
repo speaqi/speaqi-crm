@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { BrandLockup } from '@/components/layout/BrandLockup'
 
 interface SidebarProps {
   counts: {
@@ -33,11 +34,7 @@ export function Sidebar({ counts, isRecording = false, onQuickRecord }: SidebarP
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
-        <div className="logo-mark">⚡</div>
-        <div>
-          <div className="logo-text">SPEAQI CRM</div>
-          <div className="logo-sub">relational</div>
-        </div>
+        <BrandLockup subtitle="relational" tone="dark" size="sidebar" />
       </div>
 
       <nav className="nav">
