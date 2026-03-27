@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import { createClient } from '@/lib/supabase'
 import type {
@@ -16,6 +16,47 @@ import type {
 } from '@/types'
 
 const VOICE_NOTES_KEY = 'speaqi_voice_notes_v2'
+type MutationOptions = { refresh?: boolean }
+
+function compareNullableDateAsc(left?: string | null, right?: string | null) {
+  if (!left && !right) return 0
+  if (!left) return 1
+  if (!right) return -1
+  return new Date(left).getTime() - new Date(right).getTime()
+}
+
+function sortContacts(contacts: CRMContact[]) {
+  return [...contacts].sort((left, right) => {
+    const nextFollowupDiff = compareNullableDateAsc(left.next_followup_at, right.next_followup_at)
+    if (nextFollowupDiff !== 0) return nextFollowupDiff
+
+    const createdAtDiff = new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
+    if (createdAtDiff !== 0) return createdAtDiff
+
+    return left.name.localeCompare(right.name)
+  })
+}
+
+function buildTaskContactSnapshot(contact?: CRMContact | null) {
+  if (!contact) return null
+
+  return {
+    id: contact.id,
+    name: contact.name,
+    status: contact.status,
+    source: contact.source,
+    priority: contact.priority,
+    next_followup_at: contact.next_followup_at,
+  }
+}
+
+function sortTasks(tasks: TaskWithContact[]) {
+  return [...tasks].sort((left, right) => {
+    const dueDateDiff = compareNullableDateAsc(left.due_date, right.due_date)
+    if (dueDateDiff !== 0) return dueDateDiff
+    return new Date(left.created_at).getTime() - new Date(right.created_at).getTime()
+  })
+}
 
 function readVoiceNotes() {
   if (typeof window === 'undefined') return []
@@ -51,6 +92,7 @@ export function useCRM() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
+  const hasLoadedRef = useRef(false)
 
   const speaqiContacts = useMemo(
     () => state.contacts.filter((contact) => contact.source === 'speaqi'),
@@ -70,8 +112,9 @@ export function useCRM() {
     }).length
   }, [state.tasks])
 
-  const loadAll = useCallback(async () => {
-    setLoading(true)
+  const loadAll = useCallback(async ({ background = false }: { background?: boolean } = {}) => {
+    const shouldBlockUI = !background && !hasLoadedRef.current
+    if (shouldBlockUI) setLoading(true)
     setError(null)
 
     let nextStages: PipelineStage[] | null = null
@@ -126,7 +169,8 @@ export function useCRM() {
     } catch (loadError) {
       setError(extractMessage(loadError, 'Impossibile caricare il CRM'))
     } finally {
-      setLoading(false)
+      hasLoadedRef.current = true
+      if (shouldBlockUI) setLoading(false)
     }
   }, [])
 
@@ -150,75 +194,213 @@ export function useCRM() {
   }, [loadAll])
 
   const createContact = useCallback(
-    async (payload: ContactInput) => {
+    async (payload: ContactInput, options: MutationOptions = {}) => {
       const response = await apiFetch<{ contact: CRMContact }>('/api/contacts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      await loadAll()
+
+      setState((previous) => {
+        const contacts = sortContacts([
+          response.contact,
+          ...previous.contacts.filter((contact) => contact.id !== response.contact.id),
+        ])
+
+        return {
+          ...previous,
+          contacts,
+        }
+      })
+
+      if (options.refresh !== false) {
+        void loadAll({ background: true })
+      }
       return response.contact
     },
     [loadAll]
   )
 
   const updateContact = useCallback(
-    async (id: string, payload: Partial<ContactInput>) => {
+    async (id: string, payload: Partial<ContactInput>, options: MutationOptions = {}) => {
       const response = await apiFetch<{ contact: CRMContact }>(`/api/contacts/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      await loadAll()
+
+      setState((previous) => {
+        const contacts = sortContacts(
+          previous.contacts.map((contact) => (contact.id === id ? response.contact : contact))
+        )
+
+        const tasks = sortTasks(
+          previous.tasks.map((task) =>
+            task.contact_id === id
+              ? {
+                  ...task,
+                  contact: buildTaskContactSnapshot(response.contact),
+                }
+              : task
+          )
+        )
+
+        return {
+          ...previous,
+          contacts,
+          tasks,
+        }
+      })
+
+      if (options.refresh !== false) {
+        void loadAll({ background: true })
+      }
       return response.contact
     },
     [loadAll]
   )
 
   const deleteContact = useCallback(
-    async (id: string) => {
+    async (id: string, options: MutationOptions = {}) => {
       await apiFetch<{ success: boolean }>(`/api/contacts/${id}`, {
         method: 'DELETE',
       })
-      await loadAll()
+
+      setState((previous) => ({
+        ...previous,
+        contacts: previous.contacts.filter((contact) => contact.id !== id),
+        tasks: previous.tasks.filter((task) => task.contact_id !== id),
+      }))
+
+      if (options.refresh !== false) {
+        void loadAll({ background: true })
+      }
     },
     [loadAll]
   )
 
   const addActivity = useCallback(
-    async (contactId: string, payload: ActivityInput) => {
+    async (contactId: string, payload: ActivityInput, options: MutationOptions = {}) => {
       const response = await apiFetch(`/api/contacts/${contactId}/activities`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      await loadAll()
+
+      setState((previous) => {
+        const contacts = sortContacts(
+          previous.contacts.map((contact) =>
+            contact.id === contactId
+              ? {
+                  ...contact,
+                  last_contact_at: new Date().toISOString(),
+                  last_activity_summary: payload.content.trim(),
+                  next_followup_at:
+                    payload.next_followup_at !== undefined
+                      ? payload.next_followup_at || null
+                      : contact.next_followup_at,
+                }
+              : contact
+          )
+        )
+
+        const updatedContact = contacts.find((contact) => contact.id === contactId) || null
+        const nextTasks =
+          response && typeof response === 'object' && 'task' in response && response.task
+            ? sortTasks([
+                ...previous.tasks,
+                {
+                  ...(response.task as TaskWithContact),
+                  contact: buildTaskContactSnapshot(updatedContact),
+                },
+              ])
+            : previous.tasks
+
+        return {
+          ...previous,
+          contacts,
+          tasks: nextTasks,
+        }
+      })
+
+      if (options.refresh !== false) {
+        void loadAll({ background: true })
+      }
       return response
     },
     [loadAll]
   )
 
   const addTask = useCallback(
-    async (contactId: string, payload: TaskInput) => {
+    async (contactId: string, payload: TaskInput, options: MutationOptions = {}) => {
       const response = await apiFetch(`/api/contacts/${contactId}/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      await loadAll()
+
+      setState((previous) => {
+        const contacts = sortContacts(
+          previous.contacts.map((contact) =>
+            contact.id === contactId
+              ? {
+                  ...contact,
+                  next_followup_at: payload.due_date,
+                }
+              : contact
+          )
+        )
+        const updatedContact = contacts.find((contact) => contact.id === contactId) || null
+
+        const nextTasks =
+          response && typeof response === 'object' && 'task' in response && response.task
+            ? sortTasks([
+                ...previous.tasks,
+                {
+                  ...(response.task as TaskWithContact),
+                  contact: buildTaskContactSnapshot(updatedContact),
+                },
+              ])
+            : previous.tasks
+
+        return {
+          ...previous,
+          contacts,
+          tasks: nextTasks,
+        }
+      })
+
+      if (options.refresh !== false) {
+        void loadAll({ background: true })
+      }
       return response
     },
     [loadAll]
   )
 
   const completeTask = useCallback(
-    async (taskId: string) => {
-      await apiFetch(`/api/tasks/${taskId}`, {
+    async (taskId: string, options: MutationOptions = {}) => {
+      const response = await apiFetch<{ task: TaskWithContact }>(`/api/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'done' }),
       })
-      await loadAll()
+
+      setState((previous) => ({
+        ...previous,
+        tasks:
+          response.task.status === 'done'
+            ? previous.tasks.filter((task) => task.id !== taskId)
+            : sortTasks(
+                previous.tasks.map((task) => (task.id === taskId ? { ...task, ...response.task } : task))
+              ),
+      }))
+
+      if (options.refresh !== false) {
+        void loadAll({ background: true })
+      }
+
+      return response.task
     },
     [loadAll]
   )
@@ -251,7 +433,7 @@ export function useCRM() {
     loading,
     error,
     userId,
-    refresh: loadAll,
+    refresh: () => loadAll({ background: true }),
     createContact,
     updateContact,
     deleteContact,

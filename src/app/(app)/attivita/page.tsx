@@ -1,16 +1,28 @@
 'use client'
 
 import Link from 'next/link'
+import { useMemo, useState } from 'react'
+import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
 import { formatDateTime, isOverdue, priorityBadgeClass, priorityLabel } from '@/lib/data'
 import { useCRMContext } from '../layout'
+import type { CRMContact, TaskWithContact } from '@/types'
 
 export default function AttivitaPage() {
-  const { tasks, contacts, completeTask, showToast } = useCRMContext()
+  const { tasks, contacts, stages, addActivity, completeTask, refresh, showToast, updateContact } = useCRMContext()
   const tomorrow = new Date()
   tomorrow.setHours(24, 0, 0, 0)
+  const [outcomeContact, setOutcomeContact] = useState<CRMContact | null>(null)
+  const [outcomeTask, setOutcomeTask] = useState<TaskWithContact | null>(null)
 
   const missingNextStep = contacts.filter((contact) => contact.status !== 'Closed' && !contact.next_followup_at)
   const overdueTasks = tasks.filter((task) => task.due_date && isOverdue(task.due_date))
+  const tasksByContact = useMemo(() => {
+    const map = new Map<string, TaskWithContact>()
+    for (const task of tasks) {
+      if (!map.has(task.contact_id)) map.set(task.contact_id, task)
+    }
+    return map
+  }, [tasks])
   const callsToday = [...contacts]
     .filter((contact) => {
       if (contact.status === 'Closed' || !contact.next_followup_at) return false
@@ -86,6 +98,15 @@ export default function AttivitaPage() {
                       N. assente
                     </span>
                   )}
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => {
+                      setOutcomeContact(contact)
+                      setOutcomeTask(tasksByContact.get(contact.id) || null)
+                    }}
+                  >
+                    Esito
+                  </button>
                 </div>
               </div>
             ))
@@ -113,15 +134,32 @@ export default function AttivitaPage() {
                         Apri
                       </Link>
                     )}
-                    <button
-                      className="btn btn-primary btn-sm"
-                      onClick={async () => {
-                        await completeTask(task.id)
-                        showToast('Task completato')
-                      }}
-                    >
-                      Completa
-                    </button>
+                    {task.type === 'call' || task.type === 'follow-up' ? (
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => {
+                          const contact = contacts.find((item) => item.id === task.contact_id) || null
+                          if (!contact) {
+                            window.alert('Contatto non trovato')
+                            return
+                          }
+                          setOutcomeContact(contact)
+                          setOutcomeTask(task)
+                        }}
+                      >
+                        Esito chiamata
+                      </button>
+                    ) : (
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={async () => {
+                          await completeTask(task.id)
+                          showToast('Task completato')
+                        }}
+                      >
+                        Completa
+                      </button>
+                    )}
                   </div>
                 </div>
               ))
@@ -155,6 +193,49 @@ export default function AttivitaPage() {
           </div>
         </div>
       </div>
+
+      <CallOutcomeModal
+        open={!!outcomeContact}
+        contact={outcomeContact}
+        task={outcomeTask}
+        stages={stages}
+        onClose={() => {
+          setOutcomeContact(null)
+          setOutcomeTask(null)
+        }}
+        onSave={async (payload) => {
+          if (!outcomeContact) return
+
+          if (outcomeTask) {
+            await completeTask(outcomeTask.id, { refresh: false })
+          }
+
+          if (payload.status !== outcomeContact.status || payload.status === 'Closed') {
+            await updateContact(
+              outcomeContact.id,
+              {
+                status: payload.status,
+                next_followup_at: payload.status === 'Closed' ? '' : payload.next_followup_at,
+              },
+              { refresh: false }
+            )
+          }
+
+          await addActivity(
+            outcomeContact.id,
+            {
+              type: 'call',
+              content: payload.content,
+              next_followup_at: payload.status === 'Closed' ? undefined : payload.next_followup_at,
+              task_type: payload.task_type,
+            },
+            { refresh: false }
+          )
+
+          await refresh()
+          showToast('Chiamata registrata e follow-up aggiornato')
+        }}
+      />
     </div>
   )
 }

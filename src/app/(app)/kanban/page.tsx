@@ -131,7 +131,10 @@ export default function KanbanPage() {
                   <div
                     className="col-cards"
                     onDragOver={(event) => event.preventDefault()}
-                    onDrop={() => handleDrop(stage.name)}
+                    onDrop={(event) => {
+                      event.preventDefault()
+                      handleDrop(stage.name)
+                    }}
                   >
                     {stageContacts.length === 0 ? (
                       <div className="empty-col">
@@ -146,6 +149,9 @@ export default function KanbanPage() {
                           draggable
                           onDragStart={() => {
                             dragId.current = contact.id
+                          }}
+                          onDragEnd={() => {
+                            dragId.current = null
                           }}
                         >
                           <div className="card-actions">

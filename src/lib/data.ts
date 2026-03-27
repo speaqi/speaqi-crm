@@ -99,6 +99,43 @@ export function formatDateTime(value?: string | null) {
   })
 }
 
+function asDate(value?: string | Date | null) {
+  if (!value) return null
+  const date = value instanceof Date ? new Date(value) : new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+export function toLocalDateKey(value?: string | Date | null) {
+  const date = asDate(value)
+  if (!date) return ''
+
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+export function isCallableDate(value?: string | Date | null) {
+  const date = asDate(value)
+  if (!date) return false
+  const day = date.getDay()
+  return day >= 1 && day <= 5
+}
+
+export function nextCallableDateTime(value?: string | Date | null) {
+  const date = asDate(value) || new Date()
+  const next = new Date(date)
+
+  next.setDate(next.getDate() + 1)
+  next.setHours(10, 0, 0, 0)
+
+  while (!isCallableDate(next)) {
+    next.setDate(next.getDate() + 1)
+  }
+
+  return next
+}
+
 export function toDatetimeLocalValue(value?: string | null) {
   if (!value) return ''
   const date = new Date(value)

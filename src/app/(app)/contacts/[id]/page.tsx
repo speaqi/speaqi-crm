@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
 import { ContactModal } from '@/components/crm/ContactModal'
 import { ACTIVITY_TYPES, TASK_TYPES, activityTypeLabel, formatDateTime, fromDatetimeLocalValue, priorityLabel, sourceLabel, toDatetimeLocalValue } from '@/lib/data'
 import { useCRMContext } from '../../layout'
@@ -11,7 +12,7 @@ import type { ContactDetail } from '@/types'
 export default function ContactDetailPage() {
   const params = useParams<{ id: string }>()
   const contactId = params.id
-  const { loadContactDetail, stages, updateContact, deleteContact, addActivity, addTask, completeTask, showToast } = useCRMContext()
+  const { loadContactDetail, stages, updateContact, deleteContact, addActivity, addTask, completeTask, refresh, showToast } = useCRMContext()
   const [detail, setDetail] = useState<ContactDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [activityType, setActivityType] = useState('call')
@@ -21,16 +22,17 @@ export default function ContactDetailPage() {
   const [taskDate, setTaskDate] = useState('')
   const [taskNote, setTaskNote] = useState('')
   const [editOpen, setEditOpen] = useState(false)
+  const [outcomeTaskId, setOutcomeTaskId] = useState<string | null>(null)
 
-  async function loadDetail() {
-    setLoading(true)
+  async function loadDetail(showSpinner = true) {
+    if (showSpinner || !detail) setLoading(true)
     try {
       const response = await loadContactDetail(contactId)
       setDetail(response)
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'Impossibile caricare la scheda contatto')
     } finally {
-      setLoading(false)
+      if (showSpinner || !detail) setLoading(false)
     }
   }
 
@@ -121,7 +123,7 @@ export default function ContactDetailPage() {
                   setActivityContent('')
                   setActivityFollowup('')
                   showToast('Attività registrata')
-                  await loadDetail()
+                  await loadDetail(false)
                 } catch (error) {
                   window.alert(error instanceof Error ? error.message : 'Attività non salvata')
                 }
@@ -183,7 +185,7 @@ export default function ContactDetailPage() {
                   setTaskDate('')
                   setTaskNote('')
                   showToast('Task creato')
-                  await loadDetail()
+                  await loadDetail(false)
                 } catch (error) {
                   window.alert(error instanceof Error ? error.message : 'Task non creato')
                 }
@@ -204,16 +206,25 @@ export default function ContactDetailPage() {
                       <div className="task-note">{task.note || 'Nessuna nota'}</div>
                     </div>
                     {task.status === 'pending' ? (
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        onClick={async () => {
-                          await completeTask(task.id)
-                          showToast('Task completato')
-                          await loadDetail()
-                        }}
-                      >
-                        Completa
-                      </button>
+                      task.type === 'call' || task.type === 'follow-up' ? (
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => setOutcomeTaskId(task.id)}
+                        >
+                          Esito chiamata
+                        </button>
+                      ) : (
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={async () => {
+                            await completeTask(task.id)
+                            showToast('Task completato')
+                            await loadDetail(false)
+                          }}
+                        >
+                          Completa
+                        </button>
+                      )
                     ) : (
                       <span className="task-done-label">Fatto</span>
                     )}
@@ -234,11 +245,52 @@ export default function ContactDetailPage() {
         onSave={async (payload) => {
           await updateContact(contact.id, payload)
           showToast('Contatto aggiornato')
-          await loadDetail()
+          await loadDetail(false)
         }}
         onDelete={async () => {
           await deleteContact(contact.id)
           window.location.href = '/contacts'
+        }}
+      />
+
+      <CallOutcomeModal
+        open={!!outcomeTaskId}
+        contact={contact}
+        task={tasks.find((task) => task.id === outcomeTaskId) || null}
+        stages={stages}
+        onClose={() => setOutcomeTaskId(null)}
+        onSave={async (payload) => {
+          const task = tasks.find((item) => item.id === outcomeTaskId)
+          if (!task) return
+
+          await completeTask(task.id, { refresh: false })
+
+          if (payload.status !== contact.status || payload.status === 'Closed') {
+            await updateContact(
+              contact.id,
+              {
+                status: payload.status,
+                next_followup_at: payload.status === 'Closed' ? '' : payload.next_followup_at,
+              },
+              { refresh: false }
+            )
+          }
+
+          await addActivity(
+            contact.id,
+            {
+              type: 'call',
+              content: payload.content,
+              next_followup_at: payload.status === 'Closed' ? undefined : payload.next_followup_at,
+              task_type: payload.task_type,
+            },
+            { refresh: false }
+          )
+
+          await refresh()
+          await loadDetail(false)
+          showToast('Chiamata registrata e follow-up aggiornato')
+          setOutcomeTaskId(null)
         }}
       />
     </>
