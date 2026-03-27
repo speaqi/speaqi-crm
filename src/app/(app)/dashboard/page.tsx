@@ -2,12 +2,13 @@
 
 import { useMemo } from 'react'
 import { useCRMContext } from '../layout'
-import { formatDateTime, isOverdue, priorityLabel } from '@/lib/data'
+import { formatDateTime, isOverdue, isPipelineVisible, priorityLabel } from '@/lib/data'
 
 export default function DashboardPage() {
   const { contacts, tasks, stages, speaqiContacts } = useCRMContext()
 
-  const openContacts = contacts.filter((contact) => contact.status !== 'Closed')
+  const pipelineContacts = contacts.filter(isPipelineVisible)
+  const openContacts = pipelineContacts.filter((contact) => contact.status !== 'Closed')
   const overdueContacts = contacts.filter((contact) => isOverdue(contact.next_followup_at) && contact.status !== 'Closed')
   const overdueTasks = tasks.filter((task) => task.due_date && isOverdue(task.due_date))
 
@@ -15,9 +16,9 @@ export default function DashboardPage() {
     () =>
       stages.map((stage) => ({
         ...stage,
-        count: contacts.filter((contact) => contact.status === stage.name).length,
+        count: pipelineContacts.filter((contact) => contact.status === stage.name).length,
       })),
-    [contacts, stages]
+    [pipelineContacts, stages]
   )
 
   const maxCount = Math.max(...pipeline.map((stage) => stage.count), 1)

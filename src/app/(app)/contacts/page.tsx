@@ -3,7 +3,13 @@
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { ContactModal } from '@/components/crm/ContactModal'
-import { formatDateTime, priorityBadgeClass, priorityLabel } from '@/lib/data'
+import {
+  formatDateTime,
+  isComuneContact,
+  isNeverContacted,
+  priorityBadgeClass,
+  priorityLabel,
+} from '@/lib/data'
 import { useCRMContext } from '../layout'
 import type { CRMContact } from '@/types'
 
@@ -12,6 +18,9 @@ export default function ContactsPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [sourceFilter, setSourceFilter] = useState('')
+  const [priorityFilter, setPriorityFilter] = useState('')
+  const [contactStateFilter, setContactStateFilter] = useState('')
+  const [comuneFilter, setComuneFilter] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editingContact, setEditingContact] = useState<CRMContact | null>(null)
 
@@ -19,7 +28,7 @@ export default function ContactsPage() {
 
   const filtered = useMemo(() => {
     return contacts.filter((contact) => {
-      const query = search.toLowerCase()
+      const query = search.trim().toLowerCase()
       if (
         query &&
         !contact.name.toLowerCase().includes(query) &&
@@ -30,9 +39,14 @@ export default function ContactsPage() {
       }
       if (statusFilter && contact.status !== statusFilter) return false
       if (sourceFilter && contact.source !== sourceFilter) return false
+      if (priorityFilter && String(contact.priority) !== priorityFilter) return false
+      if (contactStateFilter === 'never' && !isNeverContacted(contact)) return false
+      if (contactStateFilter === 'contacted' && isNeverContacted(contact)) return false
+      if (comuneFilter === 'comuni' && !isComuneContact(contact)) return false
+      if (comuneFilter === 'altri' && isComuneContact(contact)) return false
       return true
     })
-  }, [contacts, search, sourceFilter, statusFilter])
+  }, [contacts, comuneFilter, contactStateFilter, priorityFilter, search, sourceFilter, statusFilter])
 
   return (
     <>
@@ -62,6 +76,23 @@ export default function ContactsPage() {
             </option>
           ))}
         </select>
+        <select className="filter-select" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}>
+          <option value="">Tutte le priorità</option>
+          <option value="3">Alta</option>
+          <option value="2">Media</option>
+          <option value="1">Bassa</option>
+          <option value="0">Nessuna</option>
+        </select>
+        <select className="filter-select" value={contactStateFilter} onChange={(event) => setContactStateFilter(event.target.value)}>
+          <option value="">Tutti i contatti</option>
+          <option value="never">Mai contattati</option>
+          <option value="contacted">Già contattati</option>
+        </select>
+        <select className="filter-select" value={comuneFilter} onChange={(event) => setComuneFilter(event.target.value)}>
+          <option value="">Tutti i tipi</option>
+          <option value="comuni">Solo comuni</option>
+          <option value="altri">Escludi comuni</option>
+        </select>
         <button
           className="btn btn-primary btn-sm"
           style={{ marginLeft: 'auto' }}
@@ -90,6 +121,7 @@ export default function ContactsPage() {
                   <div className="contact-tags">
                     <span className="ctag ctag-contattato">{contact.status}</span>
                     <span className={`ctag ${priorityBadgeClass(contact.priority)}`}>{priorityLabel(contact.priority)}</span>
+                    {isNeverContacted(contact) && <span className="ctag ctag-dacontattare">Mai contattato</span>}
                   </div>
                 </Link>
                 <div className="card-actions-row">

@@ -1,4 +1,4 @@
-import type { ContactInput, PipelineStage } from '@/types'
+import type { CRMContact, ContactInput, PipelineStage } from '@/types'
 
 export const DEFAULT_PIPELINE_STAGES: Array<Omit<PipelineStage, 'id'>> = [
   { name: 'New', order: 0, color: '#3b82f6', system_key: 'new' },
@@ -105,6 +105,18 @@ export function isClosedStatus(status: string) {
 export function isOverdue(value?: string | null) {
   if (!value) return false
   return new Date(value).getTime() < Date.now()
+}
+
+export function isComuneContact(contact: Pick<CRMContact, 'name'>) {
+  return /\bcomune\b/i.test(contact.name || '')
+}
+
+export function isNeverContacted(contact: Pick<CRMContact, 'status' | 'last_contact_at'>) {
+  return contact.status === 'New' && !contact.last_contact_at
+}
+
+export function isPipelineVisible(contact: Pick<CRMContact, 'status' | 'last_contact_at'>) {
+  return !isNeverContacted(contact)
 }
 
 export function mapLegacyStatus(status?: string | null) {

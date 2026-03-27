@@ -8,6 +8,7 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { Topbar } from '@/components/layout/Topbar'
 import { Toast } from '@/components/ui/Toast'
 import { useCRM } from '@/hooks/useCRM'
+import { isPipelineVisible } from '@/lib/data'
 import { createClient } from '@/lib/supabase'
 
 interface CRMContextType extends ReturnType<typeof useCRM> {
@@ -64,7 +65,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   const counts = {
-    kanban: crm.contacts.length,
+    kanban: crm.contacts.filter(isPipelineVisible).length,
     contacts: crm.contacts.length,
     speaqi: crm.speaqiContacts.length,
     oggi: crm.dueTodayCount,

@@ -3,7 +3,14 @@
 import Link from 'next/link'
 import { useMemo, useRef, useState } from 'react'
 import { ContactModal } from '@/components/crm/ContactModal'
-import { formatDateTime, priorityBadgeClass, priorityLabel, stageColor } from '@/lib/data'
+import {
+  formatDateTime,
+  isComuneContact,
+  isPipelineVisible,
+  priorityBadgeClass,
+  priorityLabel,
+  stageColor,
+} from '@/lib/data'
 import { useCRMContext } from '../layout'
 import type { CRMContact } from '@/types'
 
@@ -12,12 +19,15 @@ export default function KanbanPage() {
   const [search, setSearch] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
   const [sourceFilter, setSourceFilter] = useState('')
+  const [comuneFilter, setComuneFilter] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editingContact, setEditingContact] = useState<CRMContact | null>(null)
   const dragId = useRef<string | null>(null)
 
   const filtered = useMemo(() => {
     return contacts.filter((contact) => {
+      if (!isPipelineVisible(contact)) return false
+
       const query = search.trim().toLowerCase()
       if (
         query &&
@@ -30,9 +40,11 @@ export default function KanbanPage() {
 
       if (priorityFilter && String(contact.priority) !== priorityFilter) return false
       if (sourceFilter && contact.source !== sourceFilter) return false
+      if (comuneFilter === 'comuni' && !isComuneContact(contact)) return false
+      if (comuneFilter === 'altri' && isComuneContact(contact)) return false
       return true
     })
-  }, [contacts, priorityFilter, search, sourceFilter])
+  }, [comuneFilter, contacts, priorityFilter, search, sourceFilter])
 
   const uniqueSources = Array.from(new Set(contacts.map((contact) => contact.source).filter(Boolean))).sort()
 
@@ -88,6 +100,11 @@ export default function KanbanPage() {
               {source}
             </option>
           ))}
+        </select>
+        <select className="filter-select" value={comuneFilter} onChange={(event) => setComuneFilter(event.target.value)}>
+          <option value="">Tutti i contatti</option>
+          <option value="comuni">Solo comuni</option>
+          <option value="altri">Escludi comuni</option>
         </select>
         <div className="toolbar-stats">
           <span className="tstat">Lead: <strong>{filtered.length}</strong></span>
