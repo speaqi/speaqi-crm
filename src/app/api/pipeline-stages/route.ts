@@ -2,6 +2,14 @@ import { NextRequest } from 'next/server'
 import { ensurePipelineStages } from '@/lib/server/crm'
 import { requireRouteUser } from '@/lib/server/supabase'
 
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message?: unknown }).message || fallback)
+  }
+  return fallback
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
@@ -11,7 +19,7 @@ export async function GET(request: NextRequest) {
     return Response.json({ stages })
   } catch (error) {
     return Response.json(
-      { error: error instanceof Error ? error.message : 'Failed to load stages' },
+      { error: errorMessage(error, 'Failed to load stages') },
       { status: 500 }
     )
   }
@@ -36,7 +44,7 @@ export async function PUT(request: NextRequest) {
 
     if (deleteError) throw deleteError
 
-    const { data, error } = await auth.supabase
+    const { error } = await auth.supabase
       .from('pipeline_stages')
       .insert(
         stages.map((stage: any, index: number) => ({
@@ -47,15 +55,14 @@ export async function PUT(request: NextRequest) {
           system_key: stage.system_key ? String(stage.system_key) : null,
         }))
       )
-      .select('*')
-      .order('order', { ascending: true })
 
     if (error) throw error
 
+    const data = await ensurePipelineStages(auth.supabase, auth.user.id)
     return Response.json({ stages: data || [] })
   } catch (error) {
     return Response.json(
-      { error: error instanceof Error ? error.message : 'Failed to update stages' },
+      { error: errorMessage(error, 'Failed to update stages') },
       { status: 500 }
     )
   }

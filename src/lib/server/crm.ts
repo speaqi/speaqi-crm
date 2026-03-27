@@ -25,10 +25,11 @@ export function formatActivityDate(value?: string | null) {
   })
 }
 
-export async function ensurePipelineStages(
-  supabase: any,
-  userId: string
-) {
+function sortStages<T extends { order?: number | null }>(stages: T[]) {
+  return [...stages].sort((left, right) => Number(left.order ?? 0) - Number(right.order ?? 0))
+}
+
+async function readPipelineStages(supabase: any, userId: string) {
   const { data, error } = await supabase
     .from('pipeline_stages')
     .select('*')
@@ -36,10 +37,17 @@ export async function ensurePipelineStages(
     .order('order', { ascending: true })
 
   if (error) throw error
+  return data || []
+}
 
-  if (data?.length) return data
+export async function ensurePipelineStages(
+  supabase: any,
+  userId: string
+) {
+  const existing = await readPipelineStages(supabase, userId)
+  if (existing.length) return sortStages(existing)
 
-  const { data: inserted, error: insertError } = await supabase
+  const { error: insertError } = await supabase
     .from('pipeline_stages')
     .insert(
       DEFAULT_PIPELINE_STAGES.map((stage) => ({
@@ -47,11 +55,15 @@ export async function ensurePipelineStages(
         user_id: userId,
       }))
     )
-    .select('*')
-    .order('order', { ascending: true })
 
-  if (insertError) throw insertError
-  return inserted || []
+  if (insertError) {
+    const afterInsertFailure = await readPipelineStages(supabase, userId)
+    if (afterInsertFailure.length) return sortStages(afterInsertFailure)
+    throw insertError
+  }
+
+  const inserted = await readPipelineStages(supabase, userId)
+  return sortStages(inserted)
 }
 
 export async function getPendingTaskCount(
