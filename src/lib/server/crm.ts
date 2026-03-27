@@ -30,6 +30,10 @@ function sortStages<T extends { order?: number | null }>(stages: T[]) {
   return [...stages].sort((left, right) => Number(left.order ?? 0) - Number(right.order ?? 0))
 }
 
+function isUniqueViolation(error: unknown) {
+  return !!error && typeof error === 'object' && 'code' in error && String((error as { code?: unknown }).code) === '23505'
+}
+
 async function readPipelineStages(supabase: any, userId: string) {
   const { data, error } = await supabase
     .from('pipeline_stages')
@@ -63,6 +67,65 @@ async function shiftStageOrders(
   }
 }
 
+function matchDefaultStage(stages: PipelineStage[], stage: Omit<PipelineStage, 'id'>) {
+  return stages.find((item) => item.system_key === stage.system_key || item.name === stage.name)
+}
+
+async function syncDefaultStage(
+  supabase: any,
+  userId: string,
+  existing: PipelineStage[],
+  stage: Omit<PipelineStage, 'id'>
+) {
+  let currentStages = existing
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const match = matchDefaultStage(currentStages, stage)
+
+    if (match) {
+      const updatePayload: Record<string, unknown> = {}
+      if (!match.system_key) updatePayload.system_key = stage.system_key
+      if ((match.color || null) !== (stage.color || null)) updatePayload.color = stage.color
+
+      if (Object.keys(updatePayload).length) {
+        const { error } = await supabase
+          .from('pipeline_stages')
+          .update(updatePayload)
+          .eq('user_id', userId)
+          .eq('id', match.id)
+
+        if (error && !isUniqueViolation(error)) throw error
+      }
+
+      return await readPipelineStages(supabase, userId)
+    }
+
+    try {
+      await shiftStageOrders(supabase, userId, currentStages, stage.order)
+      const { error } = await supabase
+        .from('pipeline_stages')
+        .insert({
+          ...stage,
+          user_id: userId,
+        })
+
+      if (error) throw error
+      return await readPipelineStages(supabase, userId)
+    } catch (error) {
+      const reloaded = await readPipelineStages(supabase, userId)
+      if (matchDefaultStage(reloaded, stage)) {
+        currentStages = reloaded
+        continue
+      }
+
+      if (!isUniqueViolation(error)) throw error
+      currentStages = reloaded
+    }
+  }
+
+  return await readPipelineStages(supabase, userId)
+}
+
 export async function ensurePipelineStages(
   supabase: any,
   userId: string
@@ -78,49 +141,20 @@ export async function ensurePipelineStages(
         }))
       )
 
-    if (insertError) {
-      const afterInsertFailure = await readPipelineStages(supabase, userId)
-      if (afterInsertFailure.length) return sortStages(afterInsertFailure)
-      throw insertError
+    if (!insertError) {
+      const inserted = await readPipelineStages(supabase, userId)
+      return sortStages(inserted)
     }
 
-    const inserted = await readPipelineStages(supabase, userId)
-    return sortStages(inserted)
+    existing = await readPipelineStages(supabase, userId)
+    if (!existing.length) throw insertError
   }
 
   for (const stage of DEFAULT_PIPELINE_STAGES) {
-    const match = existing.find((item) => item.system_key === stage.system_key || item.name === stage.name)
-
-    if (!match) {
-      await shiftStageOrders(supabase, userId, existing, stage.order)
-      const { error } = await supabase
-        .from('pipeline_stages')
-        .insert({
-          ...stage,
-          user_id: userId,
-        })
-
-      if (error) throw error
-      existing = await readPipelineStages(supabase, userId)
-      continue
-    }
-
-    const updatePayload: Record<string, unknown> = {}
-    if (!match.system_key) updatePayload.system_key = stage.system_key
-    if ((match.color || null) !== (stage.color || null)) updatePayload.color = stage.color
-
-    if (Object.keys(updatePayload).length) {
-      const { error } = await supabase
-        .from('pipeline_stages')
-        .update(updatePayload)
-        .eq('user_id', userId)
-        .eq('id', match.id)
-
-      if (error) throw error
-    }
+    existing = await syncDefaultStage(supabase, userId, existing, stage)
   }
 
-  return sortStages(await readPipelineStages(supabase, userId))
+  return sortStages(existing)
 }
 
 export async function getPendingTaskCount(
