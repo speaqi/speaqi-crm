@@ -16,18 +16,18 @@ function getResendClient() {
 
 export async function sendFollowupEmail(to: string, contactName: string, cardName: string) {
   return getResendClient().emails.send({
-    from: 'SPEAQI CRM <crm@speaqi.it>',
+    from: 'CRM <crm@speaqi.it>',
     to,
     subject: `Follow-up: ${cardName}`,
     html: `
       <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;margin:0 auto">
         <div style="background:#4f6ef7;padding:20px;border-radius:8px 8px 0 0">
-          <h1 style="color:white;margin:0;font-size:20px">⚡ SPEAQI CRM</h1>
+          <h1 style="color:white;margin:0;font-size:20px">⚡ CRM</h1>
         </div>
         <div style="background:#ffffff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px">
           <p style="color:#374151">Ciao,</p>
           <p style="color:#374151">Questo è un promemoria di follow-up per <strong>${contactName}</strong> riguardo a <strong>${cardName}</strong>.</p>
-          <p style="color:#6b7280;font-size:13px;margin-top:24px">Inviato da SPEAQI CRM</p>
+          <p style="color:#6b7280;font-size:13px;margin-top:24px">Inviato da CRM</p>
         </div>
       </div>
     `,
@@ -40,13 +40,13 @@ export async function sendReminderEmail(to: string, calls: Array<{ name: string;
     .join('')
 
   return getResendClient().emails.send({
-    from: 'SPEAQI CRM <crm@speaqi.it>',
+    from: 'CRM <crm@speaqi.it>',
     to,
     subject: `📅 Chiamate di oggi — ${new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}`,
     html: `
       <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;margin:0 auto">
         <div style="background:#4f6ef7;padding:20px;border-radius:8px 8px 0 0">
-          <h1 style="color:white;margin:0;font-size:20px">⚡ SPEAQI CRM — Reminder Chiamate</h1>
+          <h1 style="color:white;margin:0;font-size:20px">⚡ CRM — Reminder Chiamate</h1>
         </div>
         <div style="background:#ffffff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px">
           <p style="color:#374151">Ciao,</p>
@@ -54,7 +54,7 @@ export async function sendReminderEmail(to: string, calls: Array<{ name: string;
           <ul style="color:#374151;padding-left:20px">
             ${callList}
           </ul>
-          <p style="color:#6b7280;font-size:13px;margin-top:24px">Buon lavoro! — SPEAQI CRM</p>
+          <p style="color:#6b7280;font-size:13px;margin-top:24px">Buon lavoro! — CRM</p>
         </div>
       </div>
     `,
@@ -63,7 +63,7 @@ export async function sendReminderEmail(to: string, calls: Array<{ name: string;
 
 export async function sendCustomEmail(to: string, subject: string, html: string) {
   return getResendClient().emails.send({
-    from: 'SPEAQI CRM <crm@speaqi.it>',
+    from: 'CRM <crm@speaqi.it>',
     to,
     subject,
     html,

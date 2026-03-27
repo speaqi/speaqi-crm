@@ -8,6 +8,7 @@ import {
   SOURCE_OPTIONS,
   fromDatetimeLocalValue,
   isClosedStatus,
+  sourceLabel,
   toDatetimeLocalValue,
 } from '@/lib/data'
 import type { CRMContact, ContactInput, PipelineStage } from '@/types'
@@ -181,7 +182,7 @@ export function ContactModal({
           >
             {SOURCE_OPTIONS.map((source) => (
               <option key={source} value={source}>
-                {source}
+                {sourceLabel(source)}
               </option>
             ))}
           </select>

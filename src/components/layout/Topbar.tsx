@@ -10,13 +10,13 @@ const PAGE_TITLES: Record<string, string> = {
   '/import': '📥 Import CSV',
   '/attivita': '⚙️ Attività & Follow-up',
   '/calendario': '📅 Calendario',
-  '/speaqi': '⚡ Lead Speaqi',
+  '/speaqi': '⚡ Lead Inbound',
   '/voice': '🎤 Note Vocali',
 }
 
 export function Topbar({ pathname }: { pathname: string }) {
   const router = useRouter()
-  const title = PAGE_TITLES[pathname] || 'SPEAQI CRM'
+  const title = PAGE_TITLES[pathname] || 'CRM'
 
   async function handleLogout() {
     const supabase = createClient()

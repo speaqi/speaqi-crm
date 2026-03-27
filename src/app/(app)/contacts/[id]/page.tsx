@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { ContactModal } from '@/components/crm/ContactModal'
-import { ACTIVITY_TYPES, TASK_TYPES, activityTypeLabel, formatDateTime, fromDatetimeLocalValue, priorityLabel, toDatetimeLocalValue } from '@/lib/data'
+import { ACTIVITY_TYPES, TASK_TYPES, activityTypeLabel, formatDateTime, fromDatetimeLocalValue, priorityLabel, sourceLabel, toDatetimeLocalValue } from '@/lib/data'
 import { useCRMContext } from '../../layout'
 import type { ContactDetail } from '@/types'
 
@@ -56,7 +56,7 @@ export default function ContactDetailPage() {
             <Link href="/contacts" className="back-link">← Torna ai contatti</Link>
             <h1 className="detail-title">{contact.name}</h1>
             <div className="detail-subtitle">
-              {contact.status} · {priorityLabel(contact.priority)} · {contact.source || 'manual'}
+              {contact.status} · {priorityLabel(contact.priority)} · {sourceLabel(contact.source)}
             </div>
           </div>
           <div className="detail-actions">

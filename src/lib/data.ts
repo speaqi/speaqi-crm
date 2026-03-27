@@ -38,6 +38,23 @@ export function priorityLabel(priority?: number | null) {
   return PRIORITY_OPTIONS.find((option) => option.value === Number(priority ?? 0))?.label || 'Nessuna'
 }
 
+export function sourceLabel(source?: string | null) {
+  switch (source || 'manual') {
+    case 'manual':
+      return 'Manuale'
+    case 'speaqi':
+      return 'Inbound'
+    case 'evento':
+      return 'Evento'
+    case 'import':
+      return 'Import'
+    case 'legacy-kanban':
+      return 'Legacy Kanban'
+    default:
+      return source || 'Manuale'
+  }
+}
+
 export function activityTypeLabel(type: string) {
   switch (type) {
     case 'call':

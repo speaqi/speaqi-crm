@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
         responsible: body.responsible ? String(body.responsible).trim() : null,
         note: body.note ? String(body.note).trim() : null,
         next_followup_at: nextFollowupAt,
-        last_activity_summary: 'Lead creato da integrazione Speaqi',
+        last_activity_summary: 'Lead creato da integrazione inbound',
       })
       .select('*')
       .single()
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
         type: 'follow-up',
         due_date: nextFollowupAt,
         status: 'pending',
-        note: 'Primo contatto generato automaticamente da Speaqi',
+        note: 'Primo contatto generato automaticamente dal canale inbound',
       })
       .select('*')
       .single()
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
         contact_id: contact.id,
         type: 'import',
         content: [
-          'Lead creato da integrazione Speaqi.',
+          'Lead creato da integrazione inbound.',
           `Follow-up iniziale: ${formatActivityDate(nextFollowupAt)}.`,
           'Task di follow-up creato automaticamente.',
         ].join(' '),
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     ]
 
     await createActivities(supabase, activities)
-    await updateContactSummary(supabase, contact.id, 'Lead creato da integrazione Speaqi')
+    await updateContactSummary(supabase, contact.id, 'Lead creato da integrazione inbound')
 
     return Response.json({ contact, task }, { status: 201 })
   } catch (error) {

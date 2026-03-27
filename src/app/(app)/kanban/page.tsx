@@ -9,6 +9,7 @@ import {
   isPipelineVisible,
   priorityBadgeClass,
   priorityLabel,
+  sourceLabel,
   stageColor,
 } from '@/lib/data'
 import { useCRMContext } from '../layout'
@@ -97,7 +98,7 @@ export default function KanbanPage() {
           <option value="">Tutte le origini</option>
           {uniqueSources.map((source) => (
             <option key={source} value={source || ''}>
-              {source}
+              {sourceLabel(source)}
             </option>
           ))}
         </select>
@@ -158,7 +159,7 @@ export default function KanbanPage() {
                           </div>
                           <div className="card-tags">
                             <span className={`tag ${priorityBadgeClass(contact.priority)}`}>{priorityLabel(contact.priority)}</span>
-                            {contact.source && <span className="tag tag-price">{contact.source}</span>}
+                            {contact.source && <span className="tag tag-price">{sourceLabel(contact.source)}</span>}
                             {contact.responsible && <span className="tag tag-resp">👤 {contact.responsible}</span>}
                           </div>
                           <div className="card-meta">

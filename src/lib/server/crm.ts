@@ -229,7 +229,7 @@ export async function mapLegacyStateToRecords(userState: any, userId: string) {
     })),
     ...speaqi.map((contact: any) => ({
       user_id: userId,
-      name: contact.n || contact.name || 'Lead Speaqi legacy',
+      name: contact.n || contact.name || 'Lead inbound legacy',
       email: contact.email || '',
       phone: '',
       status: contact.st === 'contattato' ? 'Contacted' : 'New',

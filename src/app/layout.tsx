@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'SPEAQI CRM',
-  description: 'CRM professionale per SPEAQI',
+  title: 'CRM',
+  description: 'CRM commerciale',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

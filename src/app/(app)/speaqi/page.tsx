@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { ContactModal } from '@/components/crm/ContactModal'
-import { formatDateTime, priorityBadgeClass, priorityLabel } from '@/lib/data'
+import { formatDateTime, priorityBadgeClass, priorityLabel, sourceLabel } from '@/lib/data'
 import { useCRMContext } from '../layout'
 import type { CRMContact } from '@/types'
 
@@ -34,7 +34,7 @@ export default function SpeaqiPage() {
             type="text"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Cerca lead arrivati da Speaqi..."
+            placeholder="Cerca lead inbound..."
           />
         </div>
         <button
@@ -45,14 +45,14 @@ export default function SpeaqiPage() {
             setModalOpen(true)
           }}
         >
-          ＋ Lead Speaqi
+          ＋ Lead Inbound
         </button>
       </div>
 
       <div className="contacts-content">
         <div className="contacts-grid">
           {filtered.length === 0 ? (
-            <p style={{ color: 'var(--text3)' }}>Nessun lead Speaqi presente.</p>
+            <p style={{ color: 'var(--text3)' }}>Nessun lead inbound presente.</p>
           ) : (
             filtered.map((contact) => (
               <div key={contact.id} className="contact-card contact-card-rich">
@@ -62,7 +62,7 @@ export default function SpeaqiPage() {
                   <div className="contact-meta">{contact.note || 'Nessuna nota importata'}</div>
                   <div className="contact-meta">Follow-up: {formatDateTime(contact.next_followup_at)}</div>
                   <div className="contact-tags">
-                    <span className="ctag ctag-speaqi">speaqi</span>
+                    <span className="ctag ctag-speaqi">{sourceLabel('speaqi')}</span>
                     <span className="ctag ctag-contattato">{contact.status}</span>
                     <span className={`ctag ${priorityBadgeClass(contact.priority)}`}>{priorityLabel(contact.priority)}</span>
                   </div>
@@ -83,7 +83,7 @@ export default function SpeaqiPage() {
 
       <ContactModal
         open={modalOpen}
-        title={editingContact ? 'Modifica lead Speaqi' : 'Nuovo lead Speaqi'}
+        title={editingContact ? 'Modifica lead inbound' : 'Nuovo lead inbound'}
         stages={stages}
         initialContact={editingContact}
         defaultSource="speaqi"
@@ -91,17 +91,17 @@ export default function SpeaqiPage() {
         onSave={async (payload) => {
           if (editingContact) {
             await updateContact(editingContact.id, { ...payload, source: 'speaqi' })
-            showToast('Lead Speaqi aggiornato')
+            showToast('Lead inbound aggiornato')
           } else {
             await createContact({ ...payload, source: 'speaqi' })
-            showToast('Lead Speaqi creato')
+            showToast('Lead inbound creato')
           }
         }}
         onDelete={
           editingContact
             ? async () => {
                 await deleteContact(editingContact.id)
-                showToast('Lead Speaqi eliminato')
+                showToast('Lead inbound eliminato')
               }
             : undefined
         }

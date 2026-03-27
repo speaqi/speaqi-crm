@@ -55,7 +55,7 @@ export default function DashboardPage() {
         <div className="kpi" style={{ borderLeftColor: '#7c3aed' }}>
           <div className="kpi-icon">⚡</div>
           <div className="kpi-val" style={{ color: '#7c3aed' }}>{speaqiContacts.length}</div>
-          <div className="kpi-label">Lead da Speaqi</div>
+          <div className="kpi-label">Lead Inbound</div>
         </div>
         <div className="kpi" style={{ borderLeftColor: '#059669' }}>
           <div className="kpi-icon">💰</div>
@@ -139,7 +139,7 @@ export default function DashboardPage() {
             </div>
             <div className="meta-card">
               <strong>{contacts.filter((contact) => contact.source === 'speaqi').length}</strong>
-              <span>lead arrivati dal prodotto</span>
+              <span>lead inbound</span>
             </div>
             <div className="meta-card">
               <strong>{contacts.filter((contact) => contact.status === 'Closed').length}</strong>

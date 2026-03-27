@@ -9,6 +9,7 @@ import {
   isNeverContacted,
   priorityBadgeClass,
   priorityLabel,
+  sourceLabel,
 } from '@/lib/data'
 import { useCRMContext } from '../layout'
 import type { CRMContact } from '@/types'
@@ -72,7 +73,7 @@ export default function ContactsPage() {
           <option value="">Tutte le origini</option>
           {sources.map((source) => (
             <option key={source} value={source || ''}>
-              {source}
+              {sourceLabel(source)}
             </option>
           ))}
         </select>
@@ -116,7 +117,7 @@ export default function ContactsPage() {
                   <div className="contact-name">{contact.name}</div>
                   <div className="contact-meta">{contact.email || 'Nessuna email'}</div>
                   <div className="contact-meta">{contact.phone || 'Nessun telefono'}</div>
-                  <div className="contact-meta">Origine: {contact.source || 'manual'}</div>
+                  <div className="contact-meta">Origine: {sourceLabel(contact.source)}</div>
                   <div className="contact-meta">Follow-up: {formatDateTime(contact.next_followup_at)}</div>
                   <div className="contact-tags">
                     <span className="ctag ctag-contattato">{contact.status}</span>
