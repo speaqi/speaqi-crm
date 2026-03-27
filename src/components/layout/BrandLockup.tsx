@@ -7,6 +7,8 @@ type BrandLockupProps = {
   centered?: boolean
 }
 
+const LOGO_URL = 'https://speaqi.com/logo_speaqi_white.png'
+
 export function BrandLockup({
   subtitle,
   tone = 'dark',
@@ -24,8 +26,8 @@ export function BrandLockup({
 
   return (
     <div className={classes}>
-      <div className="brand-logo-shell" aria-hidden="true">
-        <div className="brand-mark" />
+      <div className="brand-logo-shell">
+        <img className="brand-logo-image" src={LOGO_URL} alt="Logo CRM" />
       </div>
       <div className="brand-copy">
         <div className="brand-title-row">
