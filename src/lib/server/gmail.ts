@@ -1,0 +1,595 @@
+import crypto from 'crypto'
+import { createActivities, updateContactSummary } from '@/lib/server/crm'
+import type { CRMContact, GmailAccountStatus, GmailMessage } from '@/types'
+
+type GmailAccountRecord = {
+  id: string
+  user_id: string
+  email: string
+  refresh_token: string
+  scope?: string | null
+  token_type?: string | null
+  history_id?: string | null
+  last_sync_at?: string | null
+}
+
+type GoogleTokenResponse = {
+  access_token: string
+  expires_in?: number
+  refresh_token?: string
+  scope?: string
+  token_type?: string
+}
+
+type GmailMessageRef = {
+  id: string
+  threadId?: string
+}
+
+type GmailHeader = {
+  name?: string
+  value?: string
+}
+
+type GmailPayload = {
+  mimeType?: string
+  body?: {
+    data?: string
+  }
+  headers?: GmailHeader[]
+  parts?: GmailPayload[]
+}
+
+type GmailApiMessage = {
+  id: string
+  threadId?: string
+  snippet?: string
+  internalDate?: string
+  payload?: GmailPayload
+}
+
+const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
+const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
+const GMAIL_API_BASE_URL = 'https://gmail.googleapis.com/gmail/v1'
+const GMAIL_SCOPES = [
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/gmail.readonly',
+]
+
+function getGoogleConfig() {
+  const clientId = process.env.GOOGLE_CLIENT_ID
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI
+  const encryptionKey = process.env.GMAIL_TOKEN_ENCRYPTION_KEY
+
+  if (!clientId) throw new Error('GOOGLE_CLIENT_ID is required')
+  if (!clientSecret) throw new Error('GOOGLE_CLIENT_SECRET is required')
+  if (!redirectUri) throw new Error('GOOGLE_REDIRECT_URI is required')
+  if (!encryptionKey) throw new Error('GMAIL_TOKEN_ENCRYPTION_KEY is required')
+
+  return {
+    clientId,
+    clientSecret,
+    redirectUri,
+    encryptionKey,
+  }
+}
+
+function getSymmetricKey() {
+  return crypto.createHash('sha256').update(getGoogleConfig().encryptionKey).digest()
+}
+
+export function encryptSecret(value: string) {
+  const iv = crypto.randomBytes(12)
+  const cipher = crypto.createCipheriv('aes-256-gcm', getSymmetricKey(), iv)
+  const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()])
+  const tag = cipher.getAuthTag()
+
+  return [iv.toString('base64url'), tag.toString('base64url'), encrypted.toString('base64url')].join('.')
+}
+
+function decryptSecret(value: string) {
+  const [ivBase64, tagBase64, payloadBase64] = String(value || '').split('.')
+  if (!ivBase64 || !tagBase64 || !payloadBase64) {
+    throw new Error('Invalid encrypted token format')
+  }
+
+  const decipher = crypto.createDecipheriv(
+    'aes-256-gcm',
+    getSymmetricKey(),
+    Buffer.from(ivBase64, 'base64url')
+  )
+  decipher.setAuthTag(Buffer.from(tagBase64, 'base64url'))
+
+  const decrypted = Buffer.concat([
+    decipher.update(Buffer.from(payloadBase64, 'base64url')),
+    decipher.final(),
+  ])
+
+  return decrypted.toString('utf8')
+}
+
+export function isMissingRelation(error: unknown) {
+  return !!error && typeof error === 'object' && 'code' in error && String((error as { code?: unknown }).code) === '42P01'
+}
+
+function normalizeEmail(value?: string | null) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function uniqueEmails(values: Array<string | null | undefined>) {
+  return Array.from(
+    new Set(
+      values
+        .flatMap((value) => extractEmailAddresses(value))
+        .map((item) => item.toLowerCase())
+        .filter(Boolean)
+    )
+  )
+}
+
+function extractEmailAddresses(value?: string | null) {
+  if (!value) return []
+  const matches = String(value).match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)
+  return matches ? Array.from(new Set(matches.map((item) => item.toLowerCase()))) : []
+}
+
+function decodeBase64Url(value?: string) {
+  if (!value) return ''
+  return Buffer.from(value, 'base64url').toString('utf8')
+}
+
+function stripHtml(html: string) {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function collectBodies(payload?: GmailPayload | null, bucket = { plain: [] as string[], html: [] as string[] }) {
+  if (!payload) return bucket
+
+  const body = decodeBase64Url(payload.body?.data)
+  if (payload.mimeType === 'text/plain' && body) bucket.plain.push(body)
+  if (payload.mimeType === 'text/html' && body) bucket.html.push(body)
+
+  for (const part of payload.parts || []) {
+    collectBodies(part, bucket)
+  }
+
+  return bucket
+}
+
+function getHeader(headers: GmailHeader[] | undefined, name: string) {
+  return headers?.find((header) => String(header.name || '').toLowerCase() === name.toLowerCase())?.value || ''
+}
+
+function getMessageTimestamp(message: GmailApiMessage, headers: GmailHeader[] | undefined) {
+  const internalDate = Number(message.internalDate || 0)
+  if (Number.isFinite(internalDate) && internalDate > 0) {
+    return new Date(internalDate).toISOString()
+  }
+
+  const parsedDate = Date.parse(getHeader(headers, 'date'))
+  if (Number.isFinite(parsedDate)) {
+    return new Date(parsedDate).toISOString()
+  }
+
+  return new Date().toISOString()
+}
+
+function encodeMimeHeader(value: string) {
+  return /[^\x20-\x7E]/.test(value)
+    ? `=?UTF-8?B?${Buffer.from(value, 'utf8').toString('base64')}?=`
+    : value
+}
+
+function encodeMessageBody(subject: string, to: string, html: string, text: string) {
+  const boundary = `crm-${crypto.randomUUID()}`
+  const raw = [
+    `To: ${to}`,
+    `Subject: ${encodeMimeHeader(subject)}`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: 8bit',
+    '',
+    text,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    'Content-Transfer-Encoding: 8bit',
+    '',
+    html,
+    '',
+    `--${boundary}--`,
+    '',
+  ].join('\r\n')
+
+  return Buffer.from(raw, 'utf8').toString('base64url')
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+export function simpleTextToHtml(value: string) {
+  const escaped = escapeHtml(String(value || '').trim())
+  return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.55;color:#111827">${escaped.replace(/\n/g, '<br />')}</div>`
+}
+
+async function parseResponse<T>(response: Response, fallback: string) {
+  const payload = await response.json().catch(() => null)
+  if (!response.ok) {
+    throw new Error(payload?.error?.message || payload?.error || fallback)
+  }
+  return payload as T
+}
+
+async function gmailApiRequest<T>(accessToken: string, path: string, init: RequestInit = {}) {
+  const response = await fetch(`${GMAIL_API_BASE_URL}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      ...(init.headers || {}),
+    },
+    cache: 'no-store',
+  })
+
+  return parseResponse<T>(response, 'Gmail API request failed')
+}
+
+export function buildGmailConnectUrl(state: string) {
+  const { clientId, redirectUri } = getGoogleConfig()
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    access_type: 'offline',
+    prompt: 'consent',
+    include_granted_scopes: 'true',
+    scope: GMAIL_SCOPES.join(' '),
+    state,
+  })
+
+  return `${GOOGLE_AUTH_URL}?${params.toString()}`
+}
+
+export async function exchangeCodeForTokens(code: string) {
+  const { clientId, clientSecret, redirectUri } = getGoogleConfig()
+  const response = await fetch(GOOGLE_TOKEN_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+      code,
+      grant_type: 'authorization_code',
+    }),
+    cache: 'no-store',
+  })
+
+  return parseResponse<GoogleTokenResponse>(response, 'Failed to exchange Google authorization code')
+}
+
+async function refreshAccessToken(account: GmailAccountRecord) {
+  const { clientId, clientSecret } = getGoogleConfig()
+  const refreshToken = decryptSecret(account.refresh_token)
+
+  const response = await fetch(GOOGLE_TOKEN_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    }),
+    cache: 'no-store',
+  })
+
+  const payload = await parseResponse<GoogleTokenResponse>(response, 'Failed to refresh Gmail access token')
+  return payload.access_token
+}
+
+export async function fetchGmailProfile(accessToken: string) {
+  return gmailApiRequest<{ emailAddress: string; historyId?: string }>(
+    accessToken,
+    '/users/me/profile'
+  )
+}
+
+export async function getGmailAccount(
+  supabase: any,
+  userId: string,
+  options: { tolerateMissingRelation?: boolean } = {}
+) {
+  try {
+    const { data, error } = await supabase
+      .from('gmail_accounts')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    if (error) throw error
+    return (data || null) as GmailAccountRecord | null
+  } catch (error) {
+    if (options.tolerateMissingRelation && isMissingRelation(error)) return null
+    throw error
+  }
+}
+
+export function gmailStatus(account: GmailAccountRecord | null): GmailAccountStatus {
+  if (!account) return { connected: false }
+
+  return {
+    connected: true,
+    email: account.email,
+    last_sync_at: account.last_sync_at || null,
+  }
+}
+
+async function listMessages(accessToken: string, query: string, maxResults = 20) {
+  const params = new URLSearchParams({
+    q: query,
+    maxResults: String(maxResults),
+    includeSpamTrash: 'true',
+  })
+
+  return gmailApiRequest<{ messages?: GmailMessageRef[] }>(
+    accessToken,
+    `/users/me/messages?${params.toString()}`
+  )
+}
+
+async function getMessage(accessToken: string, messageId: string) {
+  return gmailApiRequest<GmailApiMessage>(
+    accessToken,
+    `/users/me/messages/${messageId}?format=full`
+  )
+}
+
+function normalizeMessageRecord(
+  account: GmailAccountRecord,
+  message: GmailApiMessage,
+  userId: string,
+  contactId: string
+) {
+  const headers = message.payload?.headers || []
+  const bodies = collectBodies(message.payload)
+  const plain = bodies.plain.join('\n\n').trim()
+  const html = bodies.html.join('\n\n').trim()
+  const fromEmail = uniqueEmails([getHeader(headers, 'from')])[0] || null
+  const toEmails = uniqueEmails([getHeader(headers, 'to')])
+  const ccEmails = uniqueEmails([getHeader(headers, 'cc')])
+  const accountEmail = normalizeEmail(account.email)
+  const direction = normalizeEmail(fromEmail) === accountEmail ? 'outbound' : 'inbound'
+  const subject = getHeader(headers, 'subject') || null
+
+  return {
+    user_id: userId,
+    gmail_account_id: account.id,
+    contact_id: contactId,
+    gmail_message_id: message.id,
+    gmail_thread_id: message.threadId || null,
+    direction,
+    subject,
+    from_email: fromEmail,
+    to_emails: toEmails,
+    cc_emails: ccEmails,
+    snippet: message.snippet || plain.slice(0, 220) || stripHtml(html).slice(0, 220) || null,
+    body_text: plain || stripHtml(html) || null,
+    body_html: html || null,
+    sent_at: getMessageTimestamp(message, headers),
+    synced_at: new Date().toISOString(),
+  } satisfies Omit<GmailMessage, 'id' | 'created_at'>
+}
+
+async function updateAccountSyncMarker(supabase: any, accountId: string, historyId?: string) {
+  await supabase
+    .from('gmail_accounts')
+    .update({
+      history_id: historyId || null,
+      last_sync_at: new Date().toISOString(),
+    })
+    .eq('id', accountId)
+}
+
+async function refreshContactEmailSummary(supabase: any, contact: CRMContact, emails: Array<{ direction: string; subject?: string | null; sent_at?: string | null }>) {
+  const latest = [...emails]
+    .filter((item) => item.sent_at)
+    .sort((left, right) => new Date(right.sent_at || 0).getTime() - new Date(left.sent_at || 0).getTime())[0]
+
+  if (!latest?.sent_at) return
+
+  const currentLastContact = contact.last_contact_at ? new Date(contact.last_contact_at).getTime() : 0
+  const latestTimestamp = new Date(latest.sent_at).getTime()
+  if (!Number.isFinite(latestTimestamp) || latestTimestamp <= currentLastContact) return
+
+  const summaryPrefix = latest.direction === 'outbound' ? 'Email inviata' : 'Email ricevuta'
+  const summary = `${summaryPrefix}: ${latest.subject || 'senza oggetto'}`
+
+  const { error } = await supabase
+    .from('contacts')
+    .update({
+      last_contact_at: latest.sent_at,
+      last_activity_summary: summary,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', contact.id)
+    .eq('user_id', contact.user_id)
+
+  if (error) throw error
+}
+
+export async function syncContactGmailMessages(
+  supabase: any,
+  userId: string,
+  contact: CRMContact,
+  maxResults = 20
+) {
+  if (!contact.email) {
+    return {
+      account: null,
+      messages: [] as GmailMessage[],
+      synced: 0,
+    }
+  }
+
+  const account = await getGmailAccount(supabase, userId)
+  if (!account) {
+    return {
+      account: null,
+      messages: [] as GmailMessage[],
+      synced: 0,
+    }
+  }
+
+  const accessToken = await refreshAccessToken(account)
+  const gmailEmailQuery = `(from:"${contact.email}" OR to:"${contact.email}" OR cc:"${contact.email}" OR bcc:"${contact.email}") in:anywhere`
+  const list = await listMessages(accessToken, gmailEmailQuery, maxResults)
+  const fetchedMessages: GmailApiMessage[] = []
+
+  for (const item of list.messages || []) {
+    fetchedMessages.push(await getMessage(accessToken, item.id))
+  }
+
+  const normalized = fetchedMessages.map((message) =>
+    normalizeMessageRecord(account, message, userId, contact.id)
+  )
+
+  let stored: GmailMessage[] = []
+  if (normalized.length) {
+    const { data, error } = await supabase
+      .from('gmail_messages')
+      .upsert(normalized, {
+        onConflict: 'gmail_account_id,gmail_message_id',
+      })
+      .select('*')
+
+    if (error) throw error
+    stored = (data || []) as GmailMessage[]
+  }
+
+  const profile = await fetchGmailProfile(accessToken).catch(() => null)
+  await updateAccountSyncMarker(supabase, account.id, profile?.historyId)
+  await refreshContactEmailSummary(supabase, contact, normalized)
+
+  return {
+    account,
+    messages: stored,
+    synced: normalized.length,
+  }
+}
+
+export async function sendContactEmail(
+  supabase: any,
+  userId: string,
+  contact: CRMContact,
+  input: {
+    subject: string
+    html: string
+    text: string
+    followupAt?: string | null
+  }
+) {
+  if (!contact.email) {
+    throw new Error('Il contatto non ha un indirizzo email')
+  }
+
+  const account = await getGmailAccount(supabase, userId)
+  if (!account) {
+    throw new Error('Gmail non collegato')
+  }
+
+  const accessToken = await refreshAccessToken(account)
+  const raw = encodeMessageBody(input.subject, contact.email, input.html, input.text)
+
+  const sendResult = await gmailApiRequest<{ id: string; threadId?: string }>(
+    accessToken,
+    '/users/me/messages/send',
+    {
+      method: 'POST',
+      body: JSON.stringify({ raw }),
+    }
+  )
+
+  const fullMessage = await getMessage(accessToken, sendResult.id)
+  const normalized = normalizeMessageRecord(account, fullMessage, userId, contact.id)
+
+  const { data: storedMessage, error: messageError } = await supabase
+    .from('gmail_messages')
+    .upsert(normalized, {
+      onConflict: 'gmail_account_id,gmail_message_id',
+    })
+    .select('*')
+    .single()
+
+  if (messageError) throw messageError
+
+  await createActivities(supabase, [
+    {
+      user_id: userId,
+      contact_id: contact.id,
+      type: 'email',
+      content: `Email inviata: ${input.subject}`,
+    },
+  ])
+
+  await updateContactSummary(supabase, contact.id, `Email inviata: ${input.subject}`, {
+    nextFollowupAt: input.followupAt,
+    touchLastContactAt: true,
+  })
+
+  if (input.followupAt) {
+    const { error: taskError } = await supabase
+      .from('tasks')
+      .insert({
+        user_id: userId,
+        contact_id: contact.id,
+        type: 'email',
+        due_date: input.followupAt,
+        status: 'pending',
+        note: `Follow-up email: ${input.subject}`,
+      })
+
+    if (taskError) throw taskError
+  }
+
+  const { error: logError } = await supabase
+    .from('email_logs')
+    .insert({
+      user_id: userId,
+      to: contact.email,
+      subject: input.subject,
+      type: 'gmail',
+      status: 'sent',
+    })
+
+  if (logError) {
+    // Do not fail the send flow if the secondary log insert is unavailable.
+  }
+
+  const profile = await fetchGmailProfile(accessToken).catch(() => null)
+  await updateAccountSyncMarker(supabase, account.id, profile?.historyId)
+
+  return {
+    account,
+    message: storedMessage as GmailMessage,
+  }
+}

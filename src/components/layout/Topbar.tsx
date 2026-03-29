@@ -7,6 +7,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/dashboard': '🏠 Dashboard',
   '/kanban': '🗂 Pipeline',
   '/contacts': '👥 Contatti',
+  '/gmail': '✉️ Gmail',
   '/import': '📥 Import CSV',
   '/attivita': '⚙️ Attività & Follow-up',
   '/calendario': '📅 Calendario',

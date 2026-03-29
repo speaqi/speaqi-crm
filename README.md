@@ -7,6 +7,7 @@ CRM operativo per pipeline, follow-up e lead ingestion.
 - Next.js 15
 - Supabase: auth + database
 - Resend: email reminder
+- Gmail API: invio email e sincronizzazione thread
 - n8n: automazioni orchestrate via workflow JSON in [`n8n/workflows`](/Users/massimo/Documents/thebest/speaqi-crm/n8n/workflows)
 
 ## Setup
@@ -14,6 +15,7 @@ CRM operativo per pipeline, follow-up e lead ingestion.
 1. Configura le variabili in `.env.local` partendo da `.env.local.example`.
 2. Applica la migration Supabase:
    - [`supabase/migrations/20260325150000_crm_schema.sql`](/Users/massimo/Documents/thebest/speaqi-crm/supabase/migrations/20260325150000_crm_schema.sql)
+   - [`supabase/migrations/20260327154240_gmail_integration.sql`](/Users/massimo/Documents/thebest/speaqi-crm/supabase/migrations/20260327154240_gmail_integration.sql)
 3. Avvia l'app:
 
 ```bash
@@ -27,6 +29,8 @@ npm run dev
 - `tasks`: prossime azioni e follow-up
 - `pipeline_stages`: stadi configurabili della pipeline
 - `email_logs`: log minimo degli invii
+- `gmail_accounts`: account Gmail collegato per utente
+- `gmail_messages`: thread email sincronizzati e legati ai contatti
 
 ## Rotte principali
 
@@ -37,10 +41,33 @@ npm run dev
 - `GET /api/tasks`
 - `PATCH /api/tasks/:id`
 - `GET/PUT /api/pipeline-stages`
+- `GET/DELETE /api/gmail`
+- `POST /api/gmail/connect`
 - `POST /api/import/legacy`
 - `POST /api/speaqi/leads`
 - `POST /api/automation/followups`
 - `POST /api/automation/stale-leads`
+
+## Gmail
+
+Variabili richieste in `.env.local`:
+
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_REDIRECT_URI`
+- `GMAIL_TOKEN_ENCRYPTION_KEY`
+
+Callback OAuth da registrare nel progetto Google Cloud:
+
+- `http://localhost:3000/api/gmail/callback` in locale
+- l'URL pubblico equivalente in produzione
+
+Flusso attuale:
+
+- pagina [`/gmail`](/Users/massimo/Documents/thebest/speaqi-crm/src/app/(app)/gmail/page.tsx) per collegare o scollegare l'account
+- invio email direttamente nella scheda contatto
+- sync dei messaggi Gmail nella scheda contatto, con recupero delle email già inviate o ricevute per quel contatto
+- follow-up opzionale creato automaticamente dopo un invio email dal CRM
 
 ## Migrazione legacy
 

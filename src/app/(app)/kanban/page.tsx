@@ -6,7 +6,6 @@ import { ContactModal } from '@/components/crm/ContactModal'
 import {
   formatDateTime,
   isComuneContact,
-  isPipelineVisible,
   priorityBadgeClass,
   priorityLabel,
   sourceLabel,
@@ -28,8 +27,6 @@ export default function KanbanPage() {
 
   const filtered = useMemo(() => {
     return contacts.filter((contact) => {
-      if (!isPipelineVisible(contact)) return false
-
       const query = search.trim().toLowerCase()
       if (
         query &&
@@ -70,7 +67,7 @@ export default function KanbanPage() {
 
     try {
       await updateContact(id, { status })
-      showToast(`"${contact.name}" spostato in ${status}`)
+      showToast(`"${contact.name}" spostato in ${statusLabel(status)}`)
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'Spostamento non riuscito')
     }

@@ -2,12 +2,13 @@
 
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
 import { ContactModal } from '@/components/crm/ContactModal'
+import { apiFetch } from '@/lib/api'
 import { ACTIVITY_TYPES, TASK_TYPES, activityTypeLabel, formatDateTime, fromDatetimeLocalValue, isClosedStatus, priorityLabel, sourceLabel, statusLabel, toDatetimeLocalValue } from '@/lib/data'
 import { useCRMContext } from '../../layout'
-import type { ContactDetail } from '@/types'
+import type { ContactDetail, GmailAccountStatus, GmailMessage } from '@/types'
 
 export default function ContactDetailPage() {
   const params = useParams<{ id: string }>()
@@ -23,6 +24,12 @@ export default function ContactDetailPage() {
   const [taskNote, setTaskNote] = useState('')
   const [editOpen, setEditOpen] = useState(false)
   const [outcomeTaskId, setOutcomeTaskId] = useState<string | null>(null)
+  const [gmailSyncing, setGmailSyncing] = useState(false)
+  const [gmailSending, setGmailSending] = useState(false)
+  const [gmailSubject, setGmailSubject] = useState('')
+  const [gmailBody, setGmailBody] = useState('')
+  const [gmailFollowup, setGmailFollowup] = useState('')
+  const autoSyncedContactIdRef = useRef<string | null>(null)
 
   async function loadDetail(showSpinner = true) {
     if (showSpinner || !detail) setLoading(true)
@@ -39,6 +46,50 @@ export default function ContactDetailPage() {
   useEffect(() => {
     void loadDetail()
   }, [contactId])
+
+  async function syncGmail(options: { silent?: boolean } = {}) {
+    try {
+      setGmailSyncing(true)
+      const response = await apiFetch<{ synced: number; emails: GmailMessage[]; gmail: GmailAccountStatus }>(
+        `/api/contacts/${contactId}/emails/sync`,
+        {
+          method: 'POST',
+        }
+      )
+
+      setDetail((previous) =>
+        previous
+          ? {
+              ...previous,
+              emails: response.emails,
+              gmail: response.gmail,
+            }
+          : previous
+      )
+
+      if (!options.silent) {
+        showToast(
+          response.synced > 0
+            ? `${response.synced} email sincronizzate`
+            : 'Nessuna nuova email trovata'
+        )
+      }
+    } catch (error) {
+      if (!options.silent) {
+        window.alert(error instanceof Error ? error.message : 'Sync Gmail non riuscita')
+      }
+    } finally {
+      setGmailSyncing(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!detail?.gmail.connected || !detail.contact.email) return
+    if (autoSyncedContactIdRef.current === detail.contact.id) return
+
+    autoSyncedContactIdRef.current = detail.contact.id
+    void syncGmail({ silent: true })
+  }, [detail?.contact.email, detail?.contact.id, detail?.gmail.connected])
 
   if (loading || !detail) {
     return (
@@ -232,6 +283,143 @@ export default function ContactDetailPage() {
                 ))
               )}
             </div>
+          </div>
+        </div>
+
+        <div className="detail-grid" style={{ marginTop: 20 }}>
+          <div className="dash-card" style={{ gridColumn: '1 / -1' }}>
+            <div className="detail-row" style={{ marginBottom: 16 }}>
+              <div>
+                <div className="dash-card-title" style={{ marginBottom: 4 }}>Email & Gmail</div>
+                <div style={{ color: 'var(--text2)', fontSize: 13 }}>
+                  Invia email dal CRM e sincronizza i messaggi presenti nella casella Gmail collegata.
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {contact.email && detail.gmail.connected && (
+                  <button className="btn btn-ghost btn-sm" onClick={() => void syncGmail()} disabled={gmailSyncing}>
+                    {gmailSyncing ? 'Sync...' : 'Sincronizza Gmail'}
+                  </button>
+                )}
+                {!detail.gmail.connected && (
+                  <Link href="/gmail" className="btn btn-primary btn-sm">
+                    Collega Gmail
+                  </Link>
+                )}
+              </div>
+            </div>
+
+            {!contact.email ? (
+              <p style={{ color: 'var(--text2)' }}>Imposta un’email sul contatto per usare Gmail.</p>
+            ) : !detail.gmail.connected ? (
+              <p style={{ color: 'var(--text2)' }}>
+                Nessun account Gmail collegato. Vai su <Link href="/gmail">Gmail</Link> per attivare la sincronizzazione.
+              </p>
+            ) : (
+              <div className="detail-grid" style={{ marginTop: 0 }}>
+                <div>
+                  <div className="fg">
+                    <label className="fl">Oggetto</label>
+                    <input
+                      className="fi"
+                      value={gmailSubject}
+                      onChange={(event) => setGmailSubject(event.target.value)}
+                      placeholder="Oggetto email"
+                    />
+                  </div>
+                  <div className="fg">
+                    <label className="fl">Messaggio</label>
+                    <textarea
+                      className="fi"
+                      rows={6}
+                      value={gmailBody}
+                      onChange={(event) => setGmailBody(event.target.value)}
+                      placeholder="Scrivi qui il testo dell’email"
+                      style={{ resize: 'vertical' }}
+                    />
+                  </div>
+                  <div className="fg">
+                    <label className="fl">Follow-up dopo email</label>
+                    <input
+                      className="fi"
+                      type="datetime-local"
+                      value={gmailFollowup}
+                      onChange={(event) => setGmailFollowup(event.target.value)}
+                    />
+                  </div>
+                  <button
+                    className="btn btn-primary"
+                    disabled={gmailSending}
+                    onClick={async () => {
+                      try {
+                        setGmailSending(true)
+                        await apiFetch(`/api/contacts/${contact.id}/emails`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            subject: gmailSubject,
+                            body: gmailBody,
+                            followup_at: fromDatetimeLocalValue(gmailFollowup),
+                          }),
+                        })
+                        setGmailSubject('')
+                        setGmailBody('')
+                        setGmailFollowup('')
+                        showToast('Email inviata con Gmail')
+                        await loadDetail(false)
+                      } catch (error) {
+                        window.alert(error instanceof Error ? error.message : 'Email non inviata')
+                      } finally {
+                        setGmailSending(false)
+                      }
+                    }}
+                  >
+                    {gmailSending ? 'Invio...' : 'Invia email'}
+                  </button>
+                </div>
+
+                <div>
+                  <div className="detail-stack" style={{ marginBottom: 16, gap: 6 }}>
+                    <div><strong>Casella collegata:</strong> {detail.gmail.email || 'Non disponibile'}</div>
+                    <div><strong>Ultima sync:</strong> {formatDateTime(detail.gmail.last_sync_at)}</div>
+                  </div>
+
+                  <div className="email-thread">
+                    {detail.emails.length === 0 ? (
+                      <p style={{ color: 'var(--text2)' }}>Nessuna email sincronizzata per questo contatto.</p>
+                    ) : (
+                      detail.emails.map((email) => (
+                        <div key={email.id} className={`email-card ${email.direction}`}>
+                          <div className="email-card-header">
+                            <div>
+                              <div className="email-subject">{email.subject || 'Senza oggetto'}</div>
+                              <div className="email-meta">
+                                {email.direction === 'outbound' ? 'Inviata' : 'Ricevuta'} · {formatDateTime(email.sent_at)}
+                              </div>
+                            </div>
+                            <div className={`email-direction ${email.direction}`}>
+                              {email.direction === 'outbound' ? 'Uscita' : 'Ingresso'}
+                            </div>
+                          </div>
+                          <div className="email-recipient-row">
+                            <strong>Da:</strong> {email.from_email || 'Non disponibile'}
+                          </div>
+                          <div className="email-recipient-row">
+                            <strong>A:</strong> {email.to_emails.join(', ') || 'Non disponibile'}
+                          </div>
+                          {email.cc_emails.length > 0 && (
+                            <div className="email-recipient-row">
+                              <strong>Cc:</strong> {email.cc_emails.join(', ')}
+                            </div>
+                          )}
+                          <div className="email-preview">{email.body_text || email.snippet || 'Nessun contenuto'}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

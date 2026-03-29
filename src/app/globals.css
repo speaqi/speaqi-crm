@@ -859,6 +859,13 @@ select.filter-select {
   color: #991b1b;
   font-size: 13px;
 }
+.inline-success {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--green-light);
+  color: #065f46;
+  font-size: 13px;
+}
 .card-meta {
   margin-top: 10px;
   padding-top: 10px;
@@ -921,6 +928,12 @@ select.filter-select {
   font-size: 14px;
 }
 .detail-actions { display: flex; gap: 8px; }
+.detail-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
 .detail-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -970,6 +983,71 @@ select.filter-select {
   color: var(--text2);
   line-height: 1.5;
   margin-top: 4px;
+  white-space: pre-wrap;
+}
+.email-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.email-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  padding: 14px;
+}
+.email-card.outbound {
+  border-left: 4px solid var(--accent);
+}
+.email-card.inbound {
+  border-left: 4px solid var(--green);
+}
+.email-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.email-subject {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.email-meta {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--text3);
+}
+.email-direction {
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.email-direction.outbound {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+.email-direction.inbound {
+  background: var(--green-light);
+  color: #047857;
+}
+.email-recipient-row {
+  font-size: 12px;
+  color: var(--text2);
+  margin-bottom: 6px;
+  line-height: 1.45;
+}
+.email-recipient-row strong {
+  color: var(--text);
+}
+.email-preview {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.55;
   white-space: pre-wrap;
 }
 .task-list {
@@ -1090,6 +1168,7 @@ select.filter-select {
   .detail-header {
     flex-direction: column;
   }
+  .detail-row,
   .task-card,
   .card-actions-row {
     flex-direction: column;

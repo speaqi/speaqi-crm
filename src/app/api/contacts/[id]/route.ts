@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createActivities, ensureNextAction, formatActivityDate, updateContactSummary } from '@/lib/server/crm'
+import { getGmailAccount, gmailStatus, isMissingRelation } from '@/lib/server/gmail'
 import { requireRouteUser } from '@/lib/server/supabase'
 
 type RouteContext = {
@@ -80,7 +81,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const { id } = await context.params
     const contact = await getContactRecord(auth.supabase, auth.user.id, id)
 
-    const [{ data: activities, error: activitiesError }, { data: tasks, error: tasksError }] =
+    const [
+      { data: activities, error: activitiesError },
+      { data: tasks, error: tasksError },
+      emailsResult,
+      gmailAccount,
+    ] =
       await Promise.all([
         auth.supabase
           .from('activities')
@@ -94,15 +100,31 @@ export async function GET(request: NextRequest, context: RouteContext) {
           .eq('user_id', auth.user.id)
           .eq('contact_id', id)
           .order('due_date', { ascending: true, nullsFirst: false }),
+        auth.supabase
+          .from('gmail_messages')
+          .select('*')
+          .eq('user_id', auth.user.id)
+          .eq('contact_id', id)
+          .order('sent_at', { ascending: false, nullsFirst: false })
+          .limit(30),
+        getGmailAccount(auth.supabase, auth.user.id, { tolerateMissingRelation: true }),
       ])
 
     if (activitiesError) throw activitiesError
     if (tasksError) throw tasksError
 
+    if (emailsResult.error && !isMissingRelation(emailsResult.error)) {
+      throw emailsResult.error
+    }
+
+    const emails = emailsResult.data || []
+
     return Response.json({
       contact,
       activities: activities || [],
       tasks: tasks || [],
+      emails,
+      gmail: gmailStatus(gmailAccount),
     })
   } catch (error) {
     return Response.json(

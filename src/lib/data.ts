@@ -5,8 +5,9 @@ export const DEFAULT_PIPELINE_STAGES: Array<Omit<PipelineStage, 'id'>> = [
   { name: 'Contacted', order: 1, color: '#f59e0b', system_key: 'contacted' },
   { name: 'Interested', order: 2, color: '#10b981', system_key: 'interested' },
   { name: 'Call booked', order: 3, color: '#7c3aed', system_key: 'call_booked' },
-  { name: 'Lost', order: 4, color: '#ef4444', system_key: 'lost' },
-  { name: 'Closed', order: 5, color: '#059669', system_key: 'closed' },
+  { name: 'Quote', order: 4, color: '#f97316', system_key: 'quote' },
+  { name: 'Lost', order: 5, color: '#ef4444', system_key: 'lost' },
+  { name: 'Closed', order: 6, color: '#059669', system_key: 'closed' },
 ]
 
 export const SOURCE_OPTIONS = ['manual', 'speaqi', 'evento', 'import', 'legacy-kanban']
@@ -66,6 +67,8 @@ export function statusLabel(status?: string | null) {
       return 'Interessato'
     case 'Call booked':
       return 'Call fissata'
+    case 'Quote':
+      return 'Preventivo'
     case 'Lost':
       return 'Perso'
     case 'Closed':

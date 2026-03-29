@@ -65,6 +65,8 @@ export interface ContactDetail {
   contact: CRMContact
   activities: Activity[]
   tasks: Task[]
+  emails: GmailMessage[]
+  gmail: GmailAccountStatus
 }
 
 export interface CRMState {
@@ -108,4 +110,30 @@ export interface TaskInput {
   type: string
   due_date: string
   note?: string
+}
+
+export interface GmailAccountStatus {
+  connected: boolean
+  email?: string | null
+  last_sync_at?: string | null
+}
+
+export interface GmailMessage {
+  id: string
+  user_id?: string
+  gmail_account_id: string
+  contact_id?: string | null
+  gmail_message_id: string
+  gmail_thread_id?: string | null
+  direction: 'inbound' | 'outbound'
+  subject?: string | null
+  from_email?: string | null
+  to_emails: string[]
+  cc_emails: string[]
+  snippet?: string | null
+  body_text?: string | null
+  body_html?: string | null
+  sent_at?: string | null
+  synced_at: string
+  created_at: string
 }
