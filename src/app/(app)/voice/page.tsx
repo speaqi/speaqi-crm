@@ -1,6 +1,9 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useRef, useEffect } from 'react'
+import { apiFetch } from '@/lib/api'
+import { formatDateTime } from '@/lib/data'
 import { useCRMContext } from '../layout'
 
 // Type for SpeechRecognition (available in browsers but not in TS lib by default)
@@ -23,13 +26,26 @@ interface WindowWithSpeech extends Window {
   webkitSpeechRecognition?: new () => SpeechRecognitionAPI
 }
 
+type VoiceCommandResult = {
+  executed: boolean
+  reply: string
+  confidence?: number
+  contact?: {
+    id: string
+    name: string
+  }
+  scheduled_for?: string
+}
+
 export default function VoicePage() {
-  const { vNotes, addVoiceNote, deleteVoiceNote, showToast } = useCRMContext()
+  const { vNotes, addVoiceNote, deleteVoiceNote, showToast, refresh } = useCRMContext()
   const [isRecording, setIsRecording] = useState(false)
   const [recSeconds, setRecSeconds] = useState(0)
   const [transcript, setTranscript] = useState('')
   const [showTranscript, setShowTranscript] = useState(false)
   const [showBtns, setShowBtns] = useState(false)
+  const [processingCommand, setProcessingCommand] = useState(false)
+  const [commandResult, setCommandResult] = useState<VoiceCommandResult | null>(null)
 
   const mediaRecRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
@@ -80,6 +96,7 @@ export default function VoicePage() {
       setIsRecording(true)
       setRecSeconds(0)
       setTranscript('')
+      setCommandResult(null)
       setShowTranscript(false)
       setShowBtns(true)
 
@@ -94,6 +111,7 @@ export default function VoicePage() {
             t += e.results[i][0].transcript
           }
           currentTranscriptRef.current = t
+          setCommandResult(null)
           setTranscript(t)
         }
         recognitionRef.current.start()
@@ -133,10 +151,39 @@ export default function VoicePage() {
     setRecSeconds(0)
   }
 
+  async function runVoiceCommand() {
+    const command = transcript.trim()
+    if (!command) {
+      showToast('Inserisci o registra un comando prima di eseguirlo')
+      return
+    }
+
+    try {
+      setProcessingCommand(true)
+      const result = await apiFetch<VoiceCommandResult>('/api/voice/command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript: command }),
+      })
+
+      setCommandResult(result)
+      if (result.executed) {
+        await refresh()
+        showToast('Comando eseguito nel CRM')
+      } else {
+        showToast(result.reply || 'Comando non eseguito')
+      }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Comando vocale non eseguito')
+    } finally {
+      setProcessingCommand(false)
+    }
+  }
+
   async function copyTranscript() {
     try {
       await navigator.clipboard.writeText(transcript)
-      showToast('Copiato! Incollalo in chat con Claude 🎉')
+      showToast('Copiato negli appunti')
     } catch {
       showToast('Copiato!')
     }
@@ -163,8 +210,8 @@ export default function VoicePage() {
       <div className="voice-hero">
         <h2>🎤 Note Vocali</h2>
         <p>
-          Registra una nota vocale per spiegare a Claude cosa vuoi fare, aggiungere contesti alle card,
-          o semplicemente tenere un memo. La trascrizione avviene automaticamente in italiano.
+          Registra un comando come “domani ricordami di chiamare 123” oppure usa la trascrizione come memo.
+          La pagina ora puo interpretare il testo e pianificare il follow-up direttamente nel CRM.
         </p>
 
         <div className={`wave ${isRecording ? '' : 'hidden'}`}>
@@ -196,20 +243,71 @@ export default function VoicePage() {
         )}
       </div>
 
+      <div className="dash-card" style={{ maxWidth: 760, width: '100%' }}>
+        <div className="dash-card-title">Comando CRM</div>
+        <div className="fg">
+          <label className="fl">Trascrizione o comando</label>
+          <textarea
+            className="fi"
+            rows={4}
+            value={transcript}
+            onChange={(event) => {
+              setCommandResult(null)
+              setTranscript(event.target.value)
+            }}
+            placeholder="Es. domani ricordami di chiamare 123"
+            style={{ resize: 'vertical' }}
+          />
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button className="btn btn-primary" onClick={runVoiceCommand} disabled={processingCommand}>
+            {processingCommand ? 'Analisi in corso...' : 'Esegui nel CRM'}
+          </button>
+          <button
+            className="btn btn-ghost"
+            onClick={() => {
+              setCommandResult(null)
+              setTranscript('')
+            }}
+            disabled={processingCommand}
+          >
+            Pulisci
+          </button>
+        </div>
+
+        {commandResult && (
+          <div className="meta-card" style={{ marginTop: 16 }}>
+            <strong>{commandResult.executed ? 'Comando eseguito' : 'Verifica richiesta'}</strong>
+            <span>{commandResult.reply}</span>
+            {commandResult.contact && (
+              <span>
+                Contatto: <Link href={`/contacts/${commandResult.contact.id}`}>{commandResult.contact.name}</Link>
+              </span>
+            )}
+            {commandResult.scheduled_for && (
+              <span>Follow-up: {formatDateTime(commandResult.scheduled_for)}</span>
+            )}
+          </div>
+        )}
+      </div>
+
       {showTranscript && (
         <div className="voice-transcript">
           <h3>📝 Trascrizione</h3>
-          <div
+          <textarea
             className="transcript-text"
-            contentEditable
-            suppressContentEditableWarning
-            onInput={e => setTranscript((e.target as HTMLDivElement).textContent || '')}
-          >
-            {transcript || '(Nessuna trascrizione automatica disponibile – aggiungi il testo manualmente)'}
-          </div>
+            value={transcript}
+            onChange={e => {
+              setCommandResult(null)
+              setTranscript(e.target.value)
+            }}
+          />
           <div className="transcript-actions">
             <button className="btn btn-primary btn-sm" onClick={copyTranscript}>
-              📋 Copia per Claude
+              📋 Copia testo
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={runVoiceCommand} disabled={processingCommand}>
+              ⚡ Esegui nel CRM
             </button>
             <button className="btn btn-ghost btn-sm" onClick={() => showToast('Trascrizione aggiunta come nota')}>
               ➕ Aggiungi come nota

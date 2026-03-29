@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api'
+import { isClosedStatus } from '@/lib/data'
+import { buildScheduledCalls, isCallTaskType } from '@/lib/schedule'
 import { createClient } from '@/lib/supabase'
 import type {
   ActivityInput,
@@ -99,18 +101,29 @@ export function useCRM() {
     [state.contacts]
   )
 
+  const scheduledCalls = useMemo(
+    () => buildScheduledCalls(state.contacts, state.tasks),
+    [state.contacts, state.tasks]
+  )
+
+  const openContactsWithoutQueue = useMemo(() => {
+    const queuedContactIds = new Set(scheduledCalls.map((item) => item.contact.id))
+    return state.contacts.filter(
+      (contact) => !isClosedStatus(contact.status) && !queuedContactIds.has(contact.id)
+    )
+  }, [scheduledCalls, state.contacts])
+
   const dueTodayCount = useMemo(() => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const tomorrow = new Date(today)
     tomorrow.setDate(tomorrow.getDate() + 1)
 
-    return state.tasks.filter((task) => {
-      if (task.status !== 'pending' || !task.due_date) return false
-      const due = new Date(task.due_date)
+    return scheduledCalls.filter((item) => {
+      const due = new Date(item.due_at)
       return due >= today && due < tomorrow
     }).length
-  }, [state.tasks])
+  }, [scheduledCalls])
 
   const loadAll = useCallback(async ({ background = false }: { background?: boolean } = {}) => {
     const shouldBlockUI = !background && !hasLoadedRef.current
@@ -345,7 +358,7 @@ export function useCRM() {
             contact.id === contactId
               ? {
                   ...contact,
-                  next_followup_at: payload.due_date,
+                  next_followup_at: isCallTaskType(payload.type) ? payload.due_date : contact.next_followup_at,
                 }
               : contact
           )
@@ -428,6 +441,8 @@ export function useCRM() {
   return {
     ...state,
     speaqiContacts,
+    scheduledCalls,
+    openContactsWithoutQueue,
     dueTodayCount,
     vNotes,
     loading,

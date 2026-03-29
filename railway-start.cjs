@@ -49,6 +49,7 @@ function diagnosticsPayload() {
       NEXT_PUBLIC_SUPABASE_ANON_KEY: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
       RESEND_API_KEY: !!process.env.RESEND_API_KEY,
+      OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
       AUTOMATION_SECRET: !!process.env.AUTOMATION_SECRET,
       SPEAQI_WEBHOOK_SECRET: !!process.env.SPEAQI_WEBHOOK_SECRET,
     },

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { isClosedStatus } from '@/lib/data'
+import { isCallTaskType } from '@/lib/schedule'
 import { createActivities, formatActivityDate, updateContactSummary } from '@/lib/server/crm'
 import { requireRouteUser } from '@/lib/server/supabase'
 
@@ -73,15 +74,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     if (error) throw error
 
-    const { error: updateError } = await auth.supabase
-      .from('contacts')
-      .update({
-        next_followup_at: dueDate,
-      })
-      .eq('user_id', auth.user.id)
-      .eq('id', id)
+    if (isCallTaskType(type)) {
+      const { error: updateError } = await auth.supabase
+        .from('contacts')
+        .update({
+          next_followup_at: dueDate,
+        })
+        .eq('user_id', auth.user.id)
+        .eq('id', id)
 
-    if (updateError) throw updateError
+      if (updateError) throw updateError
+    }
 
     const activityContent = [
       `Creato task ${task.type}.`,
@@ -100,7 +103,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     ])
     await updateContactSummary(auth.supabase, id, activityContent, {
-      nextFollowupAt: dueDate,
+      nextFollowupAt: isCallTaskType(type) ? dueDate : undefined,
     })
 
     return Response.json({ task }, { status: 201 })

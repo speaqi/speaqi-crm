@@ -1,5 +1,13 @@
 import { NextRequest } from 'next/server'
-import { createActivities, ensureNextAction, formatActivityDate, updateContactSummary } from '@/lib/server/crm'
+import { isClosedStatus } from '@/lib/data'
+import {
+  completePendingCallTasks,
+  createActivities,
+  ensureNextAction,
+  formatActivityDate,
+  syncPendingCallTask,
+  updateContactSummary,
+} from '@/lib/server/crm'
 import { getGmailAccount, gmailStatus, isMissingRelation } from '@/lib/server/gmail'
 import { requireRouteUser } from '@/lib/server/supabase'
 
@@ -143,12 +151,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const body = await request.json()
     const current = await getContactRecord(auth.supabase, auth.user.id, id)
     const nextStatus = String(body.status || current.status)
-    const nextFollowupAt =
+    const requestedFollowupAt =
       body.next_followup_at === ''
         ? null
         : body.next_followup_at
           ? String(body.next_followup_at)
           : current.next_followup_at
+    const nextFollowupAt = isClosedStatus(nextStatus) ? null : requestedFollowupAt
 
     await ensureNextAction(auth.supabase, auth.user.id, id, nextStatus, nextFollowupAt)
 
@@ -176,6 +185,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       .single()
 
     if (error) throw error
+
+    if (isClosedStatus(nextStatus)) {
+      await completePendingCallTasks(auth.supabase, auth.user.id, id)
+    } else if (nextFollowupAt) {
+      await syncPendingCallTask(auth.supabase, auth.user.id, id, nextFollowupAt)
+    }
 
     const activityContent = buildContactUpdateSummary(current, data)
     if (activityContent) {

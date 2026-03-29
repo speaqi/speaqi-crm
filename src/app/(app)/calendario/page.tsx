@@ -14,6 +14,7 @@ import {
   statusLabel,
   toLocalDateKey,
 } from '@/lib/data'
+import type { ScheduledCall } from '@/lib/schedule'
 import { useCRMContext } from '../layout'
 import type { CRMContact, TaskWithContact } from '@/types'
 
@@ -40,47 +41,23 @@ function formatDayHeading(date: Date) {
   })
 }
 
-function compareScheduledContacts(left: CRMContact, right: CRMContact) {
-  const leftDate = left.next_followup_at ? new Date(left.next_followup_at).getTime() : Number.MAX_SAFE_INTEGER
-  const rightDate = right.next_followup_at ? new Date(right.next_followup_at).getTime() : Number.MAX_SAFE_INTEGER
-  return (leftDate - rightDate) || (right.priority - left.priority) || left.name.localeCompare(right.name)
-}
-
 export default function CalendarioPage() {
-  const { contacts, tasks, stages, completeTask, addActivity, updateContact, refresh, showToast } = useCRMContext()
+  const { scheduledCalls, stages, completeTask, addActivity, updateContact, refresh, showToast } = useCRMContext()
   const [selectedDateKey, setSelectedDateKey] = useState(() => toLocalDateKey(new Date()))
   const [outcomeContact, setOutcomeContact] = useState<CRMContact | null>(null)
   const [outcomeTask, setOutcomeTask] = useState<TaskWithContact | null>(null)
 
-  const scheduledContacts = useMemo(
-    () =>
-      [...contacts]
-        .filter((contact) => !isClosedStatus(contact.status) && !!contact.next_followup_at)
-        .sort(compareScheduledContacts),
-    [contacts]
-  )
-
   const contactsByDay = useMemo(
     () =>
-      scheduledContacts.reduce<Record<string, CRMContact[]>>((groups, contact) => {
-        const key = toLocalDateKey(contact.next_followup_at)
+      scheduledCalls.reduce<Record<string, ScheduledCall[]>>((groups, item) => {
+        const key = toLocalDateKey(item.due_at)
         if (!key) return groups
         if (!groups[key]) groups[key] = []
-        groups[key].push(contact)
+        groups[key].push(item)
         return groups
       }, {}),
-    [scheduledContacts]
+    [scheduledCalls]
   )
-
-  const tasksByContact = useMemo(() => {
-    const map = new Map<string, TaskWithContact>()
-    for (const task of tasks) {
-      if (!map.has(task.contact_id)) {
-        map.set(task.contact_id, task)
-      }
-    }
-    return map
-  }, [tasks])
 
   const selectedDate = useMemo(() => new Date(`${selectedDateKey}T09:00:00`), [selectedDateKey])
   const weekStart = useMemo(() => startOfWeek(selectedDate), [selectedDate])
@@ -88,9 +65,9 @@ export default function CalendarioPage() {
 
   const selectedCalls = contactsByDay[selectedDateKey] || []
   const selectedCallable = isCallableDate(selectedDate)
-  const selectedMissingPhone = selectedCalls.filter((contact) => !contact.phone).length
-  const selectedHighPriority = selectedCalls.filter((contact) => contact.priority >= 2).length
-  const selectedOverdue = selectedCalls.filter((contact) => contact.next_followup_at && isOverdue(contact.next_followup_at)).length
+  const selectedMissingPhone = selectedCalls.filter((item) => !item.contact.phone).length
+  const selectedHighPriority = selectedCalls.filter((item) => item.contact.priority >= 2).length
+  const selectedOverdue = selectedCalls.filter((item) => isOverdue(item.due_at)).length
   const nextCallableLabel = formatDayHeading(nextCallableDateTime(selectedDate))
 
   return (
@@ -177,16 +154,16 @@ export default function CalendarioPage() {
                       {day.getDate()}
                     </button>
                     <div className="day-events">
-                      {dayCalls.slice(0, 3).map((contact) => (
+                      {dayCalls.slice(0, 3).map((item) => (
                         <div
-                          key={contact.id}
+                          key={`${item.contact.id}:${item.due_at}`}
                           className={`day-event ${
-                            contact.priority >= 3 ? 'alta' : contact.priority === 2 ? 'media' : 'normal'
+                            item.contact.priority >= 3 ? 'alta' : item.contact.priority === 2 ? 'media' : 'normal'
                           }`}
                           onClick={() => setSelectedDateKey(dayKey)}
-                          title={`${contact.name} · ${formatDateTime(contact.next_followup_at)}`}
+                          title={`${item.contact.name} · ${formatDateTime(item.due_at)}`}
                         >
-                          {contact.name}
+                          {item.contact.name}
                         </div>
                       ))}
                       {dayCalls.length > 3 && (
@@ -215,24 +192,26 @@ export default function CalendarioPage() {
             <p style={{ color: 'var(--text3)' }}>Nessuna chiamata assegnata a questa data.</p>
           ) : (
             <div className="task-list">
-              {selectedCalls.map((contact) => {
-                const task = tasksByContact.get(contact.id) || null
+              {selectedCalls.map((item) => {
+                const { contact, task } = item
                 return (
                   <div
-                    key={contact.id}
-                    className={`task-card ${contact.next_followup_at && isOverdue(contact.next_followup_at) ? 'overdue' : ''}`}
+                    key={`${contact.id}:${item.due_at}`}
+                    className={`task-card ${isOverdue(item.due_at) ? 'overdue' : ''}`}
                   >
                     <div>
                       <strong>{contact.name}</strong>
                       <div className="task-date">
-                        {statusLabel(contact.status)} · {formatDateTime(contact.next_followup_at)}
+                        {statusLabel(contact.status)} · {formatDateTime(item.due_at)}
                       </div>
                       <div className="task-note">
                         {contact.phone || 'Telefono mancante'} · {contact.last_activity_summary || 'Nessuna attività registrata'}
                       </div>
                       <div className="contact-tags" style={{ marginTop: 8 }}>
                         <span className={`ctag ${priorityBadgeClass(contact.priority)}`}>{priorityLabel(contact.priority)}</span>
-                        {task && <span className="ctag" style={{ background: 'var(--surface)', color: 'var(--text2)' }}>{task.type}</span>}
+                        <span className="ctag" style={{ background: 'var(--surface)', color: 'var(--text2)' }}>
+                          {task?.type || item.task_type}
+                        </span>
                       </div>
                     </div>
                     <div className="task-actions">

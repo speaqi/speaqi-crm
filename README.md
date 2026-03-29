@@ -47,6 +47,7 @@ npm run dev
 - `POST /api/speaqi/leads`
 - `POST /api/automation/followups`
 - `POST /api/automation/stale-leads`
+- `POST /api/voice/command`
 
 ## Gmail
 
@@ -68,6 +69,20 @@ Flusso attuale:
 - invio email direttamente nella scheda contatto
 - sync dei messaggi Gmail nella scheda contatto, con recupero delle email già inviate o ricevute per quel contatto
 - follow-up opzionale creato automaticamente dopo un invio email dal CRM
+
+## Voice commands
+
+Variabili richieste in `.env.local`:
+
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL` opzionale, default `gpt-5-mini`
+
+Flusso attuale:
+
+- pagina [`/voice`](/Users/massimo/Documents/thebest/speaqi-crm/src/app/(app)/voice/page.tsx) per registrare o incollare il comando
+- endpoint [`/api/voice/command`](/Users/massimo/Documents/thebest/speaqi-crm/src/app/api/voice/command/route.ts) che interpreta il testo con OpenAI
+- match dei candidati fatto sulle schede CRM usando nome, telefono, email e `legacy_id`
+- se il match e affidabile, il CRM pianifica subito il task di follow-up e aggiorna il calendario
 
 ## Migrazione legacy
 

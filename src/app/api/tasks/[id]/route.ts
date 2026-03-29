@@ -1,5 +1,11 @@
 import { NextRequest } from 'next/server'
-import { createActivities, formatActivityDate, updateContactSummary } from '@/lib/server/crm'
+import { isCallTaskType } from '@/lib/schedule'
+import {
+  createActivities,
+  formatActivityDate,
+  syncContactNextFollowupFromPendingTasks,
+  updateContactSummary,
+} from '@/lib/server/crm'
 import { requireRouteUser } from '@/lib/server/supabase'
 
 type RouteContext = {
@@ -43,6 +49,18 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     if (error) throw error
 
+    let syncedNextFollowupAt: string | null | undefined
+    if (
+      isCallTaskType(data.type) &&
+      ((currentTask.due_date || null) !== (data.due_date || null) || currentTask.status !== data.status)
+    ) {
+      syncedNextFollowupAt = await syncContactNextFollowupFromPendingTasks(
+        auth.supabase,
+        auth.user.id,
+        data.contact_id
+      )
+    }
+
     const changes: string[] = []
     if (currentTask.status !== data.status) {
       if (data.status === 'done') changes.push('completato')
@@ -70,7 +88,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         },
       ])
       await updateContactSummary(auth.supabase, data.contact_id, activityContent, {
-        nextFollowupAt: data.type === 'follow-up' && data.status === 'pending' ? data.due_date : undefined,
+        nextFollowupAt: isCallTaskType(data.type) ? syncedNextFollowupAt : undefined,
       })
     }
 

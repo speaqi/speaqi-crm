@@ -1,4 +1,5 @@
 import { DEFAULT_PIPELINE_STAGES, isClosedStatus, mapLegacyPriority, mapLegacyStatus } from '@/lib/data'
+import { isCallTaskType } from '@/lib/schedule'
 import type { PipelineStage } from '@/types'
 
 function chunk<T>(items: T[], size = 100) {
@@ -171,6 +172,137 @@ export async function getPendingTaskCount(
 
   if (error) throw error
   return count || 0
+}
+
+export async function readPendingCallTasks(
+  supabase: any,
+  userId: string,
+  contactId: string
+) {
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('contact_id', contactId)
+    .eq('status', 'pending')
+    .in('type', ['follow-up', 'call'])
+    .order('due_date', { ascending: true, nullsFirst: false })
+
+  if (error) throw error
+  return (data || []).filter((task: any) => isCallTaskType(task.type))
+}
+
+export async function syncPendingCallTask(
+  supabase: any,
+  userId: string,
+  contactId: string,
+  nextFollowupAt: string,
+  options?: {
+    type?: string
+    note?: string | null
+    overwriteNote?: boolean
+  }
+) {
+  const pendingTasks = await readPendingCallTasks(supabase, userId, contactId)
+  const matchingTask = pendingTasks.find((task: any) => task.due_date === nextFollowupAt)
+
+  if (matchingTask) {
+    if (options?.note && options.overwriteNote && matchingTask.note !== options.note) {
+      const { data, error } = await supabase
+        .from('tasks')
+        .update({ note: options.note })
+        .eq('user_id', userId)
+        .eq('id', matchingTask.id)
+        .select('*')
+        .single()
+
+      if (error) throw error
+      return data
+    }
+
+    return matchingTask
+  }
+
+  const primaryTask = pendingTasks[0]
+  if (primaryTask) {
+    const updatePayload: Record<string, unknown> = {
+      due_date: nextFollowupAt,
+    }
+
+    if (options?.type && isCallTaskType(options.type)) {
+      updatePayload.type = options.type
+    }
+
+    if (options?.note && (options.overwriteNote || !primaryTask.note)) {
+      updatePayload.note = options.note
+    }
+
+    const { data, error } = await supabase
+      .from('tasks')
+      .update(updatePayload)
+      .eq('user_id', userId)
+      .eq('id', primaryTask.id)
+      .select('*')
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  const { data, error } = await supabase
+    .from('tasks')
+    .insert({
+      user_id: userId,
+      contact_id: contactId,
+      type: options?.type && isCallTaskType(options.type) ? options.type : 'follow-up',
+      due_date: nextFollowupAt,
+      status: 'pending',
+      note: options?.note || null,
+    })
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function completePendingCallTasks(
+  supabase: any,
+  userId: string,
+  contactId: string
+) {
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      status: 'done',
+      completed_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId)
+    .eq('contact_id', contactId)
+    .eq('status', 'pending')
+    .in('type', ['follow-up', 'call'])
+
+  if (error) throw error
+}
+
+export async function syncContactNextFollowupFromPendingTasks(
+  supabase: any,
+  userId: string,
+  contactId: string
+) {
+  const pendingTasks = await readPendingCallTasks(supabase, userId, contactId)
+  const nextFollowupAt = pendingTasks[0]?.due_date || null
+
+  const { error } = await supabase
+    .from('contacts')
+    .update({
+      next_followup_at: nextFollowupAt,
+    })
+    .eq('user_id', userId)
+    .eq('id', contactId)
+
+  if (error) throw error
+  return nextFollowupAt
 }
 
 export async function updateContactAfterActivity(
