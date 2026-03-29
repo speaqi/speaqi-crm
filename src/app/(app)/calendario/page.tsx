@@ -41,9 +41,25 @@ function formatDayHeading(date: Date) {
   })
 }
 
+function getInitialCalendarDateKey(scheduledCalls: ScheduledCall[]) {
+  const today = new Date()
+  if (isCallableDate(today)) {
+    return toLocalDateKey(today)
+  }
+
+  const startOfToday = new Date(today)
+  startOfToday.setHours(0, 0, 0, 0)
+
+  const nextScheduledCall = scheduledCalls.find(
+    (item) => new Date(item.due_at).getTime() >= startOfToday.getTime()
+  )
+
+  return toLocalDateKey(nextScheduledCall?.due_at || nextCallableDateTime(today))
+}
+
 export default function CalendarioPage() {
   const { scheduledCalls, stages, completeTask, addActivity, updateContact, refresh, showToast } = useCRMContext()
-  const [selectedDateKey, setSelectedDateKey] = useState(() => toLocalDateKey(new Date()))
+  const [selectedDateKey, setSelectedDateKey] = useState(() => getInitialCalendarDateKey(scheduledCalls))
   const [outcomeContact, setOutcomeContact] = useState<CRMContact | null>(null)
   const [outcomeTask, setOutcomeTask] = useState<TaskWithContact | null>(null)
 

@@ -23,6 +23,49 @@ type VoiceIntent = {
   confidence: number
 }
 
+const VOICE_REFERENCE_STOPWORDS = new Set([
+  'adesso',
+  'azienda',
+  'chiama',
+  'chiamare',
+  'chiamami',
+  'cliente',
+  'company',
+  'contatta',
+  'contattare',
+  'contatto',
+  'crm',
+  'da',
+  'devo',
+  'di',
+  'domani',
+  'email',
+  'fai',
+  'follow',
+  'followup',
+  'follow-up',
+  'il',
+  'la',
+  'lo',
+  'oggi',
+  'per',
+  'promemoria',
+  'promemoriami',
+  'promemoriati',
+  'ricontatta',
+  'ricontattare',
+  'ricorda',
+  'ricordami',
+  'ricordare',
+  'richiama',
+  'richiamare',
+  'su',
+  'task',
+  'tra',
+  'un',
+  'una',
+])
+
 function normalizeText(value?: string | null) {
   return String(value || '')
     .normalize('NFD')
@@ -56,17 +99,20 @@ function extractTextOutput(payload: any) {
 
 function extractReferenceTokens(transcript: string) {
   const normalized = normalizeText(transcript)
-  const tokens = normalized.split(/\s+/).filter((token) => token.length >= 3)
+  const tokens = normalized
+    .split(/\s+/)
+    .filter((token) => token.length >= 2 && !VOICE_REFERENCE_STOPWORDS.has(token))
   const digitTokens = Array.from(new Set((transcript.match(/\d{3,}/g) || []).map((token) => token.trim())))
   return {
     normalized,
+    referenceText: tokens.join(' ').trim(),
     tokens,
     digitTokens,
   }
 }
 
 function scoreCandidate(transcript: string, candidate: VoiceContactCandidate) {
-  const { normalized, tokens, digitTokens } = extractReferenceTokens(transcript)
+  const { normalized, referenceText, tokens, digitTokens } = extractReferenceTokens(transcript)
   const candidateName = normalizeText(candidate.name)
   const candidateEmail = normalizeText(candidate.email)
   const candidatePhoneDigits = digitsOnly(candidate.phone)
@@ -79,6 +125,8 @@ function scoreCandidate(transcript: string, candidate: VoiceContactCandidate) {
   }
 
   if (candidateName && normalized.includes(candidateName)) score += 100
+  if (referenceText && candidateName.includes(referenceText)) score += 140
+  if (referenceText && referenceText.includes(candidateName)) score += 90
 
   for (const token of tokens) {
     if (candidateName.includes(token)) score += Math.min(45, token.length * 8)
@@ -96,7 +144,7 @@ function buildCandidateList(transcript: string, contacts: VoiceContactCandidate[
     .map((contact) => ({ contact, score: scoreCandidate(transcript, contact) }))
     .filter((item) => item.score > 0)
     .sort((left, right) => right.score - left.score)
-    .slice(0, 8)
+    .slice(0, 12)
 
   if (ranked.length > 0) {
     return ranked.map((item) => item.contact)
@@ -202,6 +250,7 @@ async function interpretVoiceCommand(transcript: string, candidates: VoiceContac
               text:
                 'Interpreti comandi vocali CRM in italiano. Devi supportare solo la pianificazione di una chiamata o follow-up. ' +
                 'Scegli action=schedule_followup solo se l\'utente chiede chiaramente di ricordare, chiamare, richiamare o fare follow-up. ' +
+                'Il contatto puo essere nominato come persona, ente, azienda o organizzazione. ' +
                 'Puoi usare solo i contact_id presenti nei candidati. Se il match non e affidabile o la richiesta non e supportata, usa action=unsupported e contact_id=null. ' +
                 'Quando manca l\'orario usa le 10:00 nel fuso Europe/Rome. Restituisci scheduled_for in ISO 8601 completo con fuso orario. ' +
                 'Rispondi in italiano con un reply breve e operativo.',

@@ -210,7 +210,7 @@ export default function VoicePage() {
       <div className="voice-hero">
         <h2>🎤 Note Vocali</h2>
         <p>
-          Registra un comando come “domani ricordami di chiamare 123” oppure usa la trascrizione come memo.
+          Registra un comando come “domani ricordami di chiamare Comune di Roma” o “richiamami Acme”.
           La pagina ora puo interpretare il testo e pianificare il follow-up direttamente nel CRM.
         </p>
 
@@ -255,7 +255,7 @@ export default function VoicePage() {
               setCommandResult(null)
               setTranscript(event.target.value)
             }}
-            placeholder="Es. domani ricordami di chiamare 123"
+            placeholder="Es. domani ricordami di chiamare Mario Rossi o Acme"
             style={{ resize: 'vertical' }}
           />
         </div>

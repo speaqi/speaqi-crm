@@ -1,9 +1,63 @@
 import { NextRequest } from 'next/server'
 import { getGmailAccount, gmailStatus, isMissingRelation } from '@/lib/server/gmail'
 import { requireRouteUser } from '@/lib/server/supabase'
+import type { SentMessageHistoryItem } from '@/types'
 
 const GMAIL_MIGRATION_ERROR =
   'Schema Gmail non presente. Applica la migration 20260327154240_gmail_integration.sql.'
+
+function normalizeRelatedContact(value: any) {
+  return Array.isArray(value) ? value[0] || null : value || null
+}
+
+async function loadSentHistory(supabase: any, userId: string) {
+  const [
+    { data: gmailMessages, error: gmailMessagesError },
+    { data: emailLogs, error: emailLogsError },
+  ] = await Promise.all([
+    supabase
+      .from('gmail_messages')
+      .select('id, subject, to_emails, sent_at, created_at, contact:contacts(id, name)')
+      .eq('user_id', userId)
+      .eq('direction', 'outbound')
+      .order('sent_at', { ascending: false, nullsFirst: false })
+      .limit(40),
+    supabase
+      .from('email_logs')
+      .select('id, to, subject, type, status, created_at')
+      .eq('user_id', userId)
+      .neq('type', 'gmail')
+      .order('created_at', { ascending: false })
+      .limit(40),
+  ])
+
+  if (gmailMessagesError && !isMissingRelation(gmailMessagesError)) throw gmailMessagesError
+  if (emailLogsError) throw emailLogsError
+
+  const gmailItems: SentMessageHistoryItem[] = (gmailMessages || []).map((message: any) => ({
+    id: `gmail:${message.id}`,
+    source: 'gmail',
+    subject: message.subject || 'Senza oggetto',
+    recipient: Array.isArray(message.to_emails) ? message.to_emails.join(', ') : '',
+    status: 'sent',
+    sent_at: message.sent_at || message.created_at,
+    contact: normalizeRelatedContact(message.contact),
+  }))
+
+  const logItems: SentMessageHistoryItem[] = (emailLogs || []).map((log: any) => ({
+    id: `log:${log.id}`,
+    source: log.type || 'email',
+    subject: log.subject || 'Senza oggetto',
+    recipient: log.to || 'Destinatario non disponibile',
+    status: log.status || 'sent',
+    sent_at: log.created_at,
+    contact: null,
+  }))
+
+  return [...gmailItems, ...logItems]
+    .sort((left, right) => new Date(right.sent_at).getTime() - new Date(left.sent_at).getTime())
+    .slice(0, 60)
+}
 
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
@@ -11,15 +65,18 @@ export async function GET(request: NextRequest) {
 
   try {
     const account = await getGmailAccount(auth.supabase, auth.user.id)
+    const sentHistory = await loadSentHistory(auth.supabase, auth.user.id)
     return Response.json({
       ready: true,
       gmail: gmailStatus(account),
+      sent_history: sentHistory,
     })
   } catch (error) {
     if (isMissingRelation(error)) {
       return Response.json({
         ready: false,
         gmail: { connected: false },
+        sent_history: [],
         error: GMAIL_MIGRATION_ERROR,
       })
     }

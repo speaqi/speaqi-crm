@@ -137,3 +137,16 @@ export interface GmailMessage {
   synced_at: string
   created_at: string
 }
+
+export interface SentMessageHistoryItem {
+  id: string
+  source: string
+  subject?: string | null
+  recipient: string
+  status?: string | null
+  sent_at: string
+  contact?: {
+    id: string
+    name: string
+  } | null
+}
