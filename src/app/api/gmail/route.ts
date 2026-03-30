@@ -1,5 +1,11 @@
 import { NextRequest } from 'next/server'
-import { getGmailAccount, gmailStatus, isMissingRelation } from '@/lib/server/gmail'
+import {
+  formatMissingGmailConfigMessage,
+  getGmailAccount,
+  getGmailConfigStatus,
+  gmailStatus,
+  isMissingRelation,
+} from '@/lib/server/gmail'
 import { requireRouteUser } from '@/lib/server/supabase'
 import type { SentMessageHistoryItem } from '@/types'
 
@@ -64,12 +70,24 @@ export async function GET(request: NextRequest) {
   if ('error' in auth) return auth.error
 
   try {
+    const config = getGmailConfigStatus()
+    if (!config.configured) {
+      return Response.json({
+        ready: false,
+        gmail: { connected: false },
+        sent_history: [],
+        error: formatMissingGmailConfigMessage(config.missing),
+        missing_env: config.missing,
+      })
+    }
+
     const account = await getGmailAccount(auth.supabase, auth.user.id)
     const sentHistory = await loadSentHistory(auth.supabase, auth.user.id)
     return Response.json({
       ready: true,
       gmail: gmailStatus(account),
       sent_history: sentHistory,
+      missing_env: [],
     })
   } catch (error) {
     if (isMissingRelation(error)) {
@@ -78,11 +96,18 @@ export async function GET(request: NextRequest) {
         gmail: { connected: false },
         sent_history: [],
         error: GMAIL_MIGRATION_ERROR,
+        missing_env: [],
       })
     }
 
     return Response.json(
-      { error: error instanceof Error ? error.message : 'Failed to load Gmail status' },
+      {
+        ready: false,
+        gmail: { connected: false },
+        sent_history: [],
+        error: error instanceof Error ? error.message : 'Failed to load Gmail status',
+        missing_env: [],
+      },
       { status: 500 }
     )
   }

@@ -56,22 +56,58 @@ const GMAIL_SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
 ]
 
+export const GMAIL_CONFIG_KEYS = [
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET',
+  'GOOGLE_REDIRECT_URI',
+  'GMAIL_TOKEN_ENCRYPTION_KEY',
+] as const
+
+type GmailConfigKey = (typeof GMAIL_CONFIG_KEYS)[number]
+
+export function getGmailConfigStatus() {
+  const values: Record<GmailConfigKey, string | undefined> = {
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+    GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI,
+    GMAIL_TOKEN_ENCRYPTION_KEY: process.env.GMAIL_TOKEN_ENCRYPTION_KEY,
+  }
+
+  const present = Object.fromEntries(
+    Object.entries(values).map(([key, value]) => [key, !!value])
+  ) as Record<GmailConfigKey, boolean>
+
+  const missing = GMAIL_CONFIG_KEYS.filter((key) => !present[key])
+
+  return {
+    configured: missing.length === 0,
+    present,
+    missing,
+  }
+}
+
+export function formatMissingGmailConfigMessage(missing: readonly string[]) {
+  if (!missing.length) return null
+  return `Config Gmail incompleta nel runtime del deploy: mancano ${missing.join(', ')}.`
+}
+
 function getGoogleConfig() {
+  const { present } = getGmailConfigStatus()
   const clientId = process.env.GOOGLE_CLIENT_ID
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
   const redirectUri = process.env.GOOGLE_REDIRECT_URI
   const encryptionKey = process.env.GMAIL_TOKEN_ENCRYPTION_KEY
 
-  if (!clientId) throw new Error('GOOGLE_CLIENT_ID is required')
-  if (!clientSecret) throw new Error('GOOGLE_CLIENT_SECRET is required')
-  if (!redirectUri) throw new Error('GOOGLE_REDIRECT_URI is required')
-  if (!encryptionKey) throw new Error('GMAIL_TOKEN_ENCRYPTION_KEY is required')
+  if (!present.GOOGLE_CLIENT_ID) throw new Error('GOOGLE_CLIENT_ID is required')
+  if (!present.GOOGLE_CLIENT_SECRET) throw new Error('GOOGLE_CLIENT_SECRET is required')
+  if (!present.GOOGLE_REDIRECT_URI) throw new Error('GOOGLE_REDIRECT_URI is required')
+  if (!present.GMAIL_TOKEN_ENCRYPTION_KEY) throw new Error('GMAIL_TOKEN_ENCRYPTION_KEY is required')
 
   return {
-    clientId,
-    clientSecret,
-    redirectUri,
-    encryptionKey,
+    clientId: clientId!,
+    clientSecret: clientSecret!,
+    redirectUri: redirectUri!,
+    encryptionKey: encryptionKey!,
   }
 }
 
