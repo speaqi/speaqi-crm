@@ -27,6 +27,8 @@ export interface CRMContact {
   value?: number | null
   note?: string | null
   legacy_id?: string | null
+  contact_scope?: 'crm' | 'holding' | null
+  promoted_at?: string | null
   last_activity_summary?: string | null
   last_contact_at?: string | null
   next_followup_at?: string | null
@@ -68,6 +70,7 @@ export interface TaskWithContact extends Task {
     status: string
     source?: string | null
     category?: string | null
+    contact_scope?: 'crm' | 'holding' | null
     priority: number
     next_followup_at?: string | null
   } | null
@@ -114,6 +117,7 @@ export interface ContactInput {
   responsible?: string
   value?: number | null
   note?: string
+  contact_scope?: 'crm' | 'holding'
   next_followup_at?: string | null
   next_action_at?: string | null
 }
