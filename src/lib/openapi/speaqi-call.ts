@@ -147,7 +147,7 @@ export function createSpeaqiCallOpenApi(origin: string) {
             lead_id: { type: 'string', format: 'uuid' },
             type: {
               type: 'string',
-              enum: ['email_sent', 'email_open', 'email_reply', 'call', 'note'],
+              enum: ['email_sent', 'email_open', 'email_click', 'email_reply', 'unsubscribe', 'call', 'note'],
             },
             content: { type: 'string' },
             metadata: { type: 'object', additionalProperties: true },
@@ -161,7 +161,7 @@ export function createSpeaqiCallOpenApi(origin: string) {
             lead_id: { type: 'string', format: 'uuid' },
             type: {
               type: 'string',
-              enum: ['email_sent', 'email_open', 'email_reply', 'call', 'note'],
+              enum: ['email_sent', 'email_open', 'email_click', 'email_reply', 'unsubscribe', 'call', 'note'],
             },
             content: { type: 'string' },
             metadata: { type: 'object', additionalProperties: true },
@@ -1124,6 +1124,108 @@ export function createSpeaqiCallOpenApi(origin: string) {
             },
             '400': {
               description: 'Missing user_id',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' },
+                },
+              },
+            },
+            '401': {
+              description: 'Unauthorized webhook',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Error' },
+                },
+              },
+            },
+            '500': { $ref: '#/components/responses/ServerError' },
+          },
+        },
+      },
+      '/api/integrations/acumbamail/webhook': {
+        get: {
+          tags: ['Inbound'],
+          summary: 'Inspect Acumbamail webhook endpoint',
+          responses: {
+            '200': {
+              description: 'Webhook endpoint metadata',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    additionalProperties: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        post: {
+          tags: ['Inbound'],
+          summary: 'Inbound Acumbamail engagement webhook',
+          description:
+            'Riceve eventi Acumbamail come opens, clicks e unsubscribes. ' +
+            'Per installazioni multi-account puoi passare `user_id` in query string.',
+          parameters: [
+            {
+              name: 'user_id',
+              in: 'query',
+              required: false,
+              schema: { type: 'string', format: 'uuid' },
+            },
+            {
+              name: 'token',
+              in: 'query',
+              required: false,
+              schema: { type: 'string' },
+            },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  oneOf: [
+                    {
+                      type: 'object',
+                      properties: {
+                        event: { type: 'string', example: 'opens' },
+                        email: { type: 'string', format: 'email' },
+                        timestamp: { type: 'integer', example: 1774867200 },
+                      },
+                      required: ['event', 'email'],
+                    },
+                    {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          event: { type: 'string', example: 'clicks' },
+                          email: { type: 'string', format: 'email' },
+                          timestamp: { type: 'integer', example: 1774867200 },
+                        },
+                        required: ['event', 'email'],
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          },
+          responses: {
+            '200': {
+              description: 'Webhook processed',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    additionalProperties: true,
+                  },
+                },
+              },
+            },
+            '400': {
+              description: 'No supported events found',
               content: {
                 'application/json': {
                   schema: { $ref: '#/components/schemas/Error' },

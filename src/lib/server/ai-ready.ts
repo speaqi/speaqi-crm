@@ -202,9 +202,11 @@ export function normalizeActivityType(type?: string | null, metadata?: Record<st
   const normalized = normalizeText(type)
   if (normalized === 'email sent' || normalized === 'email_sent') return 'email_sent'
   if (normalized === 'email open' || normalized === 'email_open') return 'email_open'
+  if (normalized === 'email click' || normalized === 'email_click') return 'email_click'
   if (normalized === 'email reply' || normalized === 'email_reply' || normalized === 'email replied' || normalized === 'email_replied') {
     return 'email_reply'
   }
+  if (normalized === 'unsubscribe' || normalized === 'unsubscribes' || normalized === 'opt_out') return 'unsubscribe'
   if (normalized === 'call') return 'call'
   if (normalized === 'note') return 'note'
 
