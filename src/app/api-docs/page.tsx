@@ -8,7 +8,15 @@ const SwaggerUI = dynamic(() => import('swagger-ui-react'), { ssr: false })
 
 export default function ApiDocsPage() {
   return (
-    <main style={{ minHeight: '100vh', background: '#f5f7fb', padding: '24px' }}>
+    <main
+      style={{
+        height: '100vh',
+        width: '100%',
+        overflow: 'auto',
+        background: '#f5f7fb',
+        padding: '24px',
+      }}
+    >
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
         <div
           style={{
