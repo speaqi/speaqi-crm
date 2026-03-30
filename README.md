@@ -63,6 +63,11 @@ Campi AI-ready aggiunti:
 
 Layer spec-compatible sopra il modello storico `contacts/activities/tasks`, pensato per agenti esterni che devono leggere e scrivere tutto dal CRM.
 
+Swagger / OpenAPI:
+
+- UI navigabile: `/api-docs`
+- spec JSON: `/api/openapi/speaqi-call`
+
 Lead management:
 
 - `GET /api/leads?status=&limit=&source=&category=`
