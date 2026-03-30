@@ -84,6 +84,10 @@ export function activityTypeLabel(type: string) {
       return 'Chiamata'
     case 'email':
       return 'Email'
+    case 'email_open':
+      return 'Email aperta'
+    case 'email_click':
+      return 'Click email'
     case 'msg':
       return 'Messaggio'
     case 'note':
@@ -94,6 +98,8 @@ export function activityTypeLabel(type: string) {
       return 'Sistema'
     case 'import':
       return 'Import'
+    case 'unsubscribe':
+      return 'Disiscrizione'
     default:
       return type
   }
