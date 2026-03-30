@@ -158,25 +158,31 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Il CSV non contiene righe importabili' }, { status: 400 })
     }
 
+    const defaultCategory = normalizeText(body.default_category)
+    const defaultSource = normalizeText(body.default_source)
     const seenLegacyIds = new Set<string>()
     const records = parsedRows.map((row, index) => {
       const status = normalizeText(row.status)
       const normalizedStatus = status && ALLOWED_STATUSES.has(status) ? status : 'New'
       const nextFollowupAt = normalizeText(row.next_followup_at)
+      const fallbackFollowupAt = nextFollowupAt || (isClosedStatus(normalizedStatus) ? null : defaultFollowupAt())
+      const priority = normalizePriority(row.priority)
       return {
         user_id: auth.user.id,
         legacy_id: makeUniqueLegacyId(row.legacy_id, index, seenLegacyIds),
         name: normalizeText(row.name) || `Lead legacy ${index + 1}`,
         email: normalizeText(row.email),
         phone: normalizeText(row.phone),
+        category: normalizeText(row.category) || defaultCategory,
         status: normalizedStatus,
-        source: normalizeText(row.source) || 'legacy-kanban',
-        priority: normalizePriority(row.priority),
+        source: normalizeText(row.source) || defaultSource || 'legacy-kanban',
+        priority,
         responsible: normalizeText(row.responsible),
         value: normalizeNumber(row.value),
         note: normalizeText(row.note),
         last_activity_summary: `Import CSV legacy (${normalizedStatus})`,
-        next_followup_at: nextFollowupAt || (isClosedStatus(normalizedStatus) ? null : defaultFollowupAt()),
+        next_action_at: fallbackFollowupAt,
+        next_followup_at: fallbackFollowupAt,
       }
     })
 
@@ -201,15 +207,18 @@ export async function POST(request: NextRequest) {
       name: string
       status: string
       source?: string | null
+      category?: string | null
+      priority?: number | null
       phone?: string | null
       email?: string | null
       next_followup_at?: string | null
+      next_action_at?: string | null
     }> = []
     for (const batch of chunk(records)) {
       const { data, error } = await auth.supabase
         .from('contacts')
         .upsert(batch, { onConflict: 'user_id,legacy_id' })
-        .select('id, legacy_id, name, status, source, phone, email, next_followup_at')
+        .select('id, legacy_id, name, status, source, category, priority, phone, email, next_followup_at, next_action_at')
 
       if (error) throw error
       contacts.push(...(data || []))
@@ -240,9 +249,11 @@ export async function POST(request: NextRequest) {
         user_id: auth.user.id,
         contact_id: contact.id,
         type: 'follow-up',
-        due_date: contact.next_followup_at,
+        action: 'call',
+        due_date: contact.next_action_at || contact.next_followup_at,
+        priority: Number(contact.priority || 0) >= 3 ? 'high' : Number(contact.priority || 0) >= 2 ? 'medium' : 'low',
         status: 'pending',
-        note: `Follow-up importato da CSV per ${contact.name}`,
+        note: `Follow-up importato da CSV${contact.category ? ` [${contact.category}]` : ''} per ${contact.name}`,
       }))
 
     const createdTaskContactIds = new Set(pendingTasks.map((task) => task.contact_id))
@@ -263,6 +274,7 @@ export async function POST(request: NextRequest) {
         content: [
           `Contatto ${knownLegacyIds.has(contact.legacy_id || '') ? 'aggiornato' : 'creato'} da import CSV.`,
           `Stato: ${contact.status}.`,
+          contact.category ? `Categoria: ${contact.category}.` : null,
           contact.phone ? `Telefono: ${contact.phone}.` : null,
           contact.email ? `Email: ${contact.email}.` : null,
           contact.next_followup_at ? `Follow-up: ${formatActivityDate(contact.next_followup_at)}.` : null,

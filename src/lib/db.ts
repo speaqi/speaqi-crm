@@ -9,6 +9,7 @@ export interface CRMContact {
   name: string
   email?: string
   phone?: string
+  category?: string
   status: string
   source?: string
   priority?: string
@@ -88,6 +89,7 @@ export async function dbCreateContact(
       name: data.name || '',
       email: data.email,
       phone: data.phone,
+      category: data.category,
       status: data.status || 'da-contattare',
       source: data.source,
       priority: data.priority,

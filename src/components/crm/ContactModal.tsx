@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import {
   EMPTY_CONTACT_INPUT,
+  LEAD_CATEGORY_SUGGESTIONS,
   PRIORITY_OPTIONS,
   SOURCE_OPTIONS,
   fromDatetimeLocalValue,
@@ -37,6 +38,7 @@ function buildInitialState(contact?: CRMContact | null, defaultSource?: string):
     name: contact.name,
     email: contact.email || '',
     phone: contact.phone || '',
+    category: contact.category || '',
     status: contact.status,
     source: contact.source || defaultSource || 'manual',
     priority: contact.priority || 0,
@@ -84,6 +86,7 @@ export function ContactModal({
         name: form.name.trim(),
         email: form.email?.trim(),
         phone: form.phone?.trim(),
+        category: form.category?.trim(),
         source: form.source?.trim(),
         responsible: form.responsible?.trim(),
         note: form.note?.trim(),
@@ -157,6 +160,22 @@ export function ContactModal({
             placeholder="+39 ..."
           />
         </div>
+      </div>
+
+      <div className="fg">
+        <label className="fl">Categoria lead</label>
+        <input
+          className="fi"
+          list="lead-category-suggestions"
+          value={form.category || ''}
+          onChange={(event) => setForm((previous) => ({ ...previous, category: event.target.value }))}
+          placeholder="Es. vinitaly-winery"
+        />
+        <datalist id="lead-category-suggestions">
+          {LEAD_CATEGORY_SUGGESTIONS.map((category) => (
+            <option key={category} value={category} />
+          ))}
+        </datalist>
       </div>
 
       <div className="frow">

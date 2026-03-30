@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
       name,
       email: normalizeText(body.email),
       phone: normalizeText(body.phone),
+      category: normalizeText(body.category),
       company: normalizeText(body.company),
       country: normalizeText(body.country),
       language: normalizeText(body.language),

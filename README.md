@@ -38,7 +38,7 @@ npm run dev
 Campi AI-ready aggiunti:
 
 - `contacts.company`, `contacts.country`, `contacts.language`
-- `contacts.score`, `contacts.assigned_agent`, `contacts.next_action_at`
+- `contacts.category`, `contacts.score`, `contacts.assigned_agent`, `contacts.next_action_at`
 - `activities.metadata`
 - `tasks.action`, `tasks.priority`, `tasks.idempotency_key`
 
@@ -65,7 +65,7 @@ Layer spec-compatible sopra il modello storico `contacts/activities/tasks`, pens
 
 Lead management:
 
-- `GET /api/leads?status=&limit=&source=`
+- `GET /api/leads?status=&limit=&source=&category=`
 - `GET /api/leads/:id`
 - `POST /api/leads`
 - `POST /api/leads/update`
@@ -97,6 +97,7 @@ Comportamento chiave:
 - `email_reply` aggiorna memoria, stato, score e next action
 - `next_action_at` e `next_followup_at` vengono riallineati ai task pending
 - i task possono essere resi idempotenti via `idempotency_key`
+- le automazioni `/api/automation/followups` e `/api/automation/stale-leads` supportano filtro `category` e `source`
 
 ## Gmail
 
@@ -150,6 +151,11 @@ Lo script genera in `/tmp`:
 - `matches_review.csv`: match trovati contro la rubrica, utile per revisione manuale
 
 Per i contatti aperti senza `Scadenza`, lo script assegna automaticamente un `next_followup_at` a `+3` giorni per restare compatibile con le regole del CRM.
+
+Per import massivi come Vinitaly puoi anche passare:
+
+- `default_source`, ad esempio `vinitaly`
+- `default_category`, ad esempio `vinitaly-winery`
 
 Per importare il CSV pulito dentro Supabase e farlo comparire nel CRM:
 

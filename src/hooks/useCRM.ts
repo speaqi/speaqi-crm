@@ -47,6 +47,7 @@ function buildTaskContactSnapshot(contact?: CRMContact | null) {
     name: contact.name,
     status: contact.status,
     source: contact.source,
+    category: contact.category,
     priority: contact.priority,
     next_followup_at: contact.next_followup_at,
   }

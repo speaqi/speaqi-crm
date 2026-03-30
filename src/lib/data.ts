@@ -10,7 +10,15 @@ export const DEFAULT_PIPELINE_STAGES: Array<Omit<PipelineStage, 'id'>> = [
   { name: 'Closed', order: 6, color: '#059669', system_key: 'closed' },
 ]
 
-export const SOURCE_OPTIONS = ['manual', 'speaqi', 'evento', 'import', 'legacy-kanban']
+export const SOURCE_OPTIONS = ['manual', 'speaqi', 'vinitaly', 'evento', 'import', 'legacy-kanban']
+export const LEAD_CATEGORY_SUGGESTIONS = [
+  'vinitaly-winery',
+  'vinitaly-importer',
+  'vinitaly-buyer',
+  'vinitaly-distributor',
+  'vinitaly-partner',
+  'vinitaly-press',
+]
 
 export const ACTIVITY_TYPES = ['call', 'email', 'msg', 'note']
 
@@ -29,6 +37,7 @@ export const EMPTY_CONTACT_INPUT: ContactInput = {
   phone: '',
   status: 'New',
   source: 'manual',
+  category: '',
   priority: 0,
   responsible: '',
   value: null,
@@ -48,6 +57,8 @@ export function sourceLabel(source?: string | null) {
       return 'Inbound'
     case 'evento':
       return 'Evento'
+    case 'vinitaly':
+      return 'Vinitaly'
     case 'import':
       return 'Import'
     case 'legacy-kanban':

@@ -20,6 +20,7 @@ export default function KanbanPage() {
   const [search, setSearch] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
   const [sourceFilter, setSourceFilter] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('')
   const [comuneFilter, setComuneFilter] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editingContact, setEditingContact] = useState<CRMContact | null>(null)
@@ -32,20 +33,23 @@ export default function KanbanPage() {
         query &&
         !contact.name.toLowerCase().includes(query) &&
         !(contact.email || '').toLowerCase().includes(query) &&
-        !(contact.responsible || '').toLowerCase().includes(query)
+        !(contact.responsible || '').toLowerCase().includes(query) &&
+        !(contact.category || '').toLowerCase().includes(query)
       ) {
         return false
       }
 
       if (priorityFilter && String(contact.priority) !== priorityFilter) return false
       if (sourceFilter && contact.source !== sourceFilter) return false
+      if (categoryFilter && contact.category !== categoryFilter) return false
       if (comuneFilter === 'comuni' && !isComuneContact(contact)) return false
       if (comuneFilter === 'altri' && isComuneContact(contact)) return false
       return true
     })
-  }, [comuneFilter, contacts, priorityFilter, search, sourceFilter])
+  }, [categoryFilter, comuneFilter, contacts, priorityFilter, search, sourceFilter])
 
   const uniqueSources = Array.from(new Set(contacts.map((contact) => contact.source).filter(Boolean))).sort()
+  const uniqueCategories = Array.from(new Set(contacts.map((contact) => contact.category).filter(Boolean))).sort()
 
   function openCreate() {
     setEditingContact(null)
@@ -97,6 +101,14 @@ export default function KanbanPage() {
           {uniqueSources.map((source) => (
             <option key={source} value={source || ''}>
               {sourceLabel(source)}
+            </option>
+          ))}
+        </select>
+        <select className="filter-select" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+          <option value="">Tutte le categorie</option>
+          {uniqueCategories.map((category) => (
+            <option key={category} value={category || ''}>
+              {category}
             </option>
           ))}
         </select>
@@ -164,6 +176,7 @@ export default function KanbanPage() {
                           <div className="card-tags">
                             <span className={`tag ${priorityBadgeClass(contact.priority)}`}>{priorityLabel(contact.priority)}</span>
                             {contact.source && <span className="tag tag-price">{sourceLabel(contact.source)}</span>}
+                            {contact.category && <span className="tag tag-resp">{contact.category}</span>}
                             {contact.responsible && <span className="tag tag-resp">👤 {contact.responsible}</span>}
                           </div>
                           <div className="card-meta">

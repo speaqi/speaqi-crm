@@ -31,6 +31,7 @@ export default function ContactsPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [sourceFilter, setSourceFilter] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
   const [contactStateFilter, setContactStateFilter] = useState('')
   const [comuneFilter, setComuneFilter] = useState('')
@@ -39,6 +40,7 @@ export default function ContactsPage() {
   const [editingContact, setEditingContact] = useState<CRMContact | null>(null)
 
   const sources = Array.from(new Set(contacts.map((contact) => contact.source).filter(Boolean))).sort()
+  const categories = Array.from(new Set(contacts.map((contact) => contact.category).filter(Boolean))).sort()
   const scheduledCallsByContactId = useMemo(
     () => new Map(scheduledCalls.map((item) => [item.contact.id, item])),
     [scheduledCalls]
@@ -62,12 +64,14 @@ export default function ContactsPage() {
         query &&
         !contact.name.toLowerCase().includes(query) &&
         !(contact.email || '').toLowerCase().includes(query) &&
-        !(contact.phone || '').toLowerCase().includes(query)
+        !(contact.phone || '').toLowerCase().includes(query) &&
+        !(contact.category || '').toLowerCase().includes(query)
       ) {
         return false
       }
       if (statusFilter && contact.status !== statusFilter) return false
       if (sourceFilter && contact.source !== sourceFilter) return false
+      if (categoryFilter && contact.category !== categoryFilter) return false
       if (priorityFilter && String(contact.priority) !== priorityFilter) return false
       if (contactStateFilter === 'never' && !isNeverContacted(contact)) return false
       if (contactStateFilter === 'contacted' && isNeverContacted(contact)) return false
@@ -85,6 +89,7 @@ export default function ContactsPage() {
     contactStateFilter,
     contacts,
     focusFilter,
+    categoryFilter,
     priorityFilter,
     scheduledCallsByContactId,
     search,
@@ -119,6 +124,14 @@ export default function ContactsPage() {
           {sources.map((source) => (
             <option key={source} value={source || ''}>
               {sourceLabel(source)}
+            </option>
+          ))}
+        </select>
+        <select className="filter-select" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+          <option value="">Tutte le categorie</option>
+          {categories.map((category) => (
+            <option key={category} value={category || ''}>
+              {category}
             </option>
           ))}
         </select>
@@ -215,10 +228,12 @@ export default function ContactsPage() {
                     <div className="contact-meta">{contact.email || 'Nessuna email'}</div>
                     <div className="contact-meta">{contact.phone || 'Nessun telefono'}</div>
                     <div className="contact-meta">Origine: {sourceLabel(contact.source)}</div>
+                    <div className="contact-meta">Categoria: {contact.category || 'Non assegnata'}</div>
                     <div className="contact-meta">Follow-up: {formatDateTime(scheduledCall?.due_at || contact.next_followup_at)}</div>
                     <div className="contact-tags">
                       <span className="ctag ctag-contattato">{statusLabel(contact.status)}</span>
                       <span className={`ctag ${priorityBadgeClass(contact.priority)}`}>{priorityLabel(contact.priority)}</span>
+                      {contact.category && <span className="ctag ctag-comune">{contact.category}</span>}
                       {scheduledCall && <span className="ctag ctag-referenziato">{scheduledCall.task_type}</span>}
                       {isNeverContacted(contact) && <span className="ctag ctag-dacontattare">Mai contattato</span>}
                     </div>

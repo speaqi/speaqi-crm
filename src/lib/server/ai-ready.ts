@@ -12,6 +12,7 @@ type ContactRow = {
   email?: string | null
   phone?: string | null
   name?: string | null
+  category?: string | null
   company?: string | null
   country?: string | null
   language?: string | null
@@ -221,6 +222,7 @@ export function normalizeLeadRecord(contact: ContactRow): SpecLead {
     email: contact.email || null,
     phone: contact.phone || null,
     name: contact.name || 'Lead',
+    category: contact.category || null,
     company: contact.company || null,
     country: contact.country || null,
     language: contact.language || null,

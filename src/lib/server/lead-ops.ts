@@ -63,6 +63,7 @@ function buildLeadSummary(current: any, next: any) {
   const changes: string[] = []
 
   if (current.name !== next.name) changes.push(`nome ${displayValue(current.name)} -> ${displayValue(next.name)}`)
+  if ((current.category || null) !== (next.category || null)) changes.push(`categoria ${displayValue(current.category)} -> ${displayValue(next.category)}`)
   if ((current.company || null) !== (next.company || null)) changes.push('azienda aggiornata')
   if ((current.email || null) !== (next.email || null)) changes.push(`email ${displayValue(current.email)} -> ${displayValue(next.email)}`)
   if ((current.phone || null) !== (next.phone || null)) changes.push(`telefono ${displayValue(current.phone)} -> ${displayValue(next.phone)}`)
@@ -110,6 +111,7 @@ export async function createLeadFromInput(supabase: any, userId: string, body: a
     name,
     email: normalizeText(body.email),
     phone: normalizeText(body.phone),
+    category: normalizeText(body.category),
     company: normalizeText(body.company),
     country: normalizeText(body.country),
     language: normalizeText(body.language),
@@ -208,6 +210,7 @@ export async function updateLeadFromInput(
       name: body.name !== undefined ? String(body.name || '').trim() || current.name : current.name,
       email: body.email !== undefined ? normalizeText(body.email) : current.email,
       phone: body.phone !== undefined ? normalizeText(body.phone) : current.phone,
+      category: body.category !== undefined ? normalizeText(body.category) : current.category,
       company: body.company !== undefined ? normalizeText(body.company) : current.company,
       country: body.country !== undefined ? normalizeText(body.country) : current.country,
       language: body.language !== undefined ? normalizeText(body.language) : current.language,

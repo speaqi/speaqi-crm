@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
   try {
     const statusFilter = request.nextUrl.searchParams.get('status')
     const sourceFilter = request.nextUrl.searchParams.get('source')
+    const categoryFilter = request.nextUrl.searchParams.get('category')
     const limit = parseLimit(request.nextUrl.searchParams.get('limit'), 100, 500)
 
     let query = auth.supabase
@@ -23,6 +24,10 @@ export async function GET(request: NextRequest) {
 
     if (sourceFilter) {
       query = query.eq('source', sourceFilter)
+    }
+
+    if (categoryFilter) {
+      query = query.eq('category', categoryFilter)
     }
 
     const { data, error } = await query

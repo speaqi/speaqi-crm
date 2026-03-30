@@ -15,12 +15,25 @@ export async function GET(request: NextRequest) {
 
   try {
     const limit = parseLimit(request.nextUrl.searchParams.get('limit'), 50, 200)
-    const { data: contacts, error: contactsError } = await auth.supabase
+    const categoryFilter = request.nextUrl.searchParams.get('category')
+    const sourceFilter = request.nextUrl.searchParams.get('source')
+
+    let contactQuery = auth.supabase
       .from('contacts')
       .select('*')
       .eq('user_id', auth.user.id)
       .order('next_action_at', { ascending: true, nullsFirst: false })
       .limit(limit * 3)
+
+    if (categoryFilter) {
+      contactQuery = contactQuery.eq('category', categoryFilter)
+    }
+
+    if (sourceFilter) {
+      contactQuery = contactQuery.eq('source', sourceFilter)
+    }
+
+    const { data: contacts, error: contactsError } = await contactQuery
 
     if (contactsError) throw contactsError
 

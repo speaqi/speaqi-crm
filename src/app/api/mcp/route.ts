@@ -10,6 +10,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         query: { type: 'string' },
+        category: { type: 'string' },
       },
       required: ['query'],
     },
@@ -52,6 +53,7 @@ const TOOLS = [
         status: { type: 'string' },
         next_followup_at: { type: 'string' },
         source: { type: 'string' },
+        category: { type: 'string' },
       },
       required: ['name', 'next_followup_at'],
     },
@@ -78,12 +80,18 @@ async function handleTool(request: NextRequest, name: string, args: Record<strin
   switch (name) {
     case 'search_contacts': {
       const query = String(args.query || '').toLowerCase()
-      const { data, error } = await auth.supabase
+      let queryBuilder = auth.supabase
         .from('contacts')
-        .select('id, name, status, source, priority, next_followup_at')
+        .select('id, name, status, source, category, priority, next_followup_at')
         .eq('user_id', auth.user.id)
-        .or(`name.ilike.%${query}%,email.ilike.%${query}%,note.ilike.%${query}%`)
+        .or(`name.ilike.%${query}%,email.ilike.%${query}%,note.ilike.%${query}%,category.ilike.%${query}%`)
         .limit(10)
+
+      if (args.category) {
+        queryBuilder = queryBuilder.eq('category', String(args.category))
+      }
+
+      const { data, error } = await queryBuilder
 
       if (error) throw error
       return JSON.stringify({ results: data || [] }, null, 2)
@@ -115,7 +123,7 @@ async function handleTool(request: NextRequest, name: string, args: Record<strin
     case 'get_tasks_due': {
       const { data, error } = await auth.supabase
         .from('tasks')
-        .select('id, type, due_date, status, note, contact:contacts(name, status)')
+        .select('id, type, due_date, status, note, contact:contacts(name, status, category)')
         .eq('user_id', auth.user.id)
         .eq('status', 'pending')
         .order('due_date', { ascending: true, nullsFirst: false })
@@ -146,10 +154,12 @@ async function handleTool(request: NextRequest, name: string, args: Record<strin
           name: String(args.name || '').trim(),
           status: String(args.status || 'New'),
           source: String(args.source || 'manual'),
+          category: args.category ? String(args.category) : null,
           priority: 0,
+          next_action_at: String(args.next_followup_at || ''),
           next_followup_at: String(args.next_followup_at || ''),
         })
-        .select('id, name, status, next_followup_at')
+        .select('id, name, status, category, next_followup_at')
         .single()
 
       if (error) throw error

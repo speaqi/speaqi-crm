@@ -14,6 +14,7 @@ export interface CRMContact {
   name: string
   email?: string | null
   phone?: string | null
+  category?: string | null
   company?: string | null
   country?: string | null
   language?: string | null
@@ -66,6 +67,7 @@ export interface TaskWithContact extends Task {
     name: string
     status: string
     source?: string | null
+    category?: string | null
     priority: number
     next_followup_at?: string | null
   } | null
@@ -100,6 +102,7 @@ export interface ContactInput {
   name: string
   email?: string
   phone?: string
+  category?: string
   company?: string
   country?: string
   language?: string
@@ -187,6 +190,7 @@ export interface SpecLead {
   email?: string | null
   phone?: string | null
   name: string
+  category?: string | null
   company?: string | null
   country?: string | null
   language?: string | null

@@ -123,6 +123,7 @@ export default function ContactDetailPage() {
             <div className="detail-stack">
               <div><strong>Email:</strong> {contact.email || 'Non impostata'}</div>
               <div><strong>Telefono:</strong> {contact.phone || 'Non impostato'}</div>
+              <div><strong>Categoria:</strong> {contact.category || 'Non assegnata'}</div>
               <div><strong>Responsabile:</strong> {contact.responsible || 'Non assegnato'}</div>
               <div><strong>Valore:</strong> €{Number(contact.value || 0).toLocaleString('it-IT')}</div>
               <div><strong>Ultimo contatto:</strong> {formatDateTime(contact.last_contact_at)}</div>

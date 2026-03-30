@@ -34,11 +34,13 @@ export async function POST(request: NextRequest) {
         name: String(body.name || '').trim(),
         email: body.email ? String(body.email).trim() : null,
         phone: body.phone ? String(body.phone).trim() : null,
+        category: body.category ? String(body.category).trim() : null,
         status: 'New',
-        source: 'speaqi',
+        source: body.source ? String(body.source).trim() : 'speaqi',
         priority: Math.max(0, Math.min(3, Number(body.priority || 2))),
         responsible: body.responsible ? String(body.responsible).trim() : null,
         note: body.note ? String(body.note).trim() : null,
+        next_action_at: nextFollowupAt,
         next_followup_at: nextFollowupAt,
         last_activity_summary: 'Lead creato da integrazione inbound',
       })
@@ -53,7 +55,9 @@ export async function POST(request: NextRequest) {
         user_id: userId,
         contact_id: contact.id,
         type: 'follow-up',
+        action: 'call',
         due_date: nextFollowupAt,
+        priority: Number(contact.priority || 0) >= 3 ? 'high' : Number(contact.priority || 0) >= 2 ? 'medium' : 'low',
         status: 'pending',
         note: 'Primo contatto generato automaticamente dal canale inbound',
       })
@@ -69,6 +73,7 @@ export async function POST(request: NextRequest) {
         type: 'import',
         content: [
           'Lead creato da integrazione inbound.',
+          contact.category ? `Categoria: ${contact.category}.` : null,
           `Follow-up iniziale: ${formatActivityDate(nextFollowupAt)}.`,
           'Task di follow-up creato automaticamente.',
         ].join(' '),
