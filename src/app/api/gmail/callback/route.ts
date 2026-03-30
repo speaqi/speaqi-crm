@@ -2,8 +2,24 @@ import { NextRequest, NextResponse } from 'next/server'
 import { encryptSecret, exchangeCodeForTokens, fetchGmailProfile, isMissingRelation } from '@/lib/server/gmail'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 
+function getAppOrigin(request: NextRequest) {
+  const configuredRedirectUri = process.env.GOOGLE_REDIRECT_URI
+  if (configuredRedirectUri) {
+    try {
+      return new URL(configuredRedirectUri).origin
+    } catch {}
+  }
+
+  const forwardedProto = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim()
+  const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim()
+  const host = forwardedHost || request.headers.get('host') || request.nextUrl.host
+  const protocol = forwardedProto || request.nextUrl.protocol.replace(':', '') || 'https'
+
+  return `${protocol}://${host}`
+}
+
 function redirectToStatus(request: NextRequest, status: 'connected' | 'error', message?: string) {
-  const url = new URL('/gmail', request.url)
+  const url = new URL('/gmail', getAppOrigin(request))
   url.searchParams.set('gmail', status)
   if (message) url.searchParams.set('message', message)
   return NextResponse.redirect(url)

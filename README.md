@@ -112,6 +112,7 @@ Variabili richieste in `.env.local`:
 - `GOOGLE_CLIENT_SECRET`
 - `GOOGLE_REDIRECT_URI`
 - `GMAIL_TOKEN_ENCRYPTION_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
 Callback OAuth da registrare nel progetto Google Cloud:
 

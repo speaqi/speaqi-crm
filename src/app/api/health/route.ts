@@ -12,6 +12,9 @@ export async function GET() {
         env: gmail.present,
         missing: gmail.missing,
       },
+      supabase: {
+        service_role_configured: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      },
     },
   })
 }

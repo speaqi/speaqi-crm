@@ -11,6 +11,8 @@ import type { SentMessageHistoryItem } from '@/types'
 
 const GMAIL_MIGRATION_ERROR =
   'Schema Gmail non presente. Applica la migration 20260327154240_gmail_integration.sql.'
+const GMAIL_ADMIN_ERROR =
+  'SUPABASE_SERVICE_ROLE_KEY mancante nel deploy. Serve per completare il callback Gmail OAuth.'
 
 function normalizeRelatedContact(value: any) {
   return Array.isArray(value) ? value[0] || null : value || null
@@ -78,6 +80,16 @@ export async function GET(request: NextRequest) {
         sent_history: [],
         error: formatMissingGmailConfigMessage(config.missing),
         missing_env: config.missing,
+      })
+    }
+
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return Response.json({
+        ready: false,
+        gmail: { connected: false },
+        sent_history: [],
+        error: GMAIL_ADMIN_ERROR,
+        missing_env: ['SUPABASE_SERVICE_ROLE_KEY'],
       })
     }
 
