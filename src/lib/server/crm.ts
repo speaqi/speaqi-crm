@@ -227,6 +227,8 @@ export async function syncPendingCallTask(
   if (primaryTask) {
     const updatePayload: Record<string, unknown> = {
       due_date: nextFollowupAt,
+      action: 'call',
+      priority: 'medium',
     }
 
     if (options?.type && isCallTaskType(options.type)) {
@@ -255,7 +257,9 @@ export async function syncPendingCallTask(
       user_id: userId,
       contact_id: contactId,
       type: options?.type && isCallTaskType(options.type) ? options.type : 'follow-up',
+      action: 'call',
       due_date: nextFollowupAt,
+      priority: 'medium',
       status: 'pending',
       note: options?.note || null,
     })
@@ -290,13 +294,25 @@ export async function syncContactNextFollowupFromPendingTasks(
   userId: string,
   contactId: string
 ) {
-  const pendingTasks = await readPendingCallTasks(supabase, userId, contactId)
-  const nextFollowupAt = pendingTasks[0]?.due_date || null
+  const { data: pendingTaskRows, error: pendingTasksError } = await supabase
+    .from('tasks')
+    .select('due_date')
+    .eq('user_id', userId)
+    .eq('contact_id', contactId)
+    .eq('status', 'pending')
+    .order('due_date', { ascending: true, nullsFirst: false })
+
+  if (pendingTasksError) throw pendingTasksError
+
+  const pendingCallTasks = await readPendingCallTasks(supabase, userId, contactId)
+  const nextFollowupAt = pendingCallTasks[0]?.due_date || null
+  const nextActionAt = (pendingTaskRows || [])[0]?.due_date || null
 
   const { error } = await supabase
     .from('contacts')
     .update({
       next_followup_at: nextFollowupAt,
+      next_action_at: nextActionAt,
     })
     .eq('user_id', userId)
     .eq('id', contactId)
@@ -320,6 +336,7 @@ export async function updateContactAfterActivity(
 
   if (nextFollowupAt) {
     payload.next_followup_at = nextFollowupAt
+    payload.next_action_at = nextFollowupAt
   }
 
   const { error } = await supabase
@@ -349,6 +366,7 @@ export async function updateContactSummary(
 
   if (options?.nextFollowupAt !== undefined) {
     payload.next_followup_at = options.nextFollowupAt
+    payload.next_action_at = options.nextFollowupAt
   }
 
   if (options?.touchLastContactAt) {
@@ -370,6 +388,7 @@ export async function createActivities(
     contact_id: string
     type: string
     content: string
+    metadata?: Record<string, unknown> | null
   }>
 ) {
   const payload = activities

@@ -60,18 +60,26 @@ export function sourceLabel(source?: string | null) {
 export function statusLabel(status?: string | null) {
   switch (status || '') {
     case 'New':
+    case 'new':
       return 'Nuovo'
     case 'Contacted':
+    case 'contacted':
       return 'Contattato'
+    case 'replied':
+      return 'Ha risposto'
     case 'Interested':
+    case 'interested':
       return 'Interessato'
     case 'Call booked':
+    case 'call_scheduled':
       return 'Call fissata'
     case 'Quote':
       return 'Preventivo'
     case 'Lost':
+    case 'not_interested':
       return 'Perso'
     case 'Closed':
+    case 'closed':
       return 'Chiuso'
     default:
       return status || ''
@@ -84,6 +92,12 @@ export function activityTypeLabel(type: string) {
       return 'Chiamata'
     case 'email':
       return 'Email'
+    case 'email_sent':
+      return 'Email inviata'
+    case 'email_open':
+      return 'Email aperta'
+    case 'email_reply':
+      return 'Risposta email'
     case 'msg':
       return 'Messaggio'
     case 'note':
@@ -177,7 +191,7 @@ export function fromDatetimeLocalValue(value?: string | null) {
 
 export function isClosedStatus(status: string) {
   const normalized = status.toLowerCase()
-  return normalized === 'closed' || normalized === 'lost'
+  return normalized === 'closed' || normalized === 'lost' || normalized === 'not_interested'
 }
 
 export function isOverdue(value?: string | null) {

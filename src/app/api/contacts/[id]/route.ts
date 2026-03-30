@@ -46,14 +46,29 @@ function buildContactUpdateSummary(current: any, next: any) {
   if ((current.phone || null) !== (next.phone || null)) {
     changes.push(`telefono ${displayValue(current.phone)} -> ${displayValue(next.phone)}`)
   }
+  if ((current.company || null) !== (next.company || null)) {
+    changes.push('azienda aggiornata')
+  }
+  if ((current.country || null) !== (next.country || null)) {
+    changes.push('paese aggiornato')
+  }
+  if ((current.language || null) !== (next.language || null)) {
+    changes.push('lingua aggiornata')
+  }
   if ((current.responsible || null) !== (next.responsible || null)) {
     changes.push(`responsabile ${displayValue(current.responsible)} -> ${displayValue(next.responsible)}`)
+  }
+  if ((current.assigned_agent || null) !== (next.assigned_agent || null)) {
+    changes.push('assegnazione agente aggiornata')
   }
   if ((current.source || null) !== (next.source || null)) {
     changes.push(`origine ${displayValue(current.source)} -> ${displayValue(next.source)}`)
   }
   if (Number(current.priority || 0) !== Number(next.priority || 0)) {
     changes.push(`priorità ${current.priority} -> ${next.priority}`)
+  }
+  if (Number(current.score || 0) !== Number(next.score || 0)) {
+    changes.push(`score ${current.score || 0} -> ${next.score || 0}`)
   }
   if ((current.value ?? null) !== (next.value ?? null)) {
     changes.push(`valore ${displayValue(current.value)} -> ${displayValue(next.value)}`)
@@ -167,16 +182,26 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         name: body.name ? String(body.name).trim() : current.name,
         email: body.email !== undefined ? normalizeText(body.email) : current.email,
         phone: body.phone !== undefined ? normalizeText(body.phone) : current.phone,
+        company: body.company !== undefined ? normalizeText(body.company) : current.company,
+        country: body.country !== undefined ? normalizeText(body.country) : current.country,
+        language: body.language !== undefined ? normalizeText(body.language) : current.language,
         status: nextStatus,
         source: body.source !== undefined ? normalizeText(body.source) : current.source,
         priority:
           body.priority !== undefined
             ? Math.max(0, Math.min(3, Number(body.priority || 0)))
             : current.priority,
+        score:
+          body.score !== undefined
+            ? Math.max(0, Math.min(100, Number(body.score || 0)))
+            : current.score,
+        assigned_agent:
+          body.assigned_agent !== undefined ? normalizeText(body.assigned_agent) : current.assigned_agent,
         responsible:
           body.responsible !== undefined ? normalizeText(body.responsible) : current.responsible,
         value: body.value !== undefined ? normalizeNumber(body.value) : current.value,
         note: body.note !== undefined ? normalizeText(body.note) : current.note,
+        next_action_at: nextFollowupAt,
         next_followup_at: nextFollowupAt,
       })
       .eq('user_id', auth.user.id)

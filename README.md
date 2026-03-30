@@ -16,6 +16,7 @@ CRM operativo per pipeline, follow-up e lead ingestion.
 2. Applica la migration Supabase:
    - [`supabase/migrations/20260325150000_crm_schema.sql`](/Users/massimo/Documents/thebest/speaqi-crm/supabase/migrations/20260325150000_crm_schema.sql)
    - [`supabase/migrations/20260327154240_gmail_integration.sql`](/Users/massimo/Documents/thebest/speaqi-crm/supabase/migrations/20260327154240_gmail_integration.sql)
+   - [`supabase/migrations/20260330094500_ai_ready_crm.sql`](/Users/massimo/Documents/thebest/speaqi-crm/supabase/migrations/20260330094500_ai_ready_crm.sql)
 3. Avvia l'app:
 
 ```bash
@@ -27,10 +28,19 @@ npm run dev
 - `contacts`: lead e contatti commerciali
 - `activities`: timeline completa delle interazioni
 - `tasks`: prossime azioni e follow-up
+- `lead_memories`: memoria sintetica AI per lead
+- `ai_decision_logs`: audit delle decisioni prese dagli endpoint AI
 - `pipeline_stages`: stadi configurabili della pipeline
 - `email_logs`: log minimo degli invii
 - `gmail_accounts`: account Gmail collegato per utente
 - `gmail_messages`: thread email sincronizzati e legati ai contatti
+
+Campi AI-ready aggiunti:
+
+- `contacts.company`, `contacts.country`, `contacts.language`
+- `contacts.score`, `contacts.assigned_agent`, `contacts.next_action_at`
+- `activities.metadata`
+- `tasks.action`, `tasks.priority`, `tasks.idempotency_key`
 
 ## Rotte principali
 
@@ -48,6 +58,45 @@ npm run dev
 - `POST /api/automation/followups`
 - `POST /api/automation/stale-leads`
 - `POST /api/voice/command`
+
+## API AI-ready
+
+Layer spec-compatible sopra il modello storico `contacts/activities/tasks`, pensato per agenti esterni che devono leggere e scrivere tutto dal CRM.
+
+Lead management:
+
+- `GET /api/leads?status=&limit=&source=`
+- `GET /api/leads/:id`
+- `POST /api/leads`
+- `POST /api/leads/update`
+- `POST /api/leads/:id/status`
+- `GET /api/leads/next-actions`
+
+Memory:
+
+- `GET /api/leads/:id/memory`
+- `POST /api/leads/:id/memory/update`
+- `POST /api/ai/update-memory`
+
+Activity e task:
+
+- `POST /api/activity/log`
+- `GET /api/tasks/pending`
+- `POST /api/tasks/create`
+- `POST /api/tasks/:id/complete`
+
+AI endpoints:
+
+- `POST /api/ai/classify-reply`
+- `POST /api/ai/next-action`
+- `POST /api/ai/score-lead`
+
+Comportamento chiave:
+
+- `email_sent` crea un task di attesa/follow-up a 24h
+- `email_reply` aggiorna memoria, stato, score e next action
+- `next_action_at` e `next_followup_at` vengono riallineati ai task pending
+- i task possono essere resi idempotenti via `idempotency_key`
 
 ## Gmail
 

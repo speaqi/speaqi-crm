@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { syncLeadActionDates } from '@/lib/server/ai-ready'
 import { isCallTaskType } from '@/lib/schedule'
 import {
   createActivities,
@@ -34,6 +35,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     if (body.note !== undefined) updatePayload.note = String(body.note || '')
     if (body.due_date !== undefined) updatePayload.due_date = body.due_date || null
+    if (body.priority !== undefined) updatePayload.priority = body.priority || 'medium'
+    if (body.action !== undefined) updatePayload.action = body.action || null
     if (nextStatus) {
       updatePayload.status = nextStatus
       updatePayload.completed_at = nextStatus === 'done' ? new Date().toISOString() : null
@@ -51,14 +54,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     let syncedNextFollowupAt: string | null | undefined
     if (
-      isCallTaskType(data.type) &&
-      ((currentTask.due_date || null) !== (data.due_date || null) || currentTask.status !== data.status)
+      (currentTask.due_date || null) !== (data.due_date || null) ||
+      currentTask.status !== data.status ||
+      (currentTask.action || null) !== (data.action || null)
     ) {
-      syncedNextFollowupAt = await syncContactNextFollowupFromPendingTasks(
-        auth.supabase,
-        auth.user.id,
-        data.contact_id
-      )
+      const syncedDates = await syncLeadActionDates(auth.supabase, auth.user.id, data.contact_id)
+      syncedNextFollowupAt = syncedDates.nextFollowupAt
     }
 
     const changes: string[] = []

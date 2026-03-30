@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createActivities, ensurePipelineStages, formatActivityDate, updateContactSummary } from '@/lib/server/crm'
+import { priorityLevelFromNumber } from '@/lib/server/ai-ready'
 import { requireRouteUser } from '@/lib/server/supabase'
 import { isClosedStatus } from '@/lib/data'
 
@@ -67,12 +68,18 @@ export async function POST(request: NextRequest) {
       name,
       email: normalizeText(body.email),
       phone: normalizeText(body.phone),
+      company: normalizeText(body.company),
+      country: normalizeText(body.country),
+      language: normalizeText(body.language),
       status,
       source: normalizeText(body.source) || 'manual',
       priority: Math.max(0, Math.min(3, Number(body.priority || 0))),
+      score: Math.max(0, Math.min(100, Number(body.score || 0))),
+      assigned_agent: normalizeText(body.assigned_agent),
       responsible: normalizeText(body.responsible),
       value: normalizeNumber(body.value),
       note: normalizeText(body.note),
+      next_action_at: nextFollowupAt,
       next_followup_at: nextFollowupAt,
       last_activity_summary: normalizeText(body.note),
     }
@@ -93,7 +100,9 @@ export async function POST(request: NextRequest) {
           user_id: auth.user.id,
           contact_id: contact.id,
           type: 'follow-up',
+          action: 'call',
           due_date: contact.next_followup_at,
+          priority: priorityLevelFromNumber(contact.priority),
           status: 'pending',
           note: `Follow-up iniziale per ${contact.name}`,
         })
