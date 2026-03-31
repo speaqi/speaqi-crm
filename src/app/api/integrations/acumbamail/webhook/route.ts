@@ -48,6 +48,11 @@ type NormalizedWebhookEvent = {
   raw: Record<string, unknown>
 }
 
+type ScopedUserResolution = {
+  userId: string | null
+  source: 'query' | 'body' | 'env' | 'single_auth_user' | null
+}
+
 const HANDLED_EVENTS = new Set<AcumbamailEventName>([
   'opens',
   'clicks',
@@ -216,62 +221,18 @@ function normalizeEventName(value: unknown): AcumbamailEventName | null {
   }
 }
 
-function extractRawEvents(payload: unknown): Record<string, unknown>[] {
-  if (Array.isArray(payload)) {
-    return payload.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
-  }
-
-  if (typeof payload === 'string') {
-    return extractRawEvents(parseLooseBody(payload))
-  }
-
-  if (!payload || typeof payload !== 'object') return []
-
-  const objectPayload = payload as Record<string, unknown>
-
-  for (const nested of [
-    objectPayload.events,
-    objectPayload.data,
-    objectPayload.batch,
-    objectPayload.payload,
-    objectPayload.event_data,
-  ]) {
-    if (Array.isArray(nested)) {
-      const records = nested.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
-      if (records.length) return records
-    }
-
-    if (isRecord(nested)) {
-      const records = recordValues(nested).filter((item): item is Record<string, unknown> => isRecord(item))
-      if (records.length) return records
-    }
-
-    if (typeof nested === 'string') {
-      const records = extractRawEvents(nested)
-      if (records.length) return records
-    }
-  }
-
-  if (
-    objectPayload.event ||
-    objectPayload.type ||
-    objectPayload.email ||
-    objectPayload.mail ||
-    objectPayload.email_address ||
-    objectPayload.subscriber_email ||
-    objectPayload['subscriber[email]'] ||
-    objectPayload['subscriber_fields[email]']
-  ) {
-    return [objectPayload]
-  }
-
-  return []
+function extractEventNameCandidate(raw: Record<string, unknown>) {
+  return (
+    raw.event ||
+    raw.type ||
+    raw.name ||
+    raw.action ||
+    raw.notification_type ||
+    raw.webhook_event
+  )
 }
 
-function normalizeWebhookEvent(raw: Record<string, unknown>): NormalizedWebhookEvent | null {
-  const eventName = normalizeEventName(raw.event || raw.type || raw.name || raw.action)
-  if (!eventName || !HANDLED_EVENTS.has(eventName)) return null
-
+function extractEventEmail(raw: Record<string, unknown>) {
   const subscriberFields =
     raw.subscriber_fields && typeof raw.subscriber_fields === 'object'
       ? (raw.subscriber_fields as Record<string, unknown>)
@@ -279,7 +240,7 @@ function normalizeWebhookEvent(raw: Record<string, unknown>): NormalizedWebhookE
 
   const subscriber = isRecord(raw.subscriber) ? raw.subscriber : null
 
-  const email = normalizeEmail(
+  return normalizeEmail(
     raw.email ||
       raw.mail ||
       raw.email_address ||
@@ -292,6 +253,49 @@ function normalizeWebhookEvent(raw: Record<string, unknown>): NormalizedWebhookE
       subscriberFields?.email ||
       subscriberFields?.mail
   )
+}
+
+function isLikelyWebhookEvent(raw: Record<string, unknown>) {
+  const eventName = normalizeEventName(extractEventNameCandidate(raw))
+  if (!eventName || !HANDLED_EVENTS.has(eventName)) return false
+  return !!extractEventEmail(raw)
+}
+
+function extractRawEvents(payload: unknown): Record<string, unknown>[] {
+  if (Array.isArray(payload)) {
+    return payload.flatMap((item) => extractRawEvents(item))
+  }
+
+  if (typeof payload === 'string') {
+    return extractRawEvents(parseLooseBody(payload))
+  }
+
+  if (!isRecord(payload)) return []
+  if (isLikelyWebhookEvent(payload)) return [payload]
+
+  for (const nested of [
+    payload.events,
+    payload.data,
+    payload.batch,
+    payload.payload,
+    payload.event_data,
+  ]) {
+    const records = extractRawEvents(nested)
+    if (records.length) return records
+  }
+
+  for (const nested of recordValues(payload)) {
+    const records = extractRawEvents(nested)
+    if (records.length) return records
+  }
+
+  return []
+}
+
+function normalizeWebhookEvent(raw: Record<string, unknown>): NormalizedWebhookEvent | null {
+  const eventName = normalizeEventName(extractEventNameCandidate(raw))
+  if (!eventName || !HANDLED_EVENTS.has(eventName)) return null
+  const email = extractEventEmail(raw)
   if (!email) return null
 
   return {
@@ -484,12 +488,37 @@ async function applyEventToContact(
 function resolveScopedUserId(request: NextRequest, payload: unknown) {
   const bodyUserId =
     payload && typeof payload === 'object' && 'user_id' in payload ? String((payload as { user_id?: unknown }).user_id || '').trim() : ''
-  return (
-    request.nextUrl.searchParams.get('user_id') ||
-    bodyUserId ||
-    process.env.ACUMBAMAIL_WEBHOOK_USER_ID ||
-    null
-  )
+  const queryUserId = String(request.nextUrl.searchParams.get('user_id') || '').trim()
+  if (queryUserId) return { userId: queryUserId, source: 'query' } satisfies ScopedUserResolution
+  if (bodyUserId) return { userId: bodyUserId, source: 'body' } satisfies ScopedUserResolution
+
+  const envUserId = String(process.env.ACUMBAMAIL_WEBHOOK_USER_ID || '').trim()
+  if (envUserId) return { userId: envUserId, source: 'env' } satisfies ScopedUserResolution
+
+  return { userId: null, source: null } satisfies ScopedUserResolution
+}
+
+async function resolveEffectiveScopedUserId(request: NextRequest, payload: unknown, supabase: any): Promise<ScopedUserResolution> {
+  const explicit = resolveScopedUserId(request, payload)
+  if (explicit.userId) return explicit
+
+  // Single-user installs can safely auto-route webhook-created contacts.
+  const { data, error } = await supabase.auth.admin.listUsers({
+    page: 1,
+    perPage: 2,
+  })
+
+  if (error) throw error
+
+  const users = Array.isArray(data?.users) ? data.users : []
+  if (users.length === 1 && users[0]?.id) {
+    return {
+      userId: String(users[0].id),
+      source: 'single_auth_user',
+    }
+  }
+
+  return explicit
 }
 
 function isAuthorizedWebhook(request: NextRequest) {
@@ -538,24 +567,32 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const scopedUserId = resolveScopedUserId(request, payload)
     const supabase = createServiceRoleClient()
+    const scopedUser = await resolveEffectiveScopedUserId(request, payload, supabase)
+    const scopedUserId = scopedUser.userId
 
     let matchedContacts = 0
     let createdContacts = 0
     let skippedEvents = 0
+    let skippedMissingScope = 0
     const processed: Array<{
       event: string
       email: string
       created_contact: boolean
       contact_ids: string[]
     }> = []
+    const skipped: Array<{
+      event: string
+      email: string
+      reason: string
+    }> = []
 
     for (const event of events) {
       let contacts = await findContactsByEmail(supabase, event.email, scopedUserId)
       let createdContact = false
+      const canCreateFromEvent = ['opens', 'clicks', 'unsubscribes'].includes(event.event)
 
-      if (!contacts.length && scopedUserId && ['opens', 'clicks', 'unsubscribes'].includes(event.event)) {
+      if (!contacts.length && scopedUserId && canCreateFromEvent) {
         contacts = [await createContactFromWebhook(supabase, scopedUserId, event)]
         createdContact = true
         createdContacts += 1
@@ -563,6 +600,13 @@ export async function POST(request: NextRequest) {
 
       if (!contacts.length) {
         skippedEvents += 1
+        const reason = !scopedUserId && canCreateFromEvent ? 'missing_user_scope' : 'contact_not_found'
+        if (reason === 'missing_user_scope') skippedMissingScope += 1
+        skipped.push({
+          event: event.event,
+          email: event.email,
+          reason,
+        })
         continue
       }
 
@@ -585,12 +629,15 @@ export async function POST(request: NextRequest) {
     return Response.json({
       ok: true,
       scoped_user_id: scopedUserId,
+      scoped_user_source: scopedUser.source,
       received_events: events.length,
       processed_events: processed.length,
       matched_contacts: matchedContacts,
       created_contacts: createdContacts,
       skipped_events: skippedEvents,
+      skipped_missing_scope: skippedMissingScope,
       processed,
+      skipped,
     })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Failed to process Acumbamail webhook') }, { status: 500 })
