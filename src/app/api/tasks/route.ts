@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const status = request.nextUrl.searchParams.get('status')
     let query = auth.supabase
       .from('tasks')
-      .select('*, contact:contacts(id, name, status, source, category, priority, next_followup_at)')
+      .select('*, contact:contacts(id, name, status, source, category, contact_scope, priority, next_followup_at)')
       .eq('user_id', auth.user.id)
       .order('due_date', { ascending: true, nullsFirst: false })
 

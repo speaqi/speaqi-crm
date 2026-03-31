@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
 import { ContactModal } from '@/components/crm/ContactModal'
 import { apiFetch } from '@/lib/api'
-import { ACTIVITY_TYPES, TASK_TYPES, activityTypeLabel, formatDateTime, fromDatetimeLocalValue, isClosedStatus, priorityLabel, sourceLabel, statusLabel, toDatetimeLocalValue } from '@/lib/data'
+import { ACTIVITY_TYPES, TASK_TYPES, activityTypeLabel, contactScopeLabel, formatDateTime, fromDatetimeLocalValue, isClosedStatus, isHoldingContact, priorityLabel, sourceLabel, statusLabel, toDatetimeLocalValue } from '@/lib/data'
 import { useCRMContext } from '../../layout'
 import type { ContactDetail, GmailAccountStatus, GmailMessage } from '@/types'
 
@@ -100,22 +100,34 @@ export default function ContactDetailPage() {
   }
 
   const { contact, activities, tasks } = detail
+  const holdingContact = isHoldingContact(contact)
 
   return (
     <>
       <div className="dash-content">
         <div className="detail-header">
           <div>
-            <Link href="/contacts" className="back-link">← Torna ai contatti</Link>
+            <Link href={holdingContact ? '/vinitaly' : '/contacts'} className="back-link">
+              ← Torna a {holdingContact ? 'Vinitaly' : 'ai contatti'}
+            </Link>
             <h1 className="detail-title">{contact.name}</h1>
             <div className="detail-subtitle">
-              {statusLabel(contact.status)} · {priorityLabel(contact.priority)} · {sourceLabel(contact.source)}
+              {statusLabel(contact.status)} · {priorityLabel(contact.priority)} · {sourceLabel(contact.source)} · {contactScopeLabel(contact.contact_scope)}
             </div>
           </div>
           <div className="detail-actions">
             <button className="btn btn-ghost" onClick={() => setEditOpen(true)}>Modifica</button>
           </div>
         </div>
+
+        {holdingContact && (
+          <div className="meta-card" style={{ marginBottom: 20 }}>
+            <strong>Lista separata Vinitaly</strong>
+            <span>
+              Questo contatto resta fuori da pipeline, calendario e task del CRM. Quando sincronizzi una reply Gmail, viene promosso automaticamente nel CRM operativo.
+            </span>
+          </div>
+        )}
 
         <div className="detail-grid">
           <div className="dash-card">
@@ -125,11 +137,25 @@ export default function ContactDetailPage() {
               <div><strong>Telefono:</strong> {contact.phone || 'Non impostato'}</div>
               <div><strong>Categoria:</strong> {contact.category || 'Non assegnata'}</div>
               <div><strong>Responsabile:</strong> {contact.responsible || 'Non assegnato'}</div>
+              <div><strong>Lista:</strong> {contactScopeLabel(contact.contact_scope)}</div>
               <div><strong>Valore:</strong> €{Number(contact.value || 0).toLocaleString('it-IT')}</div>
               <div><strong>Ultimo contatto:</strong> {formatDateTime(contact.last_contact_at)}</div>
               <div><strong>Prossimo follow-up:</strong> {formatDateTime(contact.next_followup_at)}</div>
               <div><strong>Note:</strong> {contact.note || 'Nessuna nota'}</div>
             </div>
+
+            {(contact.email_open_count || contact.email_click_count || contact.email_unsubscribed_at) ? (
+              <div style={{ marginTop: 16, padding: '12px 0 0', borderTop: '1px solid var(--border)' }}>
+                <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 13, color: 'var(--text2)' }}>Email engagement (Acumbamail)</div>
+                <div className="detail-stack">
+                  <div><strong>Aperture:</strong> {contact.email_open_count || 0}{contact.last_email_open_at ? ` · ultima ${formatDateTime(contact.last_email_open_at)}` : ''}</div>
+                  <div><strong>Click:</strong> {contact.email_click_count || 0}{contact.last_email_click_at ? ` · ultimo ${formatDateTime(contact.last_email_click_at)}` : ''}</div>
+                  {contact.email_unsubscribed_at && (
+                    <div style={{ color: 'var(--danger)' }}><strong>Disiscritto:</strong> {formatDateTime(contact.email_unsubscribed_at)}{contact.email_unsubscribe_source ? ` (${contact.email_unsubscribe_source})` : ''}</div>
+                  )}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="dash-card">
@@ -153,15 +179,17 @@ export default function ContactDetailPage() {
                 placeholder="Riassumi cosa è successo e cosa hai concordato"
               />
             </div>
-            <div className="fg">
-              <label className="fl">Prossimo follow-up</label>
-              <input
-                className="fi"
-                type="datetime-local"
-                value={activityFollowup}
-                onChange={(event) => setActivityFollowup(event.target.value)}
-              />
-            </div>
+            {!holdingContact && (
+              <div className="fg">
+                <label className="fl">Prossimo follow-up</label>
+                <input
+                  className="fi"
+                  type="datetime-local"
+                  value={activityFollowup}
+                  onChange={(event) => setActivityFollowup(event.target.value)}
+                />
+              </div>
+            )}
             <button
               className="btn btn-primary"
               onClick={async () => {
@@ -169,7 +197,7 @@ export default function ContactDetailPage() {
                   await addActivity(contact.id, {
                     type: activityType,
                     content: activityContent,
-                    next_followup_at: fromDatetimeLocalValue(activityFollowup),
+                    next_followup_at: holdingContact ? undefined : fromDatetimeLocalValue(activityFollowup),
                     task_type: 'follow-up',
                   })
                   setActivityContent('')
@@ -209,81 +237,89 @@ export default function ContactDetailPage() {
 
           <div className="dash-card">
             <div className="dash-card-title">Task & follow-up</div>
-            <div className="fg">
-              <label className="fl">Tipo task</label>
-              <select className="fi" value={taskType} onChange={(event) => setTaskType(event.target.value)}>
-                {TASK_TYPES.map((type) => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-            </div>
-            <div className="fg">
-              <label className="fl">Data task</label>
-              <input className="fi" type="datetime-local" value={taskDate} onChange={(event) => setTaskDate(event.target.value)} />
-            </div>
-            <div className="fg">
-              <label className="fl">Nota task</label>
-              <textarea className="fi" rows={2} value={taskNote} onChange={(event) => setTaskNote(event.target.value)} />
-            </div>
-            <button
-              className="btn btn-primary"
-              onClick={async () => {
-                try {
-                  await addTask(contact.id, {
-                    type: taskType,
-                    due_date: fromDatetimeLocalValue(taskDate) || '',
-                    note: taskNote,
-                  })
-                  setTaskDate('')
-                  setTaskNote('')
-                  showToast('Task creato')
-                  await loadDetail(false)
-                } catch (error) {
-                  window.alert(error instanceof Error ? error.message : 'Task non creato')
-                }
-              }}
-            >
-              Crea task
-            </button>
+            {holdingContact ? (
+              <p style={{ color: 'var(--text2)', lineHeight: 1.6, margin: 0 }}>
+                Nessun task operativo finché il contatto resta nella lista separata. Dopo una reply email, il motore Gmail lo promuove nel CRM e crea la prossima azione.
+              </p>
+            ) : (
+              <>
+                <div className="fg">
+                  <label className="fl">Tipo task</label>
+                  <select className="fi" value={taskType} onChange={(event) => setTaskType(event.target.value)}>
+                    {TASK_TYPES.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="fg">
+                  <label className="fl">Data task</label>
+                  <input className="fi" type="datetime-local" value={taskDate} onChange={(event) => setTaskDate(event.target.value)} />
+                </div>
+                <div className="fg">
+                  <label className="fl">Nota task</label>
+                  <textarea className="fi" rows={2} value={taskNote} onChange={(event) => setTaskNote(event.target.value)} />
+                </div>
+                <button
+                  className="btn btn-primary"
+                  onClick={async () => {
+                    try {
+                      await addTask(contact.id, {
+                        type: taskType,
+                        due_date: fromDatetimeLocalValue(taskDate) || '',
+                        note: taskNote,
+                      })
+                      setTaskDate('')
+                      setTaskNote('')
+                      showToast('Task creato')
+                      await loadDetail(false)
+                    } catch (error) {
+                      window.alert(error instanceof Error ? error.message : 'Task non creato')
+                    }
+                  }}
+                >
+                  Crea task
+                </button>
 
-            <div className="task-list" style={{ marginTop: 20 }}>
-              {tasks.length === 0 ? (
-                <p style={{ color: 'var(--text3)' }}>Nessun task collegato.</p>
-              ) : (
-                tasks.map((task) => (
-                  <div key={task.id} className={`task-card ${task.status === 'done' ? 'done' : ''}`}>
-                    <div>
-                      <strong>{task.type}</strong>
-                      <div className="task-date">{formatDateTime(task.due_date)}</div>
-                      <div className="task-note">{task.note || 'Nessuna nota'}</div>
-                    </div>
-                    {task.status === 'pending' ? (
-                      task.type === 'call' || task.type === 'follow-up' ? (
-                        <button
-                          className="btn btn-ghost btn-sm"
-                          onClick={() => setOutcomeTaskId(task.id)}
-                        >
-                          Esito chiamata
-                        </button>
-                      ) : (
-                        <button
-                          className="btn btn-ghost btn-sm"
-                          onClick={async () => {
-                            await completeTask(task.id)
-                            showToast('Task completato')
-                            await loadDetail(false)
-                          }}
-                        >
-                          Completa
-                        </button>
-                      )
-                    ) : (
-                      <span className="task-done-label">Fatto</span>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
+                <div className="task-list" style={{ marginTop: 20 }}>
+                  {tasks.length === 0 ? (
+                    <p style={{ color: 'var(--text3)' }}>Nessun task collegato.</p>
+                  ) : (
+                    tasks.map((task) => (
+                      <div key={task.id} className={`task-card ${task.status === 'done' ? 'done' : ''}`}>
+                        <div>
+                          <strong>{task.type}</strong>
+                          <div className="task-date">{formatDateTime(task.due_date)}</div>
+                          <div className="task-note">{task.note || 'Nessuna nota'}</div>
+                        </div>
+                        {task.status === 'pending' ? (
+                          task.type === 'call' || task.type === 'follow-up' ? (
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => setOutcomeTaskId(task.id)}
+                            >
+                              Esito chiamata
+                            </button>
+                          ) : (
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              onClick={async () => {
+                                await completeTask(task.id)
+                                showToast('Task completato')
+                                await loadDetail(false)
+                              }}
+                            >
+                              Completa
+                            </button>
+                          )
+                        ) : (
+                          <span className="task-done-label">Fatto</span>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -294,6 +330,7 @@ export default function ContactDetailPage() {
                 <div className="dash-card-title" style={{ marginBottom: 4 }}>Email & Gmail</div>
                 <div style={{ color: 'var(--text2)', fontSize: 13 }}>
                   Invia email dal CRM e sincronizza i messaggi presenti nella casella Gmail collegata.
+                  {holdingContact ? ' Alla prima reply il lead verrà promosso automaticamente nel CRM operativo.' : ''}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

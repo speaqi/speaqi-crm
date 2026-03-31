@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api'
-import { isClosedStatus } from '@/lib/data'
+import { isClosedStatus, isHoldingContact } from '@/lib/data'
 import { buildScheduledCalls, isCallTaskType } from '@/lib/schedule'
 import { createClient } from '@/lib/supabase'
 import type {
@@ -48,6 +48,7 @@ function buildTaskContactSnapshot(contact?: CRMContact | null) {
     status: contact.status,
     source: contact.source,
     category: contact.category,
+    contact_scope: contact.contact_scope,
     priority: contact.priority,
     next_followup_at: contact.next_followup_at,
   }
@@ -97,22 +98,47 @@ export function useCRM() {
   const [userId, setUserId] = useState<string | null>(null)
   const hasLoadedRef = useRef(false)
 
-  const speaqiContacts = useMemo(
-    () => state.contacts.filter((contact) => contact.source === 'speaqi'),
+  const crmContacts = useMemo(
+    () => state.contacts.filter((contact) => !isHoldingContact(contact)),
     [state.contacts]
   )
 
+  const holdingContacts = useMemo(
+    () => state.contacts.filter((contact) => isHoldingContact(contact)),
+    [state.contacts]
+  )
+
+  const holdingContactIds = useMemo(
+    () => new Set(holdingContacts.map((contact) => contact.id)),
+    [holdingContacts]
+  )
+
+  const visibleTasks = useMemo(
+    () =>
+      state.tasks.filter(
+        (task) =>
+          !holdingContactIds.has(task.contact_id) &&
+          !isHoldingContact({ contact_scope: task.contact?.contact_scope || 'crm' })
+      ),
+    [holdingContactIds, state.tasks]
+  )
+
+  const speaqiContacts = useMemo(
+    () => crmContacts.filter((contact) => contact.source === 'speaqi'),
+    [crmContacts]
+  )
+
   const scheduledCalls = useMemo(
-    () => buildScheduledCalls(state.contacts, state.tasks),
-    [state.contacts, state.tasks]
+    () => buildScheduledCalls(crmContacts, visibleTasks),
+    [crmContacts, visibleTasks]
   )
 
   const openContactsWithoutQueue = useMemo(() => {
     const queuedContactIds = new Set(scheduledCalls.map((item) => item.contact.id))
-    return state.contacts.filter(
+    return crmContacts.filter(
       (contact) => !isClosedStatus(contact.status) && !queuedContactIds.has(contact.id)
     )
-  }, [scheduledCalls, state.contacts])
+  }, [crmContacts, scheduledCalls])
 
   const dueTodayCount = useMemo(() => {
     const today = new Date()
@@ -441,6 +467,10 @@ export function useCRM() {
 
   return {
     ...state,
+    contacts: crmContacts,
+    allContacts: state.contacts,
+    holdingContacts,
+    tasks: visibleTasks,
     speaqiContacts,
     scheduledCalls,
     openContactsWithoutQueue,

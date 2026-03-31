@@ -59,6 +59,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Validate the CSV and print what would be imported without touching Supabase.",
     )
+    parser.add_argument(
+        "--contact-scope",
+        choices=["crm", "holding"],
+        default="crm",
+        help="Store imported rows directly in CRM or in a separate holding list (default: crm).",
+    )
     return parser.parse_args()
 
 
@@ -118,6 +124,7 @@ def read_contacts_csv(path: Path) -> list[dict[str, Any]]:
                     "phone": normalize_text(row.get("phone")),
                     "status": normalize_text(row.get("status")) or "New",
                     "source": normalize_text(row.get("source")) or "legacy-kanban",
+                    "contact_scope": "crm",
                     "priority": normalize_priority(row.get("priority")),
                     "responsible": normalize_text(row.get("responsible")),
                     "value": normalize_numeric(row.get("value")),
@@ -217,8 +224,22 @@ def upsert_contacts(
     records: list[dict[str, Any]],
     batch_size: int,
     dry_run: bool,
+    contact_scope: str,
 ) -> list[dict[str, Any]]:
-    prepared = [{**record, "user_id": user_id} for record in records]
+    prepared = [
+        {
+            **record,
+            "user_id": user_id,
+            "contact_scope": contact_scope,
+            "next_followup_at": None if contact_scope == "holding" else record.get("next_followup_at"),
+            "next_action_at": None if contact_scope == "holding" else record.get("next_followup_at"),
+            "last_activity_summary": (
+                record.get("last_activity_summary")
+                or ("Import CSV separato" if contact_scope == "holding" else "Import CSV")
+            ),
+        }
+        for record in records
+    ]
     if dry_run:
         return prepared
 
@@ -266,6 +287,7 @@ def insert_followup_tasks(
     batch_size: int,
     dry_run: bool,
 ) -> int:
+    contacts = [contact for contact in contacts if contact.get("contact_scope") != "holding"]
     open_contacts = [contact for contact in contacts if contact.get("status") != "Closed" and contact.get("next_followup_at")]
     if not open_contacts:
         return 0
@@ -350,16 +372,17 @@ def main() -> int:
     print(f"Input CSV: {input_csv}")
     print(f"Rows ready: {len(records)}")
     print(f"Open contacts with follow-up: {existing_open}")
+    print(f"Contact scope: {args.contact_scope}")
     print(f"Auth mode: {auth_mode}")
     print(f"Target user: {user_id}")
 
     if auth_mode == "dry_run":
         stages_created = len(DEFAULT_PIPELINE_STAGES)
-        contacts = [{**record, "user_id": user_id} for record in records]
+        contacts = upsert_contacts(base_url, headers, user_id, records, args.batch_size, True, args.contact_scope)
         tasks_created = insert_followup_tasks(base_url, headers, user_id, contacts, args.batch_size, True)
     else:
         stages_created = ensure_pipeline_stages(base_url, headers, user_id, args.dry_run)
-        contacts = upsert_contacts(base_url, headers, user_id, records, args.batch_size, args.dry_run)
+        contacts = upsert_contacts(base_url, headers, user_id, records, args.batch_size, args.dry_run, args.contact_scope)
         tasks_created = insert_followup_tasks(base_url, headers, user_id, contacts, args.batch_size, args.dry_run)
 
     print(f"Pipeline stages created: {stages_created}")

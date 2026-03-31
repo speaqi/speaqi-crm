@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
     let contactsQuery = supabase
       .from('contacts')
       .select('*')
+      .eq('contact_scope', 'crm')
       .neq('status', 'Closed')
       .neq('status', 'Lost')
       .order('next_action_at', { ascending: true, nullsFirst: false })

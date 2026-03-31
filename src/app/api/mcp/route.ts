@@ -84,6 +84,7 @@ async function handleTool(request: NextRequest, name: string, args: Record<strin
         .from('contacts')
         .select('id, name, status, source, category, priority, next_followup_at')
         .eq('user_id', auth.user.id)
+        .eq('contact_scope', 'crm')
         .or(`name.ilike.%${query}%,email.ilike.%${query}%,note.ilike.%${query}%,category.ilike.%${query}%`)
         .limit(10)
 
@@ -101,7 +102,7 @@ async function handleTool(request: NextRequest, name: string, args: Record<strin
       const [{ data: stages, error: stagesError }, { data: contacts, error: contactsError }] =
         await Promise.all([
           auth.supabase.from('pipeline_stages').select('name, color').eq('user_id', auth.user.id).order('order', { ascending: true }),
-          auth.supabase.from('contacts').select('status, priority, value').eq('user_id', auth.user.id),
+          auth.supabase.from('contacts').select('status, priority, value').eq('user_id', auth.user.id).eq('contact_scope', 'crm'),
         ])
 
       if (stagesError) throw stagesError
@@ -123,14 +124,16 @@ async function handleTool(request: NextRequest, name: string, args: Record<strin
     case 'get_tasks_due': {
       const { data, error } = await auth.supabase
         .from('tasks')
-        .select('id, type, due_date, status, note, contact:contacts(name, status, category)')
+        .select('id, type, due_date, status, note, contact:contacts(name, status, category, contact_scope)')
         .eq('user_id', auth.user.id)
         .eq('status', 'pending')
         .order('due_date', { ascending: true, nullsFirst: false })
         .limit(20)
 
       if (error) throw error
-      return JSON.stringify({ tasks: data || [] }, null, 2)
+      return JSON.stringify({
+        tasks: (data || []).filter((task: any) => (Array.isArray(task.contact) ? task.contact[0] : task.contact)?.contact_scope !== 'holding'),
+      }, null, 2)
     }
 
     case 'update_contact_status': {

@@ -106,6 +106,10 @@ function normalizePriority(value: unknown) {
   return Math.max(0, Math.min(3, Math.round(normalized)))
 }
 
+function normalizeContactScope(value: unknown) {
+  return String(value || '').trim().toLowerCase() === 'holding' ? 'holding' : 'crm'
+}
+
 function defaultFollowupAt() {
   return new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
 }
@@ -160,12 +164,16 @@ export async function POST(request: NextRequest) {
 
     const defaultCategory = normalizeText(body.default_category)
     const defaultSource = normalizeText(body.default_source)
+    const contactScope = normalizeContactScope(body.contact_scope)
     const seenLegacyIds = new Set<string>()
     const records = parsedRows.map((row, index) => {
       const status = normalizeText(row.status)
       const normalizedStatus = status && ALLOWED_STATUSES.has(status) ? status : 'New'
       const nextFollowupAt = normalizeText(row.next_followup_at)
-      const fallbackFollowupAt = nextFollowupAt || (isClosedStatus(normalizedStatus) ? null : defaultFollowupAt())
+      const fallbackFollowupAt =
+        contactScope === 'holding'
+          ? null
+          : nextFollowupAt || (isClosedStatus(normalizedStatus) ? null : defaultFollowupAt())
       const priority = normalizePriority(row.priority)
       return {
         user_id: auth.user.id,
@@ -176,11 +184,15 @@ export async function POST(request: NextRequest) {
         category: normalizeText(row.category) || defaultCategory,
         status: normalizedStatus,
         source: normalizeText(row.source) || defaultSource || 'legacy-kanban',
+        contact_scope: contactScope,
         priority,
         responsible: normalizeText(row.responsible),
         value: normalizeNumber(row.value),
         note: normalizeText(row.note),
-        last_activity_summary: `Import CSV legacy (${normalizedStatus})`,
+        last_activity_summary:
+          contactScope === 'holding'
+            ? `Import CSV separato (${normalizedStatus})`
+            : `Import CSV legacy (${normalizedStatus})`,
         next_action_at: fallbackFollowupAt,
         next_followup_at: fallbackFollowupAt,
       }
@@ -208,6 +220,7 @@ export async function POST(request: NextRequest) {
       status: string
       source?: string | null
       category?: string | null
+      contact_scope?: 'crm' | 'holding' | null
       priority?: number | null
       phone?: string | null
       email?: string | null
@@ -218,13 +231,16 @@ export async function POST(request: NextRequest) {
       const { data, error } = await auth.supabase
         .from('contacts')
         .upsert(batch, { onConflict: 'user_id,legacy_id' })
-        .select('id, legacy_id, name, status, source, category, priority, phone, email, next_followup_at, next_action_at')
+        .select('id, legacy_id, name, status, source, category, contact_scope, priority, phone, email, next_followup_at, next_action_at')
 
       if (error) throw error
       contacts.push(...(data || []))
     }
 
-    const openContacts = contacts.filter((contact) => !isClosedStatus(contact.status) && contact.next_followup_at)
+    const shouldCreateFollowups = contactScope !== 'holding'
+    const openContacts = shouldCreateFollowups
+      ? contacts.filter((contact) => !isClosedStatus(contact.status) && contact.next_followup_at)
+      : []
     const existingTaskContactIds = new Set<string>()
 
     for (const batch of chunk(openContacts.map((contact) => contact.id))) {
@@ -274,6 +290,9 @@ export async function POST(request: NextRequest) {
         content: [
           `Contatto ${knownLegacyIds.has(contact.legacy_id || '') ? 'aggiornato' : 'creato'} da import CSV.`,
           `Stato: ${contact.status}.`,
+          contact.contact_scope === 'holding'
+            ? 'Lista: separata fino a reply email.'
+            : 'Lista: CRM operativo.',
           contact.category ? `Categoria: ${contact.category}.` : null,
           contact.phone ? `Telefono: ${contact.phone}.` : null,
           contact.email ? `Email: ${contact.email}.` : null,
@@ -289,6 +308,7 @@ export async function POST(request: NextRequest) {
       parsed_rows: parsedRows.length,
       imported_contacts: contacts.length,
       created_tasks: createdTasks,
+      contact_scope: contactScope,
     })
   } catch (error) {
     return Response.json(

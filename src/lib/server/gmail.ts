@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { createActivities, updateContactSummary } from '@/lib/server/crm'
+import { applyReplyOutcome, logAiDecision, logLeadActivity } from '@/lib/server/ai-ready'
 import type { CRMContact, GmailAccountStatus, GmailMessage } from '@/types'
 
 type GmailAccountRecord = {
@@ -446,6 +447,110 @@ async function updateAccountSyncMarker(supabase: any, accountId: string, history
     .eq('id', accountId)
 }
 
+async function fetchKnownMessageIds(
+  supabase: any,
+  userId: string,
+  contactId: string,
+  messageIds: string[]
+) {
+  if (!messageIds.length) return new Set<string>()
+
+  const { data, error } = await supabase
+    .from('gmail_messages')
+    .select('gmail_message_id')
+    .eq('user_id', userId)
+    .eq('contact_id', contactId)
+    .in('gmail_message_id', messageIds)
+
+  if (error) throw error
+  return new Set((data || []).map((row: any) => String(row.gmail_message_id || '')).filter(Boolean))
+}
+
+async function handleInboundReplies(
+  supabase: any,
+  userId: string,
+  contact: CRMContact,
+  messages: Array<Omit<GmailMessage, 'id' | 'created_at'>>
+) {
+  const inboundMessages = messages
+    .filter((message) => message.direction === 'inbound')
+    .sort((left, right) => new Date(left.sent_at || 0).getTime() - new Date(right.sent_at || 0).getTime())
+  if (!inboundMessages.length) return
+
+  for (const message of inboundMessages) {
+    const replyText = String(message.body_text || message.snippet || message.subject || 'Risposta email ricevuta').trim()
+    if (!replyText) continue
+
+    await logLeadActivity(supabase, userId, {
+      leadId: contact.id,
+      type: 'email_reply',
+      content: replyText,
+      metadata: {
+        gmail_message_id: message.gmail_message_id,
+        gmail_thread_id: message.gmail_thread_id,
+        direction: message.direction,
+        subject: message.subject,
+        source: 'gmail_sync',
+      },
+    })
+  }
+
+  const latestMessage = inboundMessages[inboundMessages.length - 1]
+  const latestReplyText = String(
+    latestMessage.body_text || latestMessage.snippet || latestMessage.subject || 'Risposta email ricevuta'
+  ).trim()
+  if (!latestReplyText) return
+
+  const outcome = await applyReplyOutcome(supabase, userId, contact.id, latestReplyText)
+  const promoted = (contact.contact_scope || 'crm') === 'holding'
+
+  if (promoted) {
+    const promotedAt = new Date().toISOString()
+    const { error: promotionError } = await supabase
+      .from('contacts')
+      .update({
+        contact_scope: 'crm',
+        promoted_at: promotedAt,
+        updated_at: promotedAt,
+      })
+      .eq('user_id', userId)
+      .eq('id', contact.id)
+
+    if (promotionError) throw promotionError
+
+    await createActivities(supabase, [
+      {
+        user_id: userId,
+        contact_id: contact.id,
+        type: 'system',
+        content: 'Lead promosso automaticamente dalla lista separata dopo reply email.',
+        metadata: {
+          source: 'gmail_sync',
+          gmail_message_id: latestMessage.gmail_message_id,
+        },
+      },
+    ])
+  }
+
+  await logAiDecision(
+    supabase,
+    userId,
+    'gmail_reply_sync',
+    {
+      gmail_message_id: latestMessage.gmail_message_id,
+      subject: latestMessage.subject,
+      promoted,
+      inbound_messages_logged: inboundMessages.length,
+    },
+    {
+      classification: outcome.classification,
+      next_action: outcome.next_action,
+      score: outcome.score,
+    },
+    contact.id
+  )
+}
+
 async function refreshContactEmailSummary(supabase: any, contact: CRMContact, emails: Array<{ direction: string; subject?: string | null; sent_at?: string | null }>) {
   const latest = [...emails]
     .filter((item) => item.sent_at)
@@ -511,6 +616,13 @@ export async function syncContactGmailMessages(
 
   let stored: GmailMessage[] = []
   if (normalized.length) {
+    const knownMessageIds = await fetchKnownMessageIds(
+      supabase,
+      userId,
+      contact.id,
+      normalized.map((message) => message.gmail_message_id)
+    )
+
     const { data, error } = await supabase
       .from('gmail_messages')
       .upsert(normalized, {
@@ -520,6 +632,13 @@ export async function syncContactGmailMessages(
 
     if (error) throw error
     stored = (data || []) as GmailMessage[]
+
+    await handleInboundReplies(
+      supabase,
+      userId,
+      contact,
+      normalized.filter((message) => !knownMessageIds.has(message.gmail_message_id))
+    )
   }
 
   const profile = await fetchGmailProfile(accessToken).catch(() => null)
@@ -555,6 +674,7 @@ export async function sendContactEmail(
 
   const accessToken = await refreshAccessToken(account)
   const raw = encodeMessageBody(input.subject, contact.email, input.html, input.text)
+  const effectiveFollowupAt = (contact.contact_scope || 'crm') === 'holding' ? null : (input.followupAt || null)
 
   const sendResult = await gmailApiRequest<{ id: string; threadId?: string }>(
     accessToken,
@@ -588,18 +708,18 @@ export async function sendContactEmail(
   ])
 
   await updateContactSummary(supabase, contact.id, `Email inviata: ${input.subject}`, {
-    nextFollowupAt: input.followupAt,
+    nextFollowupAt: effectiveFollowupAt,
     touchLastContactAt: true,
   })
 
-  if (input.followupAt) {
+  if (effectiveFollowupAt) {
     const { error: taskError } = await supabase
       .from('tasks')
       .insert({
         user_id: userId,
         contact_id: contact.id,
         type: 'email',
-        due_date: input.followupAt,
+        due_date: effectiveFollowupAt,
         status: 'pending',
         note: `Follow-up email: ${input.subject}`,
       })

@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
       .from('contacts')
       .select('*')
       .eq('user_id', auth.user.id)
+      .eq('contact_scope', 'crm')
       .order('next_action_at', { ascending: true, nullsFirst: false })
       .limit(limit * 3)
 

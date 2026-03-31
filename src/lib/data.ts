@@ -37,6 +37,7 @@ export const EMPTY_CONTACT_INPUT: ContactInput = {
   phone: '',
   status: 'New',
   source: 'manual',
+  contact_scope: 'crm',
   category: '',
   priority: 0,
   responsible: '',
@@ -65,6 +66,16 @@ export function sourceLabel(source?: string | null) {
       return 'Legacy Kanban'
     default:
       return source || 'Manuale'
+  }
+}
+
+export function contactScopeLabel(scope?: string | null) {
+  switch (scope || 'crm') {
+    case 'holding':
+      return 'Lista separata'
+    case 'crm':
+    default:
+      return 'CRM'
   }
 }
 
@@ -107,6 +118,10 @@ export function activityTypeLabel(type: string) {
       return 'Email inviata'
     case 'email_open':
       return 'Email aperta'
+    case 'email_click':
+      return 'Click email'
+    case 'unsubscribe':
+      return 'Disiscrizione'
     case 'email_reply':
       return 'Risposta email'
     case 'msg':
@@ -203,6 +218,10 @@ export function fromDatetimeLocalValue(value?: string | null) {
 export function isClosedStatus(status: string) {
   const normalized = status.toLowerCase()
   return normalized === 'closed' || normalized === 'lost' || normalized === 'not_interested'
+}
+
+export function isHoldingContact(contact: Pick<CRMContact, 'contact_scope'>) {
+  return (contact.contact_scope || 'crm') === 'holding'
 }
 
 export function isOverdue(value?: string | null) {

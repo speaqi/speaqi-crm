@@ -26,6 +26,11 @@ function normalizeNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function normalizeContactScope(value: unknown, fallback: string) {
+  const normalized = String(value ?? fallback ?? '').trim().toLowerCase()
+  return normalized === 'holding' ? 'holding' : 'crm'
+}
+
 function displayValue(value: unknown) {
   const normalized = value === null || value === undefined ? '' : String(value).trim()
   return normalized || 'vuoto'
@@ -66,6 +71,13 @@ function buildContactUpdateSummary(current: any, next: any) {
   }
   if ((current.source || null) !== (next.source || null)) {
     changes.push(`origine ${displayValue(current.source)} -> ${displayValue(next.source)}`)
+  }
+  if ((current.contact_scope || 'crm') !== (next.contact_scope || 'crm')) {
+    changes.push(
+      (next.contact_scope || 'crm') === 'holding'
+        ? 'spostato in lista separata'
+        : 'promosso nel CRM operativo'
+    )
   }
   if (Number(current.priority || 0) !== Number(next.priority || 0)) {
     changes.push(`priorità ${current.priority} -> ${next.priority}`)
@@ -169,15 +181,21 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const body = await request.json()
     const current = await getContactRecord(auth.supabase, auth.user.id, id)
     const nextStatus = String(body.status || current.status)
+    const nextContactScope = normalizeContactScope(body.contact_scope, current.contact_scope || 'crm')
     const requestedFollowupAt =
       body.next_followup_at === ''
         ? null
         : body.next_followup_at
           ? String(body.next_followup_at)
           : current.next_followup_at
-    const nextFollowupAt = isClosedStatus(nextStatus) ? null : requestedFollowupAt
+    const nextFollowupAt =
+      nextContactScope === 'holding' || isClosedStatus(nextStatus)
+        ? null
+        : requestedFollowupAt
 
-    await ensureNextAction(auth.supabase, auth.user.id, id, nextStatus, nextFollowupAt)
+    if (nextContactScope !== 'holding') {
+      await ensureNextAction(auth.supabase, auth.user.id, id, nextStatus, nextFollowupAt)
+    }
 
     const { data, error } = await auth.supabase
       .from('contacts')
@@ -191,6 +209,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         language: body.language !== undefined ? normalizeText(body.language) : current.language,
         status: nextStatus,
         source: body.source !== undefined ? normalizeText(body.source) : current.source,
+        contact_scope: nextContactScope,
+        promoted_at:
+          (current.contact_scope || 'crm') === 'holding' && nextContactScope === 'crm'
+            ? new Date().toISOString()
+            : current.promoted_at,
         priority:
           body.priority !== undefined
             ? Math.max(0, Math.min(3, Number(body.priority || 0)))
@@ -217,6 +240,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     if (isClosedStatus(nextStatus)) {
       await completePendingCallTasks(auth.supabase, auth.user.id, id)
+    } else if (nextContactScope === 'holding') {
+      await completePendingCallTasks(auth.supabase, auth.user.id, id)
     } else if (nextFollowupAt) {
       await syncPendingCallTask(auth.supabase, auth.user.id, id, nextFollowupAt)
     }
@@ -232,7 +257,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         },
       ])
       await updateContactSummary(auth.supabase, id, activityContent, {
-        nextFollowupAt: nextFollowupAt,
+        nextFollowupAt: nextContactScope === 'holding' ? null : nextFollowupAt,
       })
     }
 

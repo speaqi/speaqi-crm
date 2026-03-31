@@ -15,19 +15,29 @@ function normalizeNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function normalizeContactScope(value: unknown) {
+  return String(value || '').trim().toLowerCase() === 'holding' ? 'holding' : 'crm'
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
 
   try {
     await ensurePipelineStages(auth.supabase, auth.user.id)
+    const scope = String(request.nextUrl.searchParams.get('scope') || 'all').trim().toLowerCase()
 
-    const { data, error } = await auth.supabase
+    let query = auth.supabase
       .from('contacts')
       .select('*')
       .eq('user_id', auth.user.id)
       .order('next_followup_at', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false })
+
+    if (scope === 'crm') query = query.eq('contact_scope', 'crm')
+    if (scope === 'holding') query = query.eq('contact_scope', 'holding')
+
+    const { data, error } = await query
 
     if (error) throw error
 
@@ -51,12 +61,13 @@ export async function POST(request: NextRequest) {
     const name = String(body.name || '').trim()
     const status = String(body.status || 'New')
     const nextFollowupAt = normalizeText(body.next_followup_at)
+    const contactScope = normalizeContactScope(body.contact_scope)
 
     if (!name) {
       return Response.json({ error: 'Il nome del contatto è obbligatorio' }, { status: 400 })
     }
 
-    if (!isClosedStatus(status) && !nextFollowupAt) {
+    if (contactScope === 'crm' && !isClosedStatus(status) && !nextFollowupAt) {
       return Response.json(
         { error: 'Ogni contatto aperto deve avere un prossimo follow-up' },
         { status: 400 }
@@ -74,14 +85,15 @@ export async function POST(request: NextRequest) {
       language: normalizeText(body.language),
       status,
       source: normalizeText(body.source) || 'manual',
+      contact_scope: contactScope,
       priority: Math.max(0, Math.min(3, Number(body.priority || 0))),
       score: Math.max(0, Math.min(100, Number(body.score || 0))),
       assigned_agent: normalizeText(body.assigned_agent),
       responsible: normalizeText(body.responsible),
       value: normalizeNumber(body.value),
       note: normalizeText(body.note),
-      next_action_at: nextFollowupAt,
-      next_followup_at: nextFollowupAt,
+      next_action_at: contactScope === 'holding' ? null : nextFollowupAt,
+      next_followup_at: contactScope === 'holding' ? null : nextFollowupAt,
       last_activity_summary: normalizeText(body.note),
     }
 
@@ -94,7 +106,7 @@ export async function POST(request: NextRequest) {
     if (error) throw error
 
     let task = null
-    if (contact.next_followup_at) {
+    if (contact.contact_scope !== 'holding' && contact.next_followup_at) {
       const { data: createdTask, error: taskError } = await auth.supabase
         .from('tasks')
         .insert({
@@ -115,8 +127,13 @@ export async function POST(request: NextRequest) {
     }
 
     const activityContent = [
-      'Contatto creato nel CRM.',
+      contact.contact_scope === 'holding'
+        ? 'Contatto creato in lista separata.'
+        : 'Contatto creato nel CRM.',
       `Stato iniziale: ${contact.status}.`,
+      contact.contact_scope === 'holding'
+        ? 'Resterà fuori da pipeline e follow-up fino a una risposta email.'
+        : null,
       contact.next_followup_at ? `Follow-up iniziale: ${formatActivityDate(contact.next_followup_at)}.` : null,
       task ? 'Task di follow-up creato automaticamente.' : null,
     ]
@@ -131,7 +148,9 @@ export async function POST(request: NextRequest) {
         content: activityContent,
       },
     ])
-    await updateContactSummary(auth.supabase, contact.id, activityContent)
+    await updateContactSummary(auth.supabase, contact.id, activityContent, {
+      nextFollowupAt: contact.next_followup_at,
+    })
 
     return Response.json({ contact, task }, { status: 201 })
   } catch (error) {

@@ -40,6 +40,7 @@ function buildInitialState(contact?: CRMContact | null, defaultSource?: string):
     phone: contact.phone || '',
     category: contact.category || '',
     status: contact.status,
+    contact_scope: contact.contact_scope || 'crm',
     source: contact.source || defaultSource || 'manual',
     priority: contact.priority || 0,
     responsible: contact.responsible || '',
@@ -74,7 +75,7 @@ export function ContactModal({
       return
     }
 
-    if (!isClosedStatus(form.status) && !form.next_followup_at) {
+    if (form.contact_scope !== 'holding' && !isClosedStatus(form.status) && !form.next_followup_at) {
       window.alert('Ogni contatto aperto deve avere un prossimo follow-up')
       return
     }

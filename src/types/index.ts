@@ -33,6 +33,12 @@ export interface CRMContact {
   last_contact_at?: string | null
   next_followup_at?: string | null
   next_action_at?: string | null
+  email_open_count?: number | null
+  email_click_count?: number | null
+  last_email_open_at?: string | null
+  last_email_click_at?: string | null
+  email_unsubscribed_at?: string | null
+  email_unsubscribe_source?: string | null
   created_at: string
   updated_at: string
 }

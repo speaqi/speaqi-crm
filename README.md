@@ -175,6 +175,18 @@ Lo script:
 - fa upsert su `contacts` usando `legacy_id`
 - crea i task `follow-up` mancanti per i contatti aperti
 
+Per i batch Vinitaly che vuoi tenere separati fino a una reply email:
+
+```bash
+npm run import:contacts-csv -- "/percorso/contacts_import.csv" --email "utente@dominio.it" --password "********" --contact-scope holding
+```
+
+In questo caso:
+
+- i record finiscono nella vista separata `Vinitaly`
+- non entrano in pipeline, calendario e follow-up automatici
+- quando Gmail sincronizza una reply inbound, il lead viene promosso automaticamente nel CRM operativo
+
 In alternativa, se hai la service role in `.env.local`, puoi usare `--user-id "<uuid>"`.
 
 ## n8n
