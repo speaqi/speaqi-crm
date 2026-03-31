@@ -62,8 +62,51 @@ function unauthorized() {
   return Response.json({ error: 'Unauthorized webhook' }, { status: 401 })
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function recordEntries(value: unknown) {
+  return isRecord(value) ? Object.entries(value) : []
+}
+
+function recordValues(value: unknown) {
+  return isRecord(value) ? Object.values(value) : []
+}
+
+function firstString(value: unknown): string | null {
+  if (value === null || value === undefined) return null
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return trimmed || null
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const candidate = firstString(item)
+      if (candidate) return candidate
+    }
+    return null
+  }
+  if (!isRecord(value)) return null
+
+  for (const key of ['value', 'email', 'mail', 'address']) {
+    const candidate = firstString(value[key])
+    if (candidate) return candidate
+  }
+
+  for (const [, nested] of recordEntries(value)) {
+    const candidate = firstString(nested)
+    if (candidate) return candidate
+  }
+
+  return null
+}
+
 function normalizeEmail(value: unknown) {
-  const normalized = String(value || '').trim().toLowerCase()
+  const normalized = String(firstString(value) || '').trim().toLowerCase()
   return normalized || null
 }
 
@@ -91,20 +134,134 @@ function normalizeTimestamp(value: unknown) {
   return parsed.toISOString()
 }
 
+function parseLooseBody(raw: string): unknown {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+
+  try {
+    return JSON.parse(trimmed)
+  } catch {}
+
+  const params = new URLSearchParams(trimmed)
+  const entries = Array.from(params.entries())
+  if (!entries.length) return trimmed
+
+  const payload = Object.fromEntries(entries)
+
+  for (const key of ['payload', 'data', 'event_data', 'events', 'batch']) {
+    const nested = payload[key]
+    if (!nested) continue
+
+    try {
+      payload[key] = JSON.parse(nested)
+    } catch {}
+  }
+
+  return payload
+}
+
+async function readWebhookPayload(request: NextRequest) {
+  const contentType = (request.headers.get('content-type') || '').toLowerCase()
+
+  if (contentType.includes('multipart/form-data')) {
+    const formData = await request.formData()
+    const payload: Record<string, unknown> = {}
+
+    for (const [key, value] of formData.entries()) {
+      payload[key] = typeof value === 'string' ? value : value.name
+    }
+
+    return payload
+  }
+
+  const raw = await request.text()
+  return parseLooseBody(raw)
+}
+
+function normalizeEventName(value: unknown): AcumbamailEventName | null {
+  const normalized = String(firstString(value) || '')
+    .trim()
+    .toLowerCase()
+
+  switch (normalized) {
+    case 'open':
+    case 'opens':
+    case 'apertura':
+      return 'opens'
+    case 'click':
+    case 'clicks':
+    case 'clic':
+      return 'clicks'
+    case 'unsubscribe':
+    case 'unsubscribes':
+    case 'opt_out':
+    case 'baja':
+      return 'unsubscribes'
+    case 'delivered':
+    case 'deliver':
+    case 'entregado':
+      return 'delivered'
+    case 'hard_bounce':
+    case 'hard_bounces':
+      return 'hard_bounces'
+    case 'soft_bounce':
+    case 'soft_bounces':
+      return 'soft_bounces'
+    case 'complaint':
+    case 'complaints':
+    case 'reclamo':
+      return 'complaints'
+    default:
+      return null
+  }
+}
+
 function extractRawEvents(payload: unknown): Record<string, unknown>[] {
   if (Array.isArray(payload)) {
     return payload.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
   }
 
+  if (typeof payload === 'string') {
+    return extractRawEvents(parseLooseBody(payload))
+  }
+
   if (!payload || typeof payload !== 'object') return []
 
   const objectPayload = payload as Record<string, unknown>
-  const nested = objectPayload.events || objectPayload.data || objectPayload.batch
-  if (Array.isArray(nested)) {
-    return nested.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+
+  for (const nested of [
+    objectPayload.events,
+    objectPayload.data,
+    objectPayload.batch,
+    objectPayload.payload,
+    objectPayload.event_data,
+  ]) {
+    if (Array.isArray(nested)) {
+      const records = nested.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+      if (records.length) return records
+    }
+
+    if (isRecord(nested)) {
+      const records = recordValues(nested).filter((item): item is Record<string, unknown> => isRecord(item))
+      if (records.length) return records
+    }
+
+    if (typeof nested === 'string') {
+      const records = extractRawEvents(nested)
+      if (records.length) return records
+    }
   }
 
-  if (objectPayload.event || objectPayload.type) {
+  if (
+    objectPayload.event ||
+    objectPayload.type ||
+    objectPayload.email ||
+    objectPayload.mail ||
+    objectPayload.email_address ||
+    objectPayload.subscriber_email ||
+    objectPayload['subscriber[email]'] ||
+    objectPayload['subscriber_fields[email]']
+  ) {
     return [objectPayload]
   }
 
@@ -112,24 +269,35 @@ function extractRawEvents(payload: unknown): Record<string, unknown>[] {
 }
 
 function normalizeWebhookEvent(raw: Record<string, unknown>): NormalizedWebhookEvent | null {
-  const eventName = String(raw.event || raw.type || '')
-    .trim()
-    .toLowerCase() as AcumbamailEventName
-
-  if (!HANDLED_EVENTS.has(eventName)) return null
+  const eventName = normalizeEventName(raw.event || raw.type || raw.name || raw.action)
+  if (!eventName || !HANDLED_EVENTS.has(eventName)) return null
 
   const subscriberFields =
     raw.subscriber_fields && typeof raw.subscriber_fields === 'object'
       ? (raw.subscriber_fields as Record<string, unknown>)
       : null
 
-  const email = normalizeEmail(raw.email || subscriberFields?.email)
+  const subscriber = isRecord(raw.subscriber) ? raw.subscriber : null
+
+  const email = normalizeEmail(
+    raw.email ||
+      raw.mail ||
+      raw.email_address ||
+      raw.subscriber_email ||
+      raw.recipient ||
+      raw['subscriber[email]'] ||
+      raw['subscriber_fields[email]'] ||
+      subscriber?.email ||
+      subscriber?.mail ||
+      subscriberFields?.email ||
+      subscriberFields?.mail
+  )
   if (!email) return null
 
   return {
     event: eventName,
     email,
-    occurredAt: normalizeTimestamp(raw.timestamp || raw.occurred_at || raw.created_at),
+    occurredAt: normalizeTimestamp(raw.timestamp || raw.occurred_at || raw.created_at || raw.date || raw.ts),
     raw,
   }
 }
@@ -223,6 +391,7 @@ async function createContactFromWebhook(
       email: event.email,
       status,
       source: 'acumbamail',
+      contact_scope: 'crm',
       priority: event.event === 'clicks' ? 3 : 2,
       note: `Creato automaticamente da webhook Acumbamail (${event.event}).`,
       last_activity_summary: summary,
@@ -342,7 +511,7 @@ export async function GET() {
     route: '/api/integrations/acumbamail/webhook',
     accepted_events: Array.from(HANDLED_EVENTS),
     notes: [
-      'Invia una POST JSON con uno o piu eventi Acumbamail.',
+      'Invia una POST JSON o form-urlencoded con uno o piu eventi Acumbamail.',
       'Per installazioni multi-account aggiungi ?user_id=<uuid> al callback URL.',
       'Puoi proteggere il webhook con ?token=... se imposti ACUMBAMAIL_WEBHOOK_TOKEN nel deploy.',
     ],
@@ -355,11 +524,18 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const payload = await request.json().catch(() => null)
+    const payload = await readWebhookPayload(request)
     const events = extractRawEvents(payload).map(normalizeWebhookEvent).filter(Boolean) as NormalizedWebhookEvent[]
 
     if (!events.length) {
-      return Response.json({ error: 'No supported Acumbamail events found in payload' }, { status: 400 })
+      return Response.json(
+        {
+          error: 'No supported Acumbamail events found in payload',
+          content_type: request.headers.get('content-type') || null,
+          payload_keys: isRecord(payload) ? Object.keys(payload) : [],
+        },
+        { status: 400 }
+      )
     }
 
     const scopedUserId = resolveScopedUserId(request, payload)
