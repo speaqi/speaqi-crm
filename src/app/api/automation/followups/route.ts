@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { sendReminderEmail } from '@/lib/email'
+import { normalizeTaskAction, priorityLevelFromNumber, taskTypeForAction } from '@/lib/server/ai-ready'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 
 function validateSecret(request: NextRequest) {
@@ -15,20 +16,38 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}))
     const recipientEmail = body.email || process.env.REMINDER_EMAIL
+    const requestedCategory = body.category ? String(body.category).trim() : ''
+    const requestedSource = body.source ? String(body.source).trim() : ''
+    const dryRun = body.dry_run === true
     const supabase = createServiceRoleClient()
 
-    const { data: dueContacts, error } = await supabase
+    let contactsQuery = supabase
       .from('contacts')
       .select('*')
+      .eq('contact_scope', 'crm')
       .neq('status', 'Closed')
       .neq('status', 'Lost')
-      .not('next_followup_at', 'is', null)
-      .lte('next_followup_at', new Date().toISOString())
-      .order('next_followup_at', { ascending: true })
+      .order('next_action_at', { ascending: true, nullsFirst: false })
+      .order('next_followup_at', { ascending: true, nullsFirst: false })
+
+    if (requestedCategory) {
+      contactsQuery = contactsQuery.eq('category', requestedCategory)
+    }
+
+    if (requestedSource) {
+      contactsQuery = contactsQuery.eq('source', requestedSource)
+    }
+
+    const { data: dueContacts, error } = await contactsQuery
 
     if (error) throw error
 
-    const contacts = dueContacts || []
+    const now = Date.now()
+    const contacts = (dueContacts || []).filter((contact: any) => {
+      const dueAt = contact.next_action_at || contact.next_followup_at
+      if (!dueAt) return false
+      return new Date(dueAt).getTime() <= now
+    })
     const contactIds = contacts.map((contact: any) => contact.id)
     let existingTaskKeys = new Set<string>()
 
@@ -46,18 +65,30 @@ export async function POST(request: NextRequest) {
     }
 
     const taskPayload = contacts
-      .filter((contact: any) => !existingTaskKeys.has(`${contact.id}:${contact.next_followup_at}`))
-      .map((contact: any) => ({
-        user_id: contact.user_id,
-        contact_id: contact.id,
-        type: 'follow-up',
-        due_date: contact.next_followup_at,
-        status: 'pending',
-        note: `Follow-up automatico per ${contact.name}`,
-      }))
+      .map((contact: any) => {
+        const dueAt = contact.next_action_at || contact.next_followup_at
+        const action = normalizeTaskAction(
+          contact.next_followup_at && dueAt === contact.next_followup_at
+            ? 'call'
+            : (contact.phone ? 'call' : contact.email ? 'send_email' : 'wait')
+        )
+
+        return {
+          user_id: contact.user_id,
+          contact_id: contact.id,
+          type: taskTypeForAction(action),
+          action,
+          due_date: dueAt,
+          priority: priorityLevelFromNumber(contact.priority),
+          status: 'pending',
+          note: `Follow-up automatico${contact.category ? ` [${contact.category}]` : ''} per ${contact.name}`,
+          idempotency_key: `auto-followup:${contact.id}:${dueAt}:${action}`,
+        }
+      })
+      .filter((task) => task.due_date && !existingTaskKeys.has(`${task.contact_id}:${task.due_date}`))
 
     let createdTasks = 0
-    if (taskPayload.length) {
+    if (taskPayload.length && !dryRun) {
       const { data: tasks, error: taskError } = await supabase
         .from('tasks')
         .insert(taskPayload)
@@ -72,14 +103,17 @@ export async function POST(request: NextRequest) {
         recipientEmail,
         contacts.map((contact: any) => ({
           name: contact.name,
-          time: contact.next_followup_at
-            ? new Date(contact.next_followup_at).toLocaleString('it-IT')
+          time: contact.next_action_at || contact.next_followup_at
+            ? new Date(contact.next_action_at || contact.next_followup_at).toLocaleString('it-IT')
             : '',
         }))
       )
     }
 
     return Response.json({
+      category: requestedCategory || null,
+      source: requestedSource || null,
+      dry_run: dryRun,
       contacts_due: contacts.length,
       created_tasks: createdTasks,
     })

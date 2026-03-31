@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
-import { createActivities, ensurePipelineStages } from '@/lib/server/crm'
+import { normalizeLeadRecord, logLeadActivity } from '@/lib/server/ai-ready'
+import { ensurePipelineStages } from '@/lib/server/crm'
+import { errorMessage } from '@/lib/server/http'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 
 type AcumbamailEventName =
@@ -16,17 +18,24 @@ type ContactRow = {
   user_id: string
   name: string
   email?: string | null
+  phone?: string | null
   status: string
   source?: string | null
   priority?: number | null
-  note?: string | null
-  last_activity_summary?: string | null
+  category?: string | null
+  company?: string | null
+  country?: string | null
+  language?: string | null
+  score?: number | null
+  assigned_agent?: string | null
   email_open_count?: number | null
   email_click_count?: number | null
   last_email_open_at?: string | null
   last_email_click_at?: string | null
   email_unsubscribed_at?: string | null
   email_unsubscribe_source?: string | null
+  last_contact_at?: string | null
+  next_action_at?: string | null
   next_followup_at?: string | null
   created_at?: string | null
   updated_at?: string | null
@@ -51,10 +60,6 @@ const HANDLED_EVENTS = new Set<AcumbamailEventName>([
 
 function unauthorized() {
   return Response.json({ error: 'Unauthorized webhook' }, { status: 401 })
-}
-
-function errorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback
 }
 
 function normalizeEmail(value: unknown) {
@@ -144,7 +149,7 @@ function inferContactName(email: string) {
     .join(' ')
 }
 
-function defaultNextFollowupAt() {
+function defaultNextActionAt() {
   return new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
 }
 
@@ -206,7 +211,7 @@ async function createContactFromWebhook(
   await ensurePipelineStages(supabase, userId)
 
   const shouldSuppressFollowup = event.event === 'unsubscribes'
-  const nextFollowupAt = shouldSuppressFollowup ? null : defaultNextFollowupAt()
+  const nextActionAt = shouldSuppressFollowup ? null : defaultNextActionAt()
   const status = shouldSuppressFollowup ? 'Lost' : 'New'
   const summary = contentForEvent(event)
 
@@ -221,7 +226,8 @@ async function createContactFromWebhook(
       priority: event.event === 'clicks' ? 3 : 2,
       note: `Creato automaticamente da webhook Acumbamail (${event.event}).`,
       last_activity_summary: summary,
-      next_followup_at: nextFollowupAt,
+      next_action_at: nextActionAt,
+      next_followup_at: nextActionAt,
       email_open_count: 0,
       email_click_count: 0,
       last_email_open_at: null,
@@ -255,10 +261,19 @@ async function applyEventToContact(
   contact: ContactRow,
   event: NormalizedWebhookEvent
 ) {
-  const content = contentForEvent(event)
+  const activity = await logLeadActivity(supabase, contact.user_id, {
+    leadId: contact.id,
+    type: activityTypeForEvent(event.event),
+    content: contentForEvent(event),
+    metadata: {
+      provider: 'acumbamail',
+      provider_event: event.event,
+      occurred_at: event.occurredAt,
+      payload: event.raw,
+    },
+  })
 
   const updates: Record<string, unknown> = {
-    last_activity_summary: content,
     updated_at: new Date().toISOString(),
   }
 
@@ -276,6 +291,7 @@ async function applyEventToContact(
     updates.email_unsubscribed_at = event.occurredAt
     updates.email_unsubscribe_source = 'acumbamail'
     updates.status = contact.status === 'Closed' ? contact.status : 'Lost'
+    updates.next_action_at = null
     updates.next_followup_at = null
     await markPendingTasksDone(supabase, contact.user_id, contact.id)
   }
@@ -290,17 +306,9 @@ async function applyEventToContact(
 
   if (error) throw error
 
-  await createActivities(supabase, [
-    {
-      user_id: contact.user_id,
-      contact_id: contact.id,
-      type: activityTypeForEvent(event.event),
-      content,
-    },
-  ])
-
   return {
-    contact: updated as ContactRow,
+    activity,
+    contact: normalizeLeadRecord(updated as ContactRow),
   }
 }
 

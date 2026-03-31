@@ -1,40 +1,24 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
 import { formatDateTime, isClosedStatus, isOverdue, priorityBadgeClass, priorityLabel, statusLabel } from '@/lib/data'
 import { useCRMContext } from '../layout'
 import type { CRMContact, TaskWithContact } from '@/types'
 
 export default function AttivitaPage() {
-  const { tasks, contacts, stages, addActivity, completeTask, refresh, showToast, updateContact } = useCRMContext()
+  const { tasks, scheduledCalls, openContactsWithoutQueue, contacts, stages, addActivity, completeTask, refresh, showToast, updateContact } = useCRMContext()
   const tomorrow = new Date()
   tomorrow.setHours(24, 0, 0, 0)
   const [outcomeContact, setOutcomeContact] = useState<CRMContact | null>(null)
   const [outcomeTask, setOutcomeTask] = useState<TaskWithContact | null>(null)
 
-  const missingNextStep = contacts.filter((contact) => !isClosedStatus(contact.status) && !contact.next_followup_at)
+  const missingNextStep = openContactsWithoutQueue.filter((contact) => !isClosedStatus(contact.status))
   const overdueTasks = tasks.filter((task) => task.due_date && isOverdue(task.due_date))
-  const tasksByContact = useMemo(() => {
-    const map = new Map<string, TaskWithContact>()
-    for (const task of tasks) {
-      if (!map.has(task.contact_id)) map.set(task.contact_id, task)
-    }
-    return map
-  }, [tasks])
-  const callsToday = [...contacts]
-    .filter((contact) => {
-      if (isClosedStatus(contact.status) || !contact.next_followup_at) return false
-      return new Date(contact.next_followup_at).getTime() < tomorrow.getTime()
-    })
-    .sort((left, right) => {
-      const leftFollowup = left.next_followup_at ? new Date(left.next_followup_at).getTime() : Number.MAX_SAFE_INTEGER
-      const rightFollowup = right.next_followup_at ? new Date(right.next_followup_at).getTime() : Number.MAX_SAFE_INTEGER
-      return (leftFollowup - rightFollowup) || (right.priority - left.priority) || left.name.localeCompare(right.name)
-    })
-  const callsTodayWithoutPhone = callsToday.filter((contact) => !contact.phone).length
-  const callsTodayHighPriority = callsToday.filter((contact) => contact.priority >= 2).length
+  const callsToday = scheduledCalls.filter((item) => new Date(item.due_at).getTime() < tomorrow.getTime())
+  const callsTodayWithoutPhone = callsToday.filter((item) => !item.contact.phone).length
+  const callsTodayHighPriority = callsToday.filter((item) => item.contact.priority >= 2).length
 
   return (
     <div className="dash-content">
@@ -63,34 +47,34 @@ export default function AttivitaPage() {
           {callsToday.length === 0 ? (
             <p style={{ color: 'var(--text3)' }}>Nessuna chiamata prevista per oggi.</p>
           ) : (
-            callsToday.map((contact) => (
+            callsToday.map((item) => (
               <div
-                key={contact.id}
-                className={`task-card ${contact.next_followup_at && isOverdue(contact.next_followup_at) ? 'overdue' : ''}`}
+                key={`${item.contact.id}:${item.due_at}`}
+                className={`task-card ${isOverdue(item.due_at) ? 'overdue' : ''}`}
               >
                 <div>
-                  <strong>{contact.name}</strong>
+                  <strong>{item.contact.name}</strong>
                   <div className="task-date">
-                    {statusLabel(contact.status)} · {formatDateTime(contact.next_followup_at)}
+                    {statusLabel(item.contact.status)} · {formatDateTime(item.due_at)}
                   </div>
                   <div className="task-note">
-                    {contact.phone || 'Telefono mancante'} · {contact.last_activity_summary || 'Nessuna attività registrata'}
+                    {item.contact.phone || 'Telefono mancante'} · {item.contact.last_activity_summary || 'Nessuna attività registrata'}
                   </div>
                   <div className="contact-tags" style={{ marginTop: 8 }}>
-                    <span className={`ctag ${priorityBadgeClass(contact.priority)}`}>{priorityLabel(contact.priority)}</span>
-                    {contact.responsible && (
+                    <span className={`ctag ${priorityBadgeClass(item.contact.priority)}`}>{priorityLabel(item.contact.priority)}</span>
+                    {item.contact.responsible && (
                       <span className="ctag" style={{ background: 'var(--surface2)', color: 'var(--text2)' }}>
-                        {contact.responsible}
+                        {item.contact.responsible}
                       </span>
                     )}
                   </div>
                 </div>
                 <div className="task-actions">
-                  <Link href={`/contacts/${contact.id}`} className="btn btn-ghost btn-sm">
+                  <Link href={`/contacts/${item.contact.id}`} className="btn btn-ghost btn-sm">
                     Apri
                   </Link>
-                  {contact.phone ? (
-                    <a href={`tel:${contact.phone}`} className="btn btn-primary btn-sm">
+                  {item.contact.phone ? (
+                    <a href={`tel:${item.contact.phone}`} className="btn btn-primary btn-sm">
                       Chiama
                     </a>
                   ) : (
@@ -101,8 +85,8 @@ export default function AttivitaPage() {
                   <button
                     className="btn btn-ghost btn-sm"
                     onClick={() => {
-                      setOutcomeContact(contact)
-                      setOutcomeTask(tasksByContact.get(contact.id) || null)
+                      setOutcomeContact(item.contact)
+                      setOutcomeTask(item.task)
                     }}
                   >
                     Esito

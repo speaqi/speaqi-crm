@@ -9,12 +9,16 @@ interface ImportResponse {
   parsed_rows: number
   imported_contacts: number
   created_tasks: number
+  contact_scope?: 'crm' | 'holding'
 }
 
 export default function ImportPage() {
   const { refresh, showToast } = useCRMContext()
   const [fileName, setFileName] = useState('')
   const [csvText, setCsvText] = useState('')
+  const [defaultSource, setDefaultSource] = useState('vinitaly')
+  const [defaultCategory, setDefaultCategory] = useState('vinitaly-winery')
+  const [separateList, setSeparateList] = useState(true)
   const [result, setResult] = useState<ImportResponse | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -42,12 +46,21 @@ export default function ImportPage() {
       const response = await apiFetch<ImportResponse>('/api/import/csv', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ csv_text: csvText }),
+        body: JSON.stringify({
+          csv_text: csvText,
+          default_source: defaultSource,
+          default_category: defaultCategory,
+          contact_scope: separateList ? 'holding' : 'crm',
+        }),
       })
 
       setResult(response)
       await refresh()
-      showToast(`Import completato: ${response.imported_contacts} contatti`)
+      showToast(
+        separateList
+          ? `Import completato: ${response.imported_contacts} contatti in lista separata`
+          : `Import completato: ${response.imported_contacts} contatti`
+      )
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : 'Import non riuscito')
     } finally {
@@ -62,19 +75,61 @@ export default function ImportPage() {
           <div>
             <div className="dash-card-title" style={{ marginBottom: 6 }}>Import CSV nel CRM</div>
             <p style={{ color: 'var(--text2)', fontSize: 13, lineHeight: 1.5 }}>
-              Carica il file <strong>contacts_import.csv</strong> generato dall&apos;analisi. L&apos;import fa upsert dei contatti
-              in Supabase e crea i follow-up mancanti.
+              Carica il file <strong>contacts_import.csv</strong> generato dall&apos;analisi. Per Vinitaly puoi tenerlo in una
+              lista separata: resta fuori da pipeline e follow-up finché non arriva una risposta email.
             </p>
           </div>
-          <Link href="/contacts" className="btn btn-ghost btn-sm">
-            Vai ai contatti
-          </Link>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Link href="/vinitaly" className="btn btn-ghost btn-sm">
+              Apri Vinitaly
+            </Link>
+            <Link href="/contacts" className="btn btn-ghost btn-sm">
+              Vai ai contatti
+            </Link>
+          </div>
         </div>
 
         <div className="meta-card">
           <strong style={{ fontSize: 15 }}>Prima dell&apos;import</strong>
-          <span>Usa il CSV pulito, non il file legacy sporco. I contatti aperti devono avere un follow-up: il file generato lo include già.</span>
+          <span>
+            Usa il CSV pulito, non il file legacy sporco. Se attivi la lista separata Vinitaly, i contatti non entrano nel CRM operativo
+            e non generano task finché non risponde qualcuno via email.
+          </span>
         </div>
+
+        <div className="detail-grid" style={{ marginTop: 0 }}>
+          <div className="fg">
+            <label className="fl">Origine di default</label>
+            <input
+              className="fi"
+              value={defaultSource}
+              onChange={(event) => setDefaultSource(event.target.value)}
+              placeholder="vinitaly"
+            />
+          </div>
+          <div className="fg">
+            <label className="fl">Categoria di default</label>
+            <input
+              className="fi"
+              value={defaultCategory}
+              onChange={(event) => setDefaultCategory(event.target.value)}
+              placeholder="vinitaly-winery"
+            />
+          </div>
+        </div>
+
+        <label className="meta-card" style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={separateList}
+            onChange={(event) => setSeparateList(event.target.checked)}
+            style={{ marginTop: 3 }}
+          />
+          <span>
+            <strong style={{ display: 'block', marginBottom: 4 }}>Tieni separato da CRM e pipeline</strong>
+            I contatti vengono importati in una lista Vinitaly dedicata e vengono promossi nel CRM operativo solo dopo una reply email.
+          </span>
+        </label>
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <input type="file" accept=".csv,text/csv" onChange={handleFileChange} />
@@ -109,8 +164,12 @@ export default function ImportPage() {
             <span>Task follow-up creati</span>
           </div>
           <div className="meta-card">
-            <strong>CRM live</strong>
-            <span>I dati sono subito visibili in Pipeline, Contatti e Attività.</span>
+            <strong>{result.contact_scope === 'holding' ? 'Lista separata' : 'CRM live'}</strong>
+            <span>
+              {result.contact_scope === 'holding'
+                ? 'I dati vanno nella vista Vinitaly e restano fuori da Pipeline, Contatti e Attività finché non arriva una reply.'
+                : 'I dati sono subito visibili in Pipeline, Contatti e Attività.'}
+            </span>
           </div>
         </div>
       )}

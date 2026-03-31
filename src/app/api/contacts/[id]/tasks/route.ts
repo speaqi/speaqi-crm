@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 import { isClosedStatus } from '@/lib/data'
+import { normalizeTaskAction, normalizeTaskPriority, syncLeadActionDates } from '@/lib/server/ai-ready'
+import { isCallTaskType } from '@/lib/schedule'
 import { createActivities, formatActivityDate, updateContactSummary } from '@/lib/server/crm'
 import { requireRouteUser } from '@/lib/server/supabase'
 
@@ -64,24 +66,19 @@ export async function POST(request: NextRequest, context: RouteContext) {
         user_id: auth.user.id,
         contact_id: id,
         type,
+        action: normalizeTaskAction(body.action, type),
         due_date: dueDate,
+        priority: normalizeTaskPriority(body.priority),
         status: 'pending',
         note: body.note ? String(body.note) : null,
+        idempotency_key: body.idempotency_key ? String(body.idempotency_key) : null,
       })
       .select('*')
       .single()
 
     if (error) throw error
 
-    const { error: updateError } = await auth.supabase
-      .from('contacts')
-      .update({
-        next_followup_at: dueDate,
-      })
-      .eq('user_id', auth.user.id)
-      .eq('id', id)
-
-    if (updateError) throw updateError
+    const syncedDates = await syncLeadActionDates(auth.supabase, auth.user.id, id)
 
     const activityContent = [
       `Creato task ${task.type}.`,
@@ -100,7 +97,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     ])
     await updateContactSummary(auth.supabase, id, activityContent, {
-      nextFollowupAt: dueDate,
+      nextFollowupAt: isCallTaskType(type) ? syncedDates.nextFollowupAt : undefined,
     })
 
     return Response.json({ task }, { status: 201 })

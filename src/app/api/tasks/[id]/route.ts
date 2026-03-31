@@ -1,5 +1,12 @@
 import { NextRequest } from 'next/server'
-import { createActivities, formatActivityDate, updateContactSummary } from '@/lib/server/crm'
+import { syncLeadActionDates } from '@/lib/server/ai-ready'
+import { isCallTaskType } from '@/lib/schedule'
+import {
+  createActivities,
+  formatActivityDate,
+  syncContactNextFollowupFromPendingTasks,
+  updateContactSummary,
+} from '@/lib/server/crm'
 import { requireRouteUser } from '@/lib/server/supabase'
 
 type RouteContext = {
@@ -28,6 +35,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     if (body.note !== undefined) updatePayload.note = String(body.note || '')
     if (body.due_date !== undefined) updatePayload.due_date = body.due_date || null
+    if (body.priority !== undefined) updatePayload.priority = body.priority || 'medium'
+    if (body.action !== undefined) updatePayload.action = body.action || null
     if (nextStatus) {
       updatePayload.status = nextStatus
       updatePayload.completed_at = nextStatus === 'done' ? new Date().toISOString() : null
@@ -42,6 +51,16 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       .single()
 
     if (error) throw error
+
+    let syncedNextFollowupAt: string | null | undefined
+    if (
+      (currentTask.due_date || null) !== (data.due_date || null) ||
+      currentTask.status !== data.status ||
+      (currentTask.action || null) !== (data.action || null)
+    ) {
+      const syncedDates = await syncLeadActionDates(auth.supabase, auth.user.id, data.contact_id)
+      syncedNextFollowupAt = syncedDates.nextFollowupAt
+    }
 
     const changes: string[] = []
     if (currentTask.status !== data.status) {
@@ -70,7 +89,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         },
       ])
       await updateContactSummary(auth.supabase, data.contact_id, activityContent, {
-        nextFollowupAt: data.type === 'follow-up' && data.status === 'pending' ? data.due_date : undefined,
+        nextFollowupAt: isCallTaskType(data.type) ? syncedNextFollowupAt : undefined,
       })
     }
 

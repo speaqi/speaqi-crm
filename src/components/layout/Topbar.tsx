@@ -11,6 +11,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/import': '📥 Import CSV',
   '/attivita': '⚙️ Attività & Follow-up',
   '/calendario': '📅 Calendario',
+  '/vinitaly': '🍷 Vinitaly',
   '/speaqi': '⚡ Lead Inbound',
   '/voice': '🎤 Note Vocali',
 }

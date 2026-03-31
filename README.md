@@ -16,6 +16,7 @@ CRM operativo per pipeline, follow-up e lead ingestion.
 2. Applica la migration Supabase:
    - [`supabase/migrations/20260325150000_crm_schema.sql`](/Users/massimo/Documents/thebest/speaqi-crm/supabase/migrations/20260325150000_crm_schema.sql)
    - [`supabase/migrations/20260327154240_gmail_integration.sql`](/Users/massimo/Documents/thebest/speaqi-crm/supabase/migrations/20260327154240_gmail_integration.sql)
+   - [`supabase/migrations/20260330094500_ai_ready_crm.sql`](/Users/massimo/Documents/thebest/speaqi-crm/supabase/migrations/20260330094500_ai_ready_crm.sql)
 3. Avvia l'app:
 
 ```bash
@@ -27,10 +28,19 @@ npm run dev
 - `contacts`: lead e contatti commerciali
 - `activities`: timeline completa delle interazioni
 - `tasks`: prossime azioni e follow-up
+- `lead_memories`: memoria sintetica AI per lead
+- `ai_decision_logs`: audit delle decisioni prese dagli endpoint AI
 - `pipeline_stages`: stadi configurabili della pipeline
 - `email_logs`: log minimo degli invii
 - `gmail_accounts`: account Gmail collegato per utente
 - `gmail_messages`: thread email sincronizzati e legati ai contatti
+
+Campi AI-ready aggiunti:
+
+- `contacts.company`, `contacts.country`, `contacts.language`
+- `contacts.category`, `contacts.score`, `contacts.assigned_agent`, `contacts.next_action_at`
+- `activities.metadata`
+- `tasks.action`, `tasks.priority`, `tasks.idempotency_key`
 
 ## Rotte principali
 
@@ -47,6 +57,52 @@ npm run dev
 - `POST /api/speaqi/leads`
 - `POST /api/automation/followups`
 - `POST /api/automation/stale-leads`
+- `POST /api/voice/command`
+
+## API AI-ready
+
+Layer spec-compatible sopra il modello storico `contacts/activities/tasks`, pensato per agenti esterni che devono leggere e scrivere tutto dal CRM.
+
+Swagger / OpenAPI:
+
+- UI navigabile: `/api-docs`
+- spec JSON: `/api/openapi/speaqi-call`
+
+Lead management:
+
+- `GET /api/leads?status=&limit=&source=&category=`
+- `GET /api/leads/:id`
+- `POST /api/leads`
+- `POST /api/leads/update`
+- `POST /api/leads/:id/status`
+- `GET /api/leads/next-actions`
+
+Memory:
+
+- `GET /api/leads/:id/memory`
+- `POST /api/leads/:id/memory/update`
+- `POST /api/ai/update-memory`
+
+Activity e task:
+
+- `POST /api/activity/log`
+- `GET /api/tasks/pending`
+- `POST /api/tasks/create`
+- `POST /api/tasks/:id/complete`
+
+AI endpoints:
+
+- `POST /api/ai/classify-reply`
+- `POST /api/ai/next-action`
+- `POST /api/ai/score-lead`
+
+Comportamento chiave:
+
+- `email_sent` crea un task di attesa/follow-up a 24h
+- `email_reply` aggiorna memoria, stato, score e next action
+- `next_action_at` e `next_followup_at` vengono riallineati ai task pending
+- i task possono essere resi idempotenti via `idempotency_key`
+- le automazioni `/api/automation/followups` e `/api/automation/stale-leads` supportano filtro `category` e `source`
 
 ## Gmail
 
@@ -56,6 +112,7 @@ Variabili richieste in `.env.local`:
 - `GOOGLE_CLIENT_SECRET`
 - `GOOGLE_REDIRECT_URI`
 - `GMAIL_TOKEN_ENCRYPTION_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
 Callback OAuth da registrare nel progetto Google Cloud:
 
@@ -68,6 +125,20 @@ Flusso attuale:
 - invio email direttamente nella scheda contatto
 - sync dei messaggi Gmail nella scheda contatto, con recupero delle email già inviate o ricevute per quel contatto
 - follow-up opzionale creato automaticamente dopo un invio email dal CRM
+
+## Voice commands
+
+Variabili richieste in `.env.local`:
+
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL` opzionale, default `gpt-5-mini`
+
+Flusso attuale:
+
+- pagina [`/voice`](/Users/massimo/Documents/thebest/speaqi-crm/src/app/(app)/voice/page.tsx) per registrare o incollare il comando
+- endpoint [`/api/voice/command`](/Users/massimo/Documents/thebest/speaqi-crm/src/app/api/voice/command/route.ts) che interpreta il testo con OpenAI
+- match dei candidati fatto sulle schede CRM usando nome, telefono, email e `legacy_id`
+- se il match e affidabile, il CRM pianifica subito il task di follow-up e aggiorna il calendario
 
 ## Migrazione legacy
 
@@ -87,6 +158,11 @@ Lo script genera in `/tmp`:
 
 Per i contatti aperti senza `Scadenza`, lo script assegna automaticamente un `next_followup_at` a `+3` giorni per restare compatibile con le regole del CRM.
 
+Per import massivi come Vinitaly puoi anche passare:
+
+- `default_source`, ad esempio `vinitaly`
+- `default_category`, ad esempio `vinitaly-winery`
+
 Per importare il CSV pulito dentro Supabase e farlo comparire nel CRM:
 
 ```bash
@@ -98,6 +174,18 @@ Lo script:
 - crea gli stage standard se non esistono
 - fa upsert su `contacts` usando `legacy_id`
 - crea i task `follow-up` mancanti per i contatti aperti
+
+Per i batch Vinitaly che vuoi tenere separati fino a una reply email:
+
+```bash
+npm run import:contacts-csv -- "/percorso/contacts_import.csv" --email "utente@dominio.it" --password "********" --contact-scope holding
+```
+
+In questo caso:
+
+- i record finiscono nella vista separata `Vinitaly`
+- non entrano in pipeline, calendario e follow-up automatici
+- quando Gmail sincronizza una reply inbound, il lead viene promosso automaticamente nel CRM operativo
 
 In alternativa, se hai la service role in `.env.local`, puoi usare `--user-id "<uuid>"`.
 

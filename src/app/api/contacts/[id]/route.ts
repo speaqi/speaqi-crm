@@ -1,5 +1,13 @@
 import { NextRequest } from 'next/server'
-import { createActivities, ensureNextAction, formatActivityDate, updateContactSummary } from '@/lib/server/crm'
+import { isClosedStatus } from '@/lib/data'
+import {
+  completePendingCallTasks,
+  createActivities,
+  ensureNextAction,
+  formatActivityDate,
+  syncPendingCallTask,
+  updateContactSummary,
+} from '@/lib/server/crm'
 import { getGmailAccount, gmailStatus, isMissingRelation } from '@/lib/server/gmail'
 import { requireRouteUser } from '@/lib/server/supabase'
 
@@ -16,6 +24,11 @@ function normalizeNumber(value: unknown) {
   if (value === null || value === undefined || value === '') return null
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function normalizeContactScope(value: unknown, fallback: string) {
+  const normalized = String(value ?? fallback ?? '').trim().toLowerCase()
+  return normalized === 'holding' ? 'holding' : 'crm'
 }
 
 function displayValue(value: unknown) {
@@ -38,14 +51,39 @@ function buildContactUpdateSummary(current: any, next: any) {
   if ((current.phone || null) !== (next.phone || null)) {
     changes.push(`telefono ${displayValue(current.phone)} -> ${displayValue(next.phone)}`)
   }
+  if ((current.category || null) !== (next.category || null)) {
+    changes.push(`categoria ${displayValue(current.category)} -> ${displayValue(next.category)}`)
+  }
+  if ((current.company || null) !== (next.company || null)) {
+    changes.push('azienda aggiornata')
+  }
+  if ((current.country || null) !== (next.country || null)) {
+    changes.push('paese aggiornato')
+  }
+  if ((current.language || null) !== (next.language || null)) {
+    changes.push('lingua aggiornata')
+  }
   if ((current.responsible || null) !== (next.responsible || null)) {
     changes.push(`responsabile ${displayValue(current.responsible)} -> ${displayValue(next.responsible)}`)
+  }
+  if ((current.assigned_agent || null) !== (next.assigned_agent || null)) {
+    changes.push('assegnazione agente aggiornata')
   }
   if ((current.source || null) !== (next.source || null)) {
     changes.push(`origine ${displayValue(current.source)} -> ${displayValue(next.source)}`)
   }
+  if ((current.contact_scope || 'crm') !== (next.contact_scope || 'crm')) {
+    changes.push(
+      (next.contact_scope || 'crm') === 'holding'
+        ? 'spostato in lista separata'
+        : 'promosso nel CRM operativo'
+    )
+  }
   if (Number(current.priority || 0) !== Number(next.priority || 0)) {
     changes.push(`priorità ${current.priority} -> ${next.priority}`)
+  }
+  if (Number(current.score || 0) !== Number(next.score || 0)) {
+    changes.push(`score ${current.score || 0} -> ${next.score || 0}`)
   }
   if ((current.value ?? null) !== (next.value ?? null)) {
     changes.push(`valore ${displayValue(current.value)} -> ${displayValue(next.value)}`)
@@ -143,14 +181,21 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const body = await request.json()
     const current = await getContactRecord(auth.supabase, auth.user.id, id)
     const nextStatus = String(body.status || current.status)
-    const nextFollowupAt =
+    const nextContactScope = normalizeContactScope(body.contact_scope, current.contact_scope || 'crm')
+    const requestedFollowupAt =
       body.next_followup_at === ''
         ? null
         : body.next_followup_at
           ? String(body.next_followup_at)
           : current.next_followup_at
+    const nextFollowupAt =
+      nextContactScope === 'holding' || isClosedStatus(nextStatus)
+        ? null
+        : requestedFollowupAt
 
-    await ensureNextAction(auth.supabase, auth.user.id, id, nextStatus, nextFollowupAt)
+    if (nextContactScope !== 'holding') {
+      await ensureNextAction(auth.supabase, auth.user.id, id, nextStatus, nextFollowupAt)
+    }
 
     const { data, error } = await auth.supabase
       .from('contacts')
@@ -158,16 +203,32 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         name: body.name ? String(body.name).trim() : current.name,
         email: body.email !== undefined ? normalizeText(body.email) : current.email,
         phone: body.phone !== undefined ? normalizeText(body.phone) : current.phone,
+        category: body.category !== undefined ? normalizeText(body.category) : current.category,
+        company: body.company !== undefined ? normalizeText(body.company) : current.company,
+        country: body.country !== undefined ? normalizeText(body.country) : current.country,
+        language: body.language !== undefined ? normalizeText(body.language) : current.language,
         status: nextStatus,
         source: body.source !== undefined ? normalizeText(body.source) : current.source,
+        contact_scope: nextContactScope,
+        promoted_at:
+          (current.contact_scope || 'crm') === 'holding' && nextContactScope === 'crm'
+            ? new Date().toISOString()
+            : current.promoted_at,
         priority:
           body.priority !== undefined
             ? Math.max(0, Math.min(3, Number(body.priority || 0)))
             : current.priority,
+        score:
+          body.score !== undefined
+            ? Math.max(0, Math.min(100, Number(body.score || 0)))
+            : current.score,
+        assigned_agent:
+          body.assigned_agent !== undefined ? normalizeText(body.assigned_agent) : current.assigned_agent,
         responsible:
           body.responsible !== undefined ? normalizeText(body.responsible) : current.responsible,
         value: body.value !== undefined ? normalizeNumber(body.value) : current.value,
         note: body.note !== undefined ? normalizeText(body.note) : current.note,
+        next_action_at: nextFollowupAt,
         next_followup_at: nextFollowupAt,
       })
       .eq('user_id', auth.user.id)
@@ -176,6 +237,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       .single()
 
     if (error) throw error
+
+    if (isClosedStatus(nextStatus)) {
+      await completePendingCallTasks(auth.supabase, auth.user.id, id)
+    } else if (nextContactScope === 'holding') {
+      await completePendingCallTasks(auth.supabase, auth.user.id, id)
+    } else if (nextFollowupAt) {
+      await syncPendingCallTask(auth.supabase, auth.user.id, id, nextFollowupAt)
+    }
 
     const activityContent = buildContactUpdateSummary(current, data)
     if (activityContent) {
@@ -188,7 +257,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         },
       ])
       await updateContactSummary(auth.supabase, id, activityContent, {
-        nextFollowupAt: nextFollowupAt,
+        nextFollowupAt: nextContactScope === 'holding' ? null : nextFollowupAt,
       })
     }
 

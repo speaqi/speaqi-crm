@@ -14,9 +14,15 @@ export interface CRMContact {
   name: string
   email?: string | null
   phone?: string | null
+  category?: string | null
+  company?: string | null
+  country?: string | null
+  language?: string | null
   status: string
   source?: string | null
   priority: number
+  score?: number | null
+  assigned_agent?: string | null
   responsible?: string | null
   value?: number | null
   note?: string | null
@@ -26,6 +32,13 @@ export interface CRMContact {
   last_activity_summary?: string | null
   last_contact_at?: string | null
   next_followup_at?: string | null
+  next_action_at?: string | null
+  email_open_count?: number | null
+  email_click_count?: number | null
+  last_email_open_at?: string | null
+  last_email_click_at?: string | null
+  email_unsubscribed_at?: string | null
+  email_unsubscribe_source?: string | null
   created_at: string
   updated_at: string
 }
@@ -36,6 +49,7 @@ export interface Activity {
   user_id?: string
   type: string
   content?: string | null
+  metadata?: Record<string, unknown> | null
   created_at: string
 }
 
@@ -44,9 +58,12 @@ export interface Task {
   contact_id: string
   user_id?: string
   type: string
+  action?: 'send_email' | 'call' | 'wait' | null
   due_date?: string | null
+  priority?: 'low' | 'medium' | 'high' | null
   status: 'pending' | 'done'
   note?: string | null
+  idempotency_key?: string | null
   completed_at?: string | null
   created_at: string
   updated_at: string
@@ -94,27 +111,38 @@ export interface ContactInput {
   name: string
   email?: string
   phone?: string
+  category?: string
+  company?: string
+  country?: string
+  language?: string
   status: string
   source?: string
   priority: number
+  score?: number | null
+  assigned_agent?: string
   responsible?: string
   value?: number | null
   note?: string
   contact_scope?: 'crm' | 'holding'
   next_followup_at?: string | null
+  next_action_at?: string | null
 }
 
 export interface ActivityInput {
   type: string
   content: string
+  metadata?: Record<string, unknown>
   next_followup_at?: string | null
   task_type?: string
 }
 
 export interface TaskInput {
   type: string
+  action?: 'send_email' | 'call' | 'wait'
   due_date: string
+  priority?: 'low' | 'medium' | 'high'
   note?: string
+  idempotency_key?: string
 }
 
 export interface GmailAccountStatus {
@@ -141,4 +169,54 @@ export interface GmailMessage {
   sent_at?: string | null
   synced_at: string
   created_at: string
+}
+
+export interface SentMessageHistoryItem {
+  id: string
+  source: string
+  subject?: string | null
+  recipient: string
+  status?: string | null
+  sent_at: string
+  contact?: {
+    id: string
+    name: string
+  } | null
+}
+
+export interface LeadMemory {
+  id?: string
+  lead_id: string
+  summary?: string | null
+  last_intent?: string | null
+  tone?: string | null
+  language_detected?: string | null
+  last_updated?: string
+  created_at?: string
+}
+
+export interface SpecLead {
+  id: string
+  email?: string | null
+  phone?: string | null
+  name: string
+  category?: string | null
+  company?: string | null
+  country?: string | null
+  language?: string | null
+  status: string
+  score: number
+  source?: string | null
+  assigned_agent?: string | null
+  last_contact_at?: string | null
+  next_action_at?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface NextActionSuggestion {
+  action: 'send_email' | 'call' | 'wait'
+  delay_hours: number
+  priority: 'low' | 'medium' | 'high'
+  reason?: string | null
 }

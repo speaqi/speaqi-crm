@@ -10,7 +10,15 @@ export const DEFAULT_PIPELINE_STAGES: Array<Omit<PipelineStage, 'id'>> = [
   { name: 'Closed', order: 6, color: '#059669', system_key: 'closed' },
 ]
 
-export const SOURCE_OPTIONS = ['manual', 'speaqi', 'evento', 'import', 'legacy-kanban']
+export const SOURCE_OPTIONS = ['manual', 'speaqi', 'vinitaly', 'evento', 'import', 'legacy-kanban']
+export const LEAD_CATEGORY_SUGGESTIONS = [
+  'vinitaly-winery',
+  'vinitaly-importer',
+  'vinitaly-buyer',
+  'vinitaly-distributor',
+  'vinitaly-partner',
+  'vinitaly-press',
+]
 
 export const ACTIVITY_TYPES = ['call', 'email', 'msg', 'note']
 
@@ -29,6 +37,8 @@ export const EMPTY_CONTACT_INPUT: ContactInput = {
   phone: '',
   status: 'New',
   source: 'manual',
+  contact_scope: 'crm',
+  category: '',
   priority: 0,
   responsible: '',
   value: null,
@@ -48,6 +58,8 @@ export function sourceLabel(source?: string | null) {
       return 'Inbound'
     case 'evento':
       return 'Evento'
+    case 'vinitaly':
+      return 'Vinitaly'
     case 'import':
       return 'Import'
     case 'legacy-kanban':
@@ -57,21 +69,39 @@ export function sourceLabel(source?: string | null) {
   }
 }
 
+export function contactScopeLabel(scope?: string | null) {
+  switch (scope || 'crm') {
+    case 'holding':
+      return 'Lista separata'
+    case 'crm':
+    default:
+      return 'CRM'
+  }
+}
+
 export function statusLabel(status?: string | null) {
   switch (status || '') {
     case 'New':
+    case 'new':
       return 'Nuovo'
     case 'Contacted':
+    case 'contacted':
       return 'Contattato'
+    case 'replied':
+      return 'Ha risposto'
     case 'Interested':
+    case 'interested':
       return 'Interessato'
     case 'Call booked':
+    case 'call_scheduled':
       return 'Call fissata'
     case 'Quote':
       return 'Preventivo'
     case 'Lost':
+    case 'not_interested':
       return 'Perso'
     case 'Closed':
+    case 'closed':
       return 'Chiuso'
     default:
       return status || ''
@@ -84,10 +114,16 @@ export function activityTypeLabel(type: string) {
       return 'Chiamata'
     case 'email':
       return 'Email'
+    case 'email_sent':
+      return 'Email inviata'
     case 'email_open':
       return 'Email aperta'
     case 'email_click':
       return 'Click email'
+    case 'unsubscribe':
+      return 'Disiscrizione'
+    case 'email_reply':
+      return 'Risposta email'
     case 'msg':
       return 'Messaggio'
     case 'note':
@@ -98,8 +134,6 @@ export function activityTypeLabel(type: string) {
       return 'Sistema'
     case 'import':
       return 'Import'
-    case 'unsubscribe':
-      return 'Disiscrizione'
     default:
       return type
   }
@@ -183,7 +217,11 @@ export function fromDatetimeLocalValue(value?: string | null) {
 
 export function isClosedStatus(status: string) {
   const normalized = status.toLowerCase()
-  return normalized === 'closed' || normalized === 'lost'
+  return normalized === 'closed' || normalized === 'lost' || normalized === 'not_interested'
+}
+
+export function isHoldingContact(contact: Pick<CRMContact, 'contact_scope'>) {
+  return (contact.contact_scope || 'crm') === 'holding'
 }
 
 export function isOverdue(value?: string | null) {
