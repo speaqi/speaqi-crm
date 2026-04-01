@@ -21,6 +21,7 @@ type ContactRow = {
   phone?: string | null
   status: string
   source?: string | null
+  contact_scope?: 'crm' | 'holding' | null
   priority?: number | null
   category?: string | null
   company?: string | null
@@ -113,6 +114,15 @@ function firstString(value: unknown): string | null {
 function normalizeEmail(value: unknown) {
   const normalized = String(firstString(value) || '').trim().toLowerCase()
   return normalized || null
+}
+
+function normalizeText(value: unknown) {
+  const normalized = String(value || '').trim()
+  return normalized || null
+}
+
+function normalizeContactScope(value: unknown) {
+  return String(value || '').trim().toLowerCase() === 'crm' ? 'crm' : 'holding'
 }
 
 function normalizeTimestamp(value: unknown) {
@@ -325,6 +335,14 @@ function defaultNextActionAt() {
   return new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
 }
 
+function readAcumbamailContactDefaults() {
+  return {
+    source: normalizeText(process.env.ACUMBAMAIL_DEFAULT_SOURCE) || 'vinitaly',
+    contactScope: normalizeContactScope(process.env.ACUMBAMAIL_DEFAULT_CONTACT_SCOPE || 'holding') as 'crm' | 'holding',
+    category: normalizeText(process.env.ACUMBAMAIL_DEFAULT_CATEGORY),
+  }
+}
+
 function activityTypeForEvent(event: AcumbamailEventName) {
   switch (event) {
     case 'opens':
@@ -382,10 +400,23 @@ async function createContactFromWebhook(
 ) {
   await ensurePipelineStages(supabase, userId)
 
+  const defaults = readAcumbamailContactDefaults()
   const shouldSuppressFollowup = event.event === 'unsubscribes'
-  const nextActionAt = shouldSuppressFollowup ? null : defaultNextActionAt()
+  const nextActionAt =
+    shouldSuppressFollowup || defaults.contactScope === 'holding'
+      ? null
+      : defaultNextActionAt()
   const status = shouldSuppressFollowup ? 'Lost' : 'New'
   const summary = contentForEvent(event)
+  const note = [
+    `Creato automaticamente da webhook Acumbamail (${event.event}).`,
+    defaults.contactScope === 'holding'
+      ? 'Instradato automaticamente nella lista Vinitaly separata.'
+      : 'Inserito automaticamente nel CRM operativo.',
+    defaults.category ? `Categoria predefinita: ${defaults.category}.` : null,
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   const { data, error } = await supabase
     .from('contacts')
@@ -394,10 +425,11 @@ async function createContactFromWebhook(
       name: inferContactName(event.email),
       email: event.email,
       status,
-      source: 'acumbamail',
-      contact_scope: 'crm',
+      source: defaults.source,
+      contact_scope: defaults.contactScope,
       priority: event.event === 'clicks' ? 3 : 2,
-      note: `Creato automaticamente da webhook Acumbamail (${event.event}).`,
+      category: defaults.category,
+      note,
       last_activity_summary: summary,
       next_action_at: nextActionAt,
       next_followup_at: nextActionAt,

@@ -99,7 +99,8 @@ export default function VinitalyPage() {
         <div className="dash-card-title">Regola Vinitaly</div>
         <p style={{ color: 'var(--text2)', fontSize: 14, lineHeight: 1.6, margin: 0 }}>
           Questi contatti restano fuori da pipeline, calendario e follow-up automatici. Quando una reply email viene sincronizzata,
-          il lead viene promosso automaticamente nel CRM operativo.
+          il lead viene promosso automaticamente nel CRM operativo. I lead creati via webhook Acumbamail per la campagna Vinitaly
+          finiscono qui automaticamente.
         </p>
       </div>
 

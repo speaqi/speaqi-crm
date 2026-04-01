@@ -186,6 +186,7 @@ In questo caso:
 - i record finiscono nella vista separata `Vinitaly`
 - non entrano in pipeline, calendario e follow-up automatici
 - quando Gmail sincronizza una reply inbound, il lead viene promosso automaticamente nel CRM operativo
+- i lead creati via webhook Acumbamail possono seguire la stessa logica impostando `ACUMBAMAIL_DEFAULT_SOURCE=vinitaly` e `ACUMBAMAIL_DEFAULT_CONTACT_SCOPE=holding`
 
 In alternativa, se hai la service role in `.env.local`, puoi usare `--user-id "<uuid>"`.
 
@@ -196,3 +197,13 @@ I workflow template sono in:
 - [`n8n/workflows/01-followups.json`](/Users/massimo/Documents/thebest/speaqi-crm/n8n/workflows/01-followups.json)
 - [`n8n/workflows/02-stale-leads.json`](/Users/massimo/Documents/thebest/speaqi-crm/n8n/workflows/02-stale-leads.json)
 - [`n8n/workflows/03-speaqi-webhook.json`](/Users/massimo/Documents/thebest/speaqi-crm/n8n/workflows/03-speaqi-webhook.json)
+
+## Acumbamail webhook
+
+Per la campagna Vinitaly, i lead creati automaticamente dal webhook possono essere instradati subito nella lista separata:
+
+- `ACUMBAMAIL_DEFAULT_SOURCE=vinitaly`
+- `ACUMBAMAIL_DEFAULT_CONTACT_SCOPE=holding`
+- `ACUMBAMAIL_DEFAULT_CATEGORY=` opzionale se vuoi precompilare una categoria
+
+Con questa configurazione i contatti creati dal webhook non entrano nel CRM operativo finché non arriva una reply email sincronizzata via Gmail.
