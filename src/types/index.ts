@@ -53,6 +53,18 @@ export interface Activity {
   created_at: string
 }
 
+export interface ActivityContactSnapshot {
+  id: string
+  name: string
+  status?: string | null
+  priority?: number | null
+  contact_scope?: 'crm' | 'holding' | null
+}
+
+export interface ActivityWithContact extends Activity {
+  contact?: ActivityContactSnapshot | null
+}
+
 export interface Task {
   id: string
   contact_id: string
