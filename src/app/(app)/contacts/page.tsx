@@ -63,8 +63,10 @@ export default function ContactsPage() {
       if (
         query &&
         !contact.name.toLowerCase().includes(query) &&
+        !(contact.company || '').toLowerCase().includes(query) &&
         !(contact.email || '').toLowerCase().includes(query) &&
         !(contact.phone || '').toLowerCase().includes(query) &&
+        !(contact.event_tag || '').toLowerCase().includes(query) &&
         !(contact.category || '').toLowerCase().includes(query)
       ) {
         return false
@@ -225,14 +227,17 @@ export default function ContactsPage() {
                 <div key={contact.id} className="contact-card contact-card-rich">
                   <Link href={`/contacts/${contact.id}`} className="contact-card-link">
                     <div className="contact-name">{contact.name}</div>
+                    <div className="contact-meta">{contact.company || 'Azienda non impostata'}</div>
                     <div className="contact-meta">{contact.email || 'Nessuna email'}</div>
                     <div className="contact-meta">{contact.phone || 'Nessun telefono'}</div>
                     <div className="contact-meta">Origine: {sourceLabel(contact.source)}</div>
+                    <div className="contact-meta">Evento: {contact.event_tag || 'Non assegnato'}</div>
                     <div className="contact-meta">Categoria: {contact.category || 'Non assegnata'}</div>
                     <div className="contact-meta">Follow-up: {formatDateTime(scheduledCall?.due_at || contact.next_followup_at)}</div>
                     <div className="contact-tags">
                       <span className="ctag ctag-contattato">{statusLabel(contact.status)}</span>
                       <span className={`ctag ${priorityBadgeClass(contact.priority)}`}>{priorityLabel(contact.priority)}</span>
+                      {contact.event_tag && <span className="ctag ctag-event">{contact.event_tag}</span>}
                       {contact.category && <span className="ctag ctag-comune">{contact.category}</span>}
                       {scheduledCall && <span className="ctag ctag-referenziato">{scheduledCall.task_type}</span>}
                       {isNeverContacted(contact) && <span className="ctag ctag-dacontattare">Mai contattato</span>}

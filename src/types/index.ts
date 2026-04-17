@@ -16,6 +16,7 @@ export interface CRMContact {
   phone?: string | null
   category?: string | null
   company?: string | null
+  event_tag?: string | null
   country?: string | null
   language?: string | null
   status: string
@@ -56,6 +57,7 @@ export interface Activity {
 export interface ActivityContactSnapshot {
   id: string
   name: string
+  email?: string | null
   status?: string | null
   priority?: number | null
   contact_scope?: 'crm' | 'holding' | null
@@ -88,6 +90,11 @@ export interface TaskWithContact extends Task {
     status: string
     source?: string | null
     category?: string | null
+    company?: string | null
+    phone?: string | null
+    responsible?: string | null
+    event_tag?: string | null
+    last_activity_summary?: string | null
     contact_scope?: 'crm' | 'holding' | null
     priority: number
     next_followup_at?: string | null
@@ -125,6 +132,7 @@ export interface ContactInput {
   phone?: string
   category?: string
   company?: string
+  event_tag?: string
   country?: string
   language?: string
   status: string
@@ -138,6 +146,7 @@ export interface ContactInput {
   contact_scope?: 'crm' | 'holding'
   next_followup_at?: string | null
   next_action_at?: string | null
+  initial_task_note?: string
 }
 
 export interface ActivityInput {
@@ -146,6 +155,8 @@ export interface ActivityInput {
   metadata?: Record<string, unknown>
   next_followup_at?: string | null
   task_type?: string
+  task_note?: string
+  task_priority?: 'low' | 'medium' | 'high'
 }
 
 export interface TaskInput {

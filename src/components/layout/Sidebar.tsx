@@ -20,6 +20,7 @@ interface SidebarProps {
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: '🏠', section: 'Principale' },
   { href: '/kanban', label: 'Pipeline', icon: '🗂', badgeKey: 'kanban' as const },
+  { href: '/quick-capture', label: 'Quick Capture', icon: '⚡', section: 'CRM' },
   { href: '/contacts', label: 'Contatti', icon: '👥', section: 'CRM', badgeKey: 'contacts' as const },
   { href: '/gmail', label: 'Gmail', icon: '✉️' },
   { href: '/import', label: 'Import CSV', icon: '📥' },

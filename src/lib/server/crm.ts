@@ -325,13 +325,19 @@ export async function updateContactAfterActivity(
   supabase: any,
   contactId: string,
   content: string,
-  nextFollowupAt?: string | null
+  nextFollowupAt?: string | null,
+  options?: {
+    touchLastContactAt?: boolean
+  }
 ) {
   const summary = summarizeContent(content)
   const payload: Record<string, unknown> = {
-    last_contact_at: new Date().toISOString(),
     last_activity_summary: summary,
     updated_at: new Date().toISOString(),
+  }
+
+  if (options?.touchLastContactAt !== false) {
+    payload.last_contact_at = new Date().toISOString()
   }
 
   if (nextFollowupAt) {

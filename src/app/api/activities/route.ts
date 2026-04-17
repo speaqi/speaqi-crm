@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
         contact:contacts (
           id,
           name,
+          email,
           status,
           priority,
           contact_scope

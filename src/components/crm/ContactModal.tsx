@@ -39,6 +39,8 @@ function buildInitialState(contact?: CRMContact | null, defaultSource?: string):
     email: contact.email || '',
     phone: contact.phone || '',
     category: contact.category || '',
+    company: contact.company || '',
+    event_tag: contact.event_tag || '',
     status: contact.status,
     contact_scope: contact.contact_scope || 'crm',
     source: contact.source || defaultSource || 'manual',
@@ -88,6 +90,8 @@ export function ContactModal({
         email: form.email?.trim(),
         phone: form.phone?.trim(),
         category: form.category?.trim(),
+        company: form.company?.trim(),
+        event_tag: form.event_tag?.trim(),
         source: form.source?.trim(),
         responsible: form.responsible?.trim(),
         note: form.note?.trim(),
@@ -139,6 +143,27 @@ export function ContactModal({
           onChange={(event) => setForm((previous) => ({ ...previous, name: event.target.value }))}
           placeholder="Es. Comune di Roma"
         />
+      </div>
+
+      <div className="frow">
+        <div className="fg">
+          <label className="fl">Azienda</label>
+          <input
+            className="fi"
+            value={form.company || ''}
+            onChange={(event) => setForm((previous) => ({ ...previous, company: event.target.value }))}
+            placeholder="Es. Acme SRL"
+          />
+        </div>
+        <div className="fg">
+          <label className="fl">Event Tag</label>
+          <input
+            className="fi"
+            value={form.event_tag || ''}
+            onChange={(event) => setForm((previous) => ({ ...previous, event_tag: event.target.value }))}
+            placeholder="Es. Fiera Milano 2026"
+          />
+        </div>
       </div>
 
       <div className="frow">

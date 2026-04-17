@@ -41,6 +41,20 @@ function formatDayHeading(date: Date) {
   })
 }
 
+function shiftTaskDueDate(value: string | null | undefined, days: number) {
+  const base = value ? new Date(value) : new Date()
+  if (Number.isNaN(base.getTime())) {
+    const fallback = new Date()
+    fallback.setHours(10, 0, 0, 0)
+    fallback.setDate(fallback.getDate() + days)
+    return fallback.toISOString()
+  }
+
+  const next = new Date(base)
+  next.setDate(next.getDate() + days)
+  return next.toISOString()
+}
+
 function getInitialCalendarDateKey(scheduledCalls: ScheduledCall[]) {
   const today = new Date()
   if (isCallableDate(today)) {
@@ -58,7 +72,7 @@ function getInitialCalendarDateKey(scheduledCalls: ScheduledCall[]) {
 }
 
 export default function CalendarioPage() {
-  const { scheduledCalls, stages, completeTask, addActivity, updateContact, refresh, showToast } = useCRMContext()
+  const { scheduledCalls, stages, completeTask, updateTask, addActivity, updateContact, refresh, showToast } = useCRMContext()
   const [selectedDateKey, setSelectedDateKey] = useState(() => getInitialCalendarDateKey(scheduledCalls))
   const [outcomeContact, setOutcomeContact] = useState<CRMContact | null>(null)
   const [outcomeTask, setOutcomeTask] = useState<TaskWithContact | null>(null)
@@ -84,7 +98,6 @@ export default function CalendarioPage() {
   const selectedMissingPhone = selectedCalls.filter((item) => !item.contact.phone).length
   const selectedHighPriority = selectedCalls.filter((item) => item.contact.priority >= 2).length
   const selectedOverdue = selectedCalls.filter((item) => isOverdue(item.due_at)).length
-  const nextCallableLabel = formatDayHeading(nextCallableDateTime(selectedDate))
 
   return (
     <>
@@ -101,8 +114,8 @@ export default function CalendarioPage() {
             <div className="cal-day-title">{formatDayHeading(selectedDate)}</div>
             <div className="cal-day-copy">
               {selectedCallable
-                ? 'Finestra consigliata: 09:00 - 18:00. Usa la coda qui sotto per chiudere le chiamate e aprire subito il follow-up.'
-                : `Questo giorno non e valido per le chiamate. Prossimo giorno utile: ${nextCallableLabel}.`}
+                ? 'Finestra consigliata: 09:00 - 18:00. Puoi pianificare richiamate anche sabato e domenica. Usa la coda qui sotto per chiudere le chiamate e aprire subito il follow-up.'
+                : `Questo giorno non e valido per le chiamate. Prossimo giorno utile: ${formatDayHeading(nextCallableDateTime(selectedDate))}.`}
             </div>
 
             <div className="dash-meta-grid" style={{ marginTop: 16 }}>
@@ -200,7 +213,7 @@ export default function CalendarioPage() {
           <div className="cal-queue-header">
             <div className="week-title">Coda chiamate del giorno</div>
             <div className="call-sub">
-              {selectedCalls.length} pianificate · {selectedCallable ? 'giorno attivo' : 'giorno bloccato'}
+              {selectedCalls.length} pianificate · {selectedCallable ? 'giorno pianificabile' : 'giorno bloccato'}
             </div>
           </div>
 
@@ -231,6 +244,28 @@ export default function CalendarioPage() {
                       </div>
                     </div>
                     <div className="task-actions">
+                      {task && (
+                        <>
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            onClick={async () => {
+                              await updateTask(task.id, { due_date: shiftTaskDueDate(task.due_date, 1) })
+                              showToast('Follow-up spostato di 1 giorno')
+                            }}
+                          >
+                            +1g
+                          </button>
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            onClick={async () => {
+                              await updateTask(task.id, { due_date: shiftTaskDueDate(task.due_date, 7) })
+                              showToast('Follow-up spostato di 7 giorni')
+                            }}
+                          >
+                            +7g
+                          </button>
+                        </>
+                      )}
                       <Link href={`/contacts/${contact.id}`} className="btn btn-ghost btn-sm">
                         Apri
                       </Link>

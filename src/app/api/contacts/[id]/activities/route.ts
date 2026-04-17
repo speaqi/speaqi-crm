@@ -41,6 +41,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const content = String(body.content || '').trim()
     const nextFollowupAt = body.next_followup_at ? String(body.next_followup_at) : null
     const taskType = String(body.task_type || 'follow-up')
+    const metadata = body.metadata && typeof body.metadata === 'object' ? body.metadata : {}
+    const taskPriority =
+      body.task_priority === 'high' || body.task_priority === 'low' || body.task_priority === 'medium'
+        ? body.task_priority
+        : 'medium'
+    const activityMetadata = {
+      ...metadata,
+      has_followup: Boolean(nextFollowupAt),
+      linked_followup_label: body.task_note ? String(body.task_note) : null,
+      linked_followup_priority: taskPriority,
+    }
 
     if (!content) {
       return Response.json({ error: 'Il contenuto attività è obbligatorio' }, { status: 400 })
@@ -64,13 +75,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
         contact_id: id,
         type,
         content,
+        metadata: activityMetadata,
       })
       .select('*')
       .single()
 
     if (error) throw error
 
-    await updateContactAfterActivity(auth.supabase, id, content, nextFollowupAt)
+    await updateContactAfterActivity(auth.supabase, id, content, nextFollowupAt, {
+      touchLastContactAt: type !== 'note' || String(metadata.note_kind || 'field') !== 'internal',
+    })
 
     let task = null
     if (nextFollowupAt) {
@@ -80,7 +94,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
           user_id: auth.user.id,
           contact_id: id,
           type: taskType,
+          action: taskType === 'email' ? 'send_email' : 'call',
           due_date: nextFollowupAt,
+          priority: taskPriority,
           status: 'pending',
           note: body.task_note ? String(body.task_note) : `Follow-up dopo attività ${type}`,
         })

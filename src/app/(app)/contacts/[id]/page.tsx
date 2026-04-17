@@ -8,7 +8,45 @@ import { ContactModal } from '@/components/crm/ContactModal'
 import { apiFetch } from '@/lib/api'
 import { ACTIVITY_TYPES, TASK_TYPES, activityTypeLabel, contactScopeLabel, formatDateTime, fromDatetimeLocalValue, isClosedStatus, isHoldingContact, priorityLabel, sourceLabel, statusLabel, toDatetimeLocalValue } from '@/lib/data'
 import { useCRMContext } from '../../layout'
-import type { ContactDetail, GmailAccountStatus, GmailMessage } from '@/types'
+import type { Activity, ContactDetail, GmailAccountStatus, GmailMessage } from '@/types'
+
+const NOTE_KIND_OPTIONS = [
+  { value: 'field', label: 'Campo' },
+  { value: 'meeting', label: 'Meeting' },
+  { value: 'internal', label: 'Interna' },
+]
+
+const TASK_PRIORITY_OPTIONS = [
+  { value: 'low', label: 'Bassa' },
+  { value: 'medium', label: 'Media' },
+  { value: 'high', label: 'Alta' },
+]
+
+function readActivityMetadata(activity: Activity): Record<string, unknown> {
+  return activity.metadata && typeof activity.metadata === 'object' ? activity.metadata : {}
+}
+
+function noteKindLabel(value: unknown) {
+  switch (String(value || '').trim()) {
+    case 'meeting':
+      return 'Meeting'
+    case 'internal':
+      return 'Interna'
+    case 'field':
+    default:
+      return 'Campo'
+  }
+}
+
+function isPinnedNote(activity: Activity) {
+  const metadata = readActivityMetadata(activity)
+  return activity.type === 'note' && Boolean(metadata.pinned)
+}
+
+function isActionRequiredNote(activity: Activity) {
+  const metadata = readActivityMetadata(activity)
+  return activity.type === 'note' && Boolean(metadata.action_required)
+}
 
 export default function ContactDetailPage() {
   const params = useParams<{ id: string }>()
@@ -16,9 +54,14 @@ export default function ContactDetailPage() {
   const { loadContactDetail, stages, updateContact, deleteContact, addActivity, addTask, completeTask, refresh, showToast } = useCRMContext()
   const [detail, setDetail] = useState<ContactDetail | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activityType, setActivityType] = useState('call')
+  const [activityType, setActivityType] = useState('note')
   const [activityContent, setActivityContent] = useState('')
   const [activityFollowup, setActivityFollowup] = useState('')
+  const [activityNoteKind, setActivityNoteKind] = useState('field')
+  const [activityPinned, setActivityPinned] = useState(false)
+  const [activityActionRequired, setActivityActionRequired] = useState(false)
+  const [activityTaskNote, setActivityTaskNote] = useState('')
+  const [activityTaskPriority, setActivityTaskPriority] = useState<'low' | 'medium' | 'high'>('medium')
   const [taskType, setTaskType] = useState('follow-up')
   const [taskDate, setTaskDate] = useState('')
   const [taskNote, setTaskNote] = useState('')
@@ -101,6 +144,7 @@ export default function ContactDetailPage() {
 
   const { contact, activities, tasks } = detail
   const holdingContact = isHoldingContact(contact)
+  const pinnedNotes = activities.filter((activity) => isPinnedNote(activity) || isActionRequiredNote(activity))
 
   return (
     <>
@@ -133,8 +177,10 @@ export default function ContactDetailPage() {
           <div className="dash-card">
             <div className="dash-card-title">Scheda lead</div>
             <div className="detail-stack">
+              <div><strong>Azienda:</strong> {contact.company || 'Non impostata'}</div>
               <div><strong>Email:</strong> {contact.email || 'Non impostata'}</div>
               <div><strong>Telefono:</strong> {contact.phone || 'Non impostato'}</div>
+              <div><strong>Evento:</strong> {contact.event_tag || 'Non impostato'}</div>
               <div><strong>Categoria:</strong> {contact.category || 'Non assegnata'}</div>
               <div><strong>Responsabile:</strong> {contact.responsible || 'Non assegnato'}</div>
               <div><strong>Lista:</strong> {contactScopeLabel(contact.contact_scope)}</div>
@@ -143,6 +189,33 @@ export default function ContactDetailPage() {
               <div><strong>Prossimo follow-up:</strong> {formatDateTime(contact.next_followup_at)}</div>
               <div><strong>Note:</strong> {contact.note || 'Nessuna nota'}</div>
             </div>
+
+            {pinnedNotes.length > 0 && (
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+                <div className="dash-card-title" style={{ marginBottom: 12 }}>Note in evidenza</div>
+                <div className="timeline-list">
+                  {pinnedNotes.slice(0, 4).map((activity) => (
+                    <div key={activity.id} className="timeline-item">
+                      <div className="timeline-marker" />
+                      <div style={{ minWidth: 0 }}>
+                        <div className="timeline-title">{noteKindLabel(readActivityMetadata(activity).note_kind)}</div>
+                        <div className="timeline-time">{formatDateTime(activity.created_at)}</div>
+                        <div className="timeline-body">{activity.content || 'Nessun contenuto'}</div>
+                        <div className="activity-badge-row">
+                          {isPinnedNote(activity) && <span className="activity-badge">Pinned</span>}
+                          {isActionRequiredNote(activity) && <span className="activity-badge activity-badge-warn">Action Required</span>}
+                          {Boolean(readActivityMetadata(activity).linked_followup_label) && (
+                            <span className="activity-badge">
+                              {String(readActivityMetadata(activity).linked_followup_label)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {(contact.email_open_count || contact.email_click_count || contact.email_unsubscribed_at) ? (
               <div style={{ marginTop: 16, padding: '12px 0 0', borderTop: '1px solid var(--border)' }}>
@@ -168,6 +241,60 @@ export default function ContactDetailPage() {
                 ))}
               </select>
             </div>
+            {activityType === 'note' && (
+              <>
+                <div className="frow">
+                  <div className="fg">
+                    <label className="fl">Tipo nota</label>
+                    <select className="fi" value={activityNoteKind} onChange={(event) => setActivityNoteKind(event.target.value)}>
+                      {NOTE_KIND_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {!holdingContact && (
+                    <div className="fg">
+                      <label className="fl">Priorità follow-up</label>
+                      <select
+                        className="fi"
+                        value={activityTaskPriority}
+                        onChange={(event) =>
+                          setActivityTaskPriority(event.target.value as 'low' | 'medium' | 'high')
+                        }
+                      >
+                        {TASK_PRIORITY_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+                <div className="toggle-row" style={{ marginBottom: 15 }}>
+                  <label className="toggle-chip">
+                    <input
+                      type="checkbox"
+                      checked={activityPinned}
+                      onChange={(event) => setActivityPinned(event.target.checked)}
+                    />
+                    <span>Fissa in alto</span>
+                  </label>
+                  {!holdingContact && (
+                    <label className="toggle-chip">
+                      <input
+                        type="checkbox"
+                        checked={activityActionRequired}
+                        onChange={(event) => setActivityActionRequired(event.target.checked)}
+                      />
+                      <span>Richiede azione</span>
+                    </label>
+                  )}
+                </div>
+              </>
+            )}
             <div className="fg">
               <label className="fl">Contenuto</label>
               <textarea
@@ -180,28 +307,61 @@ export default function ContactDetailPage() {
               />
             </div>
             {!holdingContact && (
-              <div className="fg">
-                <label className="fl">Prossimo follow-up</label>
-                <input
-                  className="fi"
-                  type="datetime-local"
-                  value={activityFollowup}
-                  onChange={(event) => setActivityFollowup(event.target.value)}
-                />
-              </div>
+              <>
+                <div className="fg">
+                  <label className="fl">Prossimo follow-up</label>
+                  <input
+                    className="fi"
+                    type="datetime-local"
+                    value={activityFollowup}
+                    onChange={(event) => setActivityFollowup(event.target.value)}
+                  />
+                </div>
+                {activityType === 'note' && (
+                  <div className="fg">
+                    <label className="fl">Label follow-up</label>
+                    <input
+                      className="fi"
+                      value={activityTaskNote}
+                      onChange={(event) => setActivityTaskNote(event.target.value)}
+                      placeholder="Es. Invia listino aggiornato"
+                    />
+                  </div>
+                )}
+              </>
             )}
             <button
               className="btn btn-primary"
               onClick={async () => {
                 try {
+                  if (activityType === 'note' && activityActionRequired && !activityFollowup) {
+                    window.alert('Le note che richiedono azione devono avere un follow-up')
+                    return
+                  }
+
                   await addActivity(contact.id, {
                     type: activityType,
                     content: activityContent,
+                    metadata:
+                      activityType === 'note'
+                        ? {
+                            note_kind: activityNoteKind,
+                            pinned: activityPinned,
+                            action_required: activityActionRequired,
+                          }
+                        : undefined,
                     next_followup_at: holdingContact ? undefined : fromDatetimeLocalValue(activityFollowup),
                     task_type: 'follow-up',
+                    task_note: activityTaskNote,
+                    task_priority: activityTaskPriority,
                   })
                   setActivityContent('')
                   setActivityFollowup('')
+                  setActivityPinned(false)
+                  setActivityActionRequired(false)
+                  setActivityTaskNote('')
+                  setActivityTaskPriority('medium')
+                  setActivityNoteKind('field')
                   showToast('Attività registrata')
                   await loadDetail(false)
                 } catch (error) {
@@ -228,6 +388,22 @@ export default function ContactDetailPage() {
                       <div className="timeline-title">{activityTypeLabel(activity.type)}</div>
                       <div className="timeline-time">{formatDateTime(activity.created_at)}</div>
                       <div className="timeline-body">{activity.content || 'Nessun contenuto'}</div>
+                      {activity.type === 'note' && (
+                        <div className="activity-badge-row">
+                          <span className="activity-badge">
+                            {noteKindLabel(readActivityMetadata(activity).note_kind)}
+                          </span>
+                          {isPinnedNote(activity) && <span className="activity-badge">Pinned</span>}
+                          {isActionRequiredNote(activity) && (
+                            <span className="activity-badge activity-badge-warn">Action Required</span>
+                          )}
+                          {Boolean(readActivityMetadata(activity).linked_followup_label) && (
+                            <span className="activity-badge">
+                              {String(readActivityMetadata(activity).linked_followup_label)}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))

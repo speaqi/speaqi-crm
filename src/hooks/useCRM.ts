@@ -48,6 +48,11 @@ function buildTaskContactSnapshot(contact?: CRMContact | null) {
     status: contact.status,
     source: contact.source,
     category: contact.category,
+    company: contact.company,
+    phone: contact.phone,
+    responsible: contact.responsible,
+    event_tag: contact.event_tag,
+    last_activity_summary: contact.last_activity_summary,
     contact_scope: contact.contact_scope,
     priority: contact.priority,
     next_followup_at: contact.next_followup_at,
@@ -445,6 +450,47 @@ export function useCRM() {
     [loadAll]
   )
 
+  const updateTask = useCallback(
+    async (
+      taskId: string,
+      payload: Partial<Pick<TaskInput, 'due_date' | 'priority' | 'note' | 'action'>> & {
+        status?: 'pending' | 'done'
+      },
+      options: MutationOptions = {}
+    ) => {
+      const response = await apiFetch<{ task: TaskWithContact }>(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      setState((previous) => ({
+        ...previous,
+        tasks:
+          response.task.status === 'done'
+            ? previous.tasks.filter((task) => task.id !== taskId)
+            : sortTasks(
+                previous.tasks.map((task) =>
+                  task.id === taskId
+                    ? {
+                        ...task,
+                        ...response.task,
+                        contact: task.contact,
+                      }
+                    : task
+                )
+              ),
+      }))
+
+      if (options.refresh !== false) {
+        void loadAll({ background: true })
+      }
+
+      return response.task
+    },
+    [loadAll]
+  )
+
   const loadContactDetail = useCallback(async (id: string) => {
     return apiFetch<ContactDetail>(`/api/contacts/${id}`)
   }, [])
@@ -485,6 +531,7 @@ export function useCRM() {
     deleteContact,
     addActivity,
     addTask,
+    updateTask,
     completeTask,
     loadContactDetail,
     addVoiceNote,

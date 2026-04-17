@@ -62,6 +62,9 @@ export async function POST(request: NextRequest) {
     const status = String(body.status || 'New')
     const nextFollowupAt = normalizeText(body.next_followup_at)
     const contactScope = normalizeContactScope(body.contact_scope)
+    const rawNote = normalizeText(body.note)
+    const eventTag = normalizeText(body.event_tag)
+    const initialTaskNote = normalizeText(body.initial_task_note)
 
     if (!name) {
       return Response.json({ error: 'Il nome del contatto è obbligatorio' }, { status: 400 })
@@ -81,6 +84,7 @@ export async function POST(request: NextRequest) {
       phone: normalizeText(body.phone),
       category: normalizeText(body.category),
       company: normalizeText(body.company),
+      event_tag: eventTag,
       country: normalizeText(body.country),
       language: normalizeText(body.language),
       status,
@@ -91,10 +95,10 @@ export async function POST(request: NextRequest) {
       assigned_agent: normalizeText(body.assigned_agent),
       responsible: normalizeText(body.responsible),
       value: normalizeNumber(body.value),
-      note: normalizeText(body.note),
+      note: rawNote,
       next_action_at: contactScope === 'holding' ? null : nextFollowupAt,
       next_followup_at: contactScope === 'holding' ? null : nextFollowupAt,
-      last_activity_summary: normalizeText(body.note),
+      last_activity_summary: rawNote,
     }
 
     const { data: contact, error } = await auth.supabase
@@ -117,7 +121,7 @@ export async function POST(request: NextRequest) {
           due_date: contact.next_followup_at,
           priority: priorityLevelFromNumber(contact.priority),
           status: 'pending',
-          note: `Follow-up iniziale per ${contact.name}`,
+          note: initialTaskNote || `Follow-up iniziale per ${contact.name}`,
         })
         .select('*')
         .single()
@@ -131,6 +135,8 @@ export async function POST(request: NextRequest) {
         ? 'Contatto creato in lista separata.'
         : 'Contatto creato nel CRM.',
       `Stato iniziale: ${contact.status}.`,
+      contact.company ? `Azienda: ${contact.company}.` : null,
+      contact.event_tag ? `Evento: ${contact.event_tag}.` : null,
       contact.contact_scope === 'holding'
         ? 'Resterà fuori da pipeline e follow-up fino a una risposta email.'
         : null,
@@ -140,14 +146,38 @@ export async function POST(request: NextRequest) {
       .filter(Boolean)
       .join(' ')
 
-    await createActivities(auth.supabase, [
-      {
-        user_id: auth.user.id,
-        contact_id: contact.id,
-        type: 'system',
-        content: activityContent,
-      },
-    ])
+    await createActivities(
+      auth.supabase,
+      [
+        {
+          user_id: auth.user.id,
+          contact_id: contact.id,
+          type: 'system',
+          content: activityContent,
+        },
+        rawNote
+          ? {
+              user_id: auth.user.id,
+              contact_id: contact.id,
+              type: 'note',
+              content: rawNote,
+              metadata: {
+                note_kind: 'field',
+                capture_source: 'quick_capture',
+                action_required: Boolean(contact.next_followup_at),
+                linked_followup_label: initialTaskNote || `Follow-up iniziale per ${contact.name}`,
+                linked_followup_priority: priorityLevelFromNumber(contact.priority),
+              },
+            }
+          : null,
+      ].filter(Boolean) as Array<{
+        user_id: string
+        contact_id: string
+        type: string
+        content: string
+        metadata?: Record<string, unknown> | null
+      }>
+    )
     await updateContactSummary(auth.supabase, contact.id, activityContent, {
       nextFollowupAt: contact.next_followup_at,
     })

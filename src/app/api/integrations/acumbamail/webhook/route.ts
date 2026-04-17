@@ -316,8 +316,54 @@ function normalizeWebhookEvent(raw: Record<string, unknown>): NormalizedWebhookE
   }
 }
 
+const GENERIC_EMAIL_LOCAL_PARTS = new Set([
+  'info',
+  'hello',
+  'contact',
+  'contatto',
+  'admin',
+  'office',
+  'sales',
+  'support',
+  'team',
+  'marketing',
+  'commerciale',
+  'newsletter',
+])
+
+const GENERIC_EMAIL_DOMAIN_ROOTS = new Set([
+  'gmail',
+  'hotmail',
+  'outlook',
+  'icloud',
+  'yahoo',
+  'libero',
+])
+
+function capitalizeWords(value: string) {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+function domainLabelFromEmail(email: string) {
+  const domain = email.split('@')[1] || ''
+  const root = domain.split('.')[0] || ''
+  if (GENERIC_EMAIL_DOMAIN_ROOTS.has(root.toLowerCase())) return email
+  const normalized = root.replace(/[._-]+/g, ' ').trim()
+  return normalized ? capitalizeWords(normalized) : email
+}
+
 function inferContactName(email: string) {
-  const localPart = email.split('@')[0] || 'Lead'
+  const localPart = (email.split('@')[0] || '').trim()
+  if (!localPart) return email
+
+  if (GENERIC_EMAIL_LOCAL_PARTS.has(localPart.toLowerCase())) {
+    return domainLabelFromEmail(email) || email
+  }
+
   const words = localPart
     .replace(/[._-]+/g, ' ')
     .trim()
@@ -326,9 +372,7 @@ function inferContactName(email: string) {
 
   if (!words.length) return email
 
-  return words
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
+  return capitalizeWords(words.join(' '))
 }
 
 function defaultNextActionAt() {
@@ -359,21 +403,21 @@ function activityTypeForEvent(event: AcumbamailEventName) {
 function contentForEvent(event: NormalizedWebhookEvent) {
   switch (event.event) {
     case 'opens':
-      return 'Email aperta rilevata da Acumbamail.'
+      return `${event.email} ha aperto l'email.`
     case 'clicks':
-      return 'Click email rilevato da Acumbamail.'
+      return `${event.email} ha cliccato l'email.`
     case 'unsubscribes':
-      return 'Disiscrizione rilevata da Acumbamail.'
+      return `${event.email} si è disiscritto dalla mailing list.`
     case 'delivered':
-      return 'Consegna email confermata da Acumbamail.'
+      return `Consegna email confermata per ${event.email}.`
     case 'hard_bounces':
-      return 'Hard bounce rilevato da Acumbamail.'
+      return `Hard bounce rilevato per ${event.email}.`
     case 'soft_bounces':
-      return 'Soft bounce rilevato da Acumbamail.'
+      return `Soft bounce rilevato per ${event.email}.`
     case 'complaints':
-      return 'Reclamo email rilevato da Acumbamail.'
+      return `Reclamo email rilevato per ${event.email}.`
     default:
-      return `Evento ${event.event} ricevuto da Acumbamail.`
+      return `Evento ${event.event} ricevuto da Acumbamail per ${event.email}.`
   }
 }
 

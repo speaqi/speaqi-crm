@@ -58,17 +58,143 @@ function activityMarkerColor(type: string) {
   }
 }
 
+function readActivityMetadata(activity: ActivityWithContact): Record<string, unknown> {
+  return activity.metadata && typeof activity.metadata === 'object' ? activity.metadata : {}
+}
+
+function noteKindLabel(value: unknown) {
+  switch (String(value || '').trim()) {
+    case 'meeting':
+      return 'Meeting'
+    case 'internal':
+      return 'Interna'
+    case 'field':
+    default:
+      return 'Campo'
+  }
+}
+
+function taskPriorityLabel(value?: string | null) {
+  switch (value) {
+    case 'high':
+      return 'Alta'
+    case 'low':
+      return 'Bassa'
+    default:
+      return 'Media'
+  }
+}
+
+function taskPriorityClass(value?: string | null) {
+  if (value === 'high') return 'tag-alta'
+  if (value === 'low') return 'tag-bassa'
+  return 'tag-media'
+}
+
+function shiftTaskDueDate(value: string | null | undefined, days: number) {
+  const base = value ? new Date(value) : new Date()
+  if (Number.isNaN(base.getTime())) {
+    const fallback = new Date()
+    fallback.setHours(10, 0, 0, 0)
+    fallback.setDate(fallback.getDate() + days)
+    return fallback.toISOString()
+  }
+
+  const next = new Date(base)
+  next.setDate(next.getDate() + days)
+  return next.toISOString()
+}
+
+const GENERIC_ACTIVITY_NAMES = new Set([
+  'info',
+  'hello',
+  'contact',
+  'contatto',
+  'admin',
+  'office',
+  'sales',
+  'support',
+  'team',
+  'marketing',
+  'commerciale',
+  'newsletter',
+])
+
+const GENERIC_EMAIL_DOMAIN_ROOTS = new Set([
+  'gmail',
+  'hotmail',
+  'outlook',
+  'icloud',
+  'yahoo',
+  'libero',
+])
+
+function domainLabelFromEmail(email?: string | null) {
+  const normalizedEmail = String(email || '').trim().toLowerCase()
+  if (!normalizedEmail) return ''
+  const domain = normalizedEmail.split('@')[1] || ''
+  const root = domain.split('.')[0] || ''
+  if (GENERIC_EMAIL_DOMAIN_ROOTS.has(root)) return normalizedEmail
+  if (!root) return normalizedEmail
+
+  return root
+    .replace(/[._-]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+function displayActivityContactName(activity: ActivityWithContact) {
+  const name = String(activity.contact?.name || '').trim()
+  const email = String(activity.contact?.email || '').trim()
+
+  if (!name) {
+    return domainLabelFromEmail(email) || email || 'Contatto'
+  }
+
+  if (GENERIC_ACTIVITY_NAMES.has(name.toLowerCase())) {
+    return domainLabelFromEmail(email) || email || name
+  }
+
+  return name
+}
+
+function displayActivityContent(activity: ActivityWithContact) {
+  const email = String(activity.contact?.email || '').trim()
+
+  switch (activity.type) {
+    case 'email_open':
+      return email ? `${email} ha aperto l'email.` : activity.content || "Ha aperto l'email."
+    case 'email_click':
+      return email ? `${email} ha cliccato l'email.` : activity.content || "Ha cliccato l'email."
+    case 'unsubscribe':
+      return email ? `${email} si è disiscritto dalla mailing list.` : activity.content || 'Disiscrizione rilevata.'
+    default:
+      return activity.content || 'Nessun contenuto'
+  }
+}
+
 function isWorkedEmailType(type: string) {
-  return type === 'email' || type === 'email_sent' || type === 'email_reply'
+  return (
+    type === 'email' ||
+    type === 'email_sent' ||
+    type === 'email_reply' ||
+    type === 'email_open' ||
+    type === 'email_click' ||
+    type === 'unsubscribe'
+  )
 }
 
 export default function AttivitaPage() {
-  const { tasks, scheduledCalls, openContactsWithoutQueue, contacts, stages, addActivity, completeTask, refresh, showToast, updateContact } = useCRMContext()
+  const { tasks, scheduledCalls, openContactsWithoutQueue, contacts, stages, addActivity, completeTask, updateTask, refresh, showToast, updateContact } = useCRMContext()
   const tomorrow = new Date()
   tomorrow.setHours(24, 0, 0, 0)
   const [outcomeContact, setOutcomeContact] = useState<CRMContact | null>(null)
   const [outcomeTask, setOutcomeTask] = useState<TaskWithContact | null>(null)
   const [selectedDate, setSelectedDate] = useState(() => toDateInputValue(new Date()))
+  const [inboxFilter, setInboxFilter] = useState<'all' | 'overdue' | 'today' | 'high'>('all')
   const [dayActivities, setDayActivities] = useState<ActivityWithContact[]>([])
   const [dayActivitiesLoading, setDayActivitiesLoading] = useState(true)
   const [dayActivitiesError, setDayActivitiesError] = useState<string | null>(null)
@@ -79,6 +205,47 @@ export default function AttivitaPage() {
   const callsTodayWithoutPhone = callsToday.filter((item) => !item.contact.phone).length
   const callsTodayHighPriority = callsToday.filter((item) => item.contact.priority >= 2).length
   const todayDate = toDateInputValue(new Date())
+  const followupInbox = useMemo(() => {
+    const startOfToday = new Date()
+    startOfToday.setHours(0, 0, 0, 0)
+
+    return [...tasks]
+      .filter((task) => task.status === 'pending')
+      .sort((left, right) => {
+        const leftOverdue = left.due_date && isOverdue(left.due_date) ? 1 : 0
+        const rightOverdue = right.due_date && isOverdue(right.due_date) ? 1 : 0
+        if (leftOverdue !== rightOverdue) return rightOverdue - leftOverdue
+
+        const leftPriority =
+          left.priority === 'high' ? 3 : left.priority === 'medium' ? 2 : left.priority === 'low' ? 1 : 0
+        const rightPriority =
+          right.priority === 'high' ? 3 : right.priority === 'medium' ? 2 : right.priority === 'low' ? 1 : 0
+        if (leftPriority !== rightPriority) return rightPriority - leftPriority
+
+        const leftDue = left.due_date ? new Date(left.due_date).getTime() : Number.POSITIVE_INFINITY
+        const rightDue = right.due_date ? new Date(right.due_date).getTime() : Number.POSITIVE_INFINITY
+        if (leftDue !== rightDue) return leftDue - rightDue
+
+        const leftTouched = left.contact?.last_activity_summary ? 1 : 0
+        const rightTouched = right.contact?.last_activity_summary ? 1 : 0
+        if (leftTouched !== rightTouched) return leftTouched - rightTouched
+
+        return (left.contact?.name || '').localeCompare(right.contact?.name || '')
+      })
+      .filter((task) => {
+        if (inboxFilter === 'all') return true
+        if (inboxFilter === 'overdue') return !!task.due_date && isOverdue(task.due_date)
+        if (inboxFilter === 'today') {
+          if (!task.due_date) return false
+          const due = new Date(task.due_date)
+          return due >= startOfToday && due < tomorrow
+        }
+        if (inboxFilter === 'high') {
+          return task.priority === 'high' || Number(task.contact?.priority || 0) >= 3
+        }
+        return true
+      })
+  }, [inboxFilter, tasks, tomorrow])
 
   const loadDayActivities = useCallback(async () => {
     setDayActivitiesLoading(true)
@@ -180,7 +347,7 @@ export default function AttivitaPage() {
                 <div className="timeline-marker" style={{ background: activityMarkerColor(activity.type) }} />
                 <div style={{ minWidth: 0 }}>
                   <div className="timeline-title">
-                    <Link href={`/contacts/${activity.contact_id}`}>{activity.contact?.name || 'Contatto'}</Link>
+                    <Link href={`/contacts/${activity.contact_id}`}>{displayActivityContactName(activity)}</Link>
                     {' · '}
                     {activityTypeLabel(activity.type)}
                   </div>
@@ -188,7 +355,23 @@ export default function AttivitaPage() {
                     {formatDateTime(activity.created_at)}
                     {activity.contact?.status ? ` · ${statusLabel(activity.contact.status)}` : ''}
                   </div>
-                  <div className="timeline-body">{activity.content || 'Nessun contenuto'}</div>
+                  <div className="timeline-body">{displayActivityContent(activity)}</div>
+                  {activity.type === 'note' && (
+                    <div className="activity-badge-row">
+                      <span className="activity-badge">
+                        {noteKindLabel(readActivityMetadata(activity).note_kind)}
+                      </span>
+                      {Boolean(readActivityMetadata(activity).pinned) && <span className="activity-badge">Pinned</span>}
+                      {Boolean(readActivityMetadata(activity).action_required) && (
+                        <span className="activity-badge activity-badge-warn">Action Required</span>
+                      )}
+                      {Boolean(readActivityMetadata(activity).linked_followup_label) && (
+                        <span className="activity-badge">
+                          {String(readActivityMetadata(activity).linked_followup_label)}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {activity.contact ? (
                     <div className="contact-tags" style={{ marginTop: 8 }}>
                       <span className={`ctag ${priorityBadgeClass(activity.contact.priority)}`}>
@@ -256,6 +439,28 @@ export default function AttivitaPage() {
                   </div>
                 </div>
                 <div className="task-actions">
+                  {item.task && (
+                    <>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={async () => {
+                          await updateTask(item.task!.id, { due_date: shiftTaskDueDate(item.task!.due_date, 1) })
+                          showToast('Follow-up spostato di 1 giorno')
+                        }}
+                      >
+                        +1g
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={async () => {
+                          await updateTask(item.task!.id, { due_date: shiftTaskDueDate(item.task!.due_date, 7) })
+                          showToast('Follow-up spostato di 7 giorni')
+                        }}
+                      >
+                        +7g
+                      </button>
+                    </>
+                  )}
                   <Link href={`/contacts/${item.contact.id}`} className="btn btn-ghost btn-sm">
                     Apri
                   </Link>
@@ -286,19 +491,76 @@ export default function AttivitaPage() {
 
       <div className="detail-grid">
         <div className="dash-card">
-          <div className="dash-card-title">Task pending</div>
+          <div className="detail-row" style={{ marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div>
+              <div className="dash-card-title" style={{ marginBottom: 4 }}>Follow-up inbox</div>
+              <div style={{ color: 'var(--text2)', fontSize: 13 }}>
+                Vista unica dei task pending con priorità, contesto e snooze rapido.
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button className={`filter-chip ${inboxFilter === 'all' ? 'active' : ''}`} onClick={() => setInboxFilter('all')}>
+                Tutto
+              </button>
+              <button className={`filter-chip ${inboxFilter === 'overdue' ? 'active' : ''}`} onClick={() => setInboxFilter('overdue')}>
+                Scaduti
+              </button>
+              <button className={`filter-chip ${inboxFilter === 'today' ? 'active' : ''}`} onClick={() => setInboxFilter('today')}>
+                Oggi
+              </button>
+              <button className={`filter-chip ${inboxFilter === 'high' ? 'active' : ''}`} onClick={() => setInboxFilter('high')}>
+                Priorità alta
+              </button>
+            </div>
+          </div>
           <div className="task-list">
-            {tasks.length === 0 ? (
+            {followupInbox.length === 0 ? (
               <p style={{ color: 'var(--text3)' }}>Nessun task pending.</p>
             ) : (
-              tasks.map((task) => (
+              followupInbox.map((task) => (
                 <div key={task.id} className={`task-card ${task.due_date && isOverdue(task.due_date) ? 'overdue' : ''}`}>
                   <div>
                     <strong>{task.contact?.name || 'Contatto'}</strong>
                     <div className="task-date">{task.type} · {formatDateTime(task.due_date)}</div>
-                    <div className="task-note">{task.note || 'Nessuna nota'}</div>
+                    <div className="task-note">{task.note || task.contact?.last_activity_summary || 'Nessuna nota'}</div>
+                    <div className="contact-tags" style={{ marginTop: 8 }}>
+                      <span className={`ctag ${taskPriorityClass(task.priority)}`}>{taskPriorityLabel(task.priority)}</span>
+                      {task.contact?.event_tag && <span className="ctag ctag-event">{task.contact.event_tag}</span>}
+                      {task.contact?.responsible && (
+                        <span className="ctag" style={{ background: 'var(--surface2)', color: 'var(--text2)' }}>
+                          {task.contact.responsible}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="task-actions">
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={async () => {
+                        await updateTask(task.id, { due_date: shiftTaskDueDate(task.due_date, 1) })
+                        showToast('Task spostato di 1 giorno')
+                      }}
+                    >
+                      +1g
+                    </button>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={async () => {
+                        await updateTask(task.id, { due_date: shiftTaskDueDate(task.due_date, 3) })
+                        showToast('Task spostato di 3 giorni')
+                      }}
+                    >
+                      +3g
+                    </button>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={async () => {
+                        await updateTask(task.id, { due_date: shiftTaskDueDate(task.due_date, 7) })
+                        showToast('Task spostato di 7 giorni')
+                      }}
+                    >
+                      +7g
+                    </button>
                     {task.contact && (
                       <Link href={`/contacts/${task.contact.id}`} className="btn btn-ghost btn-sm">
                         Apri

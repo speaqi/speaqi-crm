@@ -73,6 +73,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if ((currentTask.note || null) !== (data.note || null)) {
       changes.push(data.note ? 'nota aggiornata' : 'nota rimossa')
     }
+    if ((currentTask.priority || null) !== (data.priority || null)) {
+      changes.push(`priorità ${currentTask.priority || 'vuota'} -> ${data.priority || 'vuota'}`)
+    }
+    if ((currentTask.action || null) !== (data.action || null)) {
+      changes.push(`azione ${(currentTask.action || 'vuota')} -> ${(data.action || 'vuota')}`)
+    }
 
     if (changes.length) {
       const activityContent =

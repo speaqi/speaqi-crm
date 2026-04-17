@@ -39,6 +39,8 @@ export const EMPTY_CONTACT_INPUT: ContactInput = {
   source: 'manual',
   contact_scope: 'crm',
   category: '',
+  company: '',
+  event_tag: '',
   priority: 0,
   responsible: '',
   value: null,
@@ -180,9 +182,7 @@ export function toLocalDateKey(value?: string | Date | null) {
 
 export function isCallableDate(value?: string | Date | null) {
   const date = asDate(value)
-  if (!date) return false
-  const day = date.getDay()
-  return day >= 1 && day <= 5
+  return !!date
 }
 
 export function nextCallableDateTime(value?: string | Date | null) {

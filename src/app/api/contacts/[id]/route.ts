@@ -57,6 +57,9 @@ function buildContactUpdateSummary(current: any, next: any) {
   if ((current.company || null) !== (next.company || null)) {
     changes.push('azienda aggiornata')
   }
+  if ((current.event_tag || null) !== (next.event_tag || null)) {
+    changes.push(`evento ${displayValue(current.event_tag)} -> ${displayValue(next.event_tag)}`)
+  }
   if ((current.country || null) !== (next.country || null)) {
     changes.push('paese aggiornato')
   }
@@ -205,6 +208,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         phone: body.phone !== undefined ? normalizeText(body.phone) : current.phone,
         category: body.category !== undefined ? normalizeText(body.category) : current.category,
         company: body.company !== undefined ? normalizeText(body.company) : current.company,
+        event_tag: body.event_tag !== undefined ? normalizeText(body.event_tag) : current.event_tag,
         country: body.country !== undefined ? normalizeText(body.country) : current.country,
         language: body.language !== undefined ? normalizeText(body.language) : current.language,
         status: nextStatus,

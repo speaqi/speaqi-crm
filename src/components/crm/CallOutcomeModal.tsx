@@ -82,7 +82,7 @@ export function CallOutcomeModal({
     }
 
     if (nextFollowupIso && !isCallableDate(nextFollowupIso)) {
-      window.alert('Il follow-up deve cadere in un giorno chiamabile: da lunedi a venerdi')
+      window.alert('Il follow-up deve avere una data valida')
       return
     }
 
@@ -167,9 +167,9 @@ export function CallOutcomeModal({
         </div>
       </div>
 
-      <div className="modal-helper">
+        <div className="modal-helper">
         {followupRequired
-          ? 'Per contatti aperti il follow-up e obbligatorio. Il sistema accetta solo giorni chiamabili da lunedi a venerdi.'
+          ? 'Per contatti aperti il follow-up e obbligatorio. Puoi pianificarlo anche sabato e domenica.'
           : 'Se chiudi il contatto, il follow-up non viene richiesto.'}
       </div>
     </Modal>
