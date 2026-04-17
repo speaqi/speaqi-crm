@@ -19,12 +19,27 @@ function normalizeContactScope(value: unknown) {
   return String(value || '').trim().toLowerCase() === 'holding' ? 'holding' : 'crm'
 }
 
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === 'object') {
+    if ('message' in error && (error as { message?: unknown }).message) {
+      return String((error as { message?: unknown }).message)
+    }
+    if ('details' in error && (error as { details?: unknown }).details) {
+      return String((error as { details?: unknown }).details)
+    }
+    if ('hint' in error && (error as { hint?: unknown }).hint) {
+      return String((error as { hint?: unknown }).hint)
+    }
+  }
+  return fallback
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
 
   try {
-    await ensurePipelineStages(auth.supabase, auth.user.id)
     const scope = String(request.nextUrl.searchParams.get('scope') || 'all').trim().toLowerCase()
 
     let query = auth.supabase
@@ -44,7 +59,7 @@ export async function GET(request: NextRequest) {
     return Response.json({ contacts: data || [] })
   } catch (error) {
     return Response.json(
-      { error: error instanceof Error ? error.message : 'Failed to load contacts' },
+      { error: errorMessage(error, 'Failed to load contacts') },
       { status: 500 }
     )
   }
@@ -188,7 +203,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ contact, task }, { status: 201 })
   } catch (error) {
     return Response.json(
-      { error: error instanceof Error ? error.message : 'Failed to create contact' },
+      { error: errorMessage(error, 'Failed to create contact') },
       { status: 500 }
     )
   }
