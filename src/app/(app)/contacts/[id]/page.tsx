@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
 import { ContactModal } from '@/components/crm/ContactModal'
 import { apiFetch } from '@/lib/api'
-import { ACTIVITY_TYPES, TASK_TYPES, activityTypeLabel, contactScopeLabel, formatDateTime, fromDatetimeLocalValue, isClosedStatus, isHoldingContact, priorityLabel, sourceLabel, statusLabel, toDatetimeLocalValue } from '@/lib/data'
+import { ACTIVITY_TYPES, TASK_TYPES, activityTypeLabel, contactScopeLabel, formatDateTime, fromDatetimeLocalValue, holdingListLabel, isClosedStatus, isHoldingContact, priorityLabel, sourceLabel, statusLabel, toDatetimeLocalValue } from '@/lib/data'
 import { useCRMContext } from '../../layout'
 import type { Activity, ContactDetail, GmailAccountStatus, GmailMessage } from '@/types'
 
@@ -152,7 +152,7 @@ export default function ContactDetailPage() {
         <div className="detail-header">
           <div>
             <Link href={holdingContact ? '/vinitaly' : '/contacts'} className="back-link">
-              ← Torna a {holdingContact ? 'Vinitaly' : 'ai contatti'}
+              ← Torna a {holdingContact ? 'alle liste separate' : 'ai contatti'}
             </Link>
             <h1 className="detail-title">{contact.name}</h1>
             <div className="detail-subtitle">
@@ -166,7 +166,7 @@ export default function ContactDetailPage() {
 
         {holdingContact && (
           <div className="meta-card" style={{ marginBottom: 20 }}>
-            <strong>Lista separata Vinitaly</strong>
+            <strong>Lista separata: {holdingListLabel(contact)}</strong>
             <span>
               Questo contatto resta fuori da pipeline, calendario e task del CRM. Quando sincronizzi una reply Gmail, viene promosso automaticamente nel CRM operativo.
             </span>
@@ -181,6 +181,7 @@ export default function ContactDetailPage() {
               <div><strong>Email:</strong> {contact.email || 'Non impostata'}</div>
               <div><strong>Telefono:</strong> {contact.phone || 'Non impostato'}</div>
               <div><strong>Evento:</strong> {contact.event_tag || 'Non impostato'}</div>
+              <div><strong>Lista import:</strong> {contact.list_name || 'Non impostata'}</div>
               <div><strong>Categoria:</strong> {contact.category || 'Non assegnata'}</div>
               <div><strong>Responsabile:</strong> {contact.responsible || 'Non assegnato'}</div>
               <div><strong>Lista:</strong> {contactScopeLabel(contact.contact_scope)}</div>

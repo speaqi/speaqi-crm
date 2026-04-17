@@ -41,6 +41,7 @@ export const EMPTY_CONTACT_INPUT: ContactInput = {
   category: '',
   company: '',
   event_tag: '',
+  list_name: '',
   priority: 0,
   responsible: '',
   value: null,
@@ -79,6 +80,10 @@ export function contactScopeLabel(scope?: string | null) {
     default:
       return 'CRM'
   }
+}
+
+export function holdingListLabel(contact: Pick<CRMContact, 'list_name' | 'event_tag' | 'source'>) {
+  return contact.list_name || contact.event_tag || sourceLabel(contact.source) || 'Lista separata'
 }
 
 export function statusLabel(status?: string | null) {

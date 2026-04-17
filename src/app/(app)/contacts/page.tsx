@@ -67,6 +67,7 @@ export default function ContactsPage() {
         !(contact.email || '').toLowerCase().includes(query) &&
         !(contact.phone || '').toLowerCase().includes(query) &&
         !(contact.event_tag || '').toLowerCase().includes(query) &&
+        !(contact.list_name || '').toLowerCase().includes(query) &&
         !(contact.category || '').toLowerCase().includes(query)
       ) {
         return false

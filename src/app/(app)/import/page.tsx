@@ -1,15 +1,21 @@
 'use client'
 
 import Link from 'next/link'
-import { ChangeEvent, useState } from 'react'
+import { ChangeEvent, useMemo, useState } from 'react'
 import { apiFetch } from '@/lib/api'
+import { detectCsvColumns, parseCsvText } from '@/lib/csv-import'
 import { useCRMContext } from '../layout'
 
 interface ImportResponse {
   parsed_rows: number
   imported_contacts: number
+  created_contacts: number
+  updated_contacts: number
+  matched_contacts: number
   created_tasks: number
   contact_scope?: 'crm' | 'holding'
+  list_name?: string | null
+  detected_mapping?: Record<string, string>
 }
 
 export default function ImportPage() {
@@ -19,9 +25,20 @@ export default function ImportPage() {
   const [defaultSource, setDefaultSource] = useState('vinitaly')
   const [defaultCategory, setDefaultCategory] = useState('vinitaly-winery')
   const [separateList, setSeparateList] = useState(true)
+  const [listName, setListName] = useState('')
   const [result, setResult] = useState<ImportResponse | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const preview = useMemo(() => {
+    if (!csvText.trim()) return null
+    const rows = parseCsvText(csvText)
+    if (!rows.length) return null
+    return {
+      rows,
+      detection: detectCsvColumns(rows),
+    }
+  }, [csvText])
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -31,6 +48,7 @@ export default function ImportPage() {
     setResult(null)
     setFileName(file.name)
     setCsvText(await file.text())
+    setListName(file.name.replace(/\.[^.]+$/, ''))
   }
 
   async function handleImport() {
@@ -51,6 +69,8 @@ export default function ImportPage() {
           default_source: defaultSource,
           default_category: defaultCategory,
           contact_scope: separateList ? 'holding' : 'crm',
+          list_name: listName,
+          file_name: fileName,
         }),
       })
 
@@ -75,13 +95,14 @@ export default function ImportPage() {
           <div>
             <div className="dash-card-title" style={{ marginBottom: 6 }}>Import CSV nel CRM</div>
             <p style={{ color: 'var(--text2)', fontSize: 13, lineHeight: 1.5 }}>
-              Carica il file <strong>contacts_import.csv</strong> generato dall&apos;analisi. Per Vinitaly puoi tenerlo in una
-              lista separata: resta fuori da pipeline e follow-up finché non arriva una risposta email.
+              Carica un CSV reale e il sistema proverà a riconoscere automaticamente colonne come <strong>Nome</strong>,
+              <strong>Cognome</strong>, <strong>Azienda</strong>, <strong>Email</strong>, <strong>Telefono</strong>,
+              <strong>Priorità</strong> e <strong>Note</strong>. Se scegli una lista separata, i contatti restano fuori dal CRM operativo.
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Link href="/vinitaly" className="btn btn-ghost btn-sm">
-              Apri Vinitaly
+              Apri liste separate
             </Link>
             <Link href="/contacts" className="btn btn-ghost btn-sm">
               Vai ai contatti
@@ -92,8 +113,8 @@ export default function ImportPage() {
         <div className="meta-card">
           <strong style={{ fontSize: 15 }}>Prima dell&apos;import</strong>
           <span>
-            Usa il CSV pulito, non il file legacy sporco. Se attivi la lista separata Vinitaly, i contatti non entrano nel CRM operativo
-            e non generano task finché non risponde qualcuno via email.
+            Se il file contiene header non standard, qui sotto vedi subito come verranno mappati. Se attivi la lista separata,
+            i contatti non entrano in pipeline e follow-up finché non li promuovi o non arriva una reply.
           </span>
         </div>
 
@@ -127,9 +148,21 @@ export default function ImportPage() {
           />
           <span>
             <strong style={{ display: 'block', marginBottom: 4 }}>Tieni separato da CRM e pipeline</strong>
-            I contatti vengono importati in una lista Vinitaly dedicata e vengono promossi nel CRM operativo solo dopo una reply email.
+            I contatti vengono importati in una lista dedicata e restano fuori da pipeline, calendario e follow-up automatici.
           </span>
         </label>
+
+        {separateList && (
+          <div className="fg">
+            <label className="fl">Nome lista</label>
+            <input
+              className="fi"
+              value={listName}
+              onChange={(event) => setListName(event.target.value)}
+              placeholder="Es. Fiera Verona Aprile 2026"
+            />
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <input type="file" accept=".csv,text/csv" onChange={handleFileChange} />
@@ -141,6 +174,45 @@ export default function ImportPage() {
         <div style={{ fontSize: 12, color: 'var(--text2)' }}>
           {fileName ? `File selezionato: ${fileName}` : 'Nessun file selezionato'}
         </div>
+
+        {preview && (
+          <div className="dash-meta-grid" style={{ marginTop: 4 }}>
+            <div className="meta-card meta-card-strong">
+              <strong>{preview.rows.length}</strong>
+              <span>righe rilevate nel file</span>
+            </div>
+            <div className="meta-card">
+              <strong>{preview.detection.mapping.name || preview.detection.mapping.first_name || 'non trovato'}</strong>
+              <span>colonna nome riconosciuta</span>
+            </div>
+            <div className="meta-card">
+              <strong>{preview.detection.mapping.email || 'non trovata'}</strong>
+              <span>colonna email riconosciuta</span>
+            </div>
+            <div className="meta-card">
+              <strong>{preview.detection.mapping.phone || 'non trovata'}</strong>
+              <span>colonna telefono riconosciuta</span>
+            </div>
+          </div>
+        )}
+
+        {preview && (
+          <div className="meta-card">
+            <strong style={{ fontSize: 15 }}>Matching colonne</strong>
+            <span>
+              {Object.entries(preview.detection.mapping).length === 0
+                ? 'Nessuna colonna riconosciuta automaticamente.'
+                : Object.entries(preview.detection.mapping)
+                    .map(([field, header]) => `${field} → ${header}`)
+                    .join(' · ')}
+            </span>
+            {preview.detection.unmatchedHeaders.length > 0 && (
+              <span style={{ marginTop: 6 }}>
+                Colonne non agganciate: {preview.detection.unmatchedHeaders.join(', ')}
+              </span>
+            )}
+          </div>
+        )}
 
         {error && (
           <div className="inline-error">
@@ -160,6 +232,18 @@ export default function ImportPage() {
             <span>Contatti importati o aggiornati</span>
           </div>
           <div className="meta-card">
+            <strong>{result.created_contacts}</strong>
+            <span>contatti nuovi</span>
+          </div>
+          <div className="meta-card">
+            <strong>{result.updated_contacts}</strong>
+            <span>contatti aggiornati</span>
+          </div>
+          <div className="meta-card">
+            <strong>{result.matched_contacts}</strong>
+            <span>match trovati via email / telefono / nome+azienda</span>
+          </div>
+          <div className="meta-card">
             <strong>{result.created_tasks}</strong>
             <span>Task follow-up creati</span>
           </div>
@@ -167,10 +251,19 @@ export default function ImportPage() {
             <strong>{result.contact_scope === 'holding' ? 'Lista separata' : 'CRM live'}</strong>
             <span>
               {result.contact_scope === 'holding'
-                ? 'I dati vanno nella vista Vinitaly e restano fuori da Pipeline, Contatti e Attività finché non arriva una reply.'
+                ? `I dati vanno nella vista Liste separate${result.list_name ? ` (${result.list_name})` : ''} e restano fuori da Pipeline, Contatti e Attività finché non li promuovi o non arriva una reply.`
                 : 'I dati sono subito visibili in Pipeline, Contatti e Attività.'}
             </span>
           </div>
+          {result.contact_scope === 'holding' && result.list_name && (
+            <div className="meta-card">
+              <strong>{result.list_name}</strong>
+              <span>nome lista assegnato</span>
+              <Link href={`/vinitaly?list=${encodeURIComponent(result.list_name)}`} className="btn btn-ghost btn-sm" style={{ marginTop: 10 }}>
+                Apri questa lista
+              </Link>
+            </div>
+          )}
         </div>
       )}
     </div>

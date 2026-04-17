@@ -17,6 +17,7 @@ export interface CRMContact {
   category?: string | null
   company?: string | null
   event_tag?: string | null
+  list_name?: string | null
   country?: string | null
   language?: string | null
   status: string
@@ -133,6 +134,7 @@ export interface ContactInput {
   category?: string
   company?: string
   event_tag?: string
+  list_name?: string
   country?: string
   language?: string
   status: string

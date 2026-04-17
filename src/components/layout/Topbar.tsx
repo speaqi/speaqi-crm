@@ -12,7 +12,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/import': '📥 Import CSV',
   '/attivita': '⚙️ Attività & Follow-up',
   '/calendario': '📅 Calendario',
-  '/vinitaly': '🍷 Vinitaly',
+  '/vinitaly': '🗃️ Liste Separate',
   '/speaqi': '⚡ Lead Inbound',
   '/voice': '🎤 Note Vocali',
 }

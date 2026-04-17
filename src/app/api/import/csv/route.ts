@@ -1,80 +1,361 @@
+import { createHash } from 'node:crypto'
 import { NextRequest } from 'next/server'
-import { createActivities, ensurePipelineStages, formatActivityDate } from '@/lib/server/crm'
+import { detectCsvColumns, extractPrimaryEmail, extractPrimaryPhone, getMappedValue, normalizePhoneDigits, parseCsvText, splitMultiValue } from '@/lib/csv-import'
 import { isClosedStatus } from '@/lib/data'
+import { createActivities, ensurePipelineStages, formatActivityDate } from '@/lib/server/crm'
 import { requireRouteUser } from '@/lib/server/supabase'
 
-const ALLOWED_STATUSES = new Set(['New', 'Contacted', 'Interested', 'Call booked', 'Lost', 'Closed'])
+const ALLOWED_STATUSES = new Set(['New', 'Contacted', 'Interested', 'Call booked', 'Quote', 'Lost', 'Closed'])
 const INVALID_LEGACY_IDS = new Set(['#REF!', '#N/A', 'N/A', 'NULL', 'null', 'NaN', 'nan'])
 
-function parseCsvText(text: string) {
-  const rows: string[][] = []
-  const normalized = text.replace(/^\uFEFF/, '')
-  let currentRow: string[] = []
-  let currentCell = ''
-  let inQuotes = false
+type ImportedRecord = {
+  user_id: string
+  legacy_id: string
+  legacy_match_candidates: string[]
+  name: string
+  email: string | null
+  phone: string | null
+  category: string | null
+  company: string | null
+  event_tag: string | null
+  list_name: string | null
+  country: string | null
+  status: string
+  source: string
+  contact_scope: 'crm' | 'holding'
+  priority: number
+  responsible: string | null
+  value: number | null
+  note: string | null
+  last_activity_summary: string
+  next_action_at: string | null
+  next_followup_at: string | null
+}
 
-  for (let index = 0; index < normalized.length; index += 1) {
-    const char = normalized[index]
-
-    if (inQuotes) {
-      if (char === '"') {
-        if (normalized[index + 1] === '"') {
-          currentCell += '"'
-          index += 1
-        } else {
-          inQuotes = false
-        }
-      } else {
-        currentCell += char
-      }
-      continue
-    }
-
-    if (char === '"') {
-      inQuotes = true
-      continue
-    }
-
-    if (char === ',') {
-      currentRow.push(currentCell)
-      currentCell = ''
-      continue
-    }
-
-    if (char === '\n') {
-      currentRow.push(currentCell)
-      rows.push(currentRow)
-      currentRow = []
-      currentCell = ''
-      continue
-    }
-
-    if (char === '\r') continue
-    currentCell += char
-  }
-
-  if (currentCell || currentRow.length) {
-    currentRow.push(currentCell)
-    rows.push(currentRow)
-  }
-
-  if (!rows.length) return []
-
-  const headers = rows[0].map((value) => value.trim())
-  return rows
-    .slice(1)
-    .filter((row) => row.some((cell) => cell.trim()))
-    .map((row) =>
-      headers.reduce<Record<string, string>>((record, header, index) => {
-        record[header] = row[index] ?? ''
-        return record
-      }, {})
-    )
+type ExistingContact = {
+  id: string
+  legacy_id?: string | null
+  name: string
+  email?: string | null
+  phone?: string | null
+  category?: string | null
+  company?: string | null
+  event_tag?: string | null
+  list_name?: string | null
+  country?: string | null
+  status: string
+  source?: string | null
+  contact_scope?: 'crm' | 'holding' | null
+  priority?: number | null
+  responsible?: string | null
+  value?: number | null
+  note?: string | null
+  last_activity_summary?: string | null
+  next_followup_at?: string | null
+  next_action_at?: string | null
 }
 
 function normalizeText(value: unknown) {
   const normalized = String(value || '').trim()
   return normalized || null
+}
+
+function normalizeKey(value: unknown) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+}
+
+function normalizeNumber(value: unknown) {
+  const normalized = normalizeText(value)
+  if (!normalized) return null
+  const parsed = Number(normalized.replace(',', '.'))
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function normalizePriority(value: unknown) {
+  const normalized = normalizeKey(value)
+  if (!normalized) return 0
+
+  if (['top', 'alta', 'high', 'hot', 'urgent', 'urgente'].includes(normalized)) return 3
+  if (['media', 'medium', 'medio'].includes(normalized)) return 2
+  if (['bassa', 'low', 'basso'].includes(normalized)) return 1
+  if (['nessuna', 'none', 'n/a', 'na'].includes(normalized)) return 0
+
+  const parsed = Number(normalized.replace(',', '.'))
+  if (!Number.isFinite(parsed)) return 0
+  return Math.max(0, Math.min(3, Math.round(parsed)))
+}
+
+function normalizeStatus(value: unknown) {
+  const raw = normalizeText(value)
+  if (!raw) return 'New'
+
+  const normalized = normalizeKey(raw)
+  if (normalized === 'nuovo' || normalized === 'new') return 'New'
+  if (normalized === 'contattato' || normalized === 'contacted') return 'Contacted'
+  if (normalized === 'interessato' || normalized === 'interested') return 'Interested'
+  if (normalized === 'callbooked' || normalized === 'callfissata' || normalized === 'callscheduled') return 'Call booked'
+  if (normalized === 'preventivo' || normalized === 'quote') return 'Quote'
+  if (normalized === 'perso' || normalized === 'lost' || normalized === 'notinterested') return 'Lost'
+  if (normalized === 'chiuso' || normalized === 'closed') return 'Closed'
+
+  return ALLOWED_STATUSES.has(raw) ? raw : 'New'
+}
+
+function normalizeContactScope(value: unknown) {
+  return String(value || '').trim().toLowerCase() === 'holding' ? 'holding' : 'crm'
+}
+
+function normalizeDate(value: unknown) {
+  const normalized = normalizeText(value)
+  if (!normalized) return null
+  const parsed = new Date(normalized)
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+}
+
+function defaultFollowupAt() {
+  return new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+}
+
+function chunk<T>(items: T[], size = 100) {
+  const batches: T[][] = []
+  for (let index = 0; index < items.length; index += size) {
+    batches.push(items.slice(index, index + size))
+  }
+  return batches
+}
+
+function buildNameCompanyKey(name?: string | null, company?: string | null) {
+  const normalizedName = normalizeKey(name)
+  const normalizedCompany = normalizeKey(company)
+  if (!normalizedName || !normalizedCompany) return null
+  return `${normalizedName}::${normalizedCompany}`
+}
+
+function shouldReplaceName(currentName?: string | null, importedName?: string | null, currentCompany?: string | null) {
+  const nextName = normalizeText(importedName)
+  if (!nextName) return false
+
+  const current = normalizeText(currentName)
+  if (!current) return true
+  if (current === nextName) return false
+
+  const normalizedCurrent = normalizeKey(current)
+  return (
+    normalizedCurrent.startsWith('lead legacy ') ||
+    normalizedCurrent.startsWith('import csv ') ||
+    normalizedCurrent === normalizeKey(currentCompany) ||
+    normalizedCurrent === 'contatto senza nome'
+  )
+}
+
+function mergeNotes(current?: string | null, incoming?: string | null) {
+  const base = normalizeText(current)
+  const extra = normalizeText(incoming)
+  if (!base) return extra
+  if (!extra || base.includes(extra)) return base
+  return `${base}\n\n${extra}`
+}
+
+function makeUniqueLegacyId(baseValue: string, seen: Set<string>) {
+  if (!seen.has(baseValue)) {
+    seen.add(baseValue)
+    return baseValue
+  }
+
+  let attempt = 2
+  let candidate = `${baseValue}-${attempt}`
+  while (seen.has(candidate)) {
+    attempt += 1
+    candidate = `${baseValue}-${attempt}`
+  }
+  seen.add(candidate)
+  return candidate
+}
+
+function makeLegacyId(
+  explicitValue: unknown,
+  fingerprint: { email?: string | null; phone?: string | null; name?: string | null; company?: string | null; list_name?: string | null },
+  index: number,
+  seen: Set<string>
+) {
+  const normalizedExplicit = normalizeText(explicitValue)
+  if (normalizedExplicit && !INVALID_LEGACY_IDS.has(normalizedExplicit)) {
+    return makeUniqueLegacyId(normalizedExplicit, seen)
+  }
+
+  const seed = [
+    normalizeKey(fingerprint.email),
+    normalizePhoneDigits(fingerprint.phone),
+    normalizeKey(fingerprint.name),
+    normalizeKey(fingerprint.company),
+    normalizeKey(fingerprint.list_name),
+  ]
+    .filter(Boolean)
+    .join('|')
+
+  const base =
+    seed
+      ? `csv-${createHash('sha1').update(seed).digest('hex').slice(0, 16)}`
+      : `csv-row-${index + 1}`
+
+  return makeUniqueLegacyId(base, seen)
+}
+
+function findMatchingContact(record: ImportedRecord, contacts: ExistingContact[]) {
+  const emailKey = normalizeKey(record.email)
+  const phoneKey = normalizePhoneDigits(record.phone)
+  const nameCompanyKey = buildNameCompanyKey(record.name, record.company)
+
+  const legacyMatch =
+    record.legacy_match_candidates.length
+      ? contacts.find((contact) => contact.legacy_id && record.legacy_match_candidates.includes(contact.legacy_id))
+      : null
+  if (legacyMatch) return { contact: legacyMatch, reason: 'legacy_id' as const }
+
+  const emailMatch =
+    emailKey
+      ? contacts.find((contact) => normalizeKey(contact.email) === emailKey)
+      : null
+  if (emailMatch) return { contact: emailMatch, reason: 'email' as const }
+
+  const phoneMatch =
+    phoneKey
+      ? contacts.find((contact) => normalizePhoneDigits(contact.phone) === phoneKey)
+      : null
+  if (phoneMatch) return { contact: phoneMatch, reason: 'phone' as const }
+
+  const nameCompanyMatch =
+    nameCompanyKey
+      ? contacts.find((contact) => buildNameCompanyKey(contact.name, contact.company) === nameCompanyKey)
+      : null
+  if (nameCompanyMatch) return { contact: nameCompanyMatch, reason: 'name_company' as const }
+
+  return null
+}
+
+function buildImportedRecord(params: {
+  row: Record<string, string>
+  index: number
+  userId: string
+  defaultCategory: string | null
+  defaultSource: string | null
+  contactScope: 'crm' | 'holding'
+  defaultListName: string | null
+  seenLegacyIds: Set<string>
+  mapping: ReturnType<typeof detectCsvColumns>['mapping']
+}) {
+  const { row, index, userId, defaultCategory, defaultSource, contactScope, defaultListName, seenLegacyIds, mapping } = params
+
+  const company = normalizeText(getMappedValue(row, mapping, 'company'))
+  const explicitName = normalizeText(getMappedValue(row, mapping, 'name'))
+  const firstName = normalizeText(getMappedValue(row, mapping, 'first_name'))
+  const lastName = normalizeText(getMappedValue(row, mapping, 'last_name'))
+  const fullName = explicitName || normalizeText([firstName, lastName].filter(Boolean).join(' ')) || company || `Import CSV ${index + 1}`
+
+  const emailValues = splitMultiValue(getMappedValue(row, mapping, 'email'))
+  const phoneValues = splitMultiValue(getMappedValue(row, mapping, 'phone'))
+  const email = normalizeText(extractPrimaryEmail(emailValues.join(';')))
+  const phone = normalizeText(extractPrimaryPhone(phoneValues.join(';')))
+  const role = normalizeText(getMappedValue(row, mapping, 'role'))
+  const province = normalizeText(getMappedValue(row, mapping, 'province'))
+  const rawNote = normalizeText(getMappedValue(row, mapping, 'note'))
+  const listName = normalizeText(getMappedValue(row, mapping, 'list_name')) || defaultListName
+  const eventTag = normalizeText(getMappedValue(row, mapping, 'event_tag')) || (contactScope === 'holding' ? listName : null)
+  const status = normalizeStatus(getMappedValue(row, mapping, 'status'))
+  const nextFollowupAt = normalizeDate(getMappedValue(row, mapping, 'next_followup_at'))
+  const effectiveFollowupAt =
+    contactScope === 'holding'
+      ? null
+      : nextFollowupAt || (isClosedStatus(status) ? null : defaultFollowupAt())
+  const note = [
+    rawNote,
+    role ? `Ruolo: ${role}` : null,
+    province ? `Località: ${province}` : null,
+    emailValues.length > 1 ? `Email aggiuntive: ${emailValues.slice(1).join(', ')}` : null,
+    phoneValues.length > 1 ? `Telefoni aggiuntivi: ${phoneValues.slice(1).join(', ')}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  const explicitLegacyValue = normalizeText(getMappedValue(row, mapping, 'legacy_id'))
+  const legacyId = makeLegacyId(
+    explicitLegacyValue,
+    { email, phone, name: fullName, company, list_name: listName },
+    index,
+    seenLegacyIds
+  )
+  const legacyMatchCandidates = [legacyId]
+  if (!explicitLegacyValue || INVALID_LEGACY_IDS.has(explicitLegacyValue)) {
+    legacyMatchCandidates.push(`csv-import-${index + 1}`)
+  }
+
+  return {
+    user_id: userId,
+    legacy_id: legacyId,
+    legacy_match_candidates: legacyMatchCandidates,
+    name: fullName,
+    email,
+    phone,
+    category: normalizeText(getMappedValue(row, mapping, 'category')) || defaultCategory,
+    company,
+    event_tag: eventTag,
+    list_name: listName,
+    country: normalizeText(getMappedValue(row, mapping, 'country')),
+    status,
+    source: normalizeText(getMappedValue(row, mapping, 'source')) || defaultSource || 'import',
+    contact_scope: contactScope,
+    priority: normalizePriority(getMappedValue(row, mapping, 'priority')),
+    responsible: normalizeText(getMappedValue(row, mapping, 'responsible')),
+    value: normalizeNumber(getMappedValue(row, mapping, 'value')),
+    note: normalizeText(note),
+    last_activity_summary:
+      contactScope === 'holding'
+        ? `Import CSV in lista separata (${status})`
+        : `Import CSV (${status})`,
+    next_action_at: effectiveFollowupAt,
+    next_followup_at: effectiveFollowupAt,
+  } satisfies ImportedRecord
+}
+
+function buildInsertPayload(record: ImportedRecord) {
+  const { legacy_match_candidates, ...payload } = record
+  return payload
+}
+
+function buildUpdatePayload(record: ImportedRecord, current: ExistingContact) {
+  const effectiveScope = (current.contact_scope || 'crm') === 'crm' ? 'crm' : record.contact_scope
+  const effectiveFollowupAt =
+    effectiveScope === 'holding'
+      ? null
+      : current.next_followup_at || record.next_followup_at
+
+  return {
+    legacy_id: current.legacy_id || record.legacy_id,
+    name: shouldReplaceName(current.name, record.name, current.company) ? record.name : current.name,
+    email: current.email || record.email,
+    phone: current.phone || record.phone,
+    category: record.category || current.category || null,
+    company: record.company || current.company || null,
+    event_tag: record.event_tag || current.event_tag || null,
+    list_name: record.list_name || current.list_name || null,
+    country: record.country || current.country || null,
+    source: current.source || record.source,
+    contact_scope: effectiveScope,
+    priority: Math.max(Number(current.priority || 0), Number(record.priority || 0)),
+    responsible: current.responsible || record.responsible,
+    value: current.value ?? record.value,
+    note: mergeNotes(current.note, record.note),
+    last_activity_summary: record.note || current.last_activity_summary || current.note || record.last_activity_summary,
+    next_followup_at: effectiveFollowupAt,
+    next_action_at:
+      effectiveScope === 'holding'
+        ? null
+        : current.next_action_at || current.next_followup_at || record.next_action_at,
+  }
 }
 
 function errorMessage(error: unknown, fallback: string) {
@@ -91,57 +372,6 @@ function errorMessage(error: unknown, fallback: string) {
     }
   }
   return fallback
-}
-
-function normalizeNumber(value: unknown) {
-  const normalized = normalizeText(value)
-  if (!normalized) return null
-  const parsed = Number(normalized)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-function normalizePriority(value: unknown) {
-  const normalized = Number(normalizeText(value) || 0)
-  if (!Number.isFinite(normalized)) return 0
-  return Math.max(0, Math.min(3, Math.round(normalized)))
-}
-
-function normalizeContactScope(value: unknown) {
-  return String(value || '').trim().toLowerCase() === 'holding' ? 'holding' : 'crm'
-}
-
-function defaultFollowupAt() {
-  return new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
-}
-
-function chunk<T>(items: T[], size = 100) {
-  const batches: T[][] = []
-  for (let index = 0; index < items.length; index += size) {
-    batches.push(items.slice(index, index + size))
-  }
-  return batches
-}
-
-function makeUniqueLegacyId(rawValue: unknown, index: number, seen: Set<string>) {
-  const normalized = normalizeText(rawValue)
-  const base =
-    normalized && !INVALID_LEGACY_IDS.has(normalized)
-      ? normalized
-      : `csv-import-${index + 1}`
-
-  if (!seen.has(base)) {
-    seen.add(base)
-    return base
-  }
-
-  let attempt = 2
-  let candidate = `${base}-${attempt}`
-  while (seen.has(candidate)) {
-    attempt += 1
-    candidate = `${base}-${attempt}`
-  }
-  seen.add(candidate)
-  return candidate
 }
 
 export async function POST(request: NextRequest) {
@@ -162,80 +392,88 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Il CSV non contiene righe importabili' }, { status: 400 })
     }
 
+    const detection = detectCsvColumns(parsedRows)
     const defaultCategory = normalizeText(body.default_category)
     const defaultSource = normalizeText(body.default_source)
     const contactScope = normalizeContactScope(body.contact_scope)
+    const fileName = normalizeText(body.file_name)?.replace(/\.[^.]+$/, '')
+    const requestedListName = normalizeText(body.list_name)
+    const defaultListName =
+      contactScope === 'holding'
+        ? requestedListName || fileName || defaultSource || 'Import CSV'
+        : null
+
     const seenLegacyIds = new Set<string>()
-    const records = parsedRows.map((row, index) => {
-      const status = normalizeText(row.status)
-      const normalizedStatus = status && ALLOWED_STATUSES.has(status) ? status : 'New'
-      const nextFollowupAt = normalizeText(row.next_followup_at)
-      const fallbackFollowupAt =
-        contactScope === 'holding'
-          ? null
-          : nextFollowupAt || (isClosedStatus(normalizedStatus) ? null : defaultFollowupAt())
-      const priority = normalizePriority(row.priority)
-      return {
-        user_id: auth.user.id,
-        legacy_id: makeUniqueLegacyId(row.legacy_id, index, seenLegacyIds),
-        name: normalizeText(row.name) || `Lead legacy ${index + 1}`,
-        email: normalizeText(row.email),
-        phone: normalizeText(row.phone),
-        category: normalizeText(row.category) || defaultCategory,
-        status: normalizedStatus,
-        source: normalizeText(row.source) || defaultSource || 'legacy-kanban',
-        contact_scope: contactScope,
-        priority,
-        responsible: normalizeText(row.responsible),
-        value: normalizeNumber(row.value),
-        note: normalizeText(row.note),
-        last_activity_summary:
-          contactScope === 'holding'
-            ? `Import CSV separato (${normalizedStatus})`
-            : `Import CSV legacy (${normalizedStatus})`,
-        next_action_at: fallbackFollowupAt,
-        next_followup_at: fallbackFollowupAt,
-      }
-    })
+    const records = parsedRows.map((row, index) =>
+      buildImportedRecord({
+        row,
+        index,
+        userId: auth.user.id,
+        defaultCategory,
+        defaultSource,
+        contactScope,
+        defaultListName,
+        seenLegacyIds,
+        mapping: detection.mapping,
+      })
+    )
 
-    const knownLegacyIds = new Set<string>()
-    for (const batch of chunk(records.map((record) => record.legacy_id).filter(Boolean))) {
-      if (!batch.length) continue
+    const { data: existingRows, error: existingError } = await auth.supabase
+      .from('contacts')
+      .select('id, legacy_id, name, email, phone, category, company, event_tag, list_name, country, status, source, contact_scope, priority, responsible, value, note, last_activity_summary, next_followup_at, next_action_at')
+      .eq('user_id', auth.user.id)
+
+    if (existingError) throw existingError
+
+    const existingContacts = [...(existingRows || [])] as ExistingContact[]
+    const persistedContacts: Array<ExistingContact & { id: string }> = []
+    const importResults: Array<{ contact: ExistingContact & { id: string }; created: boolean; matchReason: string | null }> = []
+    let createdContacts = 0
+    let updatedContacts = 0
+    let matchedContacts = 0
+
+    for (const record of records) {
+      const matched = findMatchingContact(record, existingContacts)
+
+      if (matched) {
+        const payload = buildUpdatePayload(record, matched.contact)
+        const { data, error } = await auth.supabase
+          .from('contacts')
+          .update(payload)
+          .eq('user_id', auth.user.id)
+          .eq('id', matched.contact.id)
+          .select('*')
+          .single()
+
+        if (error) throw error
+
+        updatedContacts += 1
+        matchedContacts += matched.reason === 'legacy_id' ? 0 : 1
+        const updated = data as ExistingContact & { id: string }
+        const existingIndex = existingContacts.findIndex((contact) => contact.id === updated.id)
+        if (existingIndex >= 0) existingContacts[existingIndex] = updated
+        else existingContacts.push(updated)
+        persistedContacts.push(updated)
+        importResults.push({ contact: updated, created: false, matchReason: matched.reason })
+        continue
+      }
+
       const { data, error } = await auth.supabase
         .from('contacts')
-        .select('legacy_id')
-        .eq('user_id', auth.user.id)
-        .in('legacy_id', batch)
+        .insert(buildInsertPayload(record))
+        .select('*')
+        .single()
 
       if (error) throw error
-      for (const row of data || []) {
-        if (row.legacy_id) knownLegacyIds.add(row.legacy_id)
-      }
+
+      createdContacts += 1
+      const created = data as ExistingContact & { id: string }
+      existingContacts.push(created)
+      persistedContacts.push(created)
+      importResults.push({ contact: created, created: true, matchReason: null })
     }
 
-    const contacts: Array<{
-      id: string
-      legacy_id?: string | null
-      name: string
-      status: string
-      source?: string | null
-      category?: string | null
-      contact_scope?: 'crm' | 'holding' | null
-      priority?: number | null
-      phone?: string | null
-      email?: string | null
-      next_followup_at?: string | null
-      next_action_at?: string | null
-    }> = []
-    for (const batch of chunk(records)) {
-      const { data, error } = await auth.supabase
-        .from('contacts')
-        .upsert(batch, { onConflict: 'user_id,legacy_id' })
-        .select('id, legacy_id, name, status, source, category, contact_scope, priority, phone, email, next_followup_at, next_action_at')
-
-      if (error) throw error
-      contacts.push(...(data || []))
-    }
+    const contacts = persistedContacts
 
     const shouldCreateFollowups = contactScope !== 'holding'
     const openContacts = shouldCreateFollowups
@@ -283,17 +521,21 @@ export async function POST(request: NextRequest) {
 
     await createActivities(
       auth.supabase,
-      contacts.map((contact) => ({
+      importResults.map(({ contact, created, matchReason }) => ({
         user_id: auth.user.id,
         contact_id: contact.id,
         type: 'import',
         content: [
-          `Contatto ${knownLegacyIds.has(contact.legacy_id || '') ? 'aggiornato' : 'creato'} da import CSV.`,
+          created ? 'Contatto creato da import CSV.' : 'Contatto aggiornato da import CSV.',
+          matchReason === 'email' ? 'Match eseguito per email.' : null,
+          matchReason === 'phone' ? 'Match eseguito per telefono.' : null,
+          matchReason === 'name_company' ? 'Match eseguito per nome + azienda.' : null,
           `Stato: ${contact.status}.`,
           contact.contact_scope === 'holding'
-            ? 'Lista: separata fino a reply email.'
+            ? `Lista separata: ${contact.list_name || contact.event_tag || 'senza nome'}.`
             : 'Lista: CRM operativo.',
           contact.category ? `Categoria: ${contact.category}.` : null,
+          contact.company ? `Azienda: ${contact.company}.` : null,
           contact.phone ? `Telefono: ${contact.phone}.` : null,
           contact.email ? `Email: ${contact.email}.` : null,
           contact.next_followup_at ? `Follow-up: ${formatActivityDate(contact.next_followup_at)}.` : null,
@@ -307,8 +549,13 @@ export async function POST(request: NextRequest) {
     return Response.json({
       parsed_rows: parsedRows.length,
       imported_contacts: contacts.length,
+      created_contacts: createdContacts,
+      updated_contacts: updatedContacts,
+      matched_contacts: matchedContacts,
       created_tasks: createdTasks,
       contact_scope: contactScope,
+      list_name: defaultListName,
+      detected_mapping: detection.mapping,
     })
   } catch (error) {
     return Response.json(

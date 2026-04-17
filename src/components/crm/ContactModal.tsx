@@ -41,6 +41,7 @@ function buildInitialState(contact?: CRMContact | null, defaultSource?: string):
     category: contact.category || '',
     company: contact.company || '',
     event_tag: contact.event_tag || '',
+    list_name: contact.list_name || '',
     status: contact.status,
     contact_scope: contact.contact_scope || 'crm',
     source: contact.source || defaultSource || 'manual',

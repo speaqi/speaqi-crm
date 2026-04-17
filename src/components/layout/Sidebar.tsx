@@ -26,7 +26,7 @@ const NAV_ITEMS = [
   { href: '/import', label: 'Import CSV', icon: '📥' },
   { href: '/attivita', label: 'Attività & Follow-up', icon: '⚙️', badgeKey: 'tasks' as const },
   { href: '/calendario', label: 'Calendario', icon: '📅', badgeKey: 'oggi' as const, badgeRed: true },
-  { href: '/vinitaly', label: 'Vinitaly', icon: '🍷', section: 'Origini', badgeKey: 'vinitaly' as const },
+  { href: '/vinitaly', label: 'Liste Separate', icon: '🗃️', section: 'Origini', badgeKey: 'vinitaly' as const },
   { href: '/speaqi', label: 'Lead Inbound', icon: '⚡', section: 'Origini', badgeKey: 'speaqi' as const },
   { href: '/voice', label: 'Note Vocali', icon: '🎤' },
 ]

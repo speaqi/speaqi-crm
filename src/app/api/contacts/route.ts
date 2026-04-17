@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
     const contactScope = normalizeContactScope(body.contact_scope)
     const rawNote = normalizeText(body.note)
     const eventTag = normalizeText(body.event_tag)
+    const listName = normalizeText(body.list_name)
     const initialTaskNote = normalizeText(body.initial_task_note)
 
     if (!name) {
@@ -85,6 +86,7 @@ export async function POST(request: NextRequest) {
       category: normalizeText(body.category),
       company: normalizeText(body.company),
       event_tag: eventTag,
+      list_name: listName,
       country: normalizeText(body.country),
       language: normalizeText(body.language),
       status,
@@ -137,6 +139,7 @@ export async function POST(request: NextRequest) {
       `Stato iniziale: ${contact.status}.`,
       contact.company ? `Azienda: ${contact.company}.` : null,
       contact.event_tag ? `Evento: ${contact.event_tag}.` : null,
+      contact.list_name ? `Lista import: ${contact.list_name}.` : null,
       contact.contact_scope === 'holding'
         ? 'Resterà fuori da pipeline e follow-up fino a una risposta email.'
         : null,

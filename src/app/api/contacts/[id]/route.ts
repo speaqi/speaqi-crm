@@ -60,6 +60,9 @@ function buildContactUpdateSummary(current: any, next: any) {
   if ((current.event_tag || null) !== (next.event_tag || null)) {
     changes.push(`evento ${displayValue(current.event_tag)} -> ${displayValue(next.event_tag)}`)
   }
+  if ((current.list_name || null) !== (next.list_name || null)) {
+    changes.push(`lista ${displayValue(current.list_name)} -> ${displayValue(next.list_name)}`)
+  }
   if ((current.country || null) !== (next.country || null)) {
     changes.push('paese aggiornato')
   }
@@ -209,6 +212,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         category: body.category !== undefined ? normalizeText(body.category) : current.category,
         company: body.company !== undefined ? normalizeText(body.company) : current.company,
         event_tag: body.event_tag !== undefined ? normalizeText(body.event_tag) : current.event_tag,
+        list_name: body.list_name !== undefined ? normalizeText(body.list_name) : current.list_name,
         country: body.country !== undefined ? normalizeText(body.country) : current.country,
         language: body.language !== undefined ? normalizeText(body.language) : current.language,
         status: nextStatus,
