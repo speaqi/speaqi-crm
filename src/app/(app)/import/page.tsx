@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ChangeEvent, useMemo, useState } from 'react'
+import { ChangeEvent, DragEvent, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import { detectCsvColumns, parseCsvText } from '@/lib/csv-import'
 import { useCRMContext } from '../layout'
@@ -18,69 +18,107 @@ interface ImportResponse {
   detected_mapping?: Record<string, string>
 }
 
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48)
+}
+
+function humanListName(filename: string) {
+  const base = filename.replace(/\.[^.]+$/, '')
+  const spaced = base.replace(/[_-]+/g, ' ').trim()
+  if (!spaced) return 'Import senza nome'
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+}
+
+type Step = 1 | 2 | 3
+
 export default function ImportPage() {
   const { refresh, showToast } = useCRMContext()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [step, setStep] = useState<Step>(1)
+  const [dragActive, setDragActive] = useState(false)
+
   const [fileName, setFileName] = useState('')
   const [csvText, setCsvText] = useState('')
-  const [defaultSource, setDefaultSource] = useState('vinitaly')
-  const [defaultCategory, setDefaultCategory] = useState('vinitaly-winery')
-  const [separateList, setSeparateList] = useState(true)
+
   const [listName, setListName] = useState('')
-  const [result, setResult] = useState<ImportResponse | null>(null)
-  const [error, setError] = useState('')
+  const [eventTag, setEventTag] = useState('')
+  const [importDate, setImportDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [sourceLabel, setSourceLabel] = useState('evento')
+  const [addToPipeline, setAddToPipeline] = useState(true)
+
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [result, setResult] = useState<ImportResponse | null>(null)
 
   const preview = useMemo(() => {
     if (!csvText.trim()) return null
     const rows = parseCsvText(csvText)
     if (!rows.length) return null
-    return {
-      rows,
-      detection: detectCsvColumns(rows),
-    }
+    return { rows, detection: detectCsvColumns(rows) }
   }, [csvText])
 
-  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    if (!file) return
-
+  function ingestFile(file: File) {
     setError('')
     setResult(null)
     setFileName(file.name)
-    setCsvText(await file.text())
-    setListName(file.name.replace(/\.[^.]+$/, ''))
+    const inferredHuman = humanListName(file.name)
+    const inferredSlug = slugify(file.name.replace(/\.[^.]+$/, ''))
+    setListName(inferredHuman)
+    setEventTag(inferredSlug)
+    file.text().then((text) => {
+      setCsvText(text)
+      setStep(2)
+    })
+  }
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (file) ingestFile(file)
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    setDragActive(false)
+    const file = event.dataTransfer.files?.[0]
+    if (file && (file.name.endsWith('.csv') || file.type.includes('csv'))) {
+      ingestFile(file)
+    } else {
+      setError('Serve un file CSV.')
+    }
   }
 
   async function handleImport() {
     if (!csvText.trim()) {
-      setError('Carica prima il file contacts_import.csv')
+      setError('Nessun file caricato.')
       return
     }
-
     setLoading(true)
     setError('')
-
     try {
       const response = await apiFetch<ImportResponse>('/api/import/csv', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           csv_text: csvText,
-          default_source: defaultSource,
-          default_category: defaultCategory,
-          contact_scope: separateList ? 'holding' : 'crm',
+          default_source: sourceLabel,
+          default_category: eventTag || null,
+          contact_scope: addToPipeline ? 'crm' : 'holding',
           list_name: listName,
+          event_tag: eventTag || null,
+          imported_at: importDate,
           file_name: fileName,
         }),
       })
-
       setResult(response)
       await refresh()
-      showToast(
-        separateList
-          ? `Import completato: ${response.imported_contacts} contatti in lista separata`
-          : `Import completato: ${response.imported_contacts} contatti`
-      )
+      setStep(3)
+      showToast(`${response.imported_contacts} contatti importati in "${listName}"`)
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : 'Import non riuscito')
     } finally {
@@ -88,182 +126,208 @@ export default function ImportPage() {
     }
   }
 
+  function resetWizard() {
+    setStep(1)
+    setFileName('')
+    setCsvText('')
+    setListName('')
+    setEventTag('')
+    setResult(null)
+    setError('')
+    setImportDate(new Date().toISOString().slice(0, 10))
+    setSourceLabel('evento')
+    setAddToPipeline(true)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const detectedFields = preview
+    ? (Object.entries(preview.detection.mapping) as Array<[string, string | undefined]>)
+        .filter(([, header]) => Boolean(header))
+        .map(([field]) => field)
+    : []
+
   return (
-    <div style={{ padding: 24, display: 'grid', gap: 20 }}>
-      <div className="dash-card" style={{ display: 'grid', gap: 14 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div>
-            <div className="dash-card-title" style={{ marginBottom: 6 }}>Import CSV nel CRM</div>
-            <p style={{ color: 'var(--text2)', fontSize: 13, lineHeight: 1.5 }}>
-              Carica un CSV reale e il sistema proverà a riconoscere automaticamente colonne come <strong>Nome</strong>,
-              <strong>Cognome</strong>, <strong>Azienda</strong>, <strong>Email</strong>, <strong>Telefono</strong>,
-              <strong>Priorità</strong> e <strong>Note</strong>. Se scegli una lista separata, i contatti restano fuori dal CRM operativo.
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Link href="/vinitaly" className="btn btn-ghost btn-sm">
-              Apri liste separate
-            </Link>
-            <Link href="/contacts" className="btn btn-ghost btn-sm">
-              Vai ai contatti
-            </Link>
-          </div>
+    <div className="import-wizard">
+      <div className="import-steps">
+        <div className={`import-step ${step >= 1 ? 'active' : ''}`}>
+          <span className="import-step-num">1</span>
+          <span>Carica CSV</span>
         </div>
-
-        <div className="meta-card">
-          <strong style={{ fontSize: 15 }}>Prima dell&apos;import</strong>
-          <span>
-            Se il file contiene header non standard, qui sotto vedi subito come verranno mappati. Se attivi la lista separata,
-            i contatti non entrano in pipeline e follow-up finché non li promuovi o non arriva una reply.
-          </span>
+        <div className="import-step-divider" />
+        <div className={`import-step ${step >= 2 ? 'active' : ''}`}>
+          <span className="import-step-num">2</span>
+          <span>Conferma</span>
         </div>
-
-        <div className="detail-grid" style={{ marginTop: 0 }}>
-          <div className="fg">
-            <label className="fl">Origine di default</label>
-            <input
-              className="fi"
-              value={defaultSource}
-              onChange={(event) => setDefaultSource(event.target.value)}
-              placeholder="vinitaly"
-            />
-          </div>
-          <div className="fg">
-            <label className="fl">Categoria di default</label>
-            <input
-              className="fi"
-              value={defaultCategory}
-              onChange={(event) => setDefaultCategory(event.target.value)}
-              placeholder="vinitaly-winery"
-            />
-          </div>
+        <div className="import-step-divider" />
+        <div className={`import-step ${step >= 3 ? 'active' : ''}`}>
+          <span className="import-step-num">3</span>
+          <span>Fatto</span>
         </div>
-
-        <label className="meta-card" style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={separateList}
-            onChange={(event) => setSeparateList(event.target.checked)}
-            style={{ marginTop: 3 }}
-          />
-          <span>
-            <strong style={{ display: 'block', marginBottom: 4 }}>Tieni separato da CRM e pipeline</strong>
-            I contatti vengono importati in una lista dedicata e restano fuori da pipeline, calendario e follow-up automatici.
-          </span>
-        </label>
-
-        {separateList && (
-          <div className="fg">
-            <label className="fl">Nome lista</label>
-            <input
-              className="fi"
-              value={listName}
-              onChange={(event) => setListName(event.target.value)}
-              placeholder="Es. Fiera Verona Aprile 2026"
-            />
-          </div>
-        )}
-
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-          <input type="file" accept=".csv,text/csv" onChange={handleFileChange} />
-          <button className="btn btn-primary btn-sm" onClick={handleImport} disabled={loading || !csvText.trim()}>
-            {loading ? 'Import in corso...' : 'Importa in Supabase'}
-          </button>
-        </div>
-
-        <div style={{ fontSize: 12, color: 'var(--text2)' }}>
-          {fileName ? `File selezionato: ${fileName}` : 'Nessun file selezionato'}
-        </div>
-
-        {preview && (
-          <div className="dash-meta-grid" style={{ marginTop: 4 }}>
-            <div className="meta-card meta-card-strong">
-              <strong>{preview.rows.length}</strong>
-              <span>righe rilevate nel file</span>
-            </div>
-            <div className="meta-card">
-              <strong>{preview.detection.mapping.name || preview.detection.mapping.first_name || 'non trovato'}</strong>
-              <span>colonna nome riconosciuta</span>
-            </div>
-            <div className="meta-card">
-              <strong>{preview.detection.mapping.email || 'non trovata'}</strong>
-              <span>colonna email riconosciuta</span>
-            </div>
-            <div className="meta-card">
-              <strong>{preview.detection.mapping.phone || 'non trovata'}</strong>
-              <span>colonna telefono riconosciuta</span>
-            </div>
-          </div>
-        )}
-
-        {preview && (
-          <div className="meta-card">
-            <strong style={{ fontSize: 15 }}>Matching colonne</strong>
-            <span>
-              {Object.entries(preview.detection.mapping).length === 0
-                ? 'Nessuna colonna riconosciuta automaticamente.'
-                : Object.entries(preview.detection.mapping)
-                    .map(([field, header]) => `${field} → ${header}`)
-                    .join(' · ')}
-            </span>
-            {preview.detection.unmatchedHeaders.length > 0 && (
-              <span style={{ marginTop: 6 }}>
-                Colonne non agganciate: {preview.detection.unmatchedHeaders.join(', ')}
-              </span>
-            )}
-          </div>
-        )}
-
-        {error && (
-          <div className="inline-error">
-            <strong>Errore:</strong> {error}
-          </div>
-        )}
       </div>
 
-      {result && (
-        <div className="dash-meta-grid">
-          <div className="meta-card meta-card-strong">
-            <strong>{result.parsed_rows}</strong>
-            <span>Righe lette dal CSV</span>
-          </div>
-          <div className="meta-card meta-card-strong">
-            <strong>{result.imported_contacts}</strong>
-            <span>Contatti importati o aggiornati</span>
-          </div>
-          <div className="meta-card">
-            <strong>{result.created_contacts}</strong>
-            <span>contatti nuovi</span>
-          </div>
-          <div className="meta-card">
-            <strong>{result.updated_contacts}</strong>
-            <span>contatti aggiornati</span>
-          </div>
-          <div className="meta-card">
-            <strong>{result.matched_contacts}</strong>
-            <span>match trovati via email / telefono / nome+azienda</span>
-          </div>
-          <div className="meta-card">
-            <strong>{result.created_tasks}</strong>
-            <span>Task follow-up creati</span>
-          </div>
-          <div className="meta-card">
-            <strong>{result.contact_scope === 'holding' ? 'Lista separata' : 'CRM live'}</strong>
-            <span>
-              {result.contact_scope === 'holding'
-                ? `I dati vanno nella vista Liste separate${result.list_name ? ` (${result.list_name})` : ''} e restano fuori da Pipeline, Contatti e Attività finché non li promuovi o non arriva una reply.`
-                : 'I dati sono subito visibili in Pipeline, Contatti e Attività.'}
-            </span>
-          </div>
-          {result.contact_scope === 'holding' && result.list_name && (
-            <div className="meta-card">
-              <strong>{result.list_name}</strong>
-              <span>nome lista assegnato</span>
-              <Link href={`/vinitaly?list=${encodeURIComponent(result.list_name)}`} className="btn btn-ghost btn-sm" style={{ marginTop: 10 }}>
-                Apri questa lista
-              </Link>
+      {step === 1 && (
+        <div
+          className={`import-dropzone ${dragActive ? 'is-active' : ''}`}
+          onDragEnter={(event) => {
+            event.preventDefault()
+            setDragActive(true)
+          }}
+          onDragOver={(event) => event.preventDefault()}
+          onDragLeave={() => setDragActive(false)}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <div className="import-dropzone-emoji">📥</div>
+          <h2>Trascina qui il CSV della fiera</h2>
+          <p>oppure clicca per scegliere un file dal computer</p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            onChange={handleFileChange}
+            style={{ display: 'none' }}
+          />
+          {error && <div className="import-error">{error}</div>}
+        </div>
+      )}
+
+      {step === 2 && preview && (
+        <div className="import-confirm">
+          <div className="import-confirm-head">
+            <div>
+              <h2>{preview.rows.length} contatti pronti</h2>
+              <p>da <strong>{fileName}</strong> · {detectedFields.length} campi riconosciuti</p>
             </div>
-          )}
+            <button type="button" className="btn btn-ghost btn-sm" onClick={resetWizard}>
+              Cambia file
+            </button>
+          </div>
+
+          <div className="import-confirm-grid">
+            <label className="import-field">
+              <span>Nome lista</span>
+              <input
+                type="text"
+                value={listName}
+                onChange={(event) => setListName(event.target.value)}
+                placeholder="Es. Vinitaly 2026"
+              />
+            </label>
+            <label className="import-field">
+              <span>Tag (slug)</span>
+              <input
+                type="text"
+                value={eventTag}
+                onChange={(event) => setEventTag(slugify(event.target.value))}
+                placeholder="vinitaly-2026"
+              />
+            </label>
+            <label className="import-field">
+              <span>Data evento / import</span>
+              <input
+                type="date"
+                value={importDate}
+                onChange={(event) => setImportDate(event.target.value)}
+              />
+            </label>
+            <label className="import-field">
+              <span>Origine</span>
+              <select value={sourceLabel} onChange={(event) => setSourceLabel(event.target.value)}>
+                <option value="evento">Evento / fiera</option>
+                <option value="vinitaly">Vinitaly</option>
+                <option value="import">Import generico</option>
+                <option value="manual">Manuale</option>
+              </select>
+            </label>
+          </div>
+
+          <label className="import-toggle">
+            <input
+              type="checkbox"
+              checked={addToPipeline}
+              onChange={(event) => setAddToPipeline(event.target.checked)}
+            />
+            <div>
+              <strong>Aggiungi subito alla Pipeline</strong>
+              <span>Consigliato. Disattiva solo per contatti da filtrare prima.</span>
+            </div>
+          </label>
+
+          <div className="import-mapping">
+            <div className="import-mapping-title">Colonne riconosciute</div>
+            <div className="import-mapping-list">
+              {detectedFields.length === 0 ? (
+                <span className="import-muted">Nessuna colonna riconosciuta automaticamente.</span>
+              ) : (
+                detectedFields.map((field) => (
+                  <span key={field} className="import-mapping-pill">
+                    <strong>{field}</strong> ← {(preview.detection.mapping as Record<string, string | undefined>)[field]}
+                  </span>
+                ))
+              )}
+            </div>
+            {preview.detection.unmatchedHeaders.length > 0 && (
+              <div className="import-mapping-extra">
+                Colonne ignorate: {preview.detection.unmatchedHeaders.join(', ')}
+              </div>
+            )}
+          </div>
+
+          {error && <div className="import-error">{error}</div>}
+
+          <div className="import-confirm-actions">
+            <button type="button" className="btn btn-ghost" onClick={resetWizard}>
+              Annulla
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleImport}
+              disabled={loading || !listName.trim()}
+            >
+              {loading ? 'Import in corso…' : `Importa ${preview.rows.length} contatti`}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === 3 && result && (
+        <div className="import-success">
+          <div className="import-success-emoji">✅</div>
+          <h2>{result.imported_contacts} contatti pronti</h2>
+          <p>
+            in lista <strong>{listName}</strong> · tag <code>{eventTag || '—'}</code>
+          </p>
+
+          <div className="import-success-stats">
+            <div>
+              <strong>{result.created_contacts}</strong>
+              <span>nuovi</span>
+            </div>
+            <div>
+              <strong>{result.updated_contacts}</strong>
+              <span>aggiornati</span>
+            </div>
+            <div>
+              <strong>{result.matched_contacts}</strong>
+              <span>match trovati</span>
+            </div>
+          </div>
+
+          <div className="import-success-actions">
+            <Link
+              href={`/contacts?list=${encodeURIComponent(listName)}`}
+              className="btn btn-primary"
+            >
+              Apri la lista →
+            </Link>
+            <Link href="/dashboard" className="btn btn-ghost">
+              Torna a Oggi
+            </Link>
+            <button type="button" className="btn btn-ghost" onClick={resetWizard}>
+              Altro import
+            </button>
+          </div>
         </div>
       )}
     </div>

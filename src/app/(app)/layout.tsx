@@ -59,7 +59,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return (
       <div className="loading-screen">
         <BrandLockup tone="dark" size="hero" centered />
-        <div className="loading-text">Caricamento CRM...</div>
+        <div className="loading-text">Apertura in corso…</div>
       </div>
     )
   }
@@ -81,13 +81,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <CRMContext.Provider value={contextValue}>
       <div className="app-layout">
-        <Sidebar counts={counts} onQuickRecord={() => router.push('/voice')} />
+        <Sidebar counts={counts} />
         <div className="app-main">
           <Topbar pathname={pathname} />
           <div className="page-content">
             {crm.error && (
               <div className="inline-error">
-                <strong>Errore CRM:</strong> {crm.error}
+                <strong>Qualcosa è andato storto:</strong> {crm.error}
               </div>
             )}
             {children}

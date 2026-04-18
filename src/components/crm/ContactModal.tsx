@@ -105,7 +105,7 @@ export function ContactModal({
   }
 
   async function handleDelete() {
-    if (!onDelete || !window.confirm('Eliminare questo contatto?')) return
+    if (!onDelete || !window.confirm('Elimino questo contatto? Non si può annullare.')) return
     setSaving(true)
     try {
       await onDelete()
@@ -131,7 +131,7 @@ export function ContactModal({
             Annulla
           </button>
           <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-            {saving ? 'Salvataggio...' : 'Salva'}
+            {saving ? 'Salvataggio…' : 'Salva'}
           </button>
         </>
       }

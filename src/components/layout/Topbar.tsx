@@ -1,20 +1,22 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 
 const PAGE_TITLES: Record<string, string> = {
-  '/dashboard': '🏠 Dashboard',
-  '/kanban': '🗂 Pipeline',
-  '/quick-capture': '⚡ Quick Capture',
+  '/dashboard': '🏠 Oggi',
   '/contacts': '👥 Contatti',
+  '/kanban': '🔀 Pipeline',
+  '/import': '📥 Importa',
+  '/impostazioni': '⚙️ Impostazioni',
+  '/quick-capture': '⚡ Cattura rapida',
   '/gmail': '✉️ Gmail',
-  '/import': '📥 Import CSV',
   '/attivita': '⚙️ Attività & Follow-up',
   '/calendario': '📅 Calendario',
-  '/vinitaly': '🗃️ Liste Separate',
-  '/speaqi': '⚡ Lead Inbound',
-  '/voice': '🎤 Note Vocali',
+  '/vinitaly': '🗃️ Vinitaly (legacy)',
+  '/speaqi': '⚡ Lead inbound (legacy)',
+  '/voice': '🎤 Note vocali',
 }
 
 export function Topbar({ pathname }: { pathname: string }) {
@@ -31,6 +33,16 @@ export function Topbar({ pathname }: { pathname: string }) {
     <div className="topbar">
       <div className="topbar-title">{title}</div>
       <div className="topbar-actions">
+        <Link
+          href="/contacts?new=1"
+          className="btn btn-primary btn-sm"
+          title="Aggiungi un contatto rapidamente"
+        >
+          ＋ Nuovo
+        </Link>
+        <Link href="/import" className="btn btn-ghost btn-sm" title="Importa CSV">
+          📥 Importa
+        </Link>
         <button className="btn btn-ghost btn-sm" onClick={handleLogout} title="Esci">
           🚪 Esci
         </button>

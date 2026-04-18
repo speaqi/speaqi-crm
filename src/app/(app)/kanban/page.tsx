@@ -15,8 +15,44 @@ import {
 import { useCRMContext } from '../layout'
 import type { CRMContact } from '@/types'
 
+type ViewMode = 'board' | 'list'
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+function startOfDay(date: Date) {
+  const clone = new Date(date)
+  clone.setHours(0, 0, 0, 0)
+  return clone
+}
+
+function bucketFor(dueAt: string | null | undefined, now: Date): 'overdue' | 'today' | 'tomorrow' | 'week' | 'later' | 'none' {
+  if (!dueAt) return 'none'
+  const due = new Date(dueAt)
+  if (Number.isNaN(due.getTime())) return 'none'
+  const today = startOfDay(now)
+  const tomorrow = new Date(today.getTime() + DAY_MS)
+  const weekEnd = new Date(today.getTime() + 7 * DAY_MS)
+  if (due < today) return 'overdue'
+  if (due < tomorrow) return 'today'
+  if (due < new Date(tomorrow.getTime() + DAY_MS)) return 'tomorrow'
+  if (due < weekEnd) return 'week'
+  return 'later'
+}
+
+const BUCKET_LABELS: Record<string, string> = {
+  overdue: '⏰ In ritardo',
+  today: '🔥 Oggi',
+  tomorrow: '📅 Domani',
+  week: '📆 Questa settimana',
+  later: '🗓 Più avanti',
+  none: '💤 Senza follow-up',
+}
+
+const BUCKET_ORDER: Array<keyof typeof BUCKET_LABELS> = ['overdue', 'today', 'tomorrow', 'week', 'later', 'none']
+
 export default function KanbanPage() {
-  const { stages, contacts, createContact, updateContact, deleteContact, showToast } = useCRMContext()
+  const { stages, contacts, scheduledCalls, completeTask, createContact, updateContact, deleteContact, showToast } = useCRMContext()
+  const [view, setView] = useState<ViewMode>('board')
   const [search, setSearch] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
   const [sourceFilter, setSourceFilter] = useState('')
@@ -51,6 +87,37 @@ export default function KanbanPage() {
   const uniqueSources = Array.from(new Set(contacts.map((contact) => contact.source).filter(Boolean))).sort()
   const uniqueCategories = Array.from(new Set(contacts.map((contact) => contact.category).filter(Boolean))).sort()
 
+  const filteredIds = useMemo(() => new Set(filtered.map((contact) => contact.id)), [filtered])
+  const now = useMemo(() => new Date(), [])
+
+  const listBuckets = useMemo(() => {
+    const buckets: Record<string, typeof scheduledCalls> = {
+      overdue: [],
+      today: [],
+      tomorrow: [],
+      week: [],
+      later: [],
+      none: [],
+    }
+    for (const call of scheduledCalls) {
+      if (!filteredIds.has(call.contact.id)) continue
+      const bucket = bucketFor(call.due_at, now)
+      buckets[bucket].push(call)
+    }
+    for (const contact of filtered) {
+      if (contact.next_followup_at) continue
+      if (scheduledCalls.some((call) => call.contact.id === contact.id)) continue
+      buckets.none.push({
+        contact,
+        task: null,
+        due_at: '',
+        source: 'contact',
+        task_type: 'follow-up',
+      })
+    }
+    return buckets
+  }, [filtered, filteredIds, now, scheduledCalls])
+
   function openCreate() {
     setEditingContact(null)
     setModalOpen(true)
@@ -77,16 +144,41 @@ export default function KanbanPage() {
     }
   }
 
+  async function handleComplete(taskId: string) {
+    try {
+      await completeTask(taskId)
+      showToast('Completato')
+    } catch (error) {
+      showToast(`Errore: ${error instanceof Error ? error.message : 'completamento'}`)
+    }
+  }
+
   return (
     <>
       <div className="toolbar">
+        <div className="pipeline-toggle" role="tablist">
+          <button
+            type="button"
+            className={`pipeline-toggle-btn ${view === 'board' ? 'active' : ''}`}
+            onClick={() => setView('board')}
+          >
+            🔀 Board
+          </button>
+          <button
+            type="button"
+            className={`pipeline-toggle-btn ${view === 'list' ? 'active' : ''}`}
+            onClick={() => setView('list')}
+          >
+            📋 Lista
+          </button>
+        </div>
         <div className="search">
           <span style={{ color: 'var(--text3)' }}>🔍</span>
           <input
             type="text"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Cerca lead, email, responsabile..."
+            placeholder="Cerca nome, email, persona…"
           />
         </div>
         <select className="filter-select" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}>
@@ -122,10 +214,68 @@ export default function KanbanPage() {
           <span className="tstat">Alta priorità: <strong style={{ color: 'var(--red)' }}>{filtered.filter((contact) => contact.priority >= 3).length}</strong></span>
         </div>
         <button className="btn btn-primary btn-sm" onClick={openCreate}>
-          ＋ Nuovo Lead
+          ＋ Nuovo contatto
         </button>
       </div>
 
+      {view === 'list' ? (
+        <div className="pipeline-list">
+          {BUCKET_ORDER.map((bucket) => {
+            const items = listBuckets[bucket]
+            if (!items || items.length === 0) return null
+            return (
+              <section key={bucket} className="pipeline-bucket">
+                <div className="pipeline-bucket-head">
+                  <span>{BUCKET_LABELS[bucket]}</span>
+                  <span className="pipeline-bucket-count">{items.length}</span>
+                </div>
+                <div className="pipeline-bucket-list">
+                  {items.map((call) => (
+                    <div key={call.contact.id} className="pipeline-list-row">
+                      <Link
+                        href={`/contacts?id=${call.contact.id}`}
+                        className="pipeline-list-main"
+                      >
+                        <strong>{call.contact.name}</strong>
+                        {call.contact.company && (
+                          <span className="pipeline-list-company">· {call.contact.company}</span>
+                        )}
+                      </Link>
+                      <span className="pipeline-list-stage" style={{ background: stageColor(call.contact.status, stages) }}>
+                        {statusLabel(call.contact.status)}
+                      </span>
+                      {call.contact.priority > 0 && (
+                        <span className={`ctag ${priorityBadgeClass(call.contact.priority)}`}>
+                          {priorityLabel(call.contact.priority)}
+                        </span>
+                      )}
+                      <span className="pipeline-list-date">
+                        {call.due_at ? formatDateTime(call.due_at) : 'Senza data'}
+                      </span>
+                      {call.task?.id ? (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => handleComplete(call.task!.id)}
+                        >
+                          ✓ fatto
+                        </button>
+                      ) : (
+                        <Link
+                          href={`/contacts?id=${call.contact.id}`}
+                          className="btn btn-ghost btn-sm"
+                        >
+                          apri →
+                        </Link>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )
+          })}
+        </div>
+      ) : (
       <div className="board-outer">
         <div className="board-scroll">
           <div className="board">
@@ -188,7 +338,7 @@ export default function KanbanPage() {
                             <strong>{formatDateTime(contact.last_contact_at)}</strong>
                           </div>
                           <div className="card-actions-row">
-                            <Link href={`/contacts/${contact.id}`} className="btn btn-ghost btn-sm">
+                            <Link href={`/contacts?id=${contact.id}`} className="btn btn-ghost btn-sm">
                               Apri scheda
                             </Link>
                             <span className="stage-pill" style={{ background: stageColor(contact.status, stages) }}>
@@ -205,27 +355,28 @@ export default function KanbanPage() {
           </div>
         </div>
       </div>
+      )}
 
       <ContactModal
         open={modalOpen}
-        title={editingContact ? 'Modifica Lead' : 'Nuovo Lead'}
+        title={editingContact ? 'Modifica contatto' : 'Nuovo contatto'}
         stages={stages}
         initialContact={editingContact}
         onClose={() => setModalOpen(false)}
         onSave={async (payload) => {
           if (editingContact) {
             await updateContact(editingContact.id, payload)
-            showToast('Lead aggiornato')
+            showToast('Contatto aggiornato')
           } else {
             await createContact(payload)
-            showToast('Lead creato')
+            showToast('Contatto creato')
           }
         }}
         onDelete={
           editingContact
             ? async () => {
                 await deleteContact(editingContact.id)
-                showToast('Lead eliminato')
+                showToast('Contatto eliminato')
               }
             : undefined
         }
