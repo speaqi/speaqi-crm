@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   { href: '/dashboard', label: 'Oggi', icon: '🏠', badgeKey: 'oggi' as const, badgeRed: true },
   { href: '/contacts', label: 'Contatti', icon: '👥', badgeKey: 'contacts' as const },
   { href: '/kanban', label: 'Pipeline', icon: '🔀', badgeKey: 'kanban' as const },
+  { href: '/calendario', label: 'Calendario', icon: '📅' },
   { href: '/import', label: 'Importa', icon: '📥' },
   { href: '/impostazioni', label: 'Impostazioni', icon: '⚙️' },
 ]

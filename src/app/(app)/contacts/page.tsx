@@ -33,6 +33,7 @@ function ContactsPageInner() {
     allContacts,
     scheduledCalls,
     stages,
+    teamMembers,
     createContact,
     updateContact,
     deleteContact,
@@ -112,15 +113,8 @@ function ContactsPageInner() {
   )
 
   const assignees = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          allContacts
-            .map((contact) => contact.responsible?.trim())
-            .filter((value): value is string => Boolean(value))
-        )
-      ).sort(),
-    [allContacts]
+    () => teamMembers.map((member) => member.name).sort(),
+    [teamMembers]
   )
 
   const filtered = useMemo(() => {
@@ -425,6 +419,7 @@ function ContactsPageInner() {
         open={modalOpen}
         title={editingContact ? 'Modifica contatto' : 'Nuovo contatto'}
         stages={stages}
+        teamMembers={teamMembers}
         initialContact={editingContact}
         onClose={() => {
           setModalOpen(false)

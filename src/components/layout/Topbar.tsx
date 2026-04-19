@@ -10,6 +10,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/kanban': '🔀 Pipeline',
   '/import': '📥 Importa',
   '/impostazioni': '⚙️ Impostazioni',
+  '/impostazioni/team': '👥 Team',
   '/quick-capture': '⚡ Cattura rapida',
   '/gmail': '✉️ Gmail',
   '/attivita': '⚙️ Attività & Follow-up',

@@ -4,6 +4,12 @@ import Link from 'next/link'
 
 const SETTINGS_ITEMS = [
   {
+    href: '/impostazioni/team',
+    icon: '👥',
+    title: 'Team',
+    description: 'Gestisci i collaboratori che possono essere assegnati ai contatti.',
+  },
+  {
     href: '/gmail',
     icon: '✉️',
     title: 'Gmail',
@@ -32,12 +38,6 @@ const SETTINGS_ITEMS = [
     icon: '⚡',
     title: 'Cattura rapida',
     description: 'Form veloce per nuovi lead senza CSV.',
-  },
-  {
-    href: '/calendario',
-    icon: '📅',
-    title: 'Calendario',
-    description: 'Vista calendario dei follow-up.',
   },
   {
     href: '/attivita',

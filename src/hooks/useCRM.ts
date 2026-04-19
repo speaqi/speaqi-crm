@@ -14,6 +14,7 @@ import type {
   PipelineStage,
   TaskInput,
   TaskWithContact,
+  TeamMember,
   VoiceNote,
 } from '@/types'
 
@@ -98,6 +99,7 @@ export function useCRM() {
     tasks: [],
   })
   const [vNotes, setVNotes] = useState<VoiceNote[]>([])
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
@@ -202,6 +204,13 @@ export function useCRM() {
         nextTasks = tasksResponse.tasks || []
       } catch (tasksError) {
         warnings.push(`Task: ${extractMessage(tasksError, 'Errore caricando i task')}`)
+      }
+
+      try {
+        const teamResponse = await apiFetch<{ members: TeamMember[] }>('/api/team-members')
+        setTeamMembers(teamResponse.members || [])
+      } catch (teamError) {
+        warnings.push(`Team: ${extractMessage(teamError, 'Errore caricando il team')}`)
       }
 
       setState((previous) => ({
@@ -511,6 +520,33 @@ export function useCRM() {
     })
   }, [])
 
+  const createTeamMember = useCallback(async (payload: { name: string; email?: string; color?: string }) => {
+    const response = await apiFetch<{ member: TeamMember }>('/api/team-members', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    setTeamMembers((previous) => [...previous, response.member].sort((a, b) => a.name.localeCompare(b.name)))
+    return response.member
+  }, [])
+
+  const updateTeamMember = useCallback(async (id: string, payload: { name?: string; email?: string | null; color?: string | null }) => {
+    const response = await apiFetch<{ member: TeamMember }>(`/api/team-members/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    setTeamMembers((previous) =>
+      previous.map((member) => (member.id === id ? response.member : member)).sort((a, b) => a.name.localeCompare(b.name))
+    )
+    return response.member
+  }, [])
+
+  const deleteTeamMember = useCallback(async (id: string) => {
+    await apiFetch(`/api/team-members/${id}`, { method: 'DELETE' })
+    setTeamMembers((previous) => previous.filter((member) => member.id !== id))
+  }, [])
+
   return {
     ...state,
     contacts: crmContacts,
@@ -522,10 +558,14 @@ export function useCRM() {
     openContactsWithoutQueue,
     dueTodayCount,
     vNotes,
+    teamMembers,
     loading,
     error,
     userId,
     refresh: () => loadAll({ background: true }),
+    createTeamMember,
+    updateTeamMember,
+    deleteTeamMember,
     createContact,
     updateContact,
     deleteContact,

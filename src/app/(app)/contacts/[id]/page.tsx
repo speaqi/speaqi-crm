@@ -51,7 +51,7 @@ function isActionRequiredNote(activity: Activity) {
 export default function ContactDetailPage() {
   const params = useParams<{ id: string }>()
   const contactId = params.id
-  const { loadContactDetail, stages, updateContact, deleteContact, addActivity, addTask, completeTask, refresh, showToast } = useCRMContext()
+  const { loadContactDetail, stages, teamMembers, updateContact, deleteContact, addActivity, addTask, completeTask, refresh, showToast } = useCRMContext()
   const [detail, setDetail] = useState<ContactDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [activityType, setActivityType] = useState('note')
@@ -643,6 +643,7 @@ export default function ContactDetailPage() {
         open={editOpen}
         title="Modifica contatto"
         stages={stages}
+        teamMembers={teamMembers}
         initialContact={contact}
         onClose={() => setEditOpen(false)}
         onSave={async (payload) => {

@@ -51,7 +51,7 @@ const BUCKET_LABELS: Record<string, string> = {
 const BUCKET_ORDER: Array<keyof typeof BUCKET_LABELS> = ['overdue', 'today', 'tomorrow', 'week', 'later', 'none']
 
 export default function KanbanPage() {
-  const { stages, contacts, scheduledCalls, completeTask, createContact, updateContact, deleteContact, showToast } = useCRMContext()
+  const { stages, contacts, scheduledCalls, teamMembers, completeTask, createContact, updateContact, deleteContact, showToast } = useCRMContext()
   const [view, setView] = useState<ViewMode>('board')
   const [search, setSearch] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
@@ -361,6 +361,7 @@ export default function KanbanPage() {
         open={modalOpen}
         title={editingContact ? 'Modifica contatto' : 'Nuovo contatto'}
         stages={stages}
+        teamMembers={teamMembers}
         initialContact={editingContact}
         onClose={() => setModalOpen(false)}
         onSave={async (payload) => {

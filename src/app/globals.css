@@ -1477,6 +1477,234 @@ select.filter-select {
   .oggi-hero { flex-direction: column; align-items: flex-start; }
 }
 
+/* === Oggi v2 === */
+.oggi-v2 { max-width: 1240px; }
+.oggi-v2 .oggi-hero {
+  background: linear-gradient(135deg, rgba(79, 110, 247, 0.08), rgba(79, 110, 247, 0.02));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px 24px;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 20px;
+  align-items: center;
+}
+.oggi-hero-stats {
+  display: flex;
+  gap: 18px;
+  padding: 0 20px;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+.oggi-stat { display: flex; flex-direction: column; align-items: center; min-width: 60px; }
+.oggi-stat strong { font-size: 22px; font-weight: 700; line-height: 1; color: var(--text); }
+.oggi-stat span { font-size: 11px; color: var(--text3); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+.oggi-overdue {
+  margin-top: 18px;
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+.oggi-overdue-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.oggi-overdue-head h2 { margin: 0; font-size: 15px; font-weight: 600; color: #b91c1c; }
+.oggi-overdue-icon { font-size: 16px; }
+.oggi-overdue-count {
+  background: #ef4444;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: auto;
+}
+.oggi-overdue-list { display: flex; flex-direction: column; gap: 6px; }
+.oggi-overdue-more { text-decoration: none; color: #b91c1c; font-size: 12.5px; padding: 6px 10px; }
+
+.oggi-week { margin-top: 22px; }
+.oggi-week-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.oggi-week-head h2 { font-size: 15px; font-weight: 600; margin: 0; }
+.oggi-week-link { font-size: 12.5px; color: var(--accent); text-decoration: none; }
+.oggi-week-link:hover { text-decoration: underline; }
+
+.oggi-week-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+.oggi-day-col {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.oggi-day-col.is-today {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+  background: linear-gradient(180deg, rgba(79, 110, 247, 0.04), transparent);
+}
+.oggi-day-head {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.oggi-day-col.is-today .oggi-day-head { background: rgba(79, 110, 247, 0.07); }
+.oggi-day-label { font-size: 12.5px; font-weight: 600; text-transform: capitalize; }
+.oggi-day-date { font-size: 11px; color: var(--text3); }
+.oggi-day-count {
+  margin-left: auto;
+  background: var(--surface2);
+  color: var(--text2);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 8px;
+}
+.oggi-day-col.is-today .oggi-day-count { background: var(--accent); color: white; }
+.oggi-day-body { padding: 8px; display: flex; flex-direction: column; gap: 6px; flex: 1; overflow-y: auto; max-height: 400px; }
+.oggi-day-empty { color: var(--text3); font-size: 12px; text-align: center; padding: 20px 0; }
+
+.oggi-call-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.oggi-call-card:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+.oggi-call-card.is-overdue { background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.3); }
+.oggi-call-card.is-today { background: var(--surface); }
+.oggi-call-card.is-hot { border-left: 3px solid #f59e0b; }
+.oggi-call-time {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text2);
+  min-width: 40px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.oggi-call-card.is-overdue .oggi-call-time { color: #b91c1c; font-size: 14px; }
+.oggi-call-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-decoration: none;
+  color: inherit;
+  overflow: hidden;
+}
+.oggi-call-body .oggi-call-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.oggi-call-body:hover .oggi-call-name { color: var(--accent); }
+.oggi-call-body .oggi-call-company {
+  font-size: 11px;
+  color: var(--text3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.oggi-call-pri { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.3px; }
+.oggi-call-pri.pri-3 { color: #dc2626; font-weight: 700; }
+.oggi-call-pri.pri-2 { color: #d97706; }
+.oggi-call-done {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text2);
+  text-decoration: none;
+  padding: 0;
+}
+.oggi-call-done:hover { background: var(--accent); color: white; border-color: var(--accent); }
+
+.oggi-bottom-grid {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+}
+.oggi-stagnant-list { display: flex; flex-direction: column; }
+
+@media (max-width: 1000px) {
+  .oggi-week-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .oggi-v2 .oggi-hero { grid-template-columns: 1fr; }
+  .oggi-hero-stats { border: none; padding: 0; }
+}
+
+/* === Team admin === */
+.team-breadcrumb { margin-bottom: 8px; font-size: 13px; }
+.team-breadcrumb a { color: var(--text3); text-decoration: none; }
+.team-breadcrumb a:hover { color: var(--accent); }
+.team-add {
+  display: flex;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.team-add input {
+  flex: 1;
+  min-width: 180px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  background: white;
+}
+.team-list { display: flex; flex-direction: column; gap: 6px; }
+.team-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.team-row-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.team-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.team-row-body strong { font-size: 14px; }
+.team-row-email { font-size: 12px; color: var(--text3); }
+.team-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.team-empty { text-align: center; padding: 32px 16px; color: var(--text2); }
+.team-muted { color: var(--text3); font-size: 13px; margin-top: 6px; }
+
 .contacts-page { padding: 16px 20px; overflow-y: auto; height: 100%; display: flex; flex-direction: column; gap: 12px; }
 .contacts-toolbar {
   display: flex;

@@ -13,7 +13,7 @@ import {
   statusLabel,
   toDatetimeLocalValue,
 } from '@/lib/data'
-import type { CRMContact, ContactInput, PipelineStage } from '@/types'
+import type { CRMContact, ContactInput, PipelineStage, TeamMember } from '@/types'
 
 interface ContactModalProps {
   open: boolean
@@ -21,6 +21,7 @@ interface ContactModalProps {
   stages: PipelineStage[]
   initialContact?: CRMContact | null
   defaultSource?: string
+  teamMembers?: TeamMember[]
   onClose: () => void
   onSave: (payload: ContactInput) => Promise<void> | void
   onDelete?: () => Promise<void> | void
@@ -59,6 +60,7 @@ export function ContactModal({
   stages,
   initialContact,
   defaultSource,
+  teamMembers = [],
   onClose,
   onSave,
   onDelete,
@@ -255,12 +257,27 @@ export function ContactModal({
         </div>
         <div className="fg">
           <label className="fl">Responsabile</label>
-          <input
-            className="fi"
-            value={form.responsible || ''}
-            onChange={(event) => setForm((previous) => ({ ...previous, responsible: event.target.value }))}
-            placeholder="Chi gestisce il lead"
-          />
+          {teamMembers.length > 0 ? (
+            <select
+              className="fi"
+              value={form.responsible || ''}
+              onChange={(event) => setForm((previous) => ({ ...previous, responsible: event.target.value }))}
+            >
+              <option value="">— Non assegnato —</option>
+              {teamMembers.map((member) => (
+                <option key={member.id} value={member.name}>
+                  {member.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              className="fi"
+              value={form.responsible || ''}
+              onChange={(event) => setForm((previous) => ({ ...previous, responsible: event.target.value }))}
+              placeholder="Aggiungi team da Impostazioni › Team"
+            />
+          )}
         </div>
       </div>
 

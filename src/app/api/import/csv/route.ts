@@ -399,9 +399,7 @@ export async function POST(request: NextRequest) {
     const fileName = normalizeText(body.file_name)?.replace(/\.[^.]+$/, '')
     const requestedListName = normalizeText(body.list_name)
     const defaultListName =
-      contactScope === 'holding'
-        ? requestedListName || fileName || defaultSource || 'Import CSV'
-        : null
+      requestedListName || fileName || (contactScope === 'holding' ? defaultSource || 'Import CSV' : null)
 
     const seenLegacyIds = new Set<string>()
     const records = parsedRows.map((row, index) =>

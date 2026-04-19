@@ -8,7 +8,7 @@ import { useCRMContext } from '../layout'
 import type { CRMContact } from '@/types'
 
 export default function SpeaqiPage() {
-  const { speaqiContacts, stages, createContact, updateContact, deleteContact, showToast } = useCRMContext()
+  const { speaqiContacts, stages, teamMembers, createContact, updateContact, deleteContact, showToast } = useCRMContext()
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editingContact, setEditingContact] = useState<CRMContact | null>(null)
@@ -85,6 +85,7 @@ export default function SpeaqiPage() {
         open={modalOpen}
         title={editingContact ? 'Modifica lead inbound' : 'Nuovo lead inbound'}
         stages={stages}
+        teamMembers={teamMembers}
         initialContact={editingContact}
         defaultSource="speaqi"
         onClose={() => setModalOpen(false)}

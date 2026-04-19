@@ -116,6 +116,16 @@ export interface CRMState {
   tasks: TaskWithContact[]
 }
 
+export interface TeamMember {
+  id: string
+  user_id?: string
+  name: string
+  email?: string | null
+  color?: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface VoiceNote {
   uid?: string
   _u?: string

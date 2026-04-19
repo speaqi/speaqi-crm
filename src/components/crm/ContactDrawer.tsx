@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   activityTypeLabel,
   formatDateTime,
@@ -14,7 +14,6 @@ import {
 } from '@/lib/data'
 import type { Activity, ContactDetail } from '@/types'
 import { useCRMContext } from '@/app/(app)/layout'
-import type { CRMContact } from '@/types'
 
 interface ContactDrawerProps {
   contactId: string | null
@@ -30,7 +29,7 @@ function toInputDate(days: number) {
 }
 
 export function ContactDrawer({ contactId, onClose, onEdit }: ContactDrawerProps) {
-  const { loadContactDetail, addActivity, addTask, updateContact, allContacts, showToast } = useCRMContext()
+  const { loadContactDetail, addActivity, addTask, updateContact, teamMembers, showToast } = useCRMContext()
   const [detail, setDetail] = useState<ContactDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [noteText, setNoteText] = useState('')
@@ -38,15 +37,6 @@ export function ContactDrawer({ contactId, onClose, onEdit }: ContactDrawerProps
   const [followupDate, setFollowupDate] = useState('')
   const [followupSaving, setFollowupSaving] = useState(false)
   const [assigning, setAssigning] = useState(false)
-
-  const teamMembers = useMemo(() => {
-    const set = new Set<string>()
-    for (const contact of allContacts as CRMContact[]) {
-      const responsible = contact.responsible?.trim()
-      if (responsible) set.add(responsible)
-    }
-    return Array.from(set).sort()
-  }, [allContacts])
 
   useEffect(() => {
     if (!contactId) {
@@ -208,35 +198,24 @@ export function ContactDrawer({ contactId, onClose, onEdit }: ContactDrawerProps
                 >
                   <option value="">— Non assegnato —</option>
                   {teamMembers.map((member) => (
-                    <option key={member} value={member}>
-                      {member}
+                    <option key={member.id} value={member.name}>
+                      {member.name}
                     </option>
                   ))}
                 </select>
-                <button
-                  type="button"
+                <Link
+                  href="/impostazioni/team"
                   className="btn btn-ghost btn-sm"
-                  disabled={assigning}
-                  title="Aggiungi collaboratore"
-                  onClick={async () => {
-                    const name = window.prompt('Nome collaboratore:')?.trim()
-                    if (!name) return
-                    setAssigning(true)
-                    try {
-                      await updateContact(contact.id, { responsible: name })
-                      const refreshed = await loadContactDetail(contact.id)
-                      setDetail(refreshed)
-                      showToast(`Assegnato a ${name}`)
-                    } catch (error) {
-                      showToast(`Errore: ${error instanceof Error ? error.message : 'assegnazione'}`)
-                    } finally {
-                      setAssigning(false)
-                    }
-                  }}
+                  title="Gestisci team"
                 >
-                  +
-                </button>
+                  ⚙️
+                </Link>
               </div>
+              {teamMembers.length === 0 && (
+                <div className="drawer-hint">
+                  <Link href="/impostazioni/team">Aggiungi un collaboratore →</Link>
+                </div>
+              )}
             </div>
 
             <div className="drawer-section">

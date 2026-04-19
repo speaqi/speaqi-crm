@@ -7,6 +7,7 @@ import { isClosedStatus, priorityLabel, statusLabel } from '@/lib/data'
 import type { ScheduledCall } from '@/lib/schedule'
 
 const DAY_MS = 24 * 60 * 60 * 1000
+const DAYS_AHEAD = 5
 
 function startOfDay(date: Date) {
   const clone = new Date(date)
@@ -22,22 +23,21 @@ function formatItalianDate(date: Date) {
   })
 }
 
-function formatRelativeDay(date: Date) {
-  const today = startOfDay(new Date())
-  const target = startOfDay(date)
-  const diffDays = Math.round((target.getTime() - today.getTime()) / DAY_MS)
-  if (diffDays === 0) return 'Oggi'
-  if (diffDays === 1) return 'Domani'
-  if (diffDays === -1) return 'Ieri'
-  if (diffDays > 1 && diffDays < 7) return date.toLocaleDateString('it-IT', { weekday: 'long' })
-  return date.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
-}
-
 function greetingForHour(hour: number) {
   if (hour < 6) return 'Buonanotte'
   if (hour < 13) return 'Buongiorno'
   if (hour < 19) return 'Buon pomeriggio'
   return 'Buonasera'
+}
+
+function dayLabelShort(date: Date, index: number) {
+  if (index === 0) return 'Oggi'
+  if (index === 1) return 'Domani'
+  return date.toLocaleDateString('it-IT', { weekday: 'long' })
+}
+
+function dayNumber(date: Date) {
+  return date.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
 }
 
 interface LatestImport {
@@ -51,30 +51,30 @@ export default function OggiPage() {
 
   const now = new Date()
   const today = startOfDay(now)
-  const tomorrow = new Date(today.getTime() + DAY_MS)
-  const in3Days = new Date(today.getTime() + 4 * DAY_MS)
   const stagnantCutoff = new Date(today.getTime() - 14 * DAY_MS)
 
   const overdueCalls = useMemo<ScheduledCall[]>(
     () => scheduledCalls.filter((call) => new Date(call.due_at) < today),
     [scheduledCalls, today]
   )
-  const todayCalls = useMemo<ScheduledCall[]>(
-    () =>
-      scheduledCalls.filter((call) => {
-        const due = new Date(call.due_at)
-        return due >= today && due < tomorrow
-      }),
-    [scheduledCalls, today, tomorrow]
-  )
-  const upcomingCalls = useMemo<ScheduledCall[]>(
-    () =>
-      scheduledCalls.filter((call) => {
-        const due = new Date(call.due_at)
-        return due >= tomorrow && due < in3Days
-      }),
-    [scheduledCalls, tomorrow, in3Days]
-  )
+
+  const days = useMemo(() => {
+    const buckets: Array<{ date: Date; calls: ScheduledCall[] }> = []
+    for (let index = 0; index < DAYS_AHEAD; index += 1) {
+      const dayStart = new Date(today.getTime() + index * DAY_MS)
+      const dayEnd = new Date(dayStart.getTime() + DAY_MS)
+      buckets.push({
+        date: dayStart,
+        calls: scheduledCalls
+          .filter((call) => {
+            const due = new Date(call.due_at)
+            return due >= dayStart && due < dayEnd
+          })
+          .sort((left, right) => new Date(left.due_at).getTime() - new Date(right.due_at).getTime()),
+      })
+    }
+    return buckets
+  }, [scheduledCalls, today])
 
   const stagnantContacts = useMemo(
     () =>
@@ -113,25 +113,37 @@ export default function OggiPage() {
   const hour = now.getHours()
   const greeting = greetingForHour(hour)
   const dayLabel = formatItalianDate(now)
+  const totalUpcoming = days.reduce((sum, day) => sum + day.calls.length, 0) + overdueCalls.length
 
   async function handleComplete(taskId: string | null) {
     if (!taskId) return
     try {
       await completeTask(taskId)
     } catch {
-      // noop — errore mostrato dal layout
+      // error surfaced by layout
     }
   }
 
-  const totalToday = todayCalls.length + overdueCalls.length
-  const emptyToday = totalToday === 0
-
   return (
-    <div className="oggi-page">
-      <div className="oggi-hero">
+    <div className="oggi-page oggi-v2">
+      <header className="oggi-hero">
         <div>
           <h1>{greeting}.</h1>
           <p className="oggi-date">{dayLabel}</p>
+        </div>
+        <div className="oggi-hero-stats">
+          <div className="oggi-stat">
+            <strong>{overdueCalls.length}</strong>
+            <span>scaduti</span>
+          </div>
+          <div className="oggi-stat">
+            <strong>{days[0]?.calls.length || 0}</strong>
+            <span>oggi</span>
+          </div>
+          <div className="oggi-stat">
+            <strong>{totalUpcoming}</strong>
+            <span>prossimi 5gg</span>
+          </div>
         </div>
         <div className="oggi-hero-actions">
           <Link href="/contacts?new=1" className="btn btn-primary">
@@ -141,46 +153,68 @@ export default function OggiPage() {
             📥 Importa CSV
           </Link>
         </div>
-      </div>
+      </header>
 
-      {emptyToday ? (
-        <div className="oggi-empty">
-          <div className="oggi-empty-emoji">☀️</div>
-          <h2>Nessun follow-up oggi.</h2>
-          <p>Bel lavoro. Usa il tempo libero per caricare nuovi lead o ricontattare chi è fermo.</p>
-          <div className="oggi-empty-actions">
-            <Link href="/import" className="btn btn-primary">Importa contatti</Link>
-            <Link href="/contacts" className="btn btn-ghost">Apri contatti</Link>
+      {overdueCalls.length > 0 && (
+        <section className="oggi-overdue">
+          <div className="oggi-overdue-head">
+            <span className="oggi-overdue-icon">⏰</span>
+            <h2>Scaduti da recuperare</h2>
+            <span className="oggi-overdue-count">{overdueCalls.length}</span>
           </div>
-        </div>
-      ) : (
-        <section className="oggi-section">
-          <div className="oggi-section-head">
-            <h2>
-              <span className="oggi-flame">🔥</span>
-              Da fare oggi
-              <span className="oggi-count">{totalToday}</span>
-            </h2>
-          </div>
-          <div className="oggi-list">
-            {overdueCalls.slice(0, 8).map((call) => (
-              <CallRow key={`o-${call.contact.id}`} call={call} overdue onComplete={handleComplete} />
+          <div className="oggi-overdue-list">
+            {overdueCalls.slice(0, 6).map((call) => (
+              <CallCard key={`ovd-${call.contact.id}`} call={call} variant="overdue" onComplete={handleComplete} />
             ))}
-            {todayCalls.slice(0, 10).map((call) => (
-              <CallRow key={`t-${call.contact.id}`} call={call} onComplete={handleComplete} />
-            ))}
+            {overdueCalls.length > 6 && (
+              <Link href="/kanban?view=list" className="oggi-overdue-more">
+                +{overdueCalls.length - 6} altri →
+              </Link>
+            )}
           </div>
         </section>
       )}
 
-      <div className="oggi-grid">
+      <section className="oggi-week">
+        <div className="oggi-week-head">
+          <h2>Prossimi 5 giorni</h2>
+          <Link href="/calendario" className="oggi-week-link">Vista calendario →</Link>
+        </div>
+        <div className="oggi-week-grid">
+          {days.map((day, index) => (
+            <div key={day.date.toISOString()} className={`oggi-day-col ${index === 0 ? 'is-today' : ''}`}>
+              <div className="oggi-day-head">
+                <span className="oggi-day-label">{dayLabelShort(day.date, index)}</span>
+                <span className="oggi-day-date">{dayNumber(day.date)}</span>
+                {day.calls.length > 0 && <span className="oggi-day-count">{day.calls.length}</span>}
+              </div>
+              <div className="oggi-day-body">
+                {day.calls.length === 0 ? (
+                  <div className="oggi-day-empty">—</div>
+                ) : (
+                  day.calls.map((call) => (
+                    <CallCard
+                      key={`d-${day.date.toISOString()}-${call.contact.id}`}
+                      call={call}
+                      variant={index === 0 ? 'today' : 'upcoming'}
+                      onComplete={handleComplete}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="oggi-bottom-grid">
         {latestImport && (
           <section className="oggi-card oggi-card-accent">
             <div className="oggi-card-title">📥 Ultimo import</div>
             <div className="oggi-import-body">
               <div className="oggi-import-meta">
                 <strong>{latestImport.listName}</strong>
-                <span>{latestImport.total} contatti · {formatRelativeDay(new Date(latestImport.createdAt))}</span>
+                <span>{latestImport.total} contatti</span>
               </div>
               <Link
                 href={`/contacts?list=${encodeURIComponent(latestImport.listName)}`}
@@ -193,49 +227,19 @@ export default function OggiPage() {
         )}
 
         <section className="oggi-card">
-          <div className="oggi-card-title">📅 Prossimi 3 giorni</div>
-          {upcomingCalls.length === 0 ? (
-            <p className="oggi-muted">Niente di programmato.</p>
-          ) : (
-            <div className="oggi-list oggi-list-compact">
-              {upcomingCalls.slice(0, 6).map((call) => (
-                <Link
-                  key={call.contact.id}
-                  href={`/contacts/${call.contact.id}`}
-                  className="oggi-upcoming-row"
-                >
-                  <span className="oggi-upcoming-day">
-                    {formatRelativeDay(new Date(call.due_at))}
-                  </span>
-                  <span className="oggi-upcoming-name">{call.contact.name}</span>
-                  <span className="oggi-upcoming-time">
-                    {new Date(call.due_at).toLocaleTimeString('it-IT', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="oggi-card">
-          <div className="oggi-card-title">💤 Lead fermi da 2 settimane</div>
+          <div className="oggi-card-title">💤 Fermi da 2 settimane</div>
           {stagnantContacts.length === 0 ? (
-            <p className="oggi-muted">Tutti i lead aperti sono seguiti. 👏</p>
+            <p className="oggi-muted">Tutti i contatti sono seguiti. 👏</p>
           ) : (
-            <div className="oggi-list oggi-list-compact">
+            <div className="oggi-stagnant-list">
               {stagnantContacts.map((contact) => (
                 <Link
                   key={contact.id}
-                  href={`/contacts/${contact.id}`}
+                  href={`/contacts?id=${contact.id}`}
                   className="oggi-stagnant-row"
                 >
                   <span className="oggi-stagnant-name">{contact.name}</span>
-                  <span className="oggi-stagnant-meta">
-                    {statusLabel(contact.status)} · {formatRelativeDay(new Date(contact.last_contact_at || contact.created_at))}
-                  </span>
+                  <span className="oggi-stagnant-meta">{statusLabel(contact.status)}</span>
                 </Link>
               ))}
             </div>
@@ -246,43 +250,46 @@ export default function OggiPage() {
   )
 }
 
-function CallRow({
+function CallCard({
   call,
-  overdue = false,
+  variant,
   onComplete,
 }: {
   call: ScheduledCall
-  overdue?: boolean
+  variant: 'overdue' | 'today' | 'upcoming'
   onComplete: (taskId: string | null) => void
 }) {
   const due = new Date(call.due_at)
   const time = due.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+  const priority = call.contact.priority
 
   return (
-    <div className={`oggi-call-row ${overdue ? 'is-overdue' : ''}`}>
-      <div className={`oggi-call-dot ${overdue ? 'is-overdue' : ''}`} />
-      <Link href={`/contacts/${call.contact.id}`} className="oggi-call-name">
-        <strong>{call.contact.name}</strong>
-        {call.contact.company && <span className="oggi-call-company">· {call.contact.company}</span>}
+    <div className={`oggi-call-card is-${variant} ${priority >= 3 ? 'is-hot' : ''}`}>
+      <div className="oggi-call-time">
+        {variant === 'overdue' ? '⏰' : time}
+      </div>
+      <Link href={`/contacts?id=${call.contact.id}`} className="oggi-call-body">
+        <strong className="oggi-call-name">{call.contact.name}</strong>
+        {call.contact.company && <span className="oggi-call-company">{call.contact.company}</span>}
+        {priority > 0 && <span className={`oggi-call-pri pri-${priority}`}>{priorityLabel(priority)}</span>}
       </Link>
-      <span className="oggi-call-meta">
-        {overdue ? '⏰ scaduto' : time} · {priorityLabel(call.contact.priority)}
-      </span>
       {call.task?.id ? (
         <button
           type="button"
-          className="btn btn-ghost btn-sm oggi-call-done"
+          className="oggi-call-done"
           onClick={() => onComplete(call.task!.id)}
           title="Segna completato"
+          aria-label="Segna completato"
         >
-          ✓ fatto
+          ✓
         </button>
       ) : (
         <Link
-          href={`/contacts/${call.contact.id}`}
-          className="btn btn-ghost btn-sm oggi-call-done"
+          href={`/contacts?id=${call.contact.id}`}
+          className="oggi-call-done"
+          aria-label="Apri"
         >
-          apri →
+          →
         </Link>
       )}
     </div>
