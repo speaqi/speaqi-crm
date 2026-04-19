@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo } from 'react'
+import { DragEvent, useMemo, useState } from 'react'
 import { useCRMContext } from '../layout'
 import { isClosedStatus, priorityLabel, statusLabel } from '@/lib/data'
 import type { ScheduledCall } from '@/lib/schedule'
@@ -40,14 +40,37 @@ function dayNumber(date: Date) {
   return date.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
 }
 
+function dayKey(date: Date) {
+  return date.toISOString().slice(0, 10)
+}
+
 interface LatestImport {
   listName: string
   total: number
   createdAt: string
 }
 
+interface DragPayload {
+  contactId: string
+  taskId: string | null
+  dueAt: string
+  contactName: string
+}
+
+const DRAG_MIME = 'application/x-call'
+
 export default function OggiPage() {
-  const { contacts, allContacts, scheduledCalls, completeTask } = useCRMContext()
+  const {
+    contacts,
+    allContacts,
+    scheduledCalls,
+    completeTask,
+    updateTask,
+    updateContact,
+    showToast,
+  } = useCRMContext()
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
 
   const now = new Date()
   const today = startOfDay(now)
@@ -120,7 +143,69 @@ export default function OggiPage() {
     try {
       await completeTask(taskId)
     } catch {
-      // error surfaced by layout
+      // handled by layout
+    }
+  }
+
+  function handleDragStart(event: DragEvent<HTMLElement>, call: ScheduledCall) {
+    const payload: DragPayload = {
+      contactId: call.contact.id,
+      taskId: call.task?.id || null,
+      dueAt: call.due_at,
+      contactName: call.contact.name,
+    }
+    event.dataTransfer.setData(DRAG_MIME, JSON.stringify(payload))
+    event.dataTransfer.effectAllowed = 'move'
+    setDraggingId(call.contact.id)
+  }
+
+  function handleDragEnd() {
+    setDraggingId(null)
+    setDragOverKey(null)
+  }
+
+  function handleDragOver(event: DragEvent<HTMLElement>, key: string) {
+    if (!event.dataTransfer.types.includes(DRAG_MIME)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    if (dragOverKey !== key) setDragOverKey(key)
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLElement>, key: string) {
+    if (dragOverKey === key && !event.currentTarget.contains(event.relatedTarget as Node)) {
+      setDragOverKey(null)
+    }
+  }
+
+  async function handleDrop(event: DragEvent<HTMLElement>, targetDate: Date) {
+    event.preventDefault()
+    const raw = event.dataTransfer.getData(DRAG_MIME)
+    setDragOverKey(null)
+    setDraggingId(null)
+    if (!raw) return
+
+    let payload: DragPayload
+    try {
+      payload = JSON.parse(raw) as DragPayload
+    } catch {
+      return
+    }
+
+    const originalDue = new Date(payload.dueAt)
+    const newDue = new Date(targetDate)
+    newDue.setHours(originalDue.getHours(), originalDue.getMinutes(), 0, 0)
+
+    if (dayKey(originalDue) === dayKey(newDue)) return
+
+    try {
+      if (payload.taskId) {
+        await updateTask(payload.taskId, { due_date: newDue.toISOString() })
+      } else {
+        await updateContact(payload.contactId, { next_followup_at: newDue.toISOString() })
+      }
+      showToast(`${payload.contactName} spostato a ${dayNumber(newDue)}`)
+    } catch (error) {
+      showToast(`Errore: ${error instanceof Error ? error.message : 'spostamento'}`)
     }
   }
 
@@ -156,7 +241,12 @@ export default function OggiPage() {
       </header>
 
       {overdueCalls.length > 0 && (
-        <section className="oggi-overdue">
+        <section
+          className={`oggi-overdue ${dragOverKey === 'overdue' ? 'is-drop-target' : ''}`}
+          onDragOver={(event) => handleDragOver(event, 'overdue')}
+          onDragLeave={(event) => handleDragLeave(event, 'overdue')}
+          onDrop={(event) => handleDrop(event, today)}
+        >
           <div className="oggi-overdue-head">
             <span className="oggi-overdue-icon">⏰</span>
             <h2>Scaduti da recuperare</h2>
@@ -164,7 +254,15 @@ export default function OggiPage() {
           </div>
           <div className="oggi-overdue-list">
             {overdueCalls.slice(0, 6).map((call) => (
-              <CallCard key={`ovd-${call.contact.id}`} call={call} variant="overdue" onComplete={handleComplete} />
+              <CallCard
+                key={`ovd-${call.contact.id}`}
+                call={call}
+                variant="overdue"
+                dragging={draggingId === call.contact.id}
+                onComplete={handleComplete}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+              />
             ))}
             {overdueCalls.length > 6 && (
               <Link href="/kanban?view=list" className="oggi-overdue-more">
@@ -178,32 +276,46 @@ export default function OggiPage() {
       <section className="oggi-week">
         <div className="oggi-week-head">
           <h2>Prossimi 5 giorni</h2>
+          <span className="oggi-week-hint">Trascina un contatto per spostarlo di giorno</span>
           <Link href="/calendario" className="oggi-week-link">Vista calendario →</Link>
         </div>
         <div className="oggi-week-grid">
-          {days.map((day, index) => (
-            <div key={day.date.toISOString()} className={`oggi-day-col ${index === 0 ? 'is-today' : ''}`}>
-              <div className="oggi-day-head">
-                <span className="oggi-day-label">{dayLabelShort(day.date, index)}</span>
-                <span className="oggi-day-date">{dayNumber(day.date)}</span>
-                {day.calls.length > 0 && <span className="oggi-day-count">{day.calls.length}</span>}
+          {days.map((day, index) => {
+            const key = dayKey(day.date)
+            const isDropTarget = dragOverKey === key
+            return (
+              <div
+                key={key}
+                className={`oggi-day-col ${index === 0 ? 'is-today' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
+                onDragOver={(event) => handleDragOver(event, key)}
+                onDragLeave={(event) => handleDragLeave(event, key)}
+                onDrop={(event) => handleDrop(event, day.date)}
+              >
+                <div className="oggi-day-head">
+                  <span className="oggi-day-label">{dayLabelShort(day.date, index)}</span>
+                  <span className="oggi-day-date">{dayNumber(day.date)}</span>
+                  {day.calls.length > 0 && <span className="oggi-day-count">{day.calls.length}</span>}
+                </div>
+                <div className="oggi-day-body">
+                  {day.calls.length === 0 ? (
+                    <div className="oggi-day-empty">{isDropTarget ? '⤵ Rilascia qui' : '—'}</div>
+                  ) : (
+                    day.calls.map((call) => (
+                      <CallCard
+                        key={`d-${key}-${call.contact.id}`}
+                        call={call}
+                        variant={index === 0 ? 'today' : 'upcoming'}
+                        dragging={draggingId === call.contact.id}
+                        onComplete={handleComplete}
+                        onDragStart={handleDragStart}
+                        onDragEnd={handleDragEnd}
+                      />
+                    ))
+                  )}
+                </div>
               </div>
-              <div className="oggi-day-body">
-                {day.calls.length === 0 ? (
-                  <div className="oggi-day-empty">—</div>
-                ) : (
-                  day.calls.map((call) => (
-                    <CallCard
-                      key={`d-${day.date.toISOString()}-${call.contact.id}`}
-                      call={call}
-                      variant={index === 0 ? 'today' : 'upcoming'}
-                      onComplete={handleComplete}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </section>
 
@@ -253,18 +365,30 @@ export default function OggiPage() {
 function CallCard({
   call,
   variant,
+  dragging,
   onComplete,
+  onDragStart,
+  onDragEnd,
 }: {
   call: ScheduledCall
   variant: 'overdue' | 'today' | 'upcoming'
+  dragging: boolean
   onComplete: (taskId: string | null) => void
+  onDragStart: (event: DragEvent<HTMLElement>, call: ScheduledCall) => void
+  onDragEnd: () => void
 }) {
   const due = new Date(call.due_at)
   const time = due.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
   const priority = call.contact.priority
 
   return (
-    <div className={`oggi-call-card is-${variant} ${priority >= 3 ? 'is-hot' : ''}`}>
+    <div
+      className={`oggi-call-card is-${variant} ${priority >= 3 ? 'is-hot' : ''} ${dragging ? 'is-dragging' : ''}`}
+      draggable
+      onDragStart={(event) => onDragStart(event, call)}
+      onDragEnd={onDragEnd}
+    >
+      <div className="oggi-call-grip" aria-hidden>⋮⋮</div>
       <div className="oggi-call-time">
         {variant === 'overdue' ? '⏰' : time}
       </div>
