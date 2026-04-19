@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
       .select('*')
       .eq('contact_scope', 'crm')
       .neq('status', 'Closed')
+      .neq('status', 'Paid')
       .neq('status', 'Lost')
       .or(`last_contact_at.is.null,last_contact_at.lt.${cutoff}`)
       .order('updated_at', { ascending: true })

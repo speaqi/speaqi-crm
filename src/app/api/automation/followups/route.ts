@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
       .select('*')
       .eq('contact_scope', 'crm')
       .neq('status', 'Closed')
+      .neq('status', 'Paid')
       .neq('status', 'Lost')
       .order('next_action_at', { ascending: true, nullsFirst: false })
       .order('next_followup_at', { ascending: true, nullsFirst: false })

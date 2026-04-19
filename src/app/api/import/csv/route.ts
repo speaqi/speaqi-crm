@@ -5,7 +5,17 @@ import { isClosedStatus } from '@/lib/data'
 import { createActivities, ensurePipelineStages, formatActivityDate } from '@/lib/server/crm'
 import { requireRouteUser } from '@/lib/server/supabase'
 
-const ALLOWED_STATUSES = new Set(['New', 'Contacted', 'Interested', 'Call booked', 'Quote', 'Lost', 'Closed'])
+const ALLOWED_STATUSES = new Set([
+  'New',
+  'Contacted',
+  'Interested',
+  'Supertop',
+  'Call booked',
+  'Quote',
+  'Lost',
+  'Closed',
+  'Paid',
+])
 const INVALID_LEGACY_IDS = new Set(['#REF!', '#N/A', 'N/A', 'NULL', 'null', 'NaN', 'nan'])
 
 type ImportedRecord = {
@@ -97,10 +107,12 @@ function normalizeStatus(value: unknown) {
   if (normalized === 'nuovo' || normalized === 'new') return 'New'
   if (normalized === 'contattato' || normalized === 'contacted') return 'Contacted'
   if (normalized === 'interessato' || normalized === 'interested') return 'Interested'
+  if (normalized === 'supertop' || normalized === 'super' || normalized === 'top') return 'Supertop'
   if (normalized === 'callbooked' || normalized === 'callfissata' || normalized === 'callscheduled') return 'Call booked'
   if (normalized === 'preventivo' || normalized === 'quote') return 'Quote'
   if (normalized === 'perso' || normalized === 'lost' || normalized === 'notinterested') return 'Lost'
   if (normalized === 'chiuso' || normalized === 'closed') return 'Closed'
+  if (normalized === 'pagato' || normalized === 'paid') return 'Paid'
 
   return ALLOWED_STATUSES.has(raw) ? raw : 'New'
 }
