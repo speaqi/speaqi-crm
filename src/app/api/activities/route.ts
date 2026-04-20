@@ -46,7 +46,8 @@ export async function GET(request: NextRequest) {
           email,
           status,
           priority,
-          contact_scope
+          contact_scope,
+          responsible
         )
       `)
       .eq('user_id', auth.user.id)

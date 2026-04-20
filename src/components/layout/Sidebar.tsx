@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { href: '/contacts', label: 'Contatti', icon: '👥', badgeKey: 'contacts' as const },
   { href: '/kanban', label: 'Pipeline', icon: '🔀', badgeKey: 'kanban' as const },
   { href: '/calendario', label: 'Calendario', icon: '📅' },
+  { href: '/attivita', label: 'Attività', icon: '📊' },
   { href: '/import', label: 'Importa', icon: '📥' },
   { href: '/impostazioni', label: 'Impostazioni', icon: '⚙️' },
 ]

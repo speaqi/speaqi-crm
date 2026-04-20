@@ -1821,14 +1821,10 @@ select.filter-select {
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
   background: transparent;
-  border-left: none;
-  border-right: none;
-  border-top: none;
   cursor: pointer;
-  text-align: left;
-  font-family: inherit;
   color: inherit;
   transition: background .1s;
+  user-select: none;
 }
 .contacts-row:last-child { border-bottom: none; }
 .contacts-row:hover { background: var(--surface2); }
@@ -1857,6 +1853,9 @@ select.filter-select {
   flex-shrink: 0;
 }
 .contacts-row-followup { color: var(--text2); font-size: 12px; min-width: 110px; text-align: right; }
+.contacts-row-action { font-size: 12px; opacity: 0; transition: opacity .15s; white-space: nowrap; }
+.contacts-row:hover .contacts-row-action { opacity: 1; }
+.btn-xs { padding: 2px 8px; font-size: 12px; border-radius: 4px; }
 
 @media (max-width: 720px) {
   .contacts-row { flex-direction: column; gap: 6px; }

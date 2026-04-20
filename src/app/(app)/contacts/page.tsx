@@ -17,7 +17,13 @@ import {
   toLocalDateKey,
 } from '@/lib/data'
 import { useCRMContext } from '../layout'
-import type { CRMContact } from '@/types'
+import type { CRMContact, TaskWithContact } from '@/types'
+
+function todayAt9am() {
+  const d = new Date()
+  d.setHours(9, 0, 0, 0)
+  return d.toISOString()
+}
 
 const FOCUS_CHIPS: Array<{ key: string; label: string }> = [
   { key: 'new', label: 'Nuovi' },
@@ -37,6 +43,8 @@ function ContactsPageInner() {
     createContact,
     updateContact,
     deleteContact,
+    addTask,
+    updateTask,
     showToast,
   } = useCRMContext()
 
@@ -368,12 +376,16 @@ function ContactsPageInner() {
           filtered.map((contact) => {
             const call = scheduledCallsByContactId.get(contact.id) || null
             const holdingTag = isHoldingContact(contact) ? holdingListLabel(contact) : null
+            const isToday = toLocalDateKey(call?.due_at) === todayKey
+            const isClosed = isClosedStatus(contact.status)
             return (
-              <button
-                type="button"
+              <div
                 key={contact.id}
                 className="contacts-row"
                 onClick={() => openDrawer(contact.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openDrawer(contact.id) }}
               >
                 <div className="contacts-row-main">
                   <div className="contacts-row-name">
@@ -398,8 +410,34 @@ function ContactsPageInner() {
                   <span className="contacts-row-followup">
                     {call ? formatDateTime(call.due_at) : isNeverContacted(contact) ? 'Mai contattato' : ''}
                   </span>
+                  {!isClosed && (
+                    isToday ? (
+                      <span className="btn btn-ghost btn-xs contacts-row-action" style={{ opacity: 0.45, pointerEvents: 'none' }}>
+                        ✓ Oggi
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-xs contacts-row-action"
+                        title="Sposta il follow-up ad oggi"
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          const due = todayAt9am()
+                          const existingTask = call?.task as TaskWithContact | null
+                          if (existingTask) {
+                            await updateTask(existingTask.id, { due_date: due })
+                          } else {
+                            await addTask(contact.id, { type: 'follow-up', due_date: due })
+                          }
+                          showToast(`${contact.name} → ricontatto aggiunto per oggi`)
+                        }}
+                      >
+                        📞 Oggi
+                      </button>
+                    )
+                  )}
                 </div>
-              </button>
+              </div>
             )
           })
         )}

@@ -62,6 +62,7 @@ export interface ActivityContactSnapshot {
   status?: string | null
   priority?: number | null
   contact_scope?: 'crm' | 'holding' | null
+  responsible?: string | null
 }
 
 export interface ActivityWithContact extends Activity {

@@ -39,12 +39,6 @@ const SETTINGS_ITEMS = [
     title: 'Cattura rapida',
     description: 'Form veloce per nuovi lead senza CSV.',
   },
-  {
-    href: '/attivita',
-    icon: '📋',
-    title: 'Attività (legacy)',
-    description: 'Elenco task in forma lista. Diventerà parte di Pipeline.',
-  },
 ]
 
 export default function ImpostazioniPage() {
