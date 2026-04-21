@@ -275,6 +275,11 @@ export default function CalendarioPage() {
                       <div className="task-note">
                         {contact.phone || 'Telefono mancante'} · {contact.last_activity_summary || 'Nessuna attività registrata'}
                       </div>
+                      {contact.email && (
+                        <div className="task-note" style={{ marginTop: 2 }}>
+                          {contact.email}
+                        </div>
+                      )}
                       <div className="contact-tags" style={{ marginTop: 8 }}>
                         <span className={`ctag ${priorityBadgeClass(contact.priority)}`}>{priorityLabel(contact.priority)}</span>
                         <span className="ctag" style={{ background: 'var(--surface)', color: 'var(--text2)' }}>
@@ -328,6 +333,31 @@ export default function CalendarioPage() {
                           Chiama
                         </a>
                       ) : null}
+                      {contact.email && (
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          disabled={generatingDrafts}
+                          onClick={async () => {
+                            setGeneratingDrafts(true)
+                            try {
+                              await apiFetch('/api/ai/generate-drafts', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  drafts: [{ contact_id: contact.id, note: draftNotes[contact.id] || undefined }],
+                                }),
+                              })
+                              showToast(`Bozza creata per ${contact.name}`)
+                            } catch {
+                              showToast('Errore nella generazione bozza')
+                            } finally {
+                              setGeneratingDrafts(false)
+                            }
+                          }}
+                        >
+                          Bozza
+                        </button>
+                      )}
                       <button
                         className="btn btn-primary btn-sm"
                         onClick={() => {

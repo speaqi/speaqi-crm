@@ -155,11 +155,18 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      const draft = await createContactDraft(auth.supabase, auth.user.id, contact, {
-        subject: generated.subject,
-        html: generated.body_html,
-        text: generated.body_text,
-      })
+      let draft: { draftId: string } | null = null
+      try {
+        draft = await createContactDraft(auth.supabase, auth.user.id, contact, {
+          subject: generated.subject,
+          html: generated.body_html,
+          text: generated.body_text,
+        })
+      } catch (draftError) {
+        const msg = draftError instanceof Error ? draftError.message : 'Errore Gmail'
+        results.push({ contact_id: item.contact_id, error: msg })
+        continue
+      }
 
       if (!draft) {
         results.push({ contact_id: item.contact_id, error: 'Gmail non collegato o scope mancante' })
