@@ -11,6 +11,27 @@ type UserSettings = {
   email_signature: string | null
 }
 
+const fieldStyle: React.CSSProperties = {
+  width: '100%',
+  boxSizing: 'border-box',
+  padding: '10px 12px',
+  borderRadius: 8,
+  border: '1px solid var(--border)',
+  background: 'var(--surface)',
+  color: 'var(--text1)',
+  fontSize: 14,
+  lineHeight: 1.5,
+  resize: 'vertical',
+  fontFamily: 'inherit',
+}
+
+const hintStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: 'var(--text3)',
+  marginBottom: 8,
+  lineHeight: 1.5,
+}
+
 export default function EmailAIPage() {
   const { showToast } = useCRMContext()
   const [settings, setSettings] = useState<UserSettings>({
@@ -63,28 +84,29 @@ export default function EmailAIPage() {
         </p>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 680 }}>
-        <div className="form-group">
-          <label className="form-label">Contesto Speaqi</label>
-          <p style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 8 }}>
-            Descrivi cos'è Speaqi, cosa vendete, il valore principale. L'AI usa questo per tutte le email.
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 32, maxWidth: 640 }}>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label className="form-label" style={{ fontWeight: 600 }}>Contesto Speaqi</label>
+          <p style={hintStyle}>
+            Descrivi cos'è Speaqi, cosa vendete, il valore principale. L'AI usa questo in tutte le email generate.
           </p>
           <textarea
-            className="form-input"
+            style={{ ...fieldStyle, minHeight: 140 }}
             rows={6}
-            placeholder="Speaqi è una piattaforma CRM per agenti commerciali nel settore vino e bevande. Aiutiamo i venditori a gestire i follow-up, tracciare le trattative e chiudere più contratti..."
+            placeholder={'Speaqi è una piattaforma CRM per agenti commerciali nel settore vino e bevande. Aiutiamo i venditori a gestire i follow-up, tracciare le trattative e chiudere più contratti...'}
             value={settings.speaqi_context ?? ''}
             onChange={(e) => setSettings((prev) => ({ ...prev, speaqi_context: e.target.value }))}
           />
         </div>
 
-        <div className="form-group">
-          <label className="form-label">Tono email (questo utente)</label>
-          <p style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 8 }}>
-            Come vuoi che l'AI scriva le tue email? Es: "professionale ma diretto", "cordiale e informale", "conciso, max 5 righe".
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label className="form-label" style={{ fontWeight: 600 }}>Tono email</label>
+          <p style={hintStyle}>
+            Come scrive le email questo utente? Es: "professionale ma diretto, max 5 righe, usa il tu".
           </p>
           <textarea
-            className="form-input"
+            style={{ ...fieldStyle, minHeight: 80 }}
             rows={3}
             placeholder="Professionale, diretto, senza giri di parole. Max 5 righe di corpo. Usa il tu."
             value={settings.email_tone ?? ''}
@@ -92,12 +114,12 @@ export default function EmailAIPage() {
           />
         </div>
 
-        <div className="form-group">
-          <label className="form-label">Firma email (questo utente)</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label className="form-label" style={{ fontWeight: 600 }}>Firma email</label>
           <textarea
-            className="form-input"
+            style={{ ...fieldStyle, minHeight: 96 }}
             rows={4}
-            placeholder="Massimo Morganti&#10;Speaqi CRM&#10;+39 333 000 0000&#10;massimo@speaqi.com"
+            placeholder={'Massimo Morganti\nSpeaqi CRM\n+39 333 000 0000\nmassimo@speaqi.com'}
             value={settings.email_signature ?? ''}
             onChange={(e) => setSettings((prev) => ({ ...prev, email_signature: e.target.value }))}
           />
@@ -112,6 +134,7 @@ export default function EmailAIPage() {
             {saving ? 'Salvataggio...' : 'Salva impostazioni'}
           </button>
         </div>
+
       </div>
     </div>
   )
