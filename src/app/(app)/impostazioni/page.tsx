@@ -10,6 +10,12 @@ const SETTINGS_ITEMS = [
     description: 'Gestisci i collaboratori che possono essere assegnati ai contatti.',
   },
   {
+    href: '/impostazioni/email-ai',
+    icon: '✍️',
+    title: 'Email AI',
+    description: 'Contesto Speaqi, tono e firma per la generazione automatica di bozze email.',
+  },
+  {
     href: '/gmail',
     icon: '✉️',
     title: 'Gmail',

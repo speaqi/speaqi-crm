@@ -1,8 +1,9 @@
 'use client'
 
-import Link from 'next/link'
 import { useMemo, useState } from 'react'
+import { apiFetch } from '@/lib/api'
 import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
+import { ContactDrawer } from '@/components/crm/ContactDrawer'
 import {
   formatDateTime,
   isCallableDate,
@@ -76,6 +77,9 @@ export default function CalendarioPage() {
   const [selectedDateKey, setSelectedDateKey] = useState(() => getInitialCalendarDateKey(scheduledCalls))
   const [outcomeContact, setOutcomeContact] = useState<CRMContact | null>(null)
   const [outcomeTask, setOutcomeTask] = useState<TaskWithContact | null>(null)
+  const [drawerContactId, setDrawerContactId] = useState<string | null>(null)
+  const [draftNotes, setDraftNotes] = useState<Record<string, string>>({})
+  const [generatingDrafts, setGeneratingDrafts] = useState(false)
 
   const contactsByDay = useMemo(
     () =>
@@ -211,10 +215,45 @@ export default function CalendarioPage() {
 
         <div className="cal-queue">
           <div className="cal-queue-header">
-            <div className="week-title">Coda chiamate del giorno</div>
-            <div className="call-sub">
-              {selectedCalls.length} pianificate · {selectedCallable ? 'giorno pianificabile' : 'giorno bloccato'}
+            <div>
+              <div className="week-title">Coda chiamate del giorno</div>
+              <div className="call-sub">
+                {selectedCalls.length} pianificate · {selectedCallable ? 'giorno pianificabile' : 'giorno bloccato'}
+              </div>
             </div>
+            {selectedCalls.length > 0 && (
+              <button
+                className="btn btn-primary btn-sm"
+                disabled={generatingDrafts}
+                onClick={async () => {
+                  setGeneratingDrafts(true)
+                  try {
+                    const draftsPayload = selectedCalls
+                      .filter((item) => item.contact.email)
+                      .map((item) => ({
+                        contact_id: item.contact.id,
+                        note: draftNotes[item.contact.id] || undefined,
+                      }))
+                    if (!draftsPayload.length) {
+                      showToast('Nessun contatto con email nella coda')
+                      return
+                    }
+                    const result = await apiFetch<{ created: number; failed: number }>('/api/ai/generate-drafts', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ drafts: draftsPayload }),
+                    })
+                    showToast(`${result.created} bozze create in Gmail${result.failed ? ` · ${result.failed} fallite` : ''}`)
+                  } catch {
+                    showToast('Errore nella generazione bozze')
+                  } finally {
+                    setGeneratingDrafts(false)
+                  }
+                }}
+              >
+                {generatingDrafts ? 'Generazione...' : `Genera bozze (${selectedCalls.filter((i) => i.contact.email).length})`}
+              </button>
+            )}
           </div>
 
           {selectedCalls.length === 0 ? (
@@ -242,6 +281,18 @@ export default function CalendarioPage() {
                           {task?.type || item.task_type}
                         </span>
                       </div>
+                      {contact.email && (
+                        <input
+                          type="text"
+                          className="form-input"
+                          style={{ marginTop: 8, fontSize: 13 }}
+                          placeholder="Nota per bozza email (opzionale)..."
+                          value={draftNotes[contact.id] ?? ''}
+                          onChange={(e) =>
+                            setDraftNotes((prev) => ({ ...prev, [contact.id]: e.target.value }))
+                          }
+                        />
+                      )}
                     </div>
                     <div className="task-actions">
                       {task && (
@@ -266,9 +317,12 @@ export default function CalendarioPage() {
                           </button>
                         </>
                       )}
-                      <Link href={`/contacts/${contact.id}`} className="btn btn-ghost btn-sm">
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setDrawerContactId(contact.id)}
+                      >
                         Apri
-                      </Link>
+                      </button>
                       {contact.phone ? (
                         <a href={`tel:${contact.phone}`} className="btn btn-ghost btn-sm">
                           Chiama
@@ -333,6 +387,11 @@ export default function CalendarioPage() {
           await refresh()
           showToast('Chiamata registrata e follow-up aggiornato')
         }}
+      />
+
+      <ContactDrawer
+        contactId={drawerContactId}
+        onClose={() => setDrawerContactId(null)}
       />
     </>
   )

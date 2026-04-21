@@ -55,6 +55,8 @@ const GMAIL_API_BASE_URL = 'https://gmail.googleapis.com/gmail/v1'
 const GMAIL_SCOPES = [
   'https://www.googleapis.com/auth/gmail.send',
   'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/gmail.compose',
+  'https://www.googleapis.com/auth/calendar.events',
 ]
 
 export const GMAIL_CONFIG_KEYS = [
@@ -322,7 +324,7 @@ export async function exchangeCodeForTokens(code: string) {
   return parseResponse<GoogleTokenResponse>(response, 'Failed to exchange Google authorization code')
 }
 
-async function refreshAccessToken(account: GmailAccountRecord) {
+export async function refreshAccessToken(account: GmailAccountRecord) {
   const { clientId, clientSecret } = getGoogleConfig()
   const refreshToken = decryptSecret(account.refresh_token)
 
@@ -748,4 +750,25 @@ export async function sendContactEmail(
     account,
     message: storedMessage as GmailMessage,
   }
+}
+
+export async function createContactDraft(
+  supabase: any,
+  userId: string,
+  contact: { email: string; name: string },
+  input: { subject: string; html: string; text: string }
+): Promise<{ draftId: string } | null> {
+  const account = await getGmailAccount(supabase, userId)
+  if (!account) return null
+
+  const accessToken = await refreshAccessToken(account)
+  const raw = encodeMessageBody(input.subject, contact.email, input.html, input.text)
+
+  const result = await gmailApiRequest<{ id: string; message: { id: string } }>(
+    accessToken,
+    '/users/me/drafts',
+    { method: 'POST', body: JSON.stringify({ message: { raw } }) }
+  )
+
+  return { draftId: result.id }
 }

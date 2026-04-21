@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { isClosedStatus } from '@/lib/data'
 import { normalizeTaskAction, normalizeTaskPriority, syncLeadActionDates } from '@/lib/server/ai-ready'
+import { addTaskToCalendar } from '@/lib/server/gcal'
 import { isCallTaskType } from '@/lib/schedule'
 import { createActivities, formatActivityDate, updateContactSummary } from '@/lib/server/crm'
 import { requireRouteUser } from '@/lib/server/supabase'
@@ -79,6 +80,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (error) throw error
 
     const syncedDates = await syncLeadActionDates(auth.supabase, auth.user.id, id)
+
+    if (isCallTaskType(type) && task.due_date) {
+      addTaskToCalendar(auth.supabase, auth.user.id, {
+        summary: `Chiamata: ${contact.name}`,
+        description: [
+          contact.phone ? `Tel: ${contact.phone}` : null,
+          task.note || null,
+        ].filter(Boolean).join('\n'),
+        startAt: task.due_date,
+      }).catch(() => {})
+    }
 
     const activityContent = [
       `Creato task ${task.type}.`,
