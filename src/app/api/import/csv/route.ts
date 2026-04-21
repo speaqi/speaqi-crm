@@ -17,6 +17,7 @@ const ALLOWED_STATUSES = new Set([
   'Paid',
 ])
 const INVALID_LEGACY_IDS = new Set(['#REF!', '#N/A', 'N/A', 'NULL', 'null', 'NaN', 'nan'])
+const UNSTABLE_IMPORT_LEGACY_ID = /^csv-import-\d+$/i
 
 type ImportedRecord = {
   user_id: string
@@ -217,6 +218,12 @@ function makeLegacyId(
   return makeUniqueLegacyId(base, seen)
 }
 
+function isStableLegacyId(value: unknown) {
+  const normalized = normalizeText(value)
+  if (!normalized) return false
+  return !UNSTABLE_IMPORT_LEGACY_ID.test(normalized)
+}
+
 function findMatchingContact(record: ImportedRecord, contacts: ExistingContact[]) {
   const emailKey = normalizeKey(record.email)
   const phoneKey = normalizePhoneDigits(record.phone)
@@ -224,7 +231,11 @@ function findMatchingContact(record: ImportedRecord, contacts: ExistingContact[]
 
   const legacyMatch =
     record.legacy_match_candidates.length
-      ? contacts.find((contact) => contact.legacy_id && record.legacy_match_candidates.includes(contact.legacy_id))
+      ? contacts.find(
+          (contact) =>
+            isStableLegacyId(contact.legacy_id) &&
+            record.legacy_match_candidates.includes(String(contact.legacy_id))
+        )
       : null
   if (legacyMatch) return { contact: legacyMatch, reason: 'legacy_id' as const }
 
@@ -302,9 +313,6 @@ function buildImportedRecord(params: {
     seenLegacyIds
   )
   const legacyMatchCandidates = [legacyId]
-  if (!explicitLegacyValue || INVALID_LEGACY_IDS.has(explicitLegacyValue)) {
-    legacyMatchCandidates.push(`csv-import-${index + 1}`)
-  }
 
   return {
     user_id: userId,
