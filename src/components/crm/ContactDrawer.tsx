@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { apiFetch } from '@/lib/api'
 import {
   activityTypeLabel,
   formatDateTime,
@@ -37,6 +38,8 @@ export function ContactDrawer({ contactId, onClose, onEdit }: ContactDrawerProps
   const [followupDate, setFollowupDate] = useState('')
   const [followupSaving, setFollowupSaving] = useState(false)
   const [assigning, setAssigning] = useState(false)
+  const [draftNote, setDraftNote] = useState('')
+  const [draftGenerating, setDraftGenerating] = useState(false)
 
   useEffect(() => {
     if (!contactId) {
@@ -225,6 +228,14 @@ export function ContactDrawer({ contactId, onClose, onEdit }: ContactDrawerProps
                   type="button"
                   className="btn btn-ghost btn-sm"
                   disabled={followupSaving}
+                  onClick={() => schedule(0)}
+                >
+                  Oggi
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  disabled={followupSaving}
                   onClick={() => schedule(1)}
                 >
                   Domani
@@ -279,6 +290,52 @@ export function ContactDrawer({ contactId, onClose, onEdit }: ContactDrawerProps
                 </button>
               </div>
             </div>
+
+            {contact.email && (
+              <div className="drawer-section">
+                <div className="drawer-section-label">Genera bozza email</div>
+                <input
+                  type="text"
+                  className="form-input"
+                  style={{ fontSize: 13, marginBottom: 8 }}
+                  placeholder="Cosa vuoi comunicare? (opzionale)"
+                  value={draftNote}
+                  onChange={(e) => setDraftNote(e.target.value)}
+                />
+                <div className="drawer-actions-row">
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    disabled={draftGenerating}
+                    onClick={async () => {
+                      if (!contactId) return
+                      setDraftGenerating(true)
+                      try {
+                        const result = await apiFetch<{ results: Array<{ error?: string }> }>('/api/ai/generate-drafts', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            drafts: [{ contact_id: contactId, note: draftNote || undefined }],
+                          }),
+                        })
+                        const err = result.results?.[0]?.error
+                        if (err) showToast(`Errore: ${err}`)
+                        else {
+                          setDraftNote('')
+                          showToast('Bozza creata in Gmail')
+                        }
+                      } catch {
+                        showToast('Errore nella generazione bozza')
+                      } finally {
+                        setDraftGenerating(false)
+                      }
+                    }}
+                  >
+                    {draftGenerating ? 'Generazione…' : 'Crea bozza in Gmail'}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {activities.length > 0 && (
               <div className="drawer-section">
