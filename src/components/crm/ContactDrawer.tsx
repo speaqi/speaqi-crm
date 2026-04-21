@@ -39,6 +39,7 @@ export function ContactDrawer({ contactId, onClose, onEdit }: ContactDrawerProps
   const [followupSaving, setFollowupSaving] = useState(false)
   const [assigning, setAssigning] = useState(false)
   const [draftNote, setDraftNote] = useState('')
+  const [draftNoteSaving, setDraftNoteSaving] = useState(false)
   const [draftGenerating, setDraftGenerating] = useState(false)
 
   useEffect(() => {
@@ -71,6 +72,10 @@ export function ContactDrawer({ contactId, onClose, onEdit }: ContactDrawerProps
     window.addEventListener('keydown', handleEsc)
     return () => window.removeEventListener('keydown', handleEsc)
   }, [contactId, onClose])
+
+  useEffect(() => {
+    setDraftNote(detail?.contact.email_draft_note || '')
+  }, [detail?.contact.email_draft_note])
 
   if (!contactId) return null
 
@@ -298,11 +303,32 @@ export function ContactDrawer({ contactId, onClose, onEdit }: ContactDrawerProps
                   type="text"
                   className="form-input"
                   style={{ fontSize: 13, marginBottom: 8 }}
-                  placeholder="Cosa vuoi comunicare? (opzionale)"
+                  placeholder="Nota salvata per le bozze email"
                   value={draftNote}
                   onChange={(e) => setDraftNote(e.target.value)}
                 />
                 <div className="drawer-actions-row">
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    disabled={draftNoteSaving || !contact}
+                    onClick={async () => {
+                      if (!contact) return
+                      setDraftNoteSaving(true)
+                      try {
+                        await updateContact(contact.id, { email_draft_note: draftNote })
+                        const refreshed = await loadContactDetail(contact.id)
+                        setDetail(refreshed)
+                        showToast('Nota bozza salvata')
+                      } catch (error) {
+                        showToast(`Errore: ${error instanceof Error ? error.message : 'salvataggio nota bozza'}`)
+                      } finally {
+                        setDraftNoteSaving(false)
+                      }
+                    }}
+                  >
+                    {draftNoteSaving ? 'Salvataggio…' : 'Salva nota'}
+                  </button>
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm"

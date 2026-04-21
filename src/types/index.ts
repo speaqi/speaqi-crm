@@ -28,6 +28,7 @@ export interface CRMContact {
   responsible?: string | null
   value?: number | null
   note?: string | null
+  email_draft_note?: string | null
   legacy_id?: string | null
   contact_scope?: 'crm' | 'holding' | null
   promoted_at?: string | null
@@ -156,6 +157,7 @@ export interface ContactInput {
   responsible?: string
   value?: number | null
   note?: string
+  email_draft_note?: string
   contact_scope?: 'crm' | 'holding'
   next_followup_at?: string | null
   next_action_at?: string | null

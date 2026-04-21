@@ -97,6 +97,9 @@ function buildContactUpdateSummary(current: any, next: any) {
   if ((current.note || null) !== (next.note || null)) {
     changes.push('note aggiornate')
   }
+  if ((current.email_draft_note || null) !== (next.email_draft_note || null)) {
+    changes.push('nota bozza email aggiornata')
+  }
   if ((current.next_followup_at || null) !== (next.next_followup_at || null)) {
     changes.push(`follow-up ${formatActivityDate(current.next_followup_at)} -> ${formatActivityDate(next.next_followup_at)}`)
   }
@@ -236,6 +239,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           body.responsible !== undefined ? normalizeText(body.responsible) : current.responsible,
         value: body.value !== undefined ? normalizeNumber(body.value) : current.value,
         note: body.note !== undefined ? normalizeText(body.note) : current.note,
+        email_draft_note:
+          body.email_draft_note !== undefined ? normalizeText(body.email_draft_note) : current.email_draft_note,
         next_action_at: nextFollowupAt,
         next_followup_at: nextFollowupAt,
       })

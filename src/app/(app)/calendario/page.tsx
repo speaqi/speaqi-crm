@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
 import { ContactDrawer } from '@/components/crm/ContactDrawer'
@@ -79,6 +79,7 @@ export default function CalendarioPage() {
   const [outcomeTask, setOutcomeTask] = useState<TaskWithContact | null>(null)
   const [drawerContactId, setDrawerContactId] = useState<string | null>(null)
   const [draftNotes, setDraftNotes] = useState<Record<string, string>>({})
+  const [savingDraftNoteId, setSavingDraftNoteId] = useState<string | null>(null)
   const [generatingDrafts, setGeneratingDrafts] = useState(false)
 
   const contactsByDay = useMemo(
@@ -102,6 +103,22 @@ export default function CalendarioPage() {
   const selectedMissingPhone = selectedCalls.filter((item) => !item.contact.phone).length
   const selectedHighPriority = selectedCalls.filter((item) => item.contact.priority >= 2).length
   const selectedOverdue = selectedCalls.filter((item) => isOverdue(item.due_at)).length
+
+  useEffect(() => {
+    setDraftNotes((previous) => {
+      const next = { ...previous }
+      let changed = false
+
+      for (const item of scheduledCalls) {
+        if (next[item.contact.id] === undefined) {
+          next[item.contact.id] = item.contact.email_draft_note || ''
+          changed = true
+        }
+      }
+
+      return changed ? next : previous
+    })
+  }, [scheduledCalls])
 
   return (
     <>
@@ -287,16 +304,37 @@ export default function CalendarioPage() {
                         </span>
                       </div>
                       {contact.email && (
-                        <input
-                          type="text"
-                          className="form-input"
-                          style={{ marginTop: 8, fontSize: 13 }}
-                          placeholder="Nota per bozza email (opzionale)..."
-                          value={draftNotes[contact.id] ?? ''}
-                          onChange={(e) =>
-                            setDraftNotes((prev) => ({ ...prev, [contact.id]: e.target.value }))
-                          }
-                        />
+                        <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                          <input
+                            type="text"
+                            className="form-input"
+                            style={{ fontSize: 13, flex: '1 1 280px', minWidth: 220 }}
+                            placeholder="Nota per bozza email..."
+                            value={draftNotes[contact.id] ?? ''}
+                            onChange={(e) =>
+                              setDraftNotes((prev) => ({ ...prev, [contact.id]: e.target.value }))
+                            }
+                          />
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            disabled={savingDraftNoteId === contact.id}
+                            onClick={async () => {
+                              setSavingDraftNoteId(contact.id)
+                              try {
+                                await updateContact(contact.id, {
+                                  email_draft_note: draftNotes[contact.id] ?? '',
+                                })
+                                showToast('Nota bozza salvata')
+                              } catch (error) {
+                                window.alert(error instanceof Error ? error.message : 'Nota non salvata')
+                              } finally {
+                                setSavingDraftNoteId(null)
+                              }
+                            }}
+                          >
+                            {savingDraftNoteId === contact.id ? 'Salvataggio...' : 'Salva nota'}
+                          </button>
+                        </div>
                       )}
                     </div>
                     <div className="task-actions">

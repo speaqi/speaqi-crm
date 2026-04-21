@@ -69,6 +69,9 @@ export default function ContactDetailPage() {
   const [outcomeTaskId, setOutcomeTaskId] = useState<string | null>(null)
   const [gmailSyncing, setGmailSyncing] = useState(false)
   const [gmailSending, setGmailSending] = useState(false)
+  const [gmailDraftGenerating, setGmailDraftGenerating] = useState(false)
+  const [gmailDraftNoteSaving, setGmailDraftNoteSaving] = useState(false)
+  const [gmailDraftNote, setGmailDraftNote] = useState('')
   const [gmailSubject, setGmailSubject] = useState('')
   const [gmailBody, setGmailBody] = useState('')
   const [gmailFollowup, setGmailFollowup] = useState('')
@@ -133,6 +136,10 @@ export default function ContactDetailPage() {
     autoSyncedContactIdRef.current = detail.contact.id
     void syncGmail({ silent: true })
   }, [detail?.contact.email, detail?.contact.id, detail?.gmail.connected])
+
+  useEffect(() => {
+    setGmailDraftNote(detail?.contact.email_draft_note || '')
+  }, [detail?.contact.email_draft_note])
 
   if (loading || !detail) {
     return (
@@ -534,6 +541,62 @@ export default function ContactDetailPage() {
               <div className="detail-grid" style={{ marginTop: 0 }}>
                 <div>
                   <div className="fg">
+                    <label className="fl">Nota per generazione AI</label>
+                    <textarea
+                      className="fi"
+                      rows={3}
+                      value={gmailDraftNote}
+                      onChange={(event) => setGmailDraftNote(event.target.value)}
+                      placeholder="Questo testo viene salvato sul contatto e riusato per le bozze e i follow-up automatici"
+                      style={{ resize: 'vertical' }}
+                    />
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        disabled={gmailDraftNoteSaving}
+                        onClick={async () => {
+                          try {
+                            setGmailDraftNoteSaving(true)
+                            await updateContact(contact.id, { email_draft_note: gmailDraftNote })
+                            await loadDetail(false)
+                            showToast('Nota bozza salvata')
+                          } catch (error) {
+                            window.alert(error instanceof Error ? error.message : 'Nota bozza non salvata')
+                          } finally {
+                            setGmailDraftNoteSaving(false)
+                          }
+                        }}
+                      >
+                        {gmailDraftNoteSaving ? 'Salvataggio...' : 'Salva nota'}
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        disabled={gmailDraftGenerating}
+                        onClick={async () => {
+                          try {
+                            setGmailDraftGenerating(true)
+                            const result = await apiFetch<{ results: Array<{ error?: string }> }>('/api/ai/generate-drafts', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                drafts: [{ contact_id: contact.id, note: gmailDraftNote || undefined }],
+                              }),
+                            })
+                            const err = result.results?.[0]?.error
+                            if (err) throw new Error(err)
+                            showToast('Bozza creata in Gmail')
+                          } catch (error) {
+                            window.alert(error instanceof Error ? error.message : 'Bozza non generata')
+                          } finally {
+                            setGmailDraftGenerating(false)
+                          }
+                        }}
+                      >
+                        {gmailDraftGenerating ? 'Generazione...' : 'Genera bozza AI'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="fg">
                     <label className="fl">Oggetto</label>
                     <input
                       className="fi"
@@ -568,7 +631,7 @@ export default function ContactDetailPage() {
                     onClick={async () => {
                       try {
                         setGmailSending(true)
-                        await apiFetch(`/api/contacts/${contact.id}/emails`, {
+                        const response = await apiFetch<{ auto_followup_draft_created?: boolean }>(`/api/contacts/${contact.id}/emails`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
@@ -580,7 +643,11 @@ export default function ContactDetailPage() {
                         setGmailSubject('')
                         setGmailBody('')
                         setGmailFollowup('')
-                        showToast('Email inviata con Gmail')
+                        showToast(
+                          response.auto_followup_draft_created
+                            ? 'Email inviata con Gmail · bozza follow-up creata'
+                            : 'Email inviata con Gmail'
+                        )
                         await loadDetail(false)
                       } catch (error) {
                         window.alert(error instanceof Error ? error.message : 'Email non inviata')

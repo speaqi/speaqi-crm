@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { maybeAutoCreateFollowupDraft } from '@/lib/server/email-drafts'
 import { sendContactEmail, simpleTextToHtml } from '@/lib/server/gmail'
 import { requireRouteUser } from '@/lib/server/supabase'
 
@@ -44,9 +45,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
       html: simpleTextToHtml(text),
       followupAt,
     })
+    const autoFollowupDraft = await maybeAutoCreateFollowupDraft(auth.supabase, auth.user.id, contact)
 
     return Response.json({
       message: result.message,
+      auto_followup_draft_created: Boolean(autoFollowupDraft?.draftId),
+      auto_followup_draft_id: autoFollowupDraft?.draftId || null,
       gmail: {
         connected: true,
         email: result.account.email,

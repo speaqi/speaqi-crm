@@ -113,6 +113,7 @@ export async function POST(request: NextRequest) {
       responsible: normalizeText(body.responsible),
       value: normalizeNumber(body.value),
       note: rawNote,
+      email_draft_note: normalizeText(body.email_draft_note),
       next_action_at: contactScope === 'holding' ? null : nextFollowupAt,
       next_followup_at: contactScope === 'holding' ? null : nextFollowupAt,
       last_activity_summary: rawNote,
