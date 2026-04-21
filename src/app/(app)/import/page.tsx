@@ -38,7 +38,7 @@ function humanListName(filename: string) {
 type Step = 1 | 2 | 3
 
 export default function ImportPage() {
-  const { refresh, showToast } = useCRMContext()
+  const { refresh, showToast, teamMembers } = useCRMContext()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [step, setStep] = useState<Step>(1)
   const [dragActive, setDragActive] = useState(false)
@@ -51,6 +51,7 @@ export default function ImportPage() {
   const [importDate, setImportDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [sourceLabel, setSourceLabel] = useState('evento')
   const [addToPipeline, setAddToPipeline] = useState(true)
+  const [assignTo, setAssignTo] = useState('')
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -108,6 +109,7 @@ export default function ImportPage() {
           csv_text: csvText,
           default_source: sourceLabel,
           default_category: eventTag || null,
+          default_responsible: assignTo || null,
           contact_scope: addToPipeline ? 'crm' : 'holding',
           list_name: listName,
           event_tag: eventTag || null,
@@ -230,6 +232,17 @@ export default function ImportPage() {
                 onChange={(event) => setImportDate(event.target.value)}
               />
             </label>
+            {teamMembers.length > 0 && (
+              <label className="import-field">
+                <span>Assegna a</span>
+                <select value={assignTo} onChange={(event) => setAssignTo(event.target.value)}>
+                  <option value="">— Nessuna assegnazione —</option>
+                  {teamMembers.map((member) => (
+                    <option key={member.id} value={member.name}>{member.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className="import-field">
               <span>Origine</span>
               <select value={sourceLabel} onChange={(event) => setSourceLabel(event.target.value)}>

@@ -255,12 +255,13 @@ function buildImportedRecord(params: {
   userId: string
   defaultCategory: string | null
   defaultSource: string | null
+  defaultResponsible: string | null
   contactScope: 'crm' | 'holding'
   defaultListName: string | null
   seenLegacyIds: Set<string>
   mapping: ReturnType<typeof detectCsvColumns>['mapping']
 }) {
-  const { row, index, userId, defaultCategory, defaultSource, contactScope, defaultListName, seenLegacyIds, mapping } = params
+  const { row, index, userId, defaultCategory, defaultSource, defaultResponsible, contactScope, defaultListName, seenLegacyIds, mapping } = params
 
   const company = normalizeText(getMappedValue(row, mapping, 'company'))
   const explicitName = normalizeText(getMappedValue(row, mapping, 'name'))
@@ -321,7 +322,7 @@ function buildImportedRecord(params: {
     source: normalizeText(getMappedValue(row, mapping, 'source')) || defaultSource || 'import',
     contact_scope: contactScope,
     priority: normalizePriority(getMappedValue(row, mapping, 'priority')),
-    responsible: normalizeText(getMappedValue(row, mapping, 'responsible')),
+    responsible: defaultResponsible || normalizeText(getMappedValue(row, mapping, 'responsible')),
     value: normalizeNumber(getMappedValue(row, mapping, 'value')),
     note: normalizeText(note),
     last_activity_summary:
@@ -407,6 +408,7 @@ export async function POST(request: NextRequest) {
     const detection = detectCsvColumns(parsedRows)
     const defaultCategory = normalizeText(body.default_category)
     const defaultSource = normalizeText(body.default_source)
+    const defaultResponsible = normalizeText(body.default_responsible)
     const contactScope = normalizeContactScope(body.contact_scope)
     const fileName = normalizeText(body.file_name)?.replace(/\.[^.]+$/, '')
     const requestedListName = normalizeText(body.list_name)
@@ -421,6 +423,7 @@ export async function POST(request: NextRequest) {
         userId: auth.user.id,
         defaultCategory,
         defaultSource,
+        defaultResponsible,
         contactScope,
         defaultListName,
         seenLegacyIds,

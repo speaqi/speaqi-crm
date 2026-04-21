@@ -41,25 +41,30 @@ export async function GET(request: NextRequest) {
       return Response.json({ error: 'Intervallo non valido' }, { status: 400 })
     }
 
-    const { data: activities, error } = await auth.supabase
-      .from('activities')
-      .select(`
-        id,
-        contact_id,
-        type,
-        created_at,
-        contact:contacts (
-          id,
-          responsible
-        )
-      `)
-      .eq('user_id', auth.user.id)
-      .gte('created_at', start)
-      .lt('created_at', end)
-      .order('created_at', { ascending: false })
-      .limit(2000)
+    const [activitiesResult, teamResult] = await Promise.all([
+      auth.supabase
+        .from('activities')
+        .select(`id, contact_id, type, created_at, contact:contacts (id, responsible)`)
+        .eq('user_id', auth.user.id)
+        .gte('created_at', start)
+        .lt('created_at', end)
+        .order('created_at', { ascending: false })
+        .limit(2000),
+      auth.supabase
+        .from('team_members')
+        .select('name')
+        .eq('user_id', auth.user.id),
+    ])
 
-    if (error) throw error
+    if (activitiesResult.error) throw activitiesResult.error
+
+    const activities = activitiesResult.data
+    const validAgents = new Set((teamResult.data ?? []).map((m: { name: string }) => m.name))
+
+    function resolveAgent(responsible: string | null | undefined): string {
+      if (responsible && validAgents.has(responsible)) return responsible
+      return 'Senza assegnazione'
+    }
 
     // Aggregate by responsible + date
     type AgentDateKey = string
@@ -81,7 +86,7 @@ export async function GET(request: NextRequest) {
     }>()
 
     for (const activity of activities ?? []) {
-      const agent = (activity.contact as { responsible?: string | null } | null)?.responsible || 'Senza responsabile'
+      const agent = resolveAgent((activity.contact as { responsible?: string | null } | null)?.responsible)
       const date = toDateKey(activity.created_at)
       const contactId = activity.contact_id
 
@@ -139,7 +144,7 @@ export async function GET(request: NextRequest) {
     // Re-compute contacts from original activities per agent (for total uniqueness)
     const agentContactMap = new Map<string, Set<string>>()
     for (const activity of activities ?? []) {
-      const agent = (activity.contact as { responsible?: string | null } | null)?.responsible || 'Senza responsabile'
+      const agent = resolveAgent((activity.contact as { responsible?: string | null } | null)?.responsible)
       if (!agentContactMap.has(agent)) agentContactMap.set(agent, new Set())
       agentContactMap.get(agent)!.add(activity.contact_id)
     }
