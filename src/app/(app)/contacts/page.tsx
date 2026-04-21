@@ -1,5 +1,6 @@
 'use client'
 
+import { apiFetch } from '@/lib/api'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { ContactDrawer } from '@/components/crm/ContactDrawer'
@@ -32,6 +33,16 @@ const FOCUS_CHIPS: Array<{ key: string; label: string }> = [
   { key: 'missing', label: 'Senza next step' },
 ]
 
+type BulkUpdateDraft = {
+  responsible: string
+  status: string
+  source: string
+  priority: string
+  list_name: string
+  event_tag: string
+  company: string
+}
+
 function ContactsPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -45,6 +56,7 @@ function ContactsPageInner() {
     deleteContact,
     addTask,
     updateTask,
+    refresh,
     showToast,
   } = useCRMContext()
 
@@ -61,6 +73,20 @@ function ContactsPageInner() {
   const [showMore, setShowMore] = useState(false)
   const [sourceFilter, setSourceFilter] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
+  const [dataCompletenessFilter, setDataCompletenessFilter] = useState('')
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [bulkAssignee, setBulkAssignee] = useState('')
+  const [bulkSaving, setBulkSaving] = useState(false)
+  const [bulkEditOpen, setBulkEditOpen] = useState(false)
+  const [bulkUpdate, setBulkUpdate] = useState<BulkUpdateDraft>({
+    responsible: '',
+    status: '',
+    source: '',
+    priority: '',
+    list_name: '',
+    event_tag: '',
+    company: '',
+  })
 
   const [modalOpen, setModalOpen] = useState(urlNew === '1')
   const [editingContact, setEditingContact] = useState<CRMContact | null>(null)
@@ -156,6 +182,8 @@ function ContactsPageInner() {
       if (urlTag && contact.event_tag !== urlTag) return false
       if (sourceFilter && contact.source !== sourceFilter) return false
       if (priorityFilter && String(contact.priority) !== priorityFilter) return false
+      if (dataCompletenessFilter === 'missing_phone' && contact.phone?.trim()) return false
+      if (dataCompletenessFilter === 'missing_email' && contact.email?.trim()) return false
       if (focusFilter === 'new' && !isNeverContacted(contact)) return false
       if (focusFilter === 'today' && toLocalDateKey(call?.due_at) !== todayKey) return false
       if (focusFilter === 'tomorrow' && toLocalDateKey(call?.due_at) !== tomorrowKey) return false
@@ -168,6 +196,7 @@ function ContactsPageInner() {
     focusFilter,
     listFilter,
     priorityFilter,
+    dataCompletenessFilter,
     scheduledCallsByContactId,
     search,
     sourceFilter,
@@ -183,8 +212,17 @@ function ContactsPageInner() {
     (assigneeFilter ? 1 : 0) +
     (sourceFilter ? 1 : 0) +
     (priorityFilter ? 1 : 0) +
+    (dataCompletenessFilter ? 1 : 0) +
     (focusFilter ? 1 : 0) +
     (urlTag ? 1 : 0)
+
+  const filteredIds = useMemo(() => filtered.map((contact) => contact.id), [filtered])
+  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.includes(id))
+  const hasSelected = selectedIds.length > 0
+
+  useEffect(() => {
+    setSelectedIds((previous) => previous.filter((id) => filteredIds.includes(id)))
+  }, [filteredIds])
 
   function resetFilters() {
     setSearch('')
@@ -193,6 +231,7 @@ function ContactsPageInner() {
     setAssigneeFilter('')
     setSourceFilter('')
     setPriorityFilter('')
+    setDataCompletenessFilter('')
     setFocusFilter('')
     const params = new URLSearchParams(searchParams.toString())
     params.delete('list')
@@ -200,6 +239,41 @@ function ContactsPageInner() {
     params.delete('id')
     const query = params.toString()
     router.replace(query ? `/contacts?${query}` : '/contacts', { scroll: false })
+  }
+
+  function toggleSelection(contactId: string) {
+    setSelectedIds((previous) =>
+      previous.includes(contactId) ? previous.filter((id) => id !== contactId) : [...previous, contactId]
+    )
+  }
+
+  function toggleSelectAllFiltered() {
+    setSelectedIds((previous) => {
+      if (allFilteredSelected) return previous.filter((id) => !filteredIds.includes(id))
+      return Array.from(new Set([...previous, ...filteredIds]))
+    })
+  }
+
+  async function runBulkUpdate(patch: Record<string, unknown>, successMessage: string) {
+    if (!selectedIds.length) return
+    setBulkSaving(true)
+    try {
+      await apiFetch('/api/contacts/bulk', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contact_ids: selectedIds,
+          patch,
+        }),
+      })
+      await refresh()
+      showToast(successMessage)
+      setSelectedIds([])
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Aggiornamento massivo non riuscito')
+    } finally {
+      setBulkSaving(false)
+    }
   }
 
   return (
@@ -277,7 +351,7 @@ function ContactsPageInner() {
         </button>
       </div>
 
-      {showMore && (
+        {showMore && (
         <div className="contacts-more-filters">
           <select
             className="filter-select"
@@ -302,6 +376,24 @@ function ContactsPageInner() {
             <option value="1">Bassa</option>
             <option value="0">Nessuna</option>
           </select>
+          <button
+            type="button"
+            className={`filter-chip ${dataCompletenessFilter === 'missing_phone' ? 'active' : ''}`}
+            onClick={() =>
+              setDataCompletenessFilter((value) => (value === 'missing_phone' ? '' : 'missing_phone'))
+            }
+          >
+            Senza telefono
+          </button>
+          <button
+            type="button"
+            className={`filter-chip ${dataCompletenessFilter === 'missing_email' ? 'active' : ''}`}
+            onClick={() =>
+              setDataCompletenessFilter((value) => (value === 'missing_email' ? '' : 'missing_email'))
+            }
+          >
+            Senza email
+          </button>
           {FOCUS_CHIPS.map((chip) => (
             <button
               key={chip.key}
@@ -319,6 +411,15 @@ function ContactsPageInner() {
         <span>
           <strong>{filtered.length}</strong> contatti
         </span>
+        <label className="contacts-summary-selectall">
+          <input
+            type="checkbox"
+            checked={allFilteredSelected}
+            onChange={toggleSelectAllFiltered}
+          />
+          <span>Seleziona tutti i filtrati</span>
+        </label>
+        {hasSelected && <span className="contacts-summary-chip">{selectedIds.length} selezionati</span>}
         {listFilter && (
           <span className="contacts-summary-chip">
             📁 {listFilter}
@@ -345,6 +446,169 @@ function ContactsPageInner() {
           </span>
         )}
       </div>
+
+      {hasSelected && (
+        <div className="contacts-bulkbar">
+          <div className="contacts-bulkbar-copy">
+            <strong>{selectedIds.length} contatti selezionati</strong>
+            <span>Puoi assegnarli o aggiornare i dati in blocco.</span>
+          </div>
+          <div className="contacts-bulkbar-actions">
+            {assignees.length > 0 && (
+              <>
+                <select
+                  className="filter-select"
+                  value={bulkAssignee}
+                  onChange={(event) => setBulkAssignee(event.target.value)}
+                >
+                  <option value="">Assegna a…</option>
+                  {assignees.map((assignee) => (
+                    <option key={assignee} value={assignee}>
+                      {assignee}
+                    </option>
+                  ))}
+                  <option value="__unassigned__">— Rimuovi assegnazione —</option>
+                </select>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  disabled={bulkSaving || !bulkAssignee}
+                  onClick={async () => {
+                    await runBulkUpdate(
+                      { responsible: bulkAssignee === '__unassigned__' ? '' : bulkAssignee },
+                      'Assegnazione aggiornata'
+                    )
+                    setBulkAssignee('')
+                  }}
+                >
+                  {bulkSaving ? 'Salvataggio…' : 'Assegna'}
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => setBulkEditOpen((value) => !value)}
+            >
+              {bulkEditOpen ? 'Chiudi update dati' : 'Update dati'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => setSelectedIds([])}
+            >
+              Deseleziona
+            </button>
+          </div>
+        </div>
+      )}
+
+      {hasSelected && bulkEditOpen && (
+        <div className="contacts-bulkpanel">
+          <div className="contacts-bulkpanel-title">Aggiornamento massivo dati</div>
+          <div className="contacts-bulkpanel-copy">
+            Compila solo i campi che vuoi aggiornare sui contatti selezionati.
+          </div>
+          <div className="contacts-bulkpanel-grid">
+            <select
+              className="filter-select"
+              value={bulkUpdate.status}
+              onChange={(event) => setBulkUpdate((previous) => ({ ...previous, status: event.target.value }))}
+            >
+              <option value="">Stato: non cambiare</option>
+              {stages.map((stage) => (
+                <option key={stage.id} value={stage.name}>
+                  {statusLabel(stage.name)}
+                </option>
+              ))}
+            </select>
+            <select
+              className="filter-select"
+              value={bulkUpdate.priority}
+              onChange={(event) => setBulkUpdate((previous) => ({ ...previous, priority: event.target.value }))}
+            >
+              <option value="">Priorità: non cambiare</option>
+              <option value="3">Alta</option>
+              <option value="2">Media</option>
+              <option value="1">Bassa</option>
+              <option value="0">Nessuna</option>
+            </select>
+            <select
+              className="filter-select"
+              value={bulkUpdate.responsible}
+              onChange={(event) => setBulkUpdate((previous) => ({ ...previous, responsible: event.target.value }))}
+            >
+              <option value="">Assegnato: non cambiare</option>
+              {assignees.map((assignee) => (
+                <option key={assignee} value={assignee}>
+                  {assignee}
+                </option>
+              ))}
+              <option value="__unassigned__">— Rimuovi assegnazione —</option>
+            </select>
+            <input
+              className="form-input"
+              placeholder="Origine"
+              value={bulkUpdate.source}
+              onChange={(event) => setBulkUpdate((previous) => ({ ...previous, source: event.target.value }))}
+            />
+            <input
+              className="form-input"
+              placeholder="Lista"
+              value={bulkUpdate.list_name}
+              onChange={(event) => setBulkUpdate((previous) => ({ ...previous, list_name: event.target.value }))}
+            />
+            <input
+              className="form-input"
+              placeholder="Tag evento"
+              value={bulkUpdate.event_tag}
+              onChange={(event) => setBulkUpdate((previous) => ({ ...previous, event_tag: event.target.value }))}
+            />
+            <input
+              className="form-input"
+              placeholder="Azienda"
+              value={bulkUpdate.company}
+              onChange={(event) => setBulkUpdate((previous) => ({ ...previous, company: event.target.value }))}
+            />
+          </div>
+          <div className="contacts-bulkpanel-actions">
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={bulkSaving}
+              onClick={async () => {
+                const patch: Record<string, unknown> = {}
+                if (bulkUpdate.status) patch.status = bulkUpdate.status
+                if (bulkUpdate.priority) patch.priority = Number(bulkUpdate.priority)
+                if (bulkUpdate.responsible) patch.responsible = bulkUpdate.responsible === '__unassigned__' ? '' : bulkUpdate.responsible
+                if (bulkUpdate.source.trim()) patch.source = bulkUpdate.source
+                if (bulkUpdate.list_name.trim()) patch.list_name = bulkUpdate.list_name
+                if (bulkUpdate.event_tag.trim()) patch.event_tag = bulkUpdate.event_tag
+                if (bulkUpdate.company.trim()) patch.company = bulkUpdate.company
+
+                if (!Object.keys(patch).length) {
+                  window.alert('Compila almeno un campo da aggiornare')
+                  return
+                }
+
+                await runBulkUpdate(patch, 'Contatti aggiornati')
+                setBulkUpdate({
+                  responsible: '',
+                  status: '',
+                  source: '',
+                  priority: '',
+                  list_name: '',
+                  event_tag: '',
+                  company: '',
+                })
+                setBulkEditOpen(false)
+              }}
+            >
+              {bulkSaving ? 'Aggiornamento…' : 'Salva update dati'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="contacts-table">
         {filtered.length === 0 ? (
@@ -387,14 +651,25 @@ function ContactsPageInner() {
                 tabIndex={0}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openDrawer(contact.id) }}
               >
+                <label
+                  className="contacts-row-check"
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(contact.id)}
+                    onChange={() => toggleSelection(contact.id)}
+                  />
+                </label>
                 <div className="contacts-row-main">
                   <div className="contacts-row-name">
                     <strong>{contact.name}</strong>
                     {contact.company && <span className="contacts-row-company">· {contact.company}</span>}
                   </div>
                   <div className="contacts-row-meta">
-                    {contact.email && <span>{contact.email}</span>}
-                    {contact.phone && <span>{contact.phone}</span>}
+                    {contact.email ? <span>{contact.email}</span> : <span className="contacts-missing">Senza email</span>}
+                    {contact.phone ? <span>{contact.phone}</span> : <span className="contacts-missing">Senza telefono</span>}
                     {holdingTag && <span>📁 {holdingTag}</span>}
                     {contact.list_name && !holdingTag && <span>📁 {contact.list_name}</span>}
                     {contact.responsible && <span>👤 {contact.responsible}</span>}

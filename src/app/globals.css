@@ -1776,6 +1776,16 @@ select.filter-select {
   color: var(--text2);
   flex-wrap: wrap;
 }
+.contacts-summary-selectall {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 10px;
+}
+.contacts-summary-selectall input { margin: 0; }
 .contacts-summary-chip {
   display: inline-flex;
   align-items: center;
@@ -1805,6 +1815,48 @@ select.filter-select {
   min-height: 0;
   overflow-y: auto;
 }
+.contacts-bulkbar,
+.contacts-bulkpanel {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.contacts-bulkbar-copy,
+.contacts-bulkpanel-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text2);
+  font-size: 12.5px;
+}
+.contacts-bulkbar-copy strong,
+.contacts-bulkpanel-title {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.contacts-bulkbar-actions,
+.contacts-bulkpanel-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.contacts-bulkpanel {
+  align-items: stretch;
+}
+.contacts-bulkpanel-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
 .contacts-empty {
   padding: 40px 20px;
   text-align: center;
@@ -1826,6 +1878,17 @@ select.filter-select {
   transition: background .1s;
   user-select: none;
 }
+.contacts-row-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 2px;
+}
+.contacts-row-check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
 .contacts-row:last-child { border-bottom: none; }
 .contacts-row:hover { background: var(--surface2); }
 .contacts-row-main { flex: 1; min-width: 0; }
@@ -1846,6 +1909,13 @@ select.filter-select {
   margin-top: 2px;
   flex-wrap: wrap;
 }
+.contacts-missing {
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
 .contacts-row-side {
   display: flex;
   gap: 6px;
@@ -1861,6 +1931,8 @@ select.filter-select {
   .contacts-row { flex-direction: column; gap: 6px; }
   .contacts-row-side { flex-wrap: wrap; }
   .contacts-row-followup { text-align: left; }
+  .contacts-bulkbar,
+  .contacts-bulkpanel { align-items: flex-start; }
 }
 
 .drawer-backdrop {
