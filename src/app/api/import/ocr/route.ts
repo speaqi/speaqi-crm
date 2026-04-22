@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { chooseBestContactName } from '@/lib/contact-name'
 import { stringifyCsvRows } from '@/lib/csv-import'
 import { requireRouteUser } from '@/lib/server/supabase'
 
@@ -202,10 +203,13 @@ export async function POST(request: NextRequest) {
         .map((contact) => {
           const firstName = normalizeText(contact.first_name)
           const lastName = normalizeText(contact.last_name)
-          const fullName =
-            normalizeText(contact.full_name) ||
-            normalizeText([firstName, lastName].filter(Boolean).join(' ')) ||
-            normalizeText(contact.company)
+          const fullName = chooseBestContactName({
+            explicitName: normalizeText(contact.full_name),
+            firstName,
+            lastName,
+            company: normalizeText(contact.company),
+            email: normalizeText(contact.email),
+          })
 
           if (!fullName) return null
 

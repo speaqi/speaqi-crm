@@ -78,6 +78,7 @@ function ContactsPageInner() {
   const [bulkAssignee, setBulkAssignee] = useState('')
   const [bulkSaving, setBulkSaving] = useState(false)
   const [bulkEditOpen, setBulkEditOpen] = useState(false)
+  const [repairingNames, setRepairingNames] = useState(false)
   const [bulkUpdate, setBulkUpdate] = useState<BulkUpdateDraft>({
     responsible: '',
     status: '',
@@ -219,6 +220,11 @@ function ContactsPageInner() {
   const filteredIds = useMemo(() => filtered.map((contact) => contact.id), [filtered])
   const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.includes(id))
   const hasSelected = selectedIds.length > 0
+  const selectedContacts = useMemo(
+    () => contacts.filter((contact) => selectedIds.includes(contact.id)),
+    [contacts, selectedIds]
+  )
+  const canRemoveSelectedFromList = selectedContacts.some((contact) => Boolean(contact.list_name?.trim()))
 
   useEffect(() => {
     setSelectedIds((previous) => previous.filter((id) => filteredIds.includes(id)))
@@ -312,6 +318,32 @@ function ContactsPageInner() {
             </option>
           ))}
         </select>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          disabled={repairingNames}
+          onClick={async () => {
+            if (!window.confirm('Correggo i nomi generici derivati da email tipo info@dominio?')) return
+            setRepairingNames(true)
+            try {
+              const result = await apiFetch<{ updated: number }>('/api/contacts/repair-names', {
+                method: 'POST',
+              })
+              await refresh()
+              showToast(
+                result.updated > 0
+                  ? `${result.updated} nomi corretti da email`
+                  : 'Nessun nome da correggere'
+              )
+            } catch (error) {
+              window.alert(error instanceof Error ? error.message : 'Riparazione nomi non riuscita')
+            } finally {
+              setRepairingNames(false)
+            }
+          }}
+        >
+          {repairingNames ? 'Correzione…' : 'Correggi nomi email'}
+        </button>
         {assignees.length > 0 && (
           <select
             className="filter-select"
@@ -454,6 +486,23 @@ function ContactsPageInner() {
             <span>Puoi assegnarli o aggiornare i dati in blocco.</span>
           </div>
           <div className="contacts-bulkbar-actions">
+            {canRemoveSelectedFromList && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                disabled={bulkSaving}
+                onClick={async () => {
+                  await runBulkUpdate(
+                    { list_name: '' },
+                    listFilter
+                      ? `Lista "${listFilter}" rimossa dai contatti selezionati`
+                      : 'Lista rimossa dai contatti selezionati'
+                  )
+                }}
+              >
+                Togli da lista
+              </button>
+            )}
             {assignees.length > 0 && (
               <>
                 <select

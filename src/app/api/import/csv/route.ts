@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { NextRequest } from 'next/server'
+import { chooseBestContactName, inferRepairName } from '@/lib/contact-name'
 import { detectCsvColumns, extractPrimaryEmail, extractPrimaryPhone, getMappedValue, normalizePhoneDigits, parseCsvText, splitMultiValue } from '@/lib/csv-import'
 import { isClosedStatus } from '@/lib/data'
 import { createActivities, ensurePipelineStages, formatActivityDate } from '@/lib/server/crm'
@@ -148,7 +149,12 @@ function buildNameCompanyKey(name?: string | null, company?: string | null) {
   return `${normalizedName}::${normalizedCompany}`
 }
 
-function shouldReplaceName(currentName?: string | null, importedName?: string | null, currentCompany?: string | null) {
+function shouldReplaceName(
+  currentName?: string | null,
+  importedName?: string | null,
+  currentCompany?: string | null,
+  currentEmail?: string | null
+) {
   const nextName = normalizeText(importedName)
   if (!nextName) return false
 
@@ -161,7 +167,8 @@ function shouldReplaceName(currentName?: string | null, importedName?: string | 
     normalizedCurrent.startsWith('lead legacy ') ||
     normalizedCurrent.startsWith('import csv ') ||
     normalizedCurrent === normalizeKey(currentCompany) ||
-    normalizedCurrent === 'contatto senza nome'
+    normalizedCurrent === 'contatto senza nome' ||
+    !!inferRepairName({ currentName: current, company: currentCompany, email: currentEmail })
   )
 }
 
@@ -278,12 +285,19 @@ function buildImportedRecord(params: {
   const explicitName = normalizeText(getMappedValue(row, mapping, 'name'))
   const firstName = normalizeText(getMappedValue(row, mapping, 'first_name'))
   const lastName = normalizeText(getMappedValue(row, mapping, 'last_name'))
-  const fullName = explicitName || normalizeText([firstName, lastName].filter(Boolean).join(' ')) || company || `Import CSV ${index + 1}`
 
   const emailValues = splitMultiValue(getMappedValue(row, mapping, 'email'))
   const phoneValues = splitMultiValue(getMappedValue(row, mapping, 'phone'))
   const email = normalizeText(extractPrimaryEmail(emailValues.join(';')))
   const phone = normalizeText(extractPrimaryPhone(phoneValues.join(';')))
+  const fullName = chooseBestContactName({
+    explicitName,
+    firstName,
+    lastName,
+    company,
+    email,
+    fallback: `Import CSV ${index + 1}`,
+  })
   const role = normalizeText(getMappedValue(row, mapping, 'role'))
   const province = normalizeText(getMappedValue(row, mapping, 'province'))
   const rawNote = normalizeText(getMappedValue(row, mapping, 'note'))
@@ -356,7 +370,7 @@ function buildUpdatePayload(record: ImportedRecord, current: ExistingContact) {
 
   return {
     legacy_id: current.legacy_id || record.legacy_id,
-    name: shouldReplaceName(current.name, record.name, current.company) ? record.name : current.name,
+    name: shouldReplaceName(current.name, record.name, current.company, current.email) ? record.name : current.name,
     email: current.email || record.email,
     phone: current.phone || record.phone,
     category: record.category || current.category || null,
