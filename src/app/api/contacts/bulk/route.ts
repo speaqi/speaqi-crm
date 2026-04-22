@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { normalizeContactScope } from '@/lib/data'
 import { requireRouteUser } from '@/lib/server/supabase'
 
 function normalizeText(value: unknown) {
@@ -10,6 +11,11 @@ function normalizeNumber(value: unknown) {
   if (value === null || value === undefined || value === '') return null
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function normalizeNullableText(value: unknown) {
+  if (value === null || value === undefined) return null
+  return normalizeText(value)
 }
 
 function errorMessage(error: unknown, fallback: string) {
@@ -38,11 +44,18 @@ export async function PATCH(request: NextRequest) {
     const updatePayload: Record<string, unknown> = {}
 
     if ('responsible' in patch) updatePayload.responsible = normalizeText(patch.responsible)
-    if ('status' in patch) updatePayload.status = normalizeText(patch.status)
+    if ('status' in patch) updatePayload.status = normalizeNullableText(patch.status)
     if ('source' in patch) updatePayload.source = normalizeText(patch.source)
-    if ('list_name' in patch) updatePayload.list_name = normalizeText(patch.list_name)
-    if ('event_tag' in patch) updatePayload.event_tag = normalizeText(patch.event_tag)
+    if ('list_name' in patch) updatePayload.list_name = normalizeNullableText(patch.list_name)
+    if ('event_tag' in patch) updatePayload.event_tag = normalizeNullableText(patch.event_tag)
     if ('company' in patch) updatePayload.company = normalizeText(patch.company)
+    if ('contact_scope' in patch) {
+      const nextScope = normalizeContactScope(
+        typeof patch.contact_scope === 'string' ? patch.contact_scope : undefined
+      )
+      updatePayload.contact_scope = nextScope
+      updatePayload.promoted_at = nextScope === 'crm' ? new Date().toISOString() : null
+    }
     if ('priority' in patch) {
       const priority = normalizeNumber(patch.priority)
       if (priority !== null) {

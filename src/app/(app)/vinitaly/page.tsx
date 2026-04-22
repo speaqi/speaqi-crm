@@ -3,16 +3,20 @@
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import { apiFetch } from '@/lib/api'
 import { formatDateTime, holdingListLabel, isNeverContacted, priorityBadgeClass, priorityLabel, sourceLabel, statusLabel } from '@/lib/data'
 import { useCRMContext } from '../layout'
 
 export default function VinitalyPage() {
-  const { holdingContacts } = useCRMContext()
+  const { holdingContacts, stages, refresh, showToast } = useCRMContext()
   const searchParams = useSearchParams()
   const [search, setSearch] = useState('')
   const [listFilter, setListFilter] = useState(searchParams.get('list') || '')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [contactStateFilter, setContactStateFilter] = useState('')
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [bulkStatus, setBulkStatus] = useState('')
+  const [bulkSaving, setBulkSaving] = useState(false)
 
   useEffect(() => {
     setListFilter(searchParams.get('list') || '')
@@ -52,6 +56,14 @@ export default function VinitalyPage() {
     })
   }, [categoryFilter, contactStateFilter, holdingContacts, listFilter, search])
 
+  const filteredIds = useMemo(() => filtered.map((contact) => contact.id), [filtered])
+  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.includes(id))
+  const hasSelected = selectedIds.length > 0
+
+  useEffect(() => {
+    setSelectedIds((previous) => previous.filter((id) => filteredIds.includes(id)))
+  }, [filteredIds])
+
   const scopedContacts = useMemo(
     () => holdingContacts.filter((contact) => !listFilter || holdingListLabel(contact) === listFilter),
     [holdingContacts, listFilter]
@@ -66,6 +78,41 @@ export default function VinitalyPage() {
     () => scopedContacts.filter((contact) => !contact.email).length,
     [scopedContacts]
   )
+
+  function toggleSelection(contactId: string) {
+    setSelectedIds((previous) =>
+      previous.includes(contactId) ? previous.filter((id) => id !== contactId) : [...previous, contactId]
+    )
+  }
+
+  function toggleSelectAllFiltered() {
+    setSelectedIds((previous) => {
+      if (allFilteredSelected) return previous.filter((id) => !filteredIds.includes(id))
+      return Array.from(new Set([...previous, ...filteredIds]))
+    })
+  }
+
+  async function runBulkUpdate(patch: Record<string, unknown>, successMessage: string) {
+    if (!selectedIds.length) return
+    setBulkSaving(true)
+    try {
+      await apiFetch('/api/contacts/bulk', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contact_ids: selectedIds,
+          patch,
+        }),
+      })
+      await refresh()
+      setSelectedIds([])
+      showToast(successMessage)
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Aggiornamento non riuscito')
+    } finally {
+      setBulkSaving(false)
+    }
+  }
 
   return (
     <div className="dash-content">
@@ -105,6 +152,72 @@ export default function VinitalyPage() {
         </Link>
       </div>
 
+      <div className="contacts-summary" style={{ marginBottom: 16 }}>
+        <label className="contacts-summary-selectall">
+          <input
+            type="checkbox"
+            checked={allFilteredSelected}
+            onChange={toggleSelectAllFiltered}
+          />
+          <span>Seleziona tutti i filtrati</span>
+        </label>
+        {hasSelected && <span className="contacts-summary-chip">{selectedIds.length} selezionati</span>}
+      </div>
+
+      {hasSelected && (
+        <div className="contacts-bulkbar" style={{ marginBottom: 16 }}>
+          <div className="contacts-bulkbar-copy">
+            <strong>{selectedIds.length} contatti selezionati</strong>
+            <span>Puoi mandarli nel CRM operativo con uno stato oppure toglierli dalla lista corrente.</span>
+          </div>
+          <div className="contacts-bulkbar-actions">
+            <select
+              className="filter-select"
+              value={bulkStatus}
+              onChange={(event) => setBulkStatus(event.target.value)}
+            >
+              <option value="">Sposta in CRM con stato…</option>
+              {stages.map((stage) => (
+                <option key={stage.id} value={stage.name}>
+                  {statusLabel(stage.name)}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={bulkSaving || !bulkStatus}
+              onClick={async () => {
+                await runBulkUpdate(
+                  { contact_scope: 'crm', status: bulkStatus },
+                  'Contatti spostati nel CRM'
+                )
+                setBulkStatus('')
+              }}
+            >
+              {bulkSaving ? 'Aggiornamento…' : 'Manda in CRM'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={bulkSaving}
+              onClick={async () => {
+                await runBulkUpdate({ list_name: '' }, 'Lista rimossa dai contatti selezionati')
+              }}
+            >
+              Togli da lista
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => setSelectedIds([])}
+            >
+              Deseleziona
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="dash-meta-grid" style={{ marginBottom: 20 }}>
         <div className="meta-card meta-card-strong">
           <strong>{scopedContacts.length}</strong>
@@ -140,6 +253,18 @@ export default function VinitalyPage() {
           ) : (
             filtered.map((contact) => (
               <div key={contact.id} className="contact-card contact-card-rich">
+                <label
+                  className="contacts-row-check"
+                  style={{ alignSelf: 'flex-start' }}
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(contact.id)}
+                    onChange={() => toggleSelection(contact.id)}
+                  />
+                </label>
                 <Link href={`/contacts/${contact.id}`} className="contact-card-link">
                   <div className="contact-name">{contact.name}</div>
                   <div className="contact-meta">{contact.company || 'Azienda non disponibile'}</div>
@@ -160,6 +285,32 @@ export default function VinitalyPage() {
                   <Link href={`/contacts/${contact.id}`} className="btn btn-primary btn-sm">
                     Apri scheda
                   </Link>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={async () => {
+                      setBulkSaving(true)
+                      try {
+                        await apiFetch('/api/contacts/bulk', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            contact_ids: [contact.id],
+                            patch: { list_name: '' },
+                          }),
+                        })
+                        await refresh()
+                        showToast('Lista rimossa dal contatto')
+                      } catch (error) {
+                        window.alert(error instanceof Error ? error.message : 'Aggiornamento non riuscito')
+                      } finally {
+                        setBulkSaving(false)
+                      }
+                    }}
+                    disabled={bulkSaving}
+                  >
+                    Togli da lista
+                  </button>
                 </div>
               </div>
             ))
