@@ -7,6 +7,7 @@ import { isClosedStatus, priorityLabel, statusLabel } from '@/lib/data'
 import type { ScheduledCall } from '@/lib/schedule'
 
 const DAY_MS = 24 * 60 * 60 * 1000
+const DAYS_BACK = 1
 const DAYS_AHEAD = 5
 
 function startOfDay(date: Date) {
@@ -30,9 +31,10 @@ function greetingForHour(hour: number) {
   return 'Buonasera'
 }
 
-function dayLabelShort(date: Date, index: number) {
-  if (index === 0) return 'Oggi'
-  if (index === 1) return 'Domani'
+function dayLabelShort(date: Date, offset: number) {
+  if (offset === -1) return 'Ieri'
+  if (offset === 0) return 'Oggi'
+  if (offset === 1) return 'Domani'
   return date.toLocaleDateString('it-IT', { weekday: 'long' })
 }
 
@@ -82,12 +84,13 @@ export default function OggiPage() {
   )
 
   const days = useMemo(() => {
-    const buckets: Array<{ date: Date; calls: ScheduledCall[] }> = []
-    for (let index = 0; index < DAYS_AHEAD; index += 1) {
-      const dayStart = new Date(today.getTime() + index * DAY_MS)
+    const buckets: Array<{ date: Date; calls: ScheduledCall[]; offset: number }> = []
+    for (let offset = -DAYS_BACK; offset < DAYS_AHEAD; offset += 1) {
+      const dayStart = new Date(today.getTime() + offset * DAY_MS)
       const dayEnd = new Date(dayStart.getTime() + DAY_MS)
       buckets.push({
         date: dayStart,
+        offset,
         calls: scheduledCalls
           .filter((call) => {
             const due = new Date(call.due_at)
@@ -275,24 +278,24 @@ export default function OggiPage() {
 
       <section className="oggi-week">
         <div className="oggi-week-head">
-          <h2>Prossimi 5 giorni</h2>
+          <h2>Ieri + prossimi 5 giorni</h2>
           <span className="oggi-week-hint">Trascina un contatto per spostarlo di giorno</span>
           <Link href="/calendario" className="oggi-week-link">Vista calendario →</Link>
         </div>
         <div className="oggi-week-grid">
-          {days.map((day, index) => {
+          {days.map((day) => {
             const key = dayKey(day.date)
             const isDropTarget = dragOverKey === key
             return (
               <div
                 key={key}
-                className={`oggi-day-col ${index === 0 ? 'is-today' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
+                className={`oggi-day-col ${day.offset === 0 ? 'is-today' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
                 onDragOver={(event) => handleDragOver(event, key)}
                 onDragLeave={(event) => handleDragLeave(event, key)}
                 onDrop={(event) => handleDrop(event, day.date)}
               >
                 <div className="oggi-day-head">
-                  <span className="oggi-day-label">{dayLabelShort(day.date, index)}</span>
+                  <span className="oggi-day-label">{dayLabelShort(day.date, day.offset)}</span>
                   <span className="oggi-day-date">{dayNumber(day.date)}</span>
                   {day.calls.length > 0 && <span className="oggi-day-count">{day.calls.length}</span>}
                 </div>
@@ -304,7 +307,7 @@ export default function OggiPage() {
                       <CallCard
                         key={`d-${key}-${call.contact.id}`}
                         call={call}
-                        variant={index === 0 ? 'today' : 'upcoming'}
+                        variant={day.offset === 0 ? 'today' : 'upcoming'}
                         dragging={draggingId === call.contact.id}
                         onComplete={handleComplete}
                         onDragStart={handleDragStart}
