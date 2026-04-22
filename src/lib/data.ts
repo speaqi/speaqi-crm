@@ -1,4 +1,4 @@
-import type { CRMContact, ContactInput, PipelineStage } from '@/types'
+import type { CRMContact, ContactInput, ContactScope, PipelineStage } from '@/types'
 
 export const DEFAULT_PIPELINE_STAGES: Array<Omit<PipelineStage, 'id'>> = [
   { name: 'New', order: 0, color: '#3b82f6', system_key: 'new' },
@@ -40,6 +40,7 @@ export const EMPTY_CONTACT_INPUT: ContactInput = {
   status: 'New',
   source: 'manual',
   contact_scope: 'crm',
+  personal_section: '',
   category: '',
   company: '',
   event_tag: '',
@@ -76,6 +77,8 @@ export function sourceLabel(source?: string | null) {
 
 export function contactScopeLabel(scope?: string | null) {
   switch (scope || 'crm') {
+    case 'personal':
+      return 'Area personale'
     case 'holding':
       return 'Lista separata'
     case 'crm':
@@ -86,6 +89,16 @@ export function contactScopeLabel(scope?: string | null) {
 
 export function holdingListLabel(contact: Pick<CRMContact, 'list_name' | 'event_tag' | 'source'>) {
   return contact.list_name || contact.event_tag || sourceLabel(contact.source) || 'Lista separata'
+}
+
+export function personalSectionLabel(
+  contact: Pick<CRMContact, 'personal_section' | 'list_name' | 'category'>
+) {
+  return contact.personal_section || contact.list_name || contact.category || 'Senza sezione'
+}
+
+export function isPersonalContact(contact: Pick<CRMContact, 'contact_scope'>) {
+  return (contact.contact_scope || 'crm') === 'personal'
 }
 
 export function statusLabel(status?: string | null) {
@@ -240,6 +253,13 @@ export function isClosedStatus(status: string) {
 
 export function isHoldingContact(contact: Pick<CRMContact, 'contact_scope'>) {
   return (contact.contact_scope || 'crm') === 'holding'
+}
+
+export function normalizeContactScope(value?: string | null, fallback: ContactScope = 'crm'): ContactScope {
+  const normalized = String(value ?? fallback).trim().toLowerCase()
+  if (normalized === 'holding') return 'holding'
+  if (normalized === 'personal') return 'personal'
+  return 'crm'
 }
 
 export function isOverdue(value?: string | null) {

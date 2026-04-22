@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
 import { ContactModal } from '@/components/crm/ContactModal'
 import { apiFetch } from '@/lib/api'
-import { ACTIVITY_TYPES, TASK_TYPES, activityTypeLabel, contactScopeLabel, formatDateTime, fromDatetimeLocalValue, holdingListLabel, isClosedStatus, isHoldingContact, priorityLabel, sourceLabel, statusLabel, toDatetimeLocalValue } from '@/lib/data'
+import { ACTIVITY_TYPES, TASK_TYPES, activityTypeLabel, contactScopeLabel, formatDateTime, fromDatetimeLocalValue, holdingListLabel, isClosedStatus, isHoldingContact, isPersonalContact, personalSectionLabel, priorityLabel, sourceLabel, statusLabel, toDatetimeLocalValue } from '@/lib/data'
 import { useCRMContext } from '../../layout'
 import type { Activity, ContactDetail, GmailAccountStatus, GmailMessage } from '@/types'
 
@@ -151,6 +151,7 @@ export default function ContactDetailPage() {
 
   const { contact, activities, tasks } = detail
   const holdingContact = isHoldingContact(contact)
+  const personalContact = isPersonalContact(contact)
   const pinnedNotes = activities.filter((activity) => isPinnedNote(activity) || isActionRequiredNote(activity))
 
   return (
@@ -158,8 +159,8 @@ export default function ContactDetailPage() {
       <div className="dash-content">
         <div className="detail-header">
           <div>
-            <Link href={holdingContact ? '/vinitaly' : '/contacts'} className="back-link">
-              ← Torna a {holdingContact ? 'alle liste separate' : 'ai contatti'}
+            <Link href={holdingContact ? '/vinitaly' : personalContact ? '/personali' : '/contacts'} className="back-link">
+              ← Torna a {holdingContact ? 'alle liste separate' : personalContact ? 'ai personali' : 'ai contatti'}
             </Link>
             <h1 className="detail-title">{contact.name}</h1>
             <div className="detail-subtitle">
@@ -180,6 +181,15 @@ export default function ContactDetailPage() {
           </div>
         )}
 
+        {personalContact && (
+          <div className="meta-card" style={{ marginBottom: 20 }}>
+            <strong>Sezione personale: {personalSectionLabel(contact)}</strong>
+            <span>
+              Questo contatto resta fuori dalla pipeline commerciale ma vive nello stesso CRM, così puoi tenere promemoria, note e richiami personali in un’unica area.
+            </span>
+          </div>
+        )}
+
         <div className="detail-grid">
           <div className="dash-card">
             <div className="dash-card-title">Scheda lead</div>
@@ -189,6 +199,7 @@ export default function ContactDetailPage() {
               <div><strong>Telefono:</strong> {contact.phone || 'Non impostato'}</div>
               <div><strong>Evento:</strong> {contact.event_tag || 'Non impostato'}</div>
               <div><strong>Lista import:</strong> {contact.list_name || 'Non impostata'}</div>
+              <div><strong>Sezione personale:</strong> {contact.personal_section || 'Non impostata'}</div>
               <div><strong>Categoria:</strong> {contact.category || 'Non assegnata'}</div>
               <div><strong>Responsabile:</strong> {contact.responsible || 'Non assegnato'}</div>
               <div><strong>Lista:</strong> {contactScopeLabel(contact.contact_scope)}</div>

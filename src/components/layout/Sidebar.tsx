@@ -8,6 +8,7 @@ interface SidebarProps {
   counts: {
     kanban: number
     contacts: number
+    personal: number
     vinitaly: number
     speaqi: number
     oggi: number
@@ -18,6 +19,7 @@ interface SidebarProps {
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Oggi', icon: '🏠', badgeKey: 'oggi' as const, badgeRed: true },
   { href: '/contacts', label: 'Contatti', icon: '👥', badgeKey: 'contacts' as const },
+  { href: '/personali', label: 'Personali', icon: '🗂️', badgeKey: 'personal' as const },
   { href: '/kanban', label: 'Pipeline', icon: '🔀', badgeKey: 'kanban' as const },
   { href: '/calendario', label: 'Calendario', icon: '📅' },
   { href: '/attivita', label: 'Attività', icon: '📊' },

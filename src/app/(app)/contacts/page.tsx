@@ -47,7 +47,7 @@ function ContactsPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const {
-    allContacts,
+    contacts,
     scheduledCalls,
     stages,
     teamMembers,
@@ -130,20 +130,20 @@ function ContactsPageInner() {
     () =>
       Array.from(
         new Set(
-          allContacts
+          contacts
             .map((contact) => contact.list_name?.trim())
             .filter((name): name is string => Boolean(name))
         )
       ).sort(),
-    [allContacts]
+    [contacts]
   )
 
   const sources = useMemo(
     () =>
       Array.from(
-        new Set(allContacts.map((contact) => contact.source).filter((source): source is string => Boolean(source)))
+        new Set(contacts.map((contact) => contact.source).filter((source): source is string => Boolean(source)))
       ).sort(),
-    [allContacts]
+    [contacts]
   )
 
   const assignees = useMemo(
@@ -153,7 +153,7 @@ function ContactsPageInner() {
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return allContacts.filter((contact) => {
+    return contacts.filter((contact) => {
       const call = scheduledCallsByContactId.get(contact.id) || null
       if (query) {
         const haystack = [
@@ -191,7 +191,7 @@ function ContactsPageInner() {
       return true
     })
   }, [
-    allContacts,
+    contacts,
     assigneeFilter,
     focusFilter,
     listFilter,
@@ -722,7 +722,7 @@ function ContactsPageInner() {
         contactId={urlId}
         onClose={closeDrawer}
         onEdit={(id) => {
-          const target = allContacts.find((contact) => contact.id === id) || null
+          const target = contacts.find((contact) => contact.id === id) || null
           setEditingContact(target)
           setModalOpen(true)
         }}

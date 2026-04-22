@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { createActivities, ensurePipelineStages, formatActivityDate, updateContactSummary } from '@/lib/server/crm'
 import { priorityLevelFromNumber } from '@/lib/server/ai-ready'
 import { requireRouteUser } from '@/lib/server/supabase'
-import { isClosedStatus } from '@/lib/data'
+import { isClosedStatus, normalizeContactScope } from '@/lib/data'
 
 function normalizeText(value: unknown) {
   const normalized = String(value || '').trim()
@@ -13,10 +13,6 @@ function normalizeNumber(value: unknown) {
   if (value === null || value === undefined || value === '') return null
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
-}
-
-function normalizeContactScope(value: unknown) {
-  return String(value || '').trim().toLowerCase() === 'holding' ? 'holding' : 'crm'
 }
 
 function errorMessage(error: unknown, fallback: string) {
@@ -51,6 +47,7 @@ export async function GET(request: NextRequest) {
 
     if (scope === 'crm') query = query.eq('contact_scope', 'crm')
     if (scope === 'holding') query = query.eq('contact_scope', 'holding')
+    if (scope === 'personal') query = query.eq('contact_scope', 'personal')
 
     const { data, error } = await query
 
@@ -80,6 +77,7 @@ export async function POST(request: NextRequest) {
     const rawNote = normalizeText(body.note)
     const eventTag = normalizeText(body.event_tag)
     const listName = normalizeText(body.list_name)
+    const personalSection = normalizeText(body.personal_section)
     const initialTaskNote = normalizeText(body.initial_task_note)
 
     if (!name) {
@@ -102,6 +100,7 @@ export async function POST(request: NextRequest) {
       company: normalizeText(body.company),
       event_tag: eventTag,
       list_name: listName,
+      personal_section: contactScope === 'personal' ? personalSection : null,
       country: normalizeText(body.country),
       language: normalizeText(body.language),
       status,
@@ -151,13 +150,18 @@ export async function POST(request: NextRequest) {
     const activityContent = [
       contact.contact_scope === 'holding'
         ? 'Contatto creato in lista separata.'
+        : contact.contact_scope === 'personal'
+          ? 'Contatto creato in area personale.'
         : 'Contatto creato nel CRM.',
       `Stato iniziale: ${contact.status}.`,
       contact.company ? `Azienda: ${contact.company}.` : null,
       contact.event_tag ? `Evento: ${contact.event_tag}.` : null,
       contact.list_name ? `Lista import: ${contact.list_name}.` : null,
+      contact.personal_section ? `Sezione personale: ${contact.personal_section}.` : null,
       contact.contact_scope === 'holding'
         ? 'Resterà fuori da pipeline e follow-up fino a una risposta email.'
+        : contact.contact_scope === 'personal'
+          ? 'Resta fuori dalla pipeline CRM ma può avere note e promemoria dedicati.'
         : null,
       contact.next_followup_at ? `Follow-up iniziale: ${formatActivityDate(contact.next_followup_at)}.` : null,
       task ? 'Task di follow-up creato automaticamente.' : null,

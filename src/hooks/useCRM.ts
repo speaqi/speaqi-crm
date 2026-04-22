@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api'
-import { isClosedStatus, isHoldingContact } from '@/lib/data'
+import { isClosedStatus, isHoldingContact, isPersonalContact } from '@/lib/data'
 import { buildScheduledCalls, isCallTaskType } from '@/lib/schedule'
 import { createClient } from '@/lib/supabase'
 import type {
@@ -55,6 +55,7 @@ function buildTaskContactSnapshot(contact?: CRMContact | null) {
     event_tag: contact.event_tag,
     last_activity_summary: contact.last_activity_summary,
     contact_scope: contact.contact_scope,
+    personal_section: contact.personal_section,
     priority: contact.priority,
     next_followup_at: contact.next_followup_at,
   }
@@ -92,21 +93,6 @@ function extractMessage(error: unknown, fallback: string) {
   return fallback
 }
 
-function startOfDay(date: Date) {
-  const next = new Date(date)
-  next.setHours(0, 0, 0, 0)
-  return next
-}
-
-function carryDateToDay(value: string, targetDay: Date) {
-  const source = new Date(value)
-  if (Number.isNaN(source.getTime())) return null
-
-  const next = new Date(targetDay)
-  next.setHours(source.getHours(), source.getMinutes(), source.getSeconds(), source.getMilliseconds())
-  return next.toISOString()
-}
-
 export function useCRM() {
   const [state, setState] = useState<CRMState>({
     stages: [],
@@ -130,9 +116,19 @@ export function useCRM() {
     [state.contacts]
   )
 
+  const personalContacts = useMemo(
+    () => state.contacts.filter((contact) => isPersonalContact(contact)),
+    [state.contacts]
+  )
+
   const holdingContactIds = useMemo(
     () => new Set(holdingContacts.map((contact) => contact.id)),
     [holdingContacts]
+  )
+
+  const personalContactIds = useMemo(
+    () => new Set(personalContacts.map((contact) => contact.id)),
+    [personalContacts]
   )
 
   const visibleTasks = useMemo(
@@ -140,9 +136,21 @@ export function useCRM() {
       state.tasks.filter(
         (task) =>
           !holdingContactIds.has(task.contact_id) &&
-          !isHoldingContact({ contact_scope: task.contact?.contact_scope || 'crm' })
+          !personalContactIds.has(task.contact_id) &&
+          !isHoldingContact({ contact_scope: task.contact?.contact_scope || 'crm' }) &&
+          !isPersonalContact({ contact_scope: task.contact?.contact_scope || 'crm' })
       ),
-    [holdingContactIds, state.tasks]
+    [holdingContactIds, personalContactIds, state.tasks]
+  )
+
+  const personalTasks = useMemo(
+    () =>
+      state.tasks.filter(
+        (task) =>
+          personalContactIds.has(task.contact_id) ||
+          isPersonalContact({ contact_scope: task.contact?.contact_scope || 'crm' })
+      ),
+    [personalContactIds, state.tasks]
   )
 
   const speaqiContacts = useMemo(
@@ -219,60 +227,6 @@ export function useCRM() {
         nextTasks = tasksResponse.tasks || []
       } catch (tasksError) {
         warnings.push(`Task: ${extractMessage(tasksError, 'Errore caricando i task')}`)
-      }
-
-      if (nextContacts && nextTasks) {
-        const today = startOfDay(new Date())
-        const overdueCallTasks = nextTasks.filter((task) => {
-          if (!isCallTaskType(task.type) || !task.due_date) return false
-          return new Date(task.due_date).getTime() < today.getTime()
-        })
-
-        const contactIdsWithPendingCallTask = new Set(
-          nextTasks
-            .filter((task) => task.status === 'pending' && isCallTaskType(task.type))
-            .map((task) => task.contact_id)
-        )
-
-        const overdueContactFollowups = nextContacts.filter((contact) => {
-          if (!contact.next_followup_at) return false
-          if (contactIdsWithPendingCallTask.has(contact.id)) return false
-          return new Date(contact.next_followup_at).getTime() < today.getTime()
-        })
-
-        if (overdueCallTasks.length || overdueContactFollowups.length) {
-          await Promise.allSettled([
-            ...overdueCallTasks.map((task) =>
-              apiFetch(`/api/tasks/${task.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  due_date: carryDateToDay(task.due_date!, today),
-                }),
-              })
-            ),
-            ...overdueContactFollowups.map((contact) =>
-              apiFetch(`/api/contacts/${contact.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  next_followup_at: carryDateToDay(contact.next_followup_at!, today),
-                }),
-              })
-            ),
-          ])
-
-          try {
-            const [reloadedContacts, reloadedTasks] = await Promise.all([
-              apiFetch<{ contacts: CRMContact[] }>('/api/contacts'),
-              apiFetch<{ tasks: TaskWithContact[] }>('/api/tasks?status=pending'),
-            ])
-            nextContacts = reloadedContacts.contacts || nextContacts
-            nextTasks = reloadedTasks.tasks || nextTasks
-          } catch (reloadError) {
-            warnings.push(`Riallineamento agenda: ${extractMessage(reloadError, 'Errore ricaricando i follow-up')}`)
-          }
-        }
       }
 
       try {
@@ -621,7 +575,10 @@ export function useCRM() {
     contacts: crmContacts,
     allContacts: state.contacts,
     holdingContacts,
+    personalContacts,
     tasks: visibleTasks,
+    allTasks: state.tasks,
+    personalTasks,
     speaqiContacts,
     scheduledCalls,
     openContactsWithoutQueue,

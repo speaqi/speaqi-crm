@@ -67,6 +67,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const counts = {
     kanban: crm.contacts.filter(isPipelineVisible).length,
     contacts: crm.contacts.length,
+    personal: crm.personalContacts.length,
     vinitaly: crm.holdingContacts.length,
     speaqi: crm.speaqiContacts.length,
     oggi: crm.dueTodayCount,

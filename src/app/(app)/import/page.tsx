@@ -18,6 +18,12 @@ interface ImportResponse {
   detected_mapping?: Record<string, string>
 }
 
+interface OcrResponse {
+  files_processed: number
+  extracted_contacts: number
+  csv_text: string
+}
+
 function slugify(value: string) {
   return value
     .toLowerCase()
@@ -36,15 +42,19 @@ function humanListName(filename: string) {
 }
 
 type Step = 1 | 2 | 3
+type ImportMode = 'csv' | 'ocr'
 
 export default function ImportPage() {
   const { refresh, showToast, teamMembers } = useCRMContext()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const ocrInputRef = useRef<HTMLInputElement>(null)
   const [step, setStep] = useState<Step>(1)
   const [dragActive, setDragActive] = useState(false)
+  const [importMode, setImportMode] = useState<ImportMode>('csv')
 
   const [fileName, setFileName] = useState('')
   const [csvText, setCsvText] = useState('')
+  const [ocrFiles, setOcrFiles] = useState<string[]>([])
 
   const [listName, setListName] = useState('')
   const [eventTag, setEventTag] = useState('')
@@ -64,17 +74,33 @@ export default function ImportPage() {
     return { rows, detection: detectCsvColumns(rows) }
   }, [csvText])
 
-  function ingestFile(file: File) {
-    setError('')
-    setResult(null)
-    setFileName(file.name)
-    const inferredHuman = humanListName(file.name)
-    const inferredSlug = slugify(file.name.replace(/\.[^.]+$/, ''))
+  function prepareImportText(params: {
+    fileName: string
+    csvText: string
+    mode: ImportMode
+    fileLabels?: string[]
+  }) {
+    const inferredHuman = humanListName(params.fileName)
+    const inferredSlug = slugify(params.fileName.replace(/\.[^.]+$/, ''))
+    setImportMode(params.mode)
+    setFileName(params.fileName)
+    setCsvText(params.csvText)
+    setOcrFiles(params.fileLabels || [])
     setListName(inferredHuman)
     setEventTag(inferredSlug)
+    setSourceLabel(params.mode === 'ocr' ? 'ocr' : 'evento')
+    setResult(null)
+    setError('')
+    setStep(2)
+  }
+
+  function ingestFile(file: File) {
     file.text().then((text) => {
-      setCsvText(text)
-      setStep(2)
+      prepareImportText({
+        fileName: file.name,
+        csvText: text,
+        mode: 'csv',
+      })
     })
   }
 
@@ -86,11 +112,63 @@ export default function ImportPage() {
   function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault()
     setDragActive(false)
-    const file = event.dataTransfer.files?.[0]
+    const files = Array.from(event.dataTransfer.files || [])
+
+    if (importMode === 'ocr') {
+      if (files.length === 0) {
+        setError('Carica almeno un’immagine.')
+        return
+      }
+      void ingestOcrFiles(files)
+      return
+    }
+
+    const file = files[0]
     if (file && (file.name.endsWith('.csv') || file.type.includes('csv'))) {
       ingestFile(file)
-    } else {
-      setError('Serve un file CSV.')
+      return
+    }
+
+    setError('Serve un file CSV.')
+  }
+
+  async function ingestOcrFiles(files: File[]) {
+    const imageFiles = files.filter((file) => file.type.startsWith('image/'))
+    if (!imageFiles.length) {
+      setError('Carica immagini JPG, PNG o WebP.')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    setResult(null)
+
+    try {
+      const formData = new FormData()
+      for (const file of imageFiles) {
+        formData.append('files', file)
+      }
+
+      const response = await apiFetch<OcrResponse>('/api/import/ocr', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const syntheticName =
+        imageFiles.length === 1
+          ? imageFiles[0].name.replace(/\.[^.]+$/, '') + '-ocr.csv'
+          : `ocr-${new Date().toISOString().slice(0, 10)}.csv`
+
+      prepareImportText({
+        fileName: syntheticName,
+        csvText: response.csv_text,
+        mode: 'ocr',
+        fileLabels: imageFiles.map((file) => file.name),
+      })
+    } catch (ocrError) {
+      setError(ocrError instanceof Error ? ocrError.message : 'OCR non riuscito')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -130,8 +208,10 @@ export default function ImportPage() {
 
   function resetWizard() {
     setStep(1)
+    setImportMode('csv')
     setFileName('')
     setCsvText('')
+    setOcrFiles([])
     setListName('')
     setEventTag('')
     setResult(null)
@@ -140,6 +220,7 @@ export default function ImportPage() {
     setSourceLabel('evento')
     setAddToPipeline(true)
     if (fileInputRef.current) fileInputRef.current.value = ''
+    if (ocrInputRef.current) ocrInputRef.current.value = ''
   }
 
   const detectedFields = preview
@@ -168,28 +249,80 @@ export default function ImportPage() {
       </div>
 
       {step === 1 && (
-        <div
-          className={`import-dropzone ${dragActive ? 'is-active' : ''}`}
-          onDragEnter={(event) => {
-            event.preventDefault()
-            setDragActive(true)
-          }}
-          onDragOver={(event) => event.preventDefault()}
-          onDragLeave={() => setDragActive(false)}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <div className="import-dropzone-emoji">📥</div>
-          <h2>Trascina qui il CSV della fiera</h2>
-          <p>oppure clicca per scegliere un file dal computer</p>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv,text/csv"
-            onChange={handleFileChange}
-            style={{ display: 'none' }}
-          />
-          {error && <div className="import-error">{error}</div>}
+        <div className="import-entry">
+          <div className="import-mode-switch">
+            <button
+              type="button"
+              className={`import-mode-pill ${importMode === 'csv' ? 'active' : ''}`}
+              onClick={() => {
+                setImportMode('csv')
+                setError('')
+              }}
+            >
+              CSV
+            </button>
+            <button
+              type="button"
+              className={`import-mode-pill ${importMode === 'ocr' ? 'active' : ''}`}
+              onClick={() => {
+                setImportMode('ocr')
+                setError('')
+              }}
+            >
+              OCR immagini
+            </button>
+          </div>
+
+          <div
+            className={`import-dropzone ${dragActive ? 'is-active' : ''}`}
+            onDragEnter={(event) => {
+              event.preventDefault()
+              setDragActive(true)
+            }}
+            onDragOver={(event) => event.preventDefault()}
+            onDragLeave={() => setDragActive(false)}
+            onDrop={handleDrop}
+            onClick={() => {
+              if (importMode === 'ocr') ocrInputRef.current?.click()
+              else fileInputRef.current?.click()
+            }}
+          >
+            <div className="import-dropzone-emoji">{importMode === 'ocr' ? '📸' : '📥'}</div>
+            <h2>
+              {importMode === 'ocr'
+                ? 'Trascina qui i biglietti da visita o le foto dei contatti'
+                : 'Trascina qui il CSV della fiera'}
+            </h2>
+            <p>
+              {importMode === 'ocr'
+                ? 'Puoi caricare piu immagini: l’OCR estrae i campi e li prepara per l’import.'
+                : 'oppure clicca per scegliere un file dal computer'}
+            </p>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              onChange={handleFileChange}
+              style={{ display: 'none' }}
+            />
+            <input
+              ref={ocrInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(event) => {
+                const files = Array.from(event.target.files || [])
+                if (files.length > 0) void ingestOcrFiles(files)
+              }}
+              style={{ display: 'none' }}
+            />
+
+            {loading && importMode === 'ocr' && (
+              <div className="import-helper">Analizzo le immagini e costruisco il CSV…</div>
+            )}
+            {error && <div className="import-error">{error}</div>}
+          </div>
         </div>
       )}
 
@@ -198,12 +331,21 @@ export default function ImportPage() {
           <div className="import-confirm-head">
             <div>
               <h2>{preview.rows.length} contatti pronti</h2>
-              <p>da <strong>{fileName}</strong> · {detectedFields.length} campi riconosciuti</p>
+              <p>
+                da <strong>{fileName}</strong> · {detectedFields.length} campi riconosciuti
+                {importMode === 'ocr' ? ` · OCR su ${ocrFiles.length || 1} immagini` : ''}
+              </p>
             </div>
             <button type="button" className="btn btn-ghost btn-sm" onClick={resetWizard}>
               Cambia file
             </button>
           </div>
+
+          {importMode === 'ocr' && ocrFiles.length > 0 && (
+            <div className="import-helper">
+              Immagini elaborate: {ocrFiles.join(', ')}
+            </div>
+          )}
 
           <div className="import-confirm-grid">
             <label className="import-field">
@@ -247,6 +389,7 @@ export default function ImportPage() {
               <span>Origine</span>
               <select value={sourceLabel} onChange={(event) => setSourceLabel(event.target.value)}>
                 <option value="evento">Evento / fiera</option>
+                <option value="ocr">OCR / biglietto da visita</option>
                 <option value="vinitaly">Vinitaly</option>
                 <option value="import">Import generico</option>
                 <option value="manual">Manuale</option>

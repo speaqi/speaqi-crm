@@ -45,6 +45,7 @@ function buildInitialState(contact?: CRMContact | null, defaultSource?: string):
     list_name: contact.list_name || '',
     status: contact.status,
     contact_scope: contact.contact_scope || 'crm',
+    personal_section: contact.personal_section || '',
     source: contact.source || defaultSource || 'manual',
     priority: contact.priority || 0,
     responsible: contact.responsible || '',
@@ -80,7 +81,7 @@ export function ContactModal({
       return
     }
 
-    if (form.contact_scope !== 'holding' && !isClosedStatus(form.status) && !form.next_followup_at) {
+    if (form.contact_scope === 'crm' && !isClosedStatus(form.status) && !form.next_followup_at) {
       window.alert('Ogni contatto aperto deve avere un prossimo follow-up')
       return
     }
@@ -95,6 +96,7 @@ export function ContactModal({
         category: form.category?.trim(),
         company: form.company?.trim(),
         event_tag: form.event_tag?.trim(),
+        personal_section: form.personal_section?.trim(),
         source: form.source?.trim(),
         responsible: form.responsible?.trim(),
         note: form.note?.trim(),
@@ -190,6 +192,40 @@ export function ContactModal({
           />
         </div>
       </div>
+
+      <div className="fg">
+        <label className="fl">Area</label>
+        <select
+          className="fi"
+          value={form.contact_scope || 'crm'}
+          onChange={(event) =>
+            setForm((previous) => ({
+              ...previous,
+              contact_scope: event.target.value as ContactInput['contact_scope'],
+              personal_section:
+                event.target.value === 'personal'
+                  ? previous.personal_section || ''
+                  : '',
+            }))
+          }
+        >
+          <option value="crm">CRM</option>
+          <option value="personal">Area personale</option>
+          <option value="holding">Lista separata</option>
+        </select>
+      </div>
+
+      {form.contact_scope === 'personal' && (
+        <div className="fg">
+          <label className="fl">Sezione personale</label>
+          <input
+            className="fi"
+            value={form.personal_section || ''}
+            onChange={(event) => setForm((previous) => ({ ...previous, personal_section: event.target.value }))}
+            placeholder="Es. Amici, Persone da chiamare"
+          />
+        </div>
+      )}
 
       <div className="fg">
         <label className="fl">Categoria lead</label>
@@ -298,7 +334,9 @@ export function ContactModal({
           />
         </div>
         <div className="fg">
-          <label className="fl">Prossimo follow-up {isClosedStatus(form.status) ? '(opzionale)' : '*'}</label>
+          <label className="fl">
+            Prossimo follow-up {form.contact_scope === 'crm' && !isClosedStatus(form.status) ? '*' : '(opzionale)'}
+          </label>
           <input
             className="fi"
             type="datetime-local"
@@ -318,7 +356,11 @@ export function ContactModal({
           value={form.note || ''}
           onChange={(event) => setForm((previous) => ({ ...previous, note: event.target.value }))}
           style={{ resize: 'vertical' }}
-          placeholder="Contesto commerciale, dettagli, decision maker..."
+          placeholder={
+            form.contact_scope === 'personal'
+              ? 'Promemoria, contesto personale, cose da ricordare...'
+              : 'Contesto commerciale, dettagli, decision maker...'
+          }
         />
       </div>
     </Modal>

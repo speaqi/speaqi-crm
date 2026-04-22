@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { isClosedStatus } from '@/lib/data'
+import { isClosedStatus, normalizeContactScope } from '@/lib/data'
 import {
   completePendingCallTasks,
   createActivities,
@@ -24,11 +24,6 @@ function normalizeNumber(value: unknown) {
   if (value === null || value === undefined || value === '') return null
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
-}
-
-function normalizeContactScope(value: unknown, fallback: string) {
-  const normalized = String(value ?? fallback ?? '').trim().toLowerCase()
-  return normalized === 'holding' ? 'holding' : 'crm'
 }
 
 function displayValue(value: unknown) {
@@ -82,8 +77,13 @@ function buildContactUpdateSummary(current: any, next: any) {
     changes.push(
       (next.contact_scope || 'crm') === 'holding'
         ? 'spostato in lista separata'
+        : (next.contact_scope || 'crm') === 'personal'
+          ? 'spostato in area personale'
         : 'promosso nel CRM operativo'
     )
+  }
+  if ((current.personal_section || null) !== (next.personal_section || null)) {
+    changes.push(`sezione personale ${displayValue(current.personal_section)} -> ${displayValue(next.personal_section)}`)
   }
   if (Number(current.priority || 0) !== Number(next.priority || 0)) {
     changes.push(`priorità ${current.priority} -> ${next.priority}`)
@@ -202,7 +202,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         ? null
         : requestedFollowupAt
 
-    if (nextContactScope !== 'holding') {
+    if (nextContactScope === 'crm') {
       await ensureNextAction(auth.supabase, auth.user.id, id, nextStatus, nextFollowupAt)
     }
 
@@ -216,13 +216,21 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         company: body.company !== undefined ? normalizeText(body.company) : current.company,
         event_tag: body.event_tag !== undefined ? normalizeText(body.event_tag) : current.event_tag,
         list_name: body.list_name !== undefined ? normalizeText(body.list_name) : current.list_name,
+        personal_section:
+          body.personal_section !== undefined
+            ? nextContactScope === 'personal'
+              ? normalizeText(body.personal_section)
+              : null
+            : nextContactScope === 'personal'
+              ? current.personal_section
+              : null,
         country: body.country !== undefined ? normalizeText(body.country) : current.country,
         language: body.language !== undefined ? normalizeText(body.language) : current.language,
         status: nextStatus,
         source: body.source !== undefined ? normalizeText(body.source) : current.source,
         contact_scope: nextContactScope,
         promoted_at:
-          (current.contact_scope || 'crm') === 'holding' && nextContactScope === 'crm'
+          (current.contact_scope || 'crm') !== 'crm' && nextContactScope === 'crm'
             ? new Date().toISOString()
             : current.promoted_at,
         priority:

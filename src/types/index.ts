@@ -1,3 +1,5 @@
+export type ContactScope = 'crm' | 'holding' | 'personal'
+
 export interface PipelineStage {
   id: string
   user_id?: string
@@ -30,7 +32,8 @@ export interface CRMContact {
   note?: string | null
   email_draft_note?: string | null
   legacy_id?: string | null
-  contact_scope?: 'crm' | 'holding' | null
+  contact_scope?: ContactScope | null
+  personal_section?: string | null
   promoted_at?: string | null
   last_activity_summary?: string | null
   last_contact_at?: string | null
@@ -62,7 +65,8 @@ export interface ActivityContactSnapshot {
   email?: string | null
   status?: string | null
   priority?: number | null
-  contact_scope?: 'crm' | 'holding' | null
+  contact_scope?: ContactScope | null
+  personal_section?: string | null
   responsible?: string | null
 }
 
@@ -98,7 +102,8 @@ export interface TaskWithContact extends Task {
     responsible?: string | null
     event_tag?: string | null
     last_activity_summary?: string | null
-    contact_scope?: 'crm' | 'holding' | null
+    contact_scope?: ContactScope | null
+    personal_section?: string | null
     priority: number
     next_followup_at?: string | null
   } | null
@@ -158,7 +163,8 @@ export interface ContactInput {
   value?: number | null
   note?: string
   email_draft_note?: string
-  contact_scope?: 'crm' | 'holding'
+  contact_scope?: ContactScope
+  personal_section?: string
   next_followup_at?: string | null
   next_action_at?: string | null
   initial_task_note?: string

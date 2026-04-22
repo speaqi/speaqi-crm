@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import type { MouseEvent } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import { formatDateTime, holdingListLabel, isNeverContacted, priorityBadgeClass, priorityLabel, sourceLabel, statusLabel } from '@/lib/data'
@@ -17,6 +18,7 @@ export default function VinitalyPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [bulkStatus, setBulkStatus] = useState('')
   const [bulkSaving, setBulkSaving] = useState(false)
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null)
 
   useEffect(() => {
     setListFilter(searchParams.get('list') || '')
@@ -64,6 +66,12 @@ export default function VinitalyPage() {
     setSelectedIds((previous) => previous.filter((id) => filteredIds.includes(id)))
   }, [filteredIds])
 
+  useEffect(() => {
+    if (lastSelectedId && !filteredIds.includes(lastSelectedId)) {
+      setLastSelectedId(null)
+    }
+  }, [filteredIds, lastSelectedId])
+
   const scopedContacts = useMemo(
     () => holdingContacts.filter((contact) => !listFilter || holdingListLabel(contact) === listFilter),
     [holdingContacts, listFilter]
@@ -79,10 +87,31 @@ export default function VinitalyPage() {
     [scopedContacts]
   )
 
-  function toggleSelection(contactId: string) {
-    setSelectedIds((previous) =>
-      previous.includes(contactId) ? previous.filter((id) => id !== contactId) : [...previous, contactId]
-    )
+  function toggleSelection(contactId: string, shiftKey = false) {
+    setSelectedIds((previous) => {
+      const shouldSelect = !previous.includes(contactId)
+
+      if (shiftKey && lastSelectedId && lastSelectedId !== contactId) {
+        const startIndex = filteredIds.indexOf(lastSelectedId)
+        const endIndex = filteredIds.indexOf(contactId)
+
+        if (startIndex !== -1 && endIndex !== -1) {
+          const [from, to] = startIndex < endIndex ? [startIndex, endIndex] : [endIndex, startIndex]
+          const rangeIds = filteredIds.slice(from, to + 1)
+
+          if (shouldSelect) {
+            return Array.from(new Set([...previous, ...rangeIds]))
+          }
+
+          return previous.filter((id) => !rangeIds.includes(id))
+        }
+      }
+
+      return shouldSelect
+        ? [...previous, contactId]
+        : previous.filter((id) => id !== contactId)
+    })
+    setLastSelectedId(contactId)
   }
 
   function toggleSelectAllFiltered() {
@@ -90,6 +119,12 @@ export default function VinitalyPage() {
       if (allFilteredSelected) return previous.filter((id) => !filteredIds.includes(id))
       return Array.from(new Set([...previous, ...filteredIds]))
     })
+    setLastSelectedId(filteredIds[0] || null)
+  }
+
+  function handleCheckboxClick(contactId: string, event: MouseEvent<HTMLInputElement>) {
+    event.stopPropagation()
+    toggleSelection(contactId, event.shiftKey)
   }
 
   async function runBulkUpdate(patch: Record<string, unknown>, successMessage: string) {
@@ -159,16 +194,21 @@ export default function VinitalyPage() {
             checked={allFilteredSelected}
             onChange={toggleSelectAllFiltered}
           />
-          <span>Seleziona tutti i filtrati</span>
+          <span>{listFilter ? `Seleziona tutta la lista "${listFilter}"` : 'Seleziona tutti i filtrati'}</span>
         </label>
         {hasSelected && <span className="contacts-summary-chip">{selectedIds.length} selezionati</span>}
+        <span className="contacts-summary-chip">Shift+click: selezione intervallo</span>
       </div>
 
       {hasSelected && (
         <div className="contacts-bulkbar" style={{ marginBottom: 16 }}>
           <div className="contacts-bulkbar-copy">
             <strong>{selectedIds.length} contatti selezionati</strong>
-            <span>Puoi mandarli nel CRM operativo con uno stato oppure toglierli dalla lista corrente.</span>
+            <span>
+              {listFilter
+                ? `Lista filtrata: "${listFilter}". Seleziona tutta la lista e poi usa "Togli da lista".`
+                : 'Puoi mandarli nel CRM operativo con uno stato oppure toglierli dalla lista corrente.'}
+            </span>
           </div>
           <div className="contacts-bulkbar-actions">
             <select
@@ -262,7 +302,8 @@ export default function VinitalyPage() {
                   <input
                     type="checkbox"
                     checked={selectedIds.includes(contact.id)}
-                    onChange={() => toggleSelection(contact.id)}
+                    onClick={(event) => handleCheckboxClick(contact.id, event)}
+                    onChange={() => {}}
                   />
                 </label>
                 <Link href={`/contacts/${contact.id}`} className="contact-card-link">

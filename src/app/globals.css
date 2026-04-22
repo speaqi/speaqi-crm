@@ -2247,6 +2247,46 @@ select.filter-select {
 .import-dropzone h2 { font-size: 20px; font-weight: 600; margin: 0 0 6px 0; }
 .import-dropzone p { color: var(--text2); font-size: 14px; margin: 0; }
 
+.import-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.import-mode-switch {
+  display: inline-flex;
+  gap: 8px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  align-self: center;
+}
+
+.import-mode-pill {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text2);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.import-mode-pill.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.import-helper {
+  margin-top: 16px;
+  padding: 10px 14px;
+  background: var(--surface2);
+  color: var(--text2);
+  border-radius: 8px;
+  font-size: 13px;
+  text-align: left;
+}
+
 .import-error {
   margin-top: 16px;
   padding: 10px 14px;

@@ -8,6 +8,8 @@ import {
   formatDateTime,
   holdingListLabel,
   isHoldingContact,
+  isPersonalContact,
+  personalSectionLabel,
   priorityBadgeClass,
   priorityLabel,
   sourceLabel,
@@ -152,6 +154,9 @@ export function ContactDrawer({ contactId, onClose, onEdit }: ContactDrawerProps
               <span className={`ctag ${priorityBadgeClass(contact.priority)}`}>{priorityLabel(contact.priority)}</span>
               {isHoldingContact(contact) && (
                 <span className="ctag ctag-event">📁 {holdingListLabel(contact)}</span>
+              )}
+              {isPersonalContact(contact) && (
+                <span className="ctag ctag-event">🗂️ {personalSectionLabel(contact)}</span>
               )}
               {contact.source && <span className="ctag ctag-referenziato">{sourceLabel(contact.source)}</span>}
               {contact.event_tag && <span className="ctag ctag-event">#{contact.event_tag}</span>}

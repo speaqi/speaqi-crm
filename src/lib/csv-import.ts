@@ -202,3 +202,33 @@ export function extractPrimaryEmail(value: unknown) {
 export function extractPrimaryPhone(value: unknown) {
   return splitMultiValue(value).find((entry) => normalizePhoneDigits(entry).length >= 6) || null
 }
+
+function escapeCsvCell(value: unknown) {
+  const text = String(value ?? '')
+  if (!/[",\n\r]/.test(text)) return text
+  return `"${text.replace(/"/g, '""')}"`
+}
+
+export function stringifyCsvRows(rows: ParsedCsvRow[], preferredHeaders: string[] = []) {
+  if (!rows.length) {
+    return preferredHeaders.join(',')
+  }
+
+  const headerSet = new Set<string>()
+  for (const header of preferredHeaders) {
+    if (header) headerSet.add(header)
+  }
+  for (const row of rows) {
+    for (const header of Object.keys(row)) {
+      if (header) headerSet.add(header)
+    }
+  }
+
+  const headers = Array.from(headerSet)
+  const lines = [
+    headers.map((header) => escapeCsvCell(header)).join(','),
+    ...rows.map((row) => headers.map((header) => escapeCsvCell(row[header] ?? '')).join(',')),
+  ]
+
+  return lines.join('\n')
+}
