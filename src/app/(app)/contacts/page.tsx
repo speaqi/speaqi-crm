@@ -33,6 +33,19 @@ const FOCUS_CHIPS: Array<{ key: string; label: string }> = [
   { key: 'missing', label: 'Senza next step' },
 ]
 
+const FOLLOWUP_MONTH_OPTIONS = [
+  { value: '1', label: 'Tra 1 mese' },
+  { value: '2', label: 'Tra 2 mesi' },
+  { value: '3', label: 'Tra 3 mesi' },
+]
+
+function monthOffsetAt9am(months: number) {
+  const target = new Date()
+  target.setMonth(target.getMonth() + months)
+  target.setHours(9, 0, 0, 0)
+  return target.toISOString()
+}
+
 type BulkUpdateDraft = {
   responsible: string
   status: string
@@ -41,6 +54,7 @@ type BulkUpdateDraft = {
   list_name: string
   event_tag: string
   company: string
+  next_followup_months: string
 }
 
 function ContactsPageInner() {
@@ -76,6 +90,8 @@ function ContactsPageInner() {
   const [dataCompletenessFilter, setDataCompletenessFilter] = useState('')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [bulkAssignee, setBulkAssignee] = useState('')
+  const [bulkStatusQuick, setBulkStatusQuick] = useState('')
+  const [bulkFollowupMonths, setBulkFollowupMonths] = useState('')
   const [bulkSaving, setBulkSaving] = useState(false)
   const [bulkEditOpen, setBulkEditOpen] = useState(false)
   const [repairingNames, setRepairingNames] = useState(false)
@@ -87,6 +103,7 @@ function ContactsPageInner() {
     list_name: '',
     event_tag: '',
     company: '',
+    next_followup_months: '',
   })
 
   const [modalOpen, setModalOpen] = useState(urlNew === '1')
@@ -361,6 +378,15 @@ function ContactsPageInner() {
         )}
         <button
           type="button"
+          className={`filter-chip ${dataCompletenessFilter === 'missing_phone' ? 'active' : ''}`}
+          onClick={() =>
+            setDataCompletenessFilter((value) => (value === 'missing_phone' ? '' : 'missing_phone'))
+          }
+        >
+          Senza telefono
+        </button>
+        <button
+          type="button"
           className="filter-chip"
           onClick={() => setShowMore((value) => !value)}
         >
@@ -460,6 +486,14 @@ function ContactsPageInner() {
             </button>
           </span>
         )}
+        {dataCompletenessFilter === 'missing_phone' && (
+          <span className="contacts-summary-chip">
+            📞 Senza telefono
+            <button type="button" onClick={() => setDataCompletenessFilter('')} aria-label="Rimuovi filtro telefono">
+              ×
+            </button>
+          </span>
+        )}
         {urlTag && (
           <span className="contacts-summary-chip">
             #{urlTag}
@@ -534,6 +568,56 @@ function ContactsPageInner() {
                 </button>
               </>
             )}
+            <select
+              className="filter-select"
+              value={bulkStatusQuick}
+              onChange={(event) => setBulkStatusQuick(event.target.value)}
+            >
+              <option value="">Sposta pipeline…</option>
+              {stages.map((stage) => (
+                <option key={`quick-stage-${stage.id}`} value={stage.name}>
+                  {statusLabel(stage.name)}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={bulkSaving || !bulkStatusQuick}
+              onClick={async () => {
+                await runBulkUpdate({ status: bulkStatusQuick }, 'Stato pipeline aggiornato')
+                setBulkStatusQuick('')
+              }}
+            >
+              Sposta
+            </button>
+            <select
+              className="filter-select"
+              value={bulkFollowupMonths}
+              onChange={(event) => setBulkFollowupMonths(event.target.value)}
+            >
+              <option value="">Ricontatta…</option>
+              {FOLLOWUP_MONTH_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={bulkSaving || !bulkFollowupMonths}
+              onClick={async () => {
+                const months = Number(bulkFollowupMonths)
+                await runBulkUpdate(
+                  { next_followup_at: monthOffsetAt9am(months) },
+                  `Ricontatto pianificato ${months === 1 ? 'tra 1 mese' : `tra ${months} mesi`}`
+                )
+                setBulkFollowupMonths('')
+              }}
+            >
+              Pianifica
+            </button>
             <button
               type="button"
               className="btn btn-ghost btn-sm"
@@ -619,6 +703,20 @@ function ContactsPageInner() {
               value={bulkUpdate.company}
               onChange={(event) => setBulkUpdate((previous) => ({ ...previous, company: event.target.value }))}
             />
+            <select
+              className="filter-select"
+              value={bulkUpdate.next_followup_months}
+              onChange={(event) =>
+                setBulkUpdate((previous) => ({ ...previous, next_followup_months: event.target.value }))
+              }
+            >
+              <option value="">Ricontatto: non cambiare</option>
+              {FOLLOWUP_MONTH_OPTIONS.map((option) => (
+                <option key={`bulk-${option.value}`} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="contacts-bulkpanel-actions">
             <button
@@ -634,6 +732,9 @@ function ContactsPageInner() {
                 if (bulkUpdate.list_name.trim()) patch.list_name = bulkUpdate.list_name
                 if (bulkUpdate.event_tag.trim()) patch.event_tag = bulkUpdate.event_tag
                 if (bulkUpdate.company.trim()) patch.company = bulkUpdate.company
+                if (bulkUpdate.next_followup_months) {
+                  patch.next_followup_at = monthOffsetAt9am(Number(bulkUpdate.next_followup_months))
+                }
 
                 if (!Object.keys(patch).length) {
                   window.alert('Compila almeno un campo da aggiornare')
@@ -649,6 +750,7 @@ function ContactsPageInner() {
                   list_name: '',
                   event_tag: '',
                   company: '',
+                  next_followup_months: '',
                 })
                 setBulkEditOpen(false)
               }}

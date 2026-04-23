@@ -61,11 +61,24 @@ interface DragPayload {
 
 const DRAG_MIME = 'application/x-call'
 
+function isInProgressStatus(status: string) {
+  return status.toLowerCase() !== 'new' && !isClosedStatus(status)
+}
+
+function followupLabel(value?: string | null) {
+  if (!value) return 'Senza data'
+  return new Date(value).toLocaleDateString('it-IT', {
+    day: '2-digit',
+    month: '2-digit',
+  })
+}
+
 export default function OggiPage() {
   const {
     contacts,
     allContacts,
     scheduledCalls,
+    stages,
     completeTask,
     updateTask,
     updateContact,
@@ -140,6 +153,44 @@ export default function OggiPage() {
   const greeting = greetingForHour(hour)
   const dayLabel = formatItalianDate(now)
   const totalUpcoming = days.reduce((sum, day) => sum + day.calls.length, 0) + overdueCalls.length
+
+  const stageOrderMap = useMemo(() => {
+    const map = new Map<string, number>()
+    stages.forEach((stage, index) => {
+      map.set(stage.name, Number.isFinite(stage.order) ? Number(stage.order) : index)
+    })
+    return map
+  }, [stages])
+
+  const scheduledByContactId = useMemo(
+    () => new Map(scheduledCalls.map((call) => [call.contact.id, call])),
+    [scheduledCalls]
+  )
+
+  const topPipelineContacts = useMemo(() => {
+    return contacts
+      .filter((contact) => isInProgressStatus(contact.status))
+      .sort((left, right) => {
+        const rightPriority = Number(right.priority || 0)
+        const leftPriority = Number(left.priority || 0)
+        if (rightPriority !== leftPriority) return rightPriority - leftPriority
+
+        const rightStage = stageOrderMap.get(right.status) ?? 0
+        const leftStage = stageOrderMap.get(left.status) ?? 0
+        if (rightStage !== leftStage) return rightStage - leftStage
+
+        const leftDue = new Date(
+          scheduledByContactId.get(left.id)?.due_at || left.next_followup_at || '2999-12-31'
+        ).getTime()
+        const rightDue = new Date(
+          scheduledByContactId.get(right.id)?.due_at || right.next_followup_at || '2999-12-31'
+        ).getTime()
+        if (leftDue !== rightDue) return leftDue - rightDue
+
+        return left.name.localeCompare(right.name)
+      })
+      .slice(0, 8)
+  }, [contacts, scheduledByContactId, stageOrderMap])
 
   async function handleComplete(taskId: string | null) {
     if (!taskId) return
@@ -357,6 +408,35 @@ export default function OggiPage() {
                   <span className="oggi-stagnant-meta">{statusLabel(contact.status)}</span>
                 </Link>
               ))}
+            </div>
+          )}
+        </section>
+
+        <section className="oggi-card">
+          <div className="oggi-card-title">🔥 Top pipeline in corso</div>
+          {topPipelineContacts.length === 0 ? (
+            <p className="oggi-muted">Nessun contatto in corso da evidenziare.</p>
+          ) : (
+            <div className="oggi-pipeline-list">
+              {topPipelineContacts.map((contact) => {
+                const call = scheduledByContactId.get(contact.id) || null
+                return (
+                  <Link
+                    key={contact.id}
+                    href={`/contacts?id=${contact.id}`}
+                    className="oggi-pipeline-row"
+                  >
+                    <span className="oggi-pipeline-main">
+                      <strong>{contact.name}</strong>
+                      <span>{statusLabel(contact.status)}</span>
+                    </span>
+                    <span className="oggi-pipeline-meta">
+                      {contact.priority > 0 && <em>{priorityLabel(contact.priority)}</em>}
+                      <span>{followupLabel(call?.due_at || contact.next_followup_at)}</span>
+                    </span>
+                  </Link>
+                )
+              })}
             </div>
           )}
         </section>

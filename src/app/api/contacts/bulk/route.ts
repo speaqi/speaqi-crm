@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
-import { normalizeContactScope } from '@/lib/data'
+import { isClosedStatus, normalizeContactScope } from '@/lib/data'
+import { completePendingCallTasks, syncPendingCallTask } from '@/lib/server/crm'
 import { requireRouteUser } from '@/lib/server/supabase'
 
 function normalizeText(value: unknown) {
@@ -16,6 +17,13 @@ function normalizeNumber(value: unknown) {
 function normalizeNullableText(value: unknown) {
   if (value === null || value === undefined) return null
   return normalizeText(value)
+}
+
+function normalizeDateTime(value: unknown) {
+  if (value === null || value === undefined || value === '') return null
+  const parsed = new Date(String(value))
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed.toISOString()
 }
 
 function errorMessage(error: unknown, fallback: string) {
@@ -49,6 +57,11 @@ export async function PATCH(request: NextRequest) {
     if ('list_name' in patch) updatePayload.list_name = normalizeNullableText(patch.list_name)
     if ('event_tag' in patch) updatePayload.event_tag = normalizeNullableText(patch.event_tag)
     if ('company' in patch) updatePayload.company = normalizeText(patch.company)
+    if ('next_followup_at' in patch) {
+      const nextFollowupAt = normalizeDateTime(patch.next_followup_at)
+      updatePayload.next_followup_at = nextFollowupAt
+      updatePayload.next_action_at = nextFollowupAt
+    }
     if ('contact_scope' in patch) {
       const nextScope = normalizeContactScope(
         typeof patch.contact_scope === 'string' ? patch.contact_scope : undefined
@@ -63,6 +76,13 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
+    const nextStatus = 'status' in updatePayload ? String(updatePayload.status || '') : null
+    const nextScope = 'contact_scope' in updatePayload ? String(updatePayload.contact_scope || 'crm') : null
+    if ((nextStatus && isClosedStatus(nextStatus)) || nextScope === 'holding') {
+      updatePayload.next_followup_at = null
+      updatePayload.next_action_at = null
+    }
+
     if (!Object.keys(updatePayload).length) {
       return Response.json({ error: 'Nessun campo da aggiornare' }, { status: 400 })
     }
@@ -75,6 +95,25 @@ export async function PATCH(request: NextRequest) {
       .select('*')
 
     if (error) throw error
+
+    if (
+      'status' in updatePayload ||
+      'contact_scope' in updatePayload ||
+      'next_followup_at' in updatePayload
+    ) {
+      await Promise.all(
+        (data || []).map(async (contact) => {
+          const nextScopeValue = (contact.contact_scope || 'crm') as string
+          if (isClosedStatus(contact.status) || nextScopeValue === 'holding') {
+            await completePendingCallTasks(auth.supabase, auth.user.id, contact.id)
+            return
+          }
+          if (contact.next_followup_at) {
+            await syncPendingCallTask(auth.supabase, auth.user.id, contact.id, contact.next_followup_at)
+          }
+        })
+      )
+    }
 
     return Response.json({ contacts: data || [], updated: (data || []).length })
   } catch (error) {
