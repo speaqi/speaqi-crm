@@ -42,6 +42,15 @@ function isMissingEmailDraftNoteColumn(error: unknown) {
   )
 }
 
+function isNoRowsError(error: unknown) {
+  return (
+    !!error &&
+    typeof error === 'object' &&
+    'code' in error &&
+    String((error as { code?: unknown }).code) === 'PGRST116'
+  )
+}
+
 function displayValue(value: unknown) {
   const normalized = value === null || value === undefined ? '' : String(value).trim()
   return normalized || 'vuoto'
@@ -132,7 +141,10 @@ async function getContactRecord(supabase: any, userId: string, id: string) {
     .eq('id', id)
     .single()
 
-  if (error) throw error
+  if (error) {
+    if (isNoRowsError(error)) return null
+    throw error
+  }
   return data
 }
 
@@ -143,6 +155,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params
     const contact = await getContactRecord(auth.supabase, auth.user.id, id)
+    if (!contact) {
+      return Response.json({ error: 'Contatto non trovato' }, { status: 404 })
+    }
 
     const [
       { data: activities, error: activitiesError },
@@ -205,6 +220,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { id } = await context.params
     const body = await request.json()
     const current = await getContactRecord(auth.supabase, auth.user.id, id)
+    if (!current) {
+      return Response.json({ error: 'Contatto non trovato' }, { status: 404 })
+    }
     const nextStatus = String(body.status || current.status)
     const nextContactScope = normalizeContactScope(body.contact_scope, current.contact_scope || 'crm')
     const requestedFollowupAt =
@@ -337,6 +355,11 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
   try {
     const { id } = await context.params
+    const contact = await getContactRecord(auth.supabase, auth.user.id, id)
+    if (!contact) {
+      return Response.json({ error: 'Contatto non trovato' }, { status: 404 })
+    }
+
     const { error } = await auth.supabase
       .from('contacts')
       .delete()

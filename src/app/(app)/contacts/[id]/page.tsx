@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
 import { ContactModal } from '@/components/crm/ContactModal'
-import { apiFetch } from '@/lib/api'
+import { APIError, apiFetch } from '@/lib/api'
 import { ACTIVITY_TYPES, TASK_TYPES, activityTypeLabel, contactScopeLabel, formatDateTime, fromDatetimeLocalValue, holdingListLabel, isClosedStatus, isHoldingContact, isPersonalContact, personalSectionLabel, priorityLabel, sourceLabel, statusLabel, toDatetimeLocalValue } from '@/lib/data'
 import { useCRMContext } from '../../layout'
 import type { Activity, ContactDetail, GmailAccountStatus, GmailMessage } from '@/types'
@@ -54,6 +54,7 @@ export default function ContactDetailPage() {
   const { loadContactDetail, stages, teamMembers, updateContact, deleteContact, addActivity, addTask, completeTask, refresh, showToast } = useCRMContext()
   const [detail, setDetail] = useState<ContactDetail | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [activityType, setActivityType] = useState('note')
   const [activityContent, setActivityContent] = useState('')
   const [activityFollowup, setActivityFollowup] = useState('')
@@ -79,11 +80,17 @@ export default function ContactDetailPage() {
 
   async function loadDetail(showSpinner = true) {
     if (showSpinner || !detail) setLoading(true)
+    setLoadError('')
     try {
       const response = await loadContactDetail(contactId)
       setDetail(response)
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Impossibile caricare la scheda contatto')
+      setDetail(null)
+      if (error instanceof APIError && error.status === 404) {
+        setLoadError('Contatto non trovato o rimosso')
+        return
+      }
+      setLoadError(error instanceof Error ? error.message : 'Impossibile caricare la scheda contatto')
     } finally {
       if (showSpinner || !detail) setLoading(false)
     }
@@ -141,10 +148,23 @@ export default function ContactDetailPage() {
     setGmailDraftNote(detail?.contact.email_draft_note || '')
   }, [detail?.contact.email_draft_note])
 
-  if (loading || !detail) {
+  if (loading) {
     return (
       <div className="dash-content">
         <div className="dash-card">Caricamento scheda contatto...</div>
+      </div>
+    )
+  }
+
+  if (!detail) {
+    return (
+      <div className="dash-content">
+        <div className="dash-card">
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>{loadError || 'Scheda non disponibile'}</div>
+          <Link href="/contacts" className="btn btn-ghost btn-sm">
+            Torna ai contatti
+          </Link>
+        </div>
       </div>
     )
   }
