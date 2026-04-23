@@ -8,6 +8,14 @@ type DraftRequest = {
   note?: string
 }
 
+function isMissingEmailDraftNoteColumn(error: unknown) {
+  const message = errorMessage(error, '').toLowerCase()
+  return (
+    message.includes('email_draft_note') &&
+    (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
+  )
+}
+
 export async function POST(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
@@ -21,11 +29,28 @@ export async function POST(request: NextRequest) {
     }
 
     const contactIds = drafts.map((draft) => draft.contact_id)
-    const { data: contacts } = await auth.supabase
+    const primaryContactsResult = await auth.supabase
       .from('contacts')
       .select('id, name, email, company, last_activity_summary, email_draft_note')
       .eq('user_id', auth.user.id)
       .in('id', contactIds)
+
+    let contacts = primaryContactsResult.data || []
+    if (primaryContactsResult.error && isMissingEmailDraftNoteColumn(primaryContactsResult.error)) {
+      const fallbackContactsResult = await auth.supabase
+        .from('contacts')
+        .select('id, name, email, company, last_activity_summary')
+        .eq('user_id', auth.user.id)
+        .in('id', contactIds)
+
+      if (fallbackContactsResult.error) throw fallbackContactsResult.error
+      contacts = (fallbackContactsResult.data || []).map((contact: any) => ({
+        ...contact,
+        email_draft_note: null,
+      }))
+    } else if (primaryContactsResult.error) {
+      throw primaryContactsResult.error
+    }
 
     const contactMap = new Map((contacts || []).map((contact: any) => [contact.id, contact]))
     const results: { contact_id: string; draft_id?: string; error?: string }[] = []

@@ -26,6 +26,22 @@ function normalizeNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message?: unknown }).message || fallback)
+  }
+  return fallback
+}
+
+function isMissingEmailDraftNoteColumn(error: unknown) {
+  const message = errorMessage(error, '').toLowerCase()
+  return (
+    message.includes('email_draft_note') &&
+    (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
+  )
+}
+
 function displayValue(value: unknown) {
   const normalized = value === null || value === undefined ? '' : String(value).trim()
   return normalized || 'vuoto'
@@ -206,58 +222,82 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       await ensureNextAction(auth.supabase, auth.user.id, id, nextStatus, nextFollowupAt)
     }
 
-    const { data, error } = await auth.supabase
+    const normalizedCompany = body.company !== undefined ? normalizeText(body.company) : current.company
+    const updatePayload: Record<string, unknown> = {
+      name: body.name ? String(body.name).trim() : current.name,
+      email: body.email !== undefined ? normalizeText(body.email) : current.email,
+      phone: body.phone !== undefined ? normalizeText(body.phone) : current.phone,
+      category: body.category !== undefined ? normalizeText(body.category) : current.category,
+      company: normalizedCompany,
+      event_tag: body.event_tag !== undefined ? normalizeText(body.event_tag) : current.event_tag,
+      list_name: body.list_name !== undefined ? normalizeText(body.list_name) : current.list_name,
+      personal_section:
+        body.personal_section !== undefined
+          ? nextContactScope === 'personal'
+            ? normalizeText(body.personal_section)
+            : null
+          : nextContactScope === 'personal'
+            ? current.personal_section
+            : null,
+      country: body.country !== undefined ? normalizeText(body.country) : current.country,
+      language: body.language !== undefined ? normalizeText(body.language) : current.language,
+      status: nextStatus,
+      source: body.source !== undefined ? normalizeText(body.source) : current.source,
+      contact_scope: nextContactScope,
+      promoted_at:
+        (current.contact_scope || 'crm') !== 'crm' && nextContactScope === 'crm'
+          ? new Date().toISOString()
+          : current.promoted_at,
+      priority:
+        body.priority !== undefined
+          ? Math.max(0, Math.min(3, Number(body.priority || 0)))
+          : current.priority,
+      score:
+        body.score !== undefined
+          ? Math.max(0, Math.min(100, Number(body.score || 0)))
+          : current.score,
+      assigned_agent:
+        body.assigned_agent !== undefined ? normalizeText(body.assigned_agent) : current.assigned_agent,
+      responsible:
+        body.responsible !== undefined ? normalizeText(body.responsible) : current.responsible,
+      value: body.value !== undefined ? normalizeNumber(body.value) : current.value,
+      note: body.note !== undefined ? normalizeText(body.note) : current.note,
+      email_draft_note:
+        body.email_draft_note !== undefined ? normalizeText(body.email_draft_note) : current.email_draft_note,
+      next_action_at: nextFollowupAt,
+      next_followup_at: nextFollowupAt,
+    }
+
+    let data: any = null
+    let updateError: unknown = null
+
+    const firstUpdate = await auth.supabase
       .from('contacts')
-      .update({
-        name: body.name ? String(body.name).trim() : current.name,
-        email: body.email !== undefined ? normalizeText(body.email) : current.email,
-        phone: body.phone !== undefined ? normalizeText(body.phone) : current.phone,
-        category: body.category !== undefined ? normalizeText(body.category) : current.category,
-        company: body.company !== undefined ? normalizeText(body.company) : current.company,
-        event_tag: body.event_tag !== undefined ? normalizeText(body.event_tag) : current.event_tag,
-        list_name: body.list_name !== undefined ? normalizeText(body.list_name) : current.list_name,
-        personal_section:
-          body.personal_section !== undefined
-            ? nextContactScope === 'personal'
-              ? normalizeText(body.personal_section)
-              : null
-            : nextContactScope === 'personal'
-              ? current.personal_section
-              : null,
-        country: body.country !== undefined ? normalizeText(body.country) : current.country,
-        language: body.language !== undefined ? normalizeText(body.language) : current.language,
-        status: nextStatus,
-        source: body.source !== undefined ? normalizeText(body.source) : current.source,
-        contact_scope: nextContactScope,
-        promoted_at:
-          (current.contact_scope || 'crm') !== 'crm' && nextContactScope === 'crm'
-            ? new Date().toISOString()
-            : current.promoted_at,
-        priority:
-          body.priority !== undefined
-            ? Math.max(0, Math.min(3, Number(body.priority || 0)))
-            : current.priority,
-        score:
-          body.score !== undefined
-            ? Math.max(0, Math.min(100, Number(body.score || 0)))
-            : current.score,
-        assigned_agent:
-          body.assigned_agent !== undefined ? normalizeText(body.assigned_agent) : current.assigned_agent,
-        responsible:
-          body.responsible !== undefined ? normalizeText(body.responsible) : current.responsible,
-        value: body.value !== undefined ? normalizeNumber(body.value) : current.value,
-        note: body.note !== undefined ? normalizeText(body.note) : current.note,
-        email_draft_note:
-          body.email_draft_note !== undefined ? normalizeText(body.email_draft_note) : current.email_draft_note,
-        next_action_at: nextFollowupAt,
-        next_followup_at: nextFollowupAt,
-      })
+      .update(updatePayload)
       .eq('user_id', auth.user.id)
       .eq('id', id)
       .select('*')
       .single()
 
-    if (error) throw error
+    if (!firstUpdate.error) {
+      data = firstUpdate.data
+    } else if (isMissingEmailDraftNoteColumn(firstUpdate.error)) {
+      const { email_draft_note, ...fallbackPayload } = updatePayload
+      const retryUpdate = await auth.supabase
+        .from('contacts')
+        .update(fallbackPayload)
+        .eq('user_id', auth.user.id)
+        .eq('id', id)
+        .select('*')
+        .single()
+
+      data = retryUpdate.data
+      updateError = retryUpdate.error
+    } else {
+      updateError = firstUpdate.error
+    }
+
+    if (updateError) throw updateError
 
     if (isClosedStatus(nextStatus)) {
       await completePendingCallTasks(auth.supabase, auth.user.id, id)
@@ -285,7 +325,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return Response.json({ contact: data })
   } catch (error) {
     return Response.json(
-      { error: error instanceof Error ? error.message : 'Failed to update contact' },
+      { error: errorMessage(error, 'Failed to update contact') },
       { status: 500 }
     )
   }

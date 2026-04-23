@@ -31,6 +31,14 @@ function errorMessage(error: unknown, fallback: string) {
   return fallback
 }
 
+function isMissingEmailDraftNoteColumn(error: unknown) {
+  const message = errorMessage(error, '').toLowerCase()
+  return (
+    message.includes('email_draft_note') &&
+    (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
+  )
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
@@ -70,7 +78,9 @@ export async function POST(request: NextRequest) {
     await ensurePipelineStages(auth.supabase, auth.user.id)
 
     const body = await request.json()
-    const name = String(body.name || '').trim()
+    const requestedName = String(body.name || '').trim()
+    const normalizedCompany = normalizeText(body.company)
+    const name = requestedName || normalizedCompany || ''
     const status = String(body.status || 'New')
     const nextFollowupAt = normalizeText(body.next_followup_at)
     const contactScope = normalizeContactScope(body.contact_scope)
@@ -81,7 +91,7 @@ export async function POST(request: NextRequest) {
     const initialTaskNote = normalizeText(body.initial_task_note)
 
     if (!name) {
-      return Response.json({ error: 'Il nome del contatto è obbligatorio' }, { status: 400 })
+      return Response.json({ error: 'Inserisci almeno un referente o un nome organizzazione' }, { status: 400 })
     }
 
     if (contactScope === 'crm' && !isClosedStatus(status) && !nextFollowupAt) {
@@ -97,7 +107,7 @@ export async function POST(request: NextRequest) {
       email: normalizeText(body.email),
       phone: normalizeText(body.phone),
       category: normalizeText(body.category),
-      company: normalizeText(body.company),
+      company: normalizedCompany,
       event_tag: eventTag,
       list_name: listName,
       personal_section: contactScope === 'personal' ? personalSection : null,
@@ -118,13 +128,32 @@ export async function POST(request: NextRequest) {
       last_activity_summary: rawNote,
     }
 
-    const { data: contact, error } = await auth.supabase
+    let contact: any = null
+    let insertError: unknown = null
+
+    const firstInsert = await auth.supabase
       .from('contacts')
       .insert(insertPayload)
       .select('*')
       .single()
 
-    if (error) throw error
+    if (!firstInsert.error) {
+      contact = firstInsert.data
+    } else if (isMissingEmailDraftNoteColumn(firstInsert.error)) {
+      const { email_draft_note, ...fallbackPayload } = insertPayload
+      const retryInsert = await auth.supabase
+        .from('contacts')
+        .insert(fallbackPayload)
+        .select('*')
+        .single()
+
+      contact = retryInsert.data
+      insertError = retryInsert.error
+    } else {
+      insertError = firstInsert.error
+    }
+
+    if (insertError) throw insertError
 
     let task = null
     if (contact.contact_scope !== 'holding' && contact.next_followup_at) {

@@ -76,8 +76,9 @@ export function ContactModal({
   }, [defaultSource, initialContact, open])
 
   async function handleSave() {
-    if (!form.name.trim()) {
-      window.alert('Inserisci almeno il nome del contatto')
+    const resolvedName = (form.name || '').trim() || (form.company || '').trim()
+    if (!resolvedName) {
+      window.alert('Inserisci almeno un referente o un nome organizzazione')
       return
     }
 
@@ -90,7 +91,7 @@ export function ContactModal({
     try {
       await onSave({
         ...form,
-        name: form.name.trim(),
+        name: resolvedName,
         email: form.email?.trim(),
         phone: form.phone?.trim(),
         category: form.category?.trim(),
@@ -141,23 +142,26 @@ export function ContactModal({
       }
     >
       <div className="fg">
-        <label className="fl">Nome / Organizzazione *</label>
+        <label className="fl">Referente (opzionale)</label>
         <input
           className="fi"
           value={form.name}
           onChange={(event) => setForm((previous) => ({ ...previous, name: event.target.value }))}
-          placeholder="Es. Comune di Roma"
+          placeholder="Es. Mario Rossi"
         />
+        <div className="modal-helper">
+          Se lasci vuoto questo campo, useremo il nome di Azienda/Organizzazione.
+        </div>
       </div>
 
       <div className="frow">
         <div className="fg">
-          <label className="fl">Azienda</label>
+          <label className="fl">Azienda / Organizzazione *</label>
           <input
             className="fi"
             value={form.company || ''}
             onChange={(event) => setForm((previous) => ({ ...previous, company: event.target.value }))}
-            placeholder="Es. Acme SRL"
+            placeholder="Es. Cantina La Messa"
           />
         </div>
         <div className="fg">
