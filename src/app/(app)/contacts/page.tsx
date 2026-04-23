@@ -1,8 +1,9 @@
 'use client'
 
 import { apiFetch } from '@/lib/api'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Suspense, useEffect, useMemo, useState } from 'react'
+import { MouseEvent, Suspense, useEffect, useMemo, useState } from 'react'
 import { ContactDrawer } from '@/components/crm/ContactDrawer'
 import { ContactModal } from '@/components/crm/ContactModal'
 import {
@@ -64,6 +65,7 @@ function ContactsPageInner() {
     contacts,
     scheduledCalls,
     stages,
+    holdingContacts,
     teamMembers,
     createContact,
     updateContact,
@@ -89,9 +91,13 @@ function ContactsPageInner() {
   const [priorityFilter, setPriorityFilter] = useState('')
   const [dataCompletenessFilter, setDataCompletenessFilter] = useState('')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null)
+  const [rangeStart, setRangeStart] = useState('')
+  const [rangeEnd, setRangeEnd] = useState('')
   const [bulkAssignee, setBulkAssignee] = useState('')
   const [bulkStatusQuick, setBulkStatusQuick] = useState('')
   const [bulkFollowupMonths, setBulkFollowupMonths] = useState('')
+  const [bulkFolderName, setBulkFolderName] = useState('')
   const [bulkSaving, setBulkSaving] = useState(false)
   const [bulkEditOpen, setBulkEditOpen] = useState(false)
   const [repairingNames, setRepairingNames] = useState(false)
@@ -155,6 +161,22 @@ function ContactsPageInner() {
       ).sort(),
     [contacts]
   )
+
+  const folderOptions = useMemo(
+    () => Array.from(new Set(holdingContacts.map((contact) => holdingListLabel(contact)).filter(Boolean))).sort(),
+    [holdingContacts]
+  )
+
+  const folderSummary = useMemo(() => {
+    const grouped = new Map<string, number>()
+    holdingContacts.forEach((contact) => {
+      const folderName = holdingListLabel(contact)
+      grouped.set(folderName, (grouped.get(folderName) || 0) + 1)
+    })
+    return Array.from(grouped.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name))
+  }, [holdingContacts])
 
   const sources = useMemo(
     () =>
@@ -247,6 +269,12 @@ function ContactsPageInner() {
     setSelectedIds((previous) => previous.filter((id) => filteredIds.includes(id)))
   }, [filteredIds])
 
+  useEffect(() => {
+    if (lastSelectedId && !filteredIds.includes(lastSelectedId)) {
+      setLastSelectedId(null)
+    }
+  }, [filteredIds, lastSelectedId])
+
   function resetFilters() {
     setSearch('')
     setStatusFilter('')
@@ -264,10 +292,31 @@ function ContactsPageInner() {
     router.replace(query ? `/contacts?${query}` : '/contacts', { scroll: false })
   }
 
-  function toggleSelection(contactId: string) {
-    setSelectedIds((previous) =>
-      previous.includes(contactId) ? previous.filter((id) => id !== contactId) : [...previous, contactId]
-    )
+  function toggleSelection(contactId: string, shiftKey = false) {
+    setSelectedIds((previous) => {
+      const shouldSelect = !previous.includes(contactId)
+
+      if (shiftKey && lastSelectedId && lastSelectedId !== contactId) {
+        const startIndex = filteredIds.indexOf(lastSelectedId)
+        const endIndex = filteredIds.indexOf(contactId)
+
+        if (startIndex !== -1 && endIndex !== -1) {
+          const [from, to] = startIndex < endIndex ? [startIndex, endIndex] : [endIndex, startIndex]
+          const rangeIds = filteredIds.slice(from, to + 1)
+
+          if (shouldSelect) {
+            return Array.from(new Set([...previous, ...rangeIds]))
+          }
+
+          return previous.filter((id) => !rangeIds.includes(id))
+        }
+      }
+
+      return shouldSelect
+        ? [...previous, contactId]
+        : previous.filter((id) => id !== contactId)
+    })
+    setLastSelectedId(contactId)
   }
 
   function toggleSelectAllFiltered() {
@@ -275,6 +324,35 @@ function ContactsPageInner() {
       if (allFilteredSelected) return previous.filter((id) => !filteredIds.includes(id))
       return Array.from(new Set([...previous, ...filteredIds]))
     })
+    setLastSelectedId(filteredIds[0] || null)
+  }
+
+  function handleCheckboxClick(contactId: string, event: MouseEvent<HTMLInputElement>) {
+    event.stopPropagation()
+    toggleSelection(contactId, event.shiftKey)
+  }
+
+  function applyRangeSelection() {
+    const start = Number(rangeStart)
+    const end = Number(rangeEnd)
+
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < 1) {
+      window.alert('Inserisci due numeri validi (es. 1 e 10)')
+      return
+    }
+    if (!filteredIds.length) return
+
+    const from = Math.max(1, Math.min(start, end))
+    const to = Math.min(filteredIds.length, Math.max(start, end))
+    const rangeIds = filteredIds.slice(from - 1, to)
+    if (!rangeIds.length) {
+      window.alert('Intervallo fuori dalla lista filtrata')
+      return
+    }
+
+    setSelectedIds(rangeIds)
+    setLastSelectedId(rangeIds[rangeIds.length - 1] || null)
+    showToast(`Selezionati contatti da ${from} a ${to}`)
   }
 
   async function runBulkUpdate(patch: Record<string, unknown>, successMessage: string) {
@@ -409,7 +487,28 @@ function ContactsPageInner() {
         </button>
       </div>
 
-        {showMore && (
+      {folderSummary.length > 0 && (
+        <div className="contacts-folders">
+          <div className="contacts-folders-head">
+            <strong>📁 Cartelle</strong>
+            <span>I contatti dentro una cartella non compaiono nella lista Contatti.</span>
+          </div>
+          <div className="contacts-folders-list">
+            {folderSummary.map((folder) => (
+              <Link
+                key={folder.name}
+                href={`/vinitaly?list=${encodeURIComponent(folder.name)}`}
+                className="contacts-folder-chip"
+              >
+                <span>{folder.name}</span>
+                <strong>{folder.count}</strong>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {showMore && (
         <div className="contacts-more-filters">
           <select
             className="filter-select"
@@ -477,6 +576,29 @@ function ContactsPageInner() {
           />
           <span>Seleziona tutti i filtrati</span>
         </label>
+        <div className="contacts-summary-range">
+          <span>Intervallo</span>
+          <input
+            type="number"
+            min={1}
+            className="contacts-range-input"
+            value={rangeStart}
+            onChange={(event) => setRangeStart(event.target.value)}
+            placeholder="Da"
+          />
+          <input
+            type="number"
+            min={1}
+            className="contacts-range-input"
+            value={rangeEnd}
+            onChange={(event) => setRangeEnd(event.target.value)}
+            placeholder="A"
+          />
+          <button type="button" className="btn btn-ghost btn-xs" onClick={applyRangeSelection}>
+            Seleziona
+          </button>
+        </div>
+        <span className="contacts-summary-chip">Shift+click: selezione da primo a ultimo</span>
         {hasSelected && <span className="contacts-summary-chip">{selectedIds.length} selezionati</span>}
         {listFilter && (
           <span className="contacts-summary-chip">
@@ -617,6 +739,33 @@ function ContactsPageInner() {
               }}
             >
               Pianifica
+            </button>
+            <input
+              className="form-input contacts-folder-input"
+              list="folder-options"
+              value={bulkFolderName}
+              onChange={(event) => setBulkFolderName(event.target.value)}
+              placeholder="Sposta in cartella..."
+            />
+            <datalist id="folder-options">
+              {folderOptions.map((folderName) => (
+                <option key={folderName} value={folderName} />
+              ))}
+            </datalist>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={bulkSaving || !bulkFolderName.trim()}
+              onClick={async () => {
+                const folderName = bulkFolderName.trim()
+                await runBulkUpdate(
+                  { contact_scope: 'holding', list_name: folderName },
+                  `Spostati in cartella "${folderName}"`
+                )
+                setBulkFolderName('')
+              }}
+            >
+              Sposta in cartella
             </button>
             <button
               type="button"
@@ -810,7 +959,8 @@ function ContactsPageInner() {
                   <input
                     type="checkbox"
                     checked={selectedIds.includes(contact.id)}
-                    onChange={() => toggleSelection(contact.id)}
+                    onClick={(event) => handleCheckboxClick(contact.id, event)}
+                    onChange={() => {}}
                   />
                 </label>
                 <div className="contacts-row-main">
