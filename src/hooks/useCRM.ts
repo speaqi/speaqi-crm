@@ -101,6 +101,7 @@ export function useCRM() {
   })
   const [vNotes, setVNotes] = useState<VoiceNote[]>([])
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
+  const [isAdmin, setIsAdmin] = useState(true)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
@@ -230,8 +231,9 @@ export function useCRM() {
       }
 
       try {
-        const teamResponse = await apiFetch<{ members: TeamMember[] }>('/api/team-members')
+        const teamResponse = await apiFetch<{ members: TeamMember[]; is_admin?: boolean }>('/api/team-members')
         setTeamMembers(teamResponse.members || [])
+        setIsAdmin(Boolean(teamResponse.is_admin ?? true))
       } catch (teamError) {
         warnings.push(`Team: ${extractMessage(teamError, 'Errore caricando il team')}`)
       }
@@ -543,7 +545,7 @@ export function useCRM() {
     })
   }, [])
 
-  const createTeamMember = useCallback(async (payload: { name: string; email?: string; color?: string }) => {
+  const createTeamMember = useCallback(async (payload: { name: string; email?: string; color?: string; password?: string }) => {
     const response = await apiFetch<{ member: TeamMember }>('/api/team-members', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -585,6 +587,7 @@ export function useCRM() {
     dueTodayCount,
     vNotes,
     teamMembers,
+    isAdmin,
     loading,
     error,
     userId,

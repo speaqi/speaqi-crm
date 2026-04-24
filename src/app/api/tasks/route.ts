@@ -27,8 +27,13 @@ export async function GET(request: NextRequest) {
       .select(
         '*, contact:contacts(id, name, status, source, category, company, phone, responsible, event_tag, last_activity_summary, contact_scope, priority, next_followup_at)'
       )
-      .eq('user_id', auth.user.id)
+      .eq('user_id', auth.workspaceUserId)
       .order('due_date', { ascending: true, nullsFirst: false })
+
+    if (!auth.isAdmin) {
+      if (!auth.memberName) return Response.json({ tasks: [] })
+      query = query.eq('contact.responsible', auth.memberName)
+    }
 
     if (status) {
       query = query.eq('status', status)

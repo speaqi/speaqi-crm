@@ -149,13 +149,18 @@ function buildContactUpdateSummary(current: any, next: any) {
   return `Scheda aggiornata: ${changes.join('; ')}.`
 }
 
-async function getContactRecord(supabase: any, userId: string, id: string) {
-  const { data, error } = await supabase
+async function getContactRecord(supabase: any, userId: string, id: string, responsible?: string | null) {
+  let query = supabase
     .from('contacts')
     .select('*')
     .eq('user_id', userId)
     .eq('id', id)
-    .single()
+
+  if (responsible) {
+    query = query.eq('responsible', responsible)
+  }
+
+  const { data, error } = await query.single()
 
   if (error) {
     if (isNoRowsError(error)) return null
@@ -170,7 +175,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   try {
     const { id } = await context.params
-    const contact = await getContactRecord(auth.supabase, auth.user.id, id)
+    const contact = await getContactRecord(
+      auth.supabase,
+      auth.workspaceUserId,
+      id,
+      auth.isAdmin ? null : auth.memberName || '__no_member__'
+    )
     if (!contact) {
       return Response.json({ error: 'Contatto non trovato' }, { status: 404 })
     }
@@ -185,23 +195,23 @@ export async function GET(request: NextRequest, context: RouteContext) {
         auth.supabase
           .from('activities')
           .select('*')
-          .eq('user_id', auth.user.id)
+          .eq('user_id', auth.workspaceUserId)
           .eq('contact_id', id)
           .order('created_at', { ascending: false }),
         auth.supabase
           .from('tasks')
           .select('*')
-          .eq('user_id', auth.user.id)
+          .eq('user_id', auth.workspaceUserId)
           .eq('contact_id', id)
           .order('due_date', { ascending: true, nullsFirst: false }),
         auth.supabase
           .from('gmail_messages')
           .select('*')
-          .eq('user_id', auth.user.id)
+          .eq('user_id', auth.workspaceUserId)
           .eq('contact_id', id)
           .order('sent_at', { ascending: false, nullsFirst: false })
           .limit(30),
-        getGmailAccount(auth.supabase, auth.user.id, { tolerateMissingRelation: true }),
+        getGmailAccount(auth.supabase, auth.workspaceUserId, { tolerateMissingRelation: true }),
       ])
 
     if (activitiesError) throw activitiesError
@@ -235,7 +245,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params
     const body = await request.json()
-    const current = await getContactRecord(auth.supabase, auth.user.id, id)
+    const current = await getContactRecord(
+      auth.supabase,
+      auth.workspaceUserId,
+      id,
+      auth.isAdmin ? null : auth.memberName || '__no_member__'
+    )
     if (!current) {
       return Response.json({ error: 'Contatto non trovato' }, { status: 404 })
     }
@@ -253,7 +268,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         : requestedFollowupAt
 
     if (nextContactScope === 'crm') {
-      await ensureNextAction(auth.supabase, auth.user.id, id, nextStatus, nextFollowupAt)
+      await ensureNextAction(auth.supabase, auth.workspaceUserId, id, nextStatus, nextFollowupAt)
     }
 
     const normalizedCompany = body.company !== undefined ? normalizeText(body.company) : current.company
@@ -293,7 +308,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       assigned_agent:
         body.assigned_agent !== undefined ? normalizeText(body.assigned_agent) : current.assigned_agent,
       responsible:
-        body.responsible !== undefined ? normalizeText(body.responsible) : current.responsible,
+        auth.isAdmin
+          ? body.responsible !== undefined
+            ? normalizeText(body.responsible)
+            : current.responsible
+          : current.responsible,
       value: body.value !== undefined ? normalizeNumber(body.value) : current.value,
       note: body.note !== undefined ? normalizeText(body.note) : current.note,
       email_draft_note:
@@ -308,7 +327,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const firstUpdate = await auth.supabase
       .from('contacts')
       .update(updatePayload)
-      .eq('user_id', auth.user.id)
+      .eq('user_id', auth.workspaceUserId)
       .eq('id', id)
       .select('*')
       .single()
@@ -321,7 +340,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       const retryUpdate = await auth.supabase
         .from('contacts')
         .update(fallbackPayload)
-        .eq('user_id', auth.user.id)
+        .eq('user_id', auth.workspaceUserId)
         .eq('id', id)
         .select('*')
         .single()
@@ -336,18 +355,18 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (updateError) throw updateError
 
     if (isClosedStatus(nextStatus)) {
-      await completePendingCallTasks(auth.supabase, auth.user.id, id)
+      await completePendingCallTasks(auth.supabase, auth.workspaceUserId, id)
     } else if (nextContactScope === 'holding') {
-      await completePendingCallTasks(auth.supabase, auth.user.id, id)
+      await completePendingCallTasks(auth.supabase, auth.workspaceUserId, id)
     } else if (nextFollowupAt) {
-      await syncPendingCallTask(auth.supabase, auth.user.id, id, nextFollowupAt)
+      await syncPendingCallTask(auth.supabase, auth.workspaceUserId, id, nextFollowupAt)
     }
 
     const activityContent = buildContactUpdateSummary(current, data)
     if (activityContent) {
       await createActivities(auth.supabase, [
         {
-          user_id: auth.user.id,
+          user_id: auth.workspaceUserId,
           contact_id: id,
           type: 'system',
           content: activityContent,
@@ -373,7 +392,12 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
   try {
     const { id } = await context.params
-    const contact = await getContactRecord(auth.supabase, auth.user.id, id)
+    const contact = await getContactRecord(
+      auth.supabase,
+      auth.workspaceUserId,
+      id,
+      auth.isAdmin ? null : auth.memberName || '__no_member__'
+    )
     if (!contact) {
       return Response.json({ error: 'Contatto non trovato' }, { status: 404 })
     }
@@ -381,7 +405,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     const { error } = await auth.supabase
       .from('contacts')
       .delete()
-      .eq('user_id', auth.user.id)
+      .eq('user_id', auth.workspaceUserId)
       .eq('id', id)
 
     if (error) throw error

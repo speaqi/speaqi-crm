@@ -5,9 +5,10 @@ import { useState } from 'react'
 import { useCRMContext } from '../../layout'
 
 export default function TeamAdminPage() {
-  const { teamMembers, createTeamMember, updateTeamMember, deleteTeamMember, showToast } = useCRMContext()
+  const { teamMembers, isAdmin, createTeamMember, updateTeamMember, deleteTeamMember, showToast } = useCRMContext()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -17,10 +18,15 @@ export default function TeamAdminPage() {
     setSaving(true)
     setError('')
     try {
-      await createTeamMember({ name: name.trim(), email: email.trim() || undefined })
+      await createTeamMember({
+        name: name.trim(),
+        email: email.trim() || undefined,
+        password: password.trim() || undefined,
+      })
       setName('')
       setEmail('')
-      showToast('Collaboratore aggiunto')
+      setPassword('')
+      showToast(password.trim() ? 'Collaboratore aggiunto con accesso' : 'Collaboratore aggiunto')
     } catch (addError) {
       setError(addError instanceof Error ? addError.message : 'Errore')
     } finally {
@@ -57,10 +63,13 @@ export default function TeamAdminPage() {
         </div>
         <h1>Team</h1>
         <p className="page-subtitle">
-          Aggiungi i collaboratori che potranno essere assegnati ai contatti. Solo questi nomi compaiono nei menu "Assegnato a".
+          Aggiungi i collaboratori che potranno essere assegnati ai contatti. Se imposti una password, crei anche il loro accesso.
         </p>
       </div>
 
+      {!isAdmin ? (
+        <div className="inline-error">Solo l&apos;admin può gestire il team.</div>
+      ) : (
       <form className="team-add" onSubmit={handleAdd}>
         <input
           type="text"
@@ -75,10 +84,17 @@ export default function TeamAdminPage() {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
         />
+        <input
+          type="password"
+          placeholder="Password accesso (opzionale)"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
         <button type="submit" className="btn btn-primary" disabled={saving || !name.trim()}>
           {saving ? 'Salvataggio…' : 'Aggiungi collaboratore'}
         </button>
       </form>
+      )}
 
       {error && <div className="inline-error">{error}</div>}
 
@@ -102,6 +118,7 @@ export default function TeamAdminPage() {
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm"
+                  disabled={!isAdmin}
                   onClick={() => handleRename(member.id, member.name)}
                 >
                   Rinomina
@@ -109,6 +126,7 @@ export default function TeamAdminPage() {
                 <button
                   type="button"
                   className="btn btn-del btn-sm"
+                  disabled={!isAdmin}
                   onClick={() => handleDelete(member.id, member.name)}
                 >
                   Rimuovi

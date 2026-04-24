@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { ChangeEvent, DragEvent, useMemo, useRef, useState } from 'react'
+import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import { detectCsvColumns, parseCsvText } from '@/lib/csv-import'
+import type { CsvImportField } from '@/lib/csv-import'
 import { useCRMContext } from '../layout'
 
 interface ImportResponse {
@@ -44,6 +45,31 @@ function humanListName(filename: string) {
 type Step = 1 | 2 | 3
 type ImportMode = 'csv' | 'ocr'
 
+const IMPORT_FIELD_LABELS: Record<CsvImportField, string> = {
+  legacy_id: 'ID univoco (legacy)',
+  name: 'Nome completo',
+  first_name: 'Nome',
+  last_name: 'Cognome',
+  email: 'Email',
+  phone: 'Telefono',
+  company: 'Azienda',
+  role: 'Ruolo',
+  country: 'Paese',
+  province: 'Provincia/Citta',
+  category: 'Categoria',
+  priority: 'Priorita',
+  note: 'Note',
+  source: 'Origine',
+  status: 'Stato',
+  next_followup_at: 'Prossimo follow-up',
+  responsible: 'Responsabile',
+  value: 'Valore',
+  event_tag: 'Tag evento',
+  list_name: 'Nome lista',
+}
+
+const IMPORT_FIELD_ORDER = Object.keys(IMPORT_FIELD_LABELS) as CsvImportField[]
+
 export default function ImportPage() {
   const { refresh, showToast, teamMembers } = useCRMContext()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -66,6 +92,7 @@ export default function ImportPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<ImportResponse | null>(null)
+  const [manualMapping, setManualMapping] = useState<Partial<Record<CsvImportField, string>>>({})
 
   const preview = useMemo(() => {
     if (!csvText.trim()) return null
@@ -73,6 +100,14 @@ export default function ImportPage() {
     if (!rows.length) return null
     return { rows, detection: detectCsvColumns(rows) }
   }, [csvText])
+
+  useEffect(() => {
+    if (!preview) {
+      setManualMapping({})
+      return
+    }
+    setManualMapping(preview.detection.mapping)
+  }, [preview])
 
   function prepareImportText(params: {
     fileName: string
@@ -193,6 +228,7 @@ export default function ImportPage() {
           event_tag: eventTag || null,
           imported_at: importDate,
           file_name: fileName,
+          mapping: manualMapping,
         }),
       })
       setResult(response)
@@ -219,15 +255,24 @@ export default function ImportPage() {
     setImportDate(new Date().toISOString().slice(0, 10))
     setSourceLabel('evento')
     setAddToPipeline(true)
+    setManualMapping({})
     if (fileInputRef.current) fileInputRef.current.value = ''
     if (ocrInputRef.current) ocrInputRef.current.value = ''
   }
 
   const detectedFields = preview
-    ? (Object.entries(preview.detection.mapping) as Array<[string, string | undefined]>)
+    ? (Object.entries(manualMapping) as Array<[string, string | undefined]>)
         .filter(([, header]) => Boolean(header))
         .map(([field]) => field)
     : []
+
+  const unmatchedHeaders = useMemo(() => {
+    if (!preview) return []
+    const selectedHeaders = new Set(
+      Object.values(manualMapping).filter((header): header is string => Boolean(header && header.trim()))
+    )
+    return preview.detection.headers.filter((header) => !selectedHeaders.has(header))
+  }, [preview, manualMapping])
 
   return (
     <div className="import-wizard">
@@ -410,21 +455,48 @@ export default function ImportPage() {
           </label>
 
           <div className="import-mapping">
-            <div className="import-mapping-title">Colonne riconosciute</div>
+            <div className="import-mapping-title">Area match campi (CSV → CRM)</div>
+            <p className="import-mapping-helper">
+              Mappa manualmente le colonne. L&apos;aggiornamento usa prima <strong>ID univoco (legacy)</strong>, poi email, telefono, nome+azienda.
+            </p>
+            <div className="import-mapping-grid">
+              {IMPORT_FIELD_ORDER.map((field) => (
+                <label key={field} className="import-map-row">
+                  <span>{IMPORT_FIELD_LABELS[field]}</span>
+                  <select
+                    value={manualMapping[field] || ''}
+                    onChange={(event) =>
+                      setManualMapping((previous) => ({
+                        ...previous,
+                        [field]: event.target.value || undefined,
+                      }))
+                    }
+                  >
+                    <option value="">— Non mappare —</option>
+                    {preview.detection.headers.map((header) => (
+                      <option key={`${field}-${header}`} value={header}>
+                        {header}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+            </div>
+            <div className="import-mapping-title">Mappatura attiva</div>
             <div className="import-mapping-list">
               {detectedFields.length === 0 ? (
-                <span className="import-muted">Nessuna colonna riconosciuta automaticamente.</span>
+                <span className="import-muted">Nessuna colonna mappata.</span>
               ) : (
                 detectedFields.map((field) => (
                   <span key={field} className="import-mapping-pill">
-                    <strong>{field}</strong> ← {(preview.detection.mapping as Record<string, string | undefined>)[field]}
+                    <strong>{field}</strong> ← {(manualMapping as Record<string, string | undefined>)[field]}
                   </span>
                 ))
               )}
             </div>
-            {preview.detection.unmatchedHeaders.length > 0 && (
+            {unmatchedHeaders.length > 0 && (
               <div className="import-mapping-extra">
-                Colonne ignorate: {preview.detection.unmatchedHeaders.join(', ')}
+                Colonne ignorate: {unmatchedHeaders.join(', ')}
               </div>
             )}
           </div>

@@ -65,9 +65,14 @@ export async function GET(request: NextRequest) {
     let query = auth.supabase
       .from('contacts')
       .select('*')
-      .eq('user_id', auth.user.id)
+      .eq('user_id', auth.workspaceUserId)
       .order('next_followup_at', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false })
+
+    if (!auth.isAdmin) {
+      if (!auth.memberName) return Response.json({ contacts: [] })
+      query = query.eq('responsible', auth.memberName)
+    }
 
     if (scope === 'crm') query = query.eq('contact_scope', 'crm')
     if (scope === 'holding') query = query.eq('contact_scope', 'holding')
@@ -91,7 +96,7 @@ export async function POST(request: NextRequest) {
   if ('error' in auth) return auth.error
 
   try {
-    await ensurePipelineStages(auth.supabase, auth.user.id)
+    await ensurePipelineStages(auth.supabase, auth.workspaceUserId)
 
     const body = await request.json()
     const requestedName = String(body.name || '').trim()
@@ -117,8 +122,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const insertPayload = {
-      user_id: auth.user.id,
+    const emailDraftNote = normalizeText(body.email_draft_note)
+    const insertPayload: Record<string, unknown> = {
+      user_id: auth.workspaceUserId,
       name,
       email: normalizeText(body.email),
       phone: normalizeText(body.phone),
@@ -126,7 +132,6 @@ export async function POST(request: NextRequest) {
       company: normalizedCompany,
       event_tag: eventTag,
       list_name: listName,
-      personal_section: contactScope === 'personal' ? personalSection : null,
       country: normalizeText(body.country),
       language: normalizeText(body.language),
       status,
@@ -138,10 +143,23 @@ export async function POST(request: NextRequest) {
       responsible: normalizeText(body.responsible),
       value: normalizeNumber(body.value),
       note: rawNote,
-      email_draft_note: normalizeText(body.email_draft_note),
       next_action_at: contactScope === 'holding' ? null : nextFollowupAt,
       next_followup_at: contactScope === 'holding' ? null : nextFollowupAt,
       last_activity_summary: rawNote,
+    }
+
+    if (!auth.isAdmin) {
+      if (!auth.memberName) {
+        return Response.json({ error: 'Collaboratore non associato a un membro team' }, { status: 403 })
+      }
+      insertPayload.responsible = auth.memberName
+    }
+
+    if (contactScope === 'personal' && personalSection) {
+      insertPayload.personal_section = personalSection
+    }
+    if (emailDraftNote) {
+      insertPayload.email_draft_note = emailDraftNote
     }
 
     let contact: any = null
@@ -178,7 +196,7 @@ export async function POST(request: NextRequest) {
       const { data: createdTask, error: taskError } = await auth.supabase
         .from('tasks')
         .insert({
-          user_id: auth.user.id,
+          user_id: auth.workspaceUserId,
           contact_id: contact.id,
           type: 'follow-up',
           action: 'call',
@@ -220,14 +238,14 @@ export async function POST(request: NextRequest) {
       auth.supabase,
       [
         {
-          user_id: auth.user.id,
+          user_id: auth.workspaceUserId,
           contact_id: contact.id,
           type: 'system',
           content: activityContent,
         },
         rawNote
           ? {
-              user_id: auth.user.id,
+              user_id: auth.workspaceUserId,
               contact_id: contact.id,
               type: 'note',
               content: rawNote,

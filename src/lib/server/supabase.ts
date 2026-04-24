@@ -69,9 +69,41 @@ export async function requireRouteUser(request: NextRequest) {
     }
   }
 
+  let workspaceUserId = user.id
+  let isAdmin = true
+  let memberName: string | null = null
+  const email = String(user.email || '').trim().toLowerCase()
+
+  if (email) {
+    try {
+      const admin = createServiceRoleClient()
+      const { data: matchedMembers, error: memberError } = await admin
+        .from('team_members')
+        .select('user_id, name, email')
+        .ilike('email', email)
+        .limit(2)
+
+      if (memberError) throw memberError
+
+      if ((matchedMembers || []).length === 1) {
+        const member = matchedMembers![0] as { user_id?: string | null; name?: string | null }
+        if (member.user_id) {
+          workspaceUserId = member.user_id
+          isAdmin = member.user_id === user.id
+          memberName = member.name || null
+        }
+      }
+    } catch {
+      // Keep default owner/admin behavior when team mapping is unavailable.
+    }
+  }
+
   return {
     token,
     user,
     supabase: createUserClient(token),
+    workspaceUserId,
+    isAdmin,
+    memberName,
   }
 }

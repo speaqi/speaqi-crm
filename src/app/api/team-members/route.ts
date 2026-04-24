@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { requireRouteUser } from '@/lib/server/supabase'
+import { createServiceRoleClient, requireRouteUser } from '@/lib/server/supabase'
 
 function normalizeText(value: unknown) {
   const normalized = String(value || '').trim()
@@ -10,33 +10,60 @@ export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
 
-  const { data, error } = await auth.supabase
+  const admin = createServiceRoleClient()
+  const { data, error } = await admin
     .from('team_members')
     .select('*')
-    .eq('user_id', auth.user.id)
+    .eq('user_id', auth.workspaceUserId)
     .order('name', { ascending: true })
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
-  return Response.json({ members: data || [] })
+  return Response.json({ members: data || [], is_admin: auth.isAdmin })
 }
 
 export async function POST(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  if (!auth.isAdmin) return Response.json({ error: 'Solo admin può creare collaboratori' }, { status: 403 })
 
   try {
     const body = await request.json()
     const name = normalizeText(body.name)
+    const email = normalizeText(body.email)?.toLowerCase() || null
+    const password = normalizeText(body.password)
     if (!name) return Response.json({ error: 'Nome obbligatorio' }, { status: 400 })
+    if (password && !email) {
+      return Response.json({ error: 'Email obbligatoria per creare accesso con password' }, { status: 400 })
+    }
+
+    const admin = createServiceRoleClient()
+    if (email && password) {
+      const { error: createError } = await admin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+      })
+      if (createError) {
+        return Response.json(
+          {
+            error:
+              createError.message.includes('already registered')
+                ? 'Email già registrata in auth. Usa un’altra email o resetta password da Supabase.'
+                : createError.message,
+          },
+          { status: 400 }
+        )
+      }
+    }
 
     const payload = {
-      user_id: auth.user.id,
+      user_id: auth.workspaceUserId,
       name,
-      email: normalizeText(body.email),
+      email,
       color: normalizeText(body.color),
     }
 
-    const { data, error } = await auth.supabase
+    const { data, error } = await admin
       .from('team_members')
       .insert(payload)
       .select('*')

@@ -87,12 +87,24 @@ export async function PATCH(request: NextRequest) {
       return Response.json({ error: 'Nessun campo da aggiornare' }, { status: 400 })
     }
 
-    const { data, error } = await auth.supabase
+    if (!auth.isAdmin) {
+      if (!auth.memberName) {
+        return Response.json({ error: 'Collaboratore non associato a un membro team' }, { status: 403 })
+      }
+      updatePayload.responsible = auth.memberName
+    }
+
+    let bulkQuery = auth.supabase
       .from('contacts')
       .update(updatePayload)
-      .eq('user_id', auth.user.id)
+      .eq('user_id', auth.workspaceUserId)
       .in('id', contactIds)
-      .select('*')
+
+    if (!auth.isAdmin) {
+      bulkQuery = bulkQuery.eq('responsible', auth.memberName || '__no_member__')
+    }
+
+    const { data, error } = await bulkQuery.select('*')
 
     if (error) throw error
 
@@ -105,11 +117,11 @@ export async function PATCH(request: NextRequest) {
         (data || []).map(async (contact) => {
           const nextScopeValue = (contact.contact_scope || 'crm') as string
           if (isClosedStatus(contact.status) || nextScopeValue === 'holding') {
-            await completePendingCallTasks(auth.supabase, auth.user.id, contact.id)
+            await completePendingCallTasks(auth.supabase, auth.workspaceUserId, contact.id)
             return
           }
           if (contact.next_followup_at) {
-            await syncPendingCallTask(auth.supabase, auth.user.id, contact.id, contact.next_followup_at)
+            await syncPendingCallTask(auth.supabase, auth.workspaceUserId, contact.id, contact.next_followup_at)
           }
         })
       )

@@ -25,11 +25,25 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { data: currentTask, error: currentTaskError } = await auth.supabase
       .from('tasks')
       .select('*')
-      .eq('user_id', auth.user.id)
+      .eq('user_id', auth.workspaceUserId)
       .eq('id', id)
       .single()
 
     if (currentTaskError) throw currentTaskError
+
+    if (!auth.isAdmin) {
+      const { data: contactOwner } = await auth.supabase
+        .from('contacts')
+        .select('id')
+        .eq('user_id', auth.workspaceUserId)
+        .eq('id', currentTask.contact_id)
+        .eq('responsible', auth.memberName || '__no_member__')
+        .single()
+
+      if (!contactOwner) {
+        return Response.json({ error: 'Task non accessibile' }, { status: 403 })
+      }
+    }
 
     const updatePayload: Record<string, unknown> = {}
 
@@ -45,7 +59,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { data, error } = await auth.supabase
       .from('tasks')
       .update(updatePayload)
-      .eq('user_id', auth.user.id)
+      .eq('user_id', auth.workspaceUserId)
       .eq('id', id)
       .select('*')
       .single()
@@ -58,7 +72,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       currentTask.status !== data.status ||
       (currentTask.action || null) !== (data.action || null)
     ) {
-      const syncedDates = await syncLeadActionDates(auth.supabase, auth.user.id, data.contact_id)
+      const syncedDates = await syncLeadActionDates(auth.supabase, auth.workspaceUserId, data.contact_id)
       syncedNextFollowupAt = syncedDates.nextFollowupAt
     }
 
@@ -88,7 +102,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
       await createActivities(auth.supabase, [
         {
-          user_id: auth.user.id,
+          user_id: auth.workspaceUserId,
           contact_id: data.contact_id,
           type: 'task',
           content: activityContent,

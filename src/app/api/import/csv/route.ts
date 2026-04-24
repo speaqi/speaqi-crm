@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { NextRequest } from 'next/server'
 import { chooseBestContactName, inferRepairName } from '@/lib/contact-name'
 import { detectCsvColumns, extractPrimaryEmail, extractPrimaryPhone, getMappedValue, normalizePhoneDigits, parseCsvText, splitMultiValue } from '@/lib/csv-import'
+import type { CsvImportField } from '@/lib/csv-import'
 import { isClosedStatus } from '@/lib/data'
 import { createActivities, ensurePipelineStages, formatActivityDate } from '@/lib/server/crm'
 import { requireRouteUser } from '@/lib/server/supabase'
@@ -19,6 +20,29 @@ const ALLOWED_STATUSES = new Set([
 ])
 const INVALID_LEGACY_IDS = new Set(['#REF!', '#N/A', 'N/A', 'NULL', 'null', 'NaN', 'nan'])
 const UNSTABLE_IMPORT_LEGACY_ID = /^csv-import-\d+$/i
+const CSV_IMPORT_FIELDS: CsvImportField[] = [
+  'legacy_id',
+  'name',
+  'first_name',
+  'last_name',
+  'email',
+  'phone',
+  'company',
+  'role',
+  'country',
+  'province',
+  'category',
+  'priority',
+  'note',
+  'source',
+  'status',
+  'next_followup_at',
+  'responsible',
+  'value',
+  'event_tag',
+  'list_name',
+]
+const CSV_IMPORT_FIELD_SET = new Set<CsvImportField>(CSV_IMPORT_FIELDS)
 
 type ImportedRecord = {
   user_id: string
@@ -121,6 +145,32 @@ function normalizeStatus(value: unknown) {
 
 function normalizeContactScope(value: unknown) {
   return String(value || '').trim().toLowerCase() === 'holding' ? 'holding' : 'crm'
+}
+
+function isCsvImportField(value: unknown): value is CsvImportField {
+  return CSV_IMPORT_FIELD_SET.has(String(value || '') as CsvImportField)
+}
+
+function resolveCsvMapping(
+  detection: ReturnType<typeof detectCsvColumns>,
+  customMapping: unknown
+) {
+  const mapping: Partial<Record<CsvImportField, string>> = { ...detection.mapping }
+  if (!customMapping || typeof customMapping !== 'object') return mapping
+
+  const validHeaders = new Set(detection.headers)
+  for (const [field, rawHeader] of Object.entries(customMapping as Record<string, unknown>)) {
+    if (!isCsvImportField(field)) continue
+    const header = normalizeText(rawHeader)
+    if (!header) {
+      delete mapping[field]
+      continue
+    }
+    if (!validHeaders.has(header)) continue
+    mapping[field] = header
+  }
+
+  return mapping
 }
 
 function normalizeDate(value: unknown) {
@@ -432,6 +482,7 @@ export async function POST(request: NextRequest) {
     const defaultSource = normalizeText(body.default_source)
     const defaultResponsible = normalizeText(body.default_responsible)
     const contactScope = normalizeContactScope(body.contact_scope)
+    const mapping = resolveCsvMapping(detection, body.mapping)
     const fileName = normalizeText(body.file_name)?.replace(/\.[^.]+$/, '')
     const requestedListName = normalizeText(body.list_name)
     const defaultListName =
@@ -449,7 +500,7 @@ export async function POST(request: NextRequest) {
         contactScope,
         defaultListName,
         seenLegacyIds,
-        mapping: detection.mapping,
+        mapping,
       })
     )
 
@@ -590,7 +641,7 @@ export async function POST(request: NextRequest) {
       created_tasks: createdTasks,
       contact_scope: contactScope,
       list_name: defaultListName,
-      detected_mapping: detection.mapping,
+      detected_mapping: mapping,
     })
   } catch (error) {
     return Response.json(

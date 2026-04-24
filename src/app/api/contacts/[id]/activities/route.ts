@@ -12,10 +12,23 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   try {
     const { id } = await context.params
+    let contactQuery = auth.supabase
+      .from('contacts')
+      .select('id')
+      .eq('user_id', auth.workspaceUserId)
+      .eq('id', id)
+
+    if (!auth.isAdmin) {
+      contactQuery = contactQuery.eq('responsible', auth.memberName || '__no_member__')
+    }
+
+    const { data: allowedContact } = await contactQuery.single()
+    if (!allowedContact) return Response.json({ activities: [] })
+
     const { data, error } = await auth.supabase
       .from('activities')
       .select('*')
-      .eq('user_id', auth.user.id)
+      .eq('user_id', auth.workspaceUserId)
       .eq('contact_id', id)
       .order('created_at', { ascending: false })
 
@@ -57,21 +70,26 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return Response.json({ error: 'Il contenuto attività è obbligatorio' }, { status: 400 })
     }
 
-    const { data: contact, error: contactError } = await auth.supabase
+    let contactQuery = auth.supabase
       .from('contacts')
       .select('*')
-      .eq('user_id', auth.user.id)
+      .eq('user_id', auth.workspaceUserId)
       .eq('id', id)
-      .single()
+
+    if (!auth.isAdmin) {
+      contactQuery = contactQuery.eq('responsible', auth.memberName || '__no_member__')
+    }
+
+    const { data: contact, error: contactError } = await contactQuery.single()
 
     if (contactError) throw contactError
 
-    await ensureNextAction(auth.supabase, auth.user.id, id, contact.status, nextFollowupAt || contact.next_followup_at)
+    await ensureNextAction(auth.supabase, auth.workspaceUserId, id, contact.status, nextFollowupAt || contact.next_followup_at)
 
     const { data: activity, error } = await auth.supabase
       .from('activities')
       .insert({
-        user_id: auth.user.id,
+        user_id: auth.workspaceUserId,
         contact_id: id,
         type,
         content,
@@ -91,7 +109,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       const { data: createdTask, error: taskError } = await auth.supabase
         .from('tasks')
         .insert({
-          user_id: auth.user.id,
+          user_id: auth.workspaceUserId,
           contact_id: id,
           type: taskType,
           action: taskType === 'email' ? 'send_email' : 'call',

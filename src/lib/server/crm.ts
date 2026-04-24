@@ -401,6 +401,7 @@ export async function createActivities(
     .map((activity) => ({
       ...activity,
       content: activity.content.trim(),
+      metadata: activity.metadata && typeof activity.metadata === 'object' ? activity.metadata : {},
     }))
     .filter((activity) => activity.content)
 

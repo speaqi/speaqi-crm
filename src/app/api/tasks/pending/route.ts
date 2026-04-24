@@ -13,11 +13,16 @@ export async function GET(request: NextRequest) {
 
     let query = auth.supabase
       .from('tasks')
-      .select('*')
-      .eq('user_id', auth.user.id)
+      .select('*, contact:contacts!inner(responsible)')
+      .eq('user_id', auth.workspaceUserId)
       .eq('status', 'pending')
       .order('due_date', { ascending: true, nullsFirst: false })
       .limit(limit)
+
+    if (!auth.isAdmin) {
+      if (!auth.memberName) return Response.json({ tasks: [] })
+      query = query.eq('contact.responsible', auth.memberName)
+    }
 
     if (leadId) {
       query = query.eq('contact_id', leadId)

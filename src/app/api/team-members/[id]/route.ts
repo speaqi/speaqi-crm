@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { requireRouteUser } from '@/lib/server/supabase'
+import { createServiceRoleClient, requireRouteUser } from '@/lib/server/supabase'
 
 function normalizeText(value: unknown) {
   const normalized = String(value || '').trim()
@@ -9,6 +9,7 @@ function normalizeText(value: unknown) {
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  if (!auth.isAdmin) return Response.json({ error: 'Solo admin può modificare collaboratori' }, { status: 403 })
   const { id } = await params
 
   try {
@@ -22,10 +23,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if ('email' in body) update.email = normalizeText(body.email)
     if ('color' in body) update.color = normalizeText(body.color)
 
-    const { data, error } = await auth.supabase
+    const admin = createServiceRoleClient()
+    const { data, error } = await admin
       .from('team_members')
       .update(update)
-      .eq('user_id', auth.user.id)
+      .eq('user_id', auth.workspaceUserId)
       .eq('id', id)
       .select('*')
       .single()
@@ -43,12 +45,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  if (!auth.isAdmin) return Response.json({ error: 'Solo admin può rimuovere collaboratori' }, { status: 403 })
   const { id } = await params
 
-  const { error } = await auth.supabase
+  const admin = createServiceRoleClient()
+  const { error } = await admin
     .from('team_members')
     .delete()
-    .eq('user_id', auth.user.id)
+    .eq('user_id', auth.workspaceUserId)
     .eq('id', id)
 
   if (error) return Response.json({ error: error.message }, { status: 500 })

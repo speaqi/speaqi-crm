@@ -65,6 +65,11 @@ function isInProgressStatus(status: string) {
   return status.toLowerCase() !== 'new' && !isClosedStatus(status)
 }
 
+function isContactedStatus(status: string) {
+  const normalized = status.trim().toLowerCase()
+  return normalized === 'contacted' || normalized === 'contattato'
+}
+
 function followupLabel(value?: string | null) {
   if (!value) return 'Senza data'
   return new Date(value).toLocaleDateString('it-IT', {
@@ -90,11 +95,6 @@ export default function OggiPage() {
   const now = new Date()
   const today = startOfDay(now)
   const stagnantCutoff = new Date(today.getTime() - 14 * DAY_MS)
-
-  const overdueCalls = useMemo<ScheduledCall[]>(
-    () => scheduledCalls.filter((call) => new Date(call.due_at) < today),
-    [scheduledCalls, today]
-  )
 
   const days = useMemo(() => {
     const buckets: Array<{ date: Date; calls: ScheduledCall[]; offset: number }> = []
@@ -152,7 +152,6 @@ export default function OggiPage() {
   const hour = now.getHours()
   const greeting = greetingForHour(hour)
   const dayLabel = formatItalianDate(now)
-  const totalUpcoming = days.reduce((sum, day) => sum + day.calls.length, 0) + overdueCalls.length
 
   const stageOrderMap = useMemo(() => {
     const map = new Map<string, number>()
@@ -162,10 +161,37 @@ export default function OggiPage() {
     return map
   }, [stages])
 
+  const contactedOrder = useMemo(() => {
+    const contactedStage = stages.find((stage) => stage.system_key === 'contacted' || isContactedStatus(stage.name))
+    if (contactedStage && Number.isFinite(contactedStage.order)) return Number(contactedStage.order)
+    return stageOrderMap.get('Contacted') ?? stageOrderMap.get('contattato') ?? 1
+  }, [stages, stageOrderMap])
+
+  const statusAboveContacted = useMemo(() => {
+    const allowed = new Set<string>()
+    for (const [status, order] of stageOrderMap.entries()) {
+      if (order > contactedOrder) {
+        allowed.add(status)
+      }
+    }
+    return allowed
+  }, [contactedOrder, stageOrderMap])
+
   const scheduledByContactId = useMemo(
     () => new Map(scheduledCalls.map((call) => [call.contact.id, call])),
     [scheduledCalls]
   )
+
+  const overdueCalls = useMemo<ScheduledCall[]>(
+    () =>
+      scheduledCalls.filter((call) => {
+        if (new Date(call.due_at) >= today) return false
+        return statusAboveContacted.has(call.contact.status)
+      }),
+    [scheduledCalls, statusAboveContacted, today]
+  )
+
+  const totalUpcoming = days.reduce((sum, day) => sum + day.calls.length, 0) + overdueCalls.length
 
   const topPipelineContacts = useMemo(() => {
     return contacts
@@ -327,6 +353,35 @@ export default function OggiPage() {
         </section>
       )}
 
+      <section className="oggi-card">
+        <div className="oggi-card-title">🔥 Top pipeline in corso</div>
+        {topPipelineContacts.length === 0 ? (
+          <p className="oggi-muted">Nessun contatto in corso da evidenziare.</p>
+        ) : (
+          <div className="oggi-pipeline-list">
+            {topPipelineContacts.map((contact) => {
+              const call = scheduledByContactId.get(contact.id) || null
+              return (
+                <Link
+                  key={contact.id}
+                  href={`/contacts?id=${contact.id}`}
+                  className="oggi-pipeline-row"
+                >
+                  <span className="oggi-pipeline-main">
+                    <strong>{contact.name}</strong>
+                    <span>{statusLabel(contact.status)}</span>
+                  </span>
+                  <span className="oggi-pipeline-meta">
+                    {contact.priority > 0 && <em>{priorityLabel(contact.priority)}</em>}
+                    <span>{followupLabel(call?.due_at || contact.next_followup_at)}</span>
+                  </span>
+                </Link>
+              )
+            })}
+          </div>
+        )}
+      </section>
+
       <section className="oggi-week">
         <div className="oggi-week-head">
           <h2>Ieri + prossimi 5 giorni</h2>
@@ -408,35 +463,6 @@ export default function OggiPage() {
                   <span className="oggi-stagnant-meta">{statusLabel(contact.status)}</span>
                 </Link>
               ))}
-            </div>
-          )}
-        </section>
-
-        <section className="oggi-card">
-          <div className="oggi-card-title">🔥 Top pipeline in corso</div>
-          {topPipelineContacts.length === 0 ? (
-            <p className="oggi-muted">Nessun contatto in corso da evidenziare.</p>
-          ) : (
-            <div className="oggi-pipeline-list">
-              {topPipelineContacts.map((contact) => {
-                const call = scheduledByContactId.get(contact.id) || null
-                return (
-                  <Link
-                    key={contact.id}
-                    href={`/contacts?id=${contact.id}`}
-                    className="oggi-pipeline-row"
-                  >
-                    <span className="oggi-pipeline-main">
-                      <strong>{contact.name}</strong>
-                      <span>{statusLabel(contact.status)}</span>
-                    </span>
-                    <span className="oggi-pipeline-meta">
-                      {contact.priority > 0 && <em>{priorityLabel(contact.priority)}</em>}
-                      <span>{followupLabel(call?.due_at || contact.next_followup_at)}</span>
-                    </span>
-                  </Link>
-                )
-              })}
             </div>
           )}
         </section>

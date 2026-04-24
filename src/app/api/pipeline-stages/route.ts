@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   if ('error' in auth) return auth.error
 
   try {
-    const stages = await ensurePipelineStages(auth.supabase, auth.user.id)
+    const stages = await ensurePipelineStages(auth.supabase, auth.workspaceUserId)
     return Response.json({ stages })
   } catch (error) {
     return Response.json(
@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  if (!auth.isAdmin) return Response.json({ error: 'Solo admin può modificare la pipeline' }, { status: 403 })
 
   try {
     const body = await request.json()
@@ -40,7 +41,7 @@ export async function PUT(request: NextRequest) {
     const { error: deleteError } = await auth.supabase
       .from('pipeline_stages')
       .delete()
-      .eq('user_id', auth.user.id)
+      .eq('user_id', auth.workspaceUserId)
 
     if (deleteError) throw deleteError
 
@@ -48,7 +49,7 @@ export async function PUT(request: NextRequest) {
       .from('pipeline_stages')
       .insert(
         stages.map((stage: any, index: number) => ({
-          user_id: auth.user.id,
+          user_id: auth.workspaceUserId,
           name: String(stage.name || '').trim(),
           order: index,
           color: stage.color ? String(stage.color) : null,
@@ -58,7 +59,7 @@ export async function PUT(request: NextRequest) {
 
     if (error) throw error
 
-    const data = await ensurePipelineStages(auth.supabase, auth.user.id)
+    const data = await ensurePipelineStages(auth.supabase, auth.workspaceUserId)
     return Response.json({ stages: data || [] })
   } catch (error) {
     return Response.json(

@@ -128,7 +128,23 @@ export function parseCsvText(text: string) {
 
   if (!rows.length) return []
 
-  const headers = rows[0].map((value) => value.trim())
+  const headers = rows[0].reduce<string[]>((acc, value, index) => {
+    const base = value.trim() || `column_${index + 1}`
+    const alreadyUsed = new Set(acc)
+    if (!alreadyUsed.has(base)) {
+      acc.push(base)
+      return acc
+    }
+
+    let attempt = 2
+    let candidate = `${base}_${attempt}`
+    while (alreadyUsed.has(candidate)) {
+      attempt += 1
+      candidate = `${base}_${attempt}`
+    }
+    acc.push(candidate)
+    return acc
+  }, [])
   return rows
     .slice(1)
     .filter((row) => row.some((cell) => cell.trim()))

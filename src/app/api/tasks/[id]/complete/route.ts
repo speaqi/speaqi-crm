@@ -13,9 +13,34 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   try {
     const { id } = await context.params
-    const task = await completeLeadTask(auth.supabase, auth.user.id, id)
+    if (!auth.isAdmin) {
+      const { data: currentTask } = await auth.supabase
+        .from('tasks')
+        .select('contact_id')
+        .eq('user_id', auth.workspaceUserId)
+        .eq('id', id)
+        .single()
 
-    await logLeadActivity(auth.supabase, auth.user.id, {
+      if (!currentTask) {
+        return Response.json({ error: 'Task non trovato' }, { status: 404 })
+      }
+
+      const { data: allowedContact } = await auth.supabase
+        .from('contacts')
+        .select('id')
+        .eq('user_id', auth.workspaceUserId)
+        .eq('id', currentTask.contact_id)
+        .eq('responsible', auth.memberName || '__no_member__')
+        .single()
+
+      if (!allowedContact) {
+        return Response.json({ error: 'Task non accessibile' }, { status: 403 })
+      }
+    }
+
+    const task = await completeLeadTask(auth.supabase, auth.workspaceUserId, id)
+
+    await logLeadActivity(auth.supabase, auth.workspaceUserId, {
       leadId: String(task.contact_id),
       type: 'note',
       content: `Task completata via API: ${normalizeTaskRecord(task).action}.`,
