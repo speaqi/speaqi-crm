@@ -1,7 +1,7 @@
 <claude-mem-context>
 # Memory Context
 
-# [speaqi-crm] recent context, 2026-04-24 7:55am GMT+2
+# [speaqi-crm] recent context, 2026-04-24 8:33am GMT+2
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision
 Format: ID TIME TYPE TITLE
@@ -64,3 +64,11 @@ Stats: 50 obs (17,325t read) | 492,166t work | 96% savings
 
 Access 492k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>
+
+## Collaborator access — verification checklist
+
+If a team member sees an empty CRM after login, check in Supabase:
+
+1. **`team_members` row**: `user_id` must be the workspace owner’s `auth.users.id`. The collaborator must be linked via **`auth_user_id`** = their Supabase user id **or** **`email`** (non-empty) matching the login email (case-insensitive after trim).
+2. **Assignment fields**: RLS and API treat a contact as assigned to a member when **`lower(trim(responsible))`** or **`lower(trim(assigned_agent))`** equals **`lower(trim(team_members.name))`**. If the admin UI shows an assignee but the DB value differs (extra spaces, spelling), fix the contact or rename the member (team update can cascade `responsible` in some flows).
+3. **Apply migrations**: Policies in `20260424120000_collaborator_rls_align.sql` replace stricter older rules; run `supabase db push` / migrate on the target project.

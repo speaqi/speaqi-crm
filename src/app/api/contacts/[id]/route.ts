@@ -9,6 +9,7 @@ import {
   updateContactSummary,
 } from '@/lib/server/crm'
 import { getGmailAccount, gmailStatus, isMissingRelation } from '@/lib/server/gmail'
+import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { requireRouteUser } from '@/lib/server/supabase'
 
 type RouteContext = {
@@ -157,7 +158,8 @@ async function getContactRecord(supabase: any, userId: string, id: string, respo
     .eq('id', id)
 
   if (responsible) {
-    query = query.ilike('responsible', responsible)
+    const assigneeOr = contactAssigneeMatchOrFilter(responsible)
+    if (assigneeOr) query = query.or(assigneeOr)
   }
 
   const { data, error } = await query.single()

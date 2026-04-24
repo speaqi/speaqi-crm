@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { isClosedStatus, normalizeContactScope } from '@/lib/data'
 import { completePendingCallTasks, syncPendingCallTask } from '@/lib/server/crm'
+import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { requireRouteUser } from '@/lib/server/supabase'
 
 function normalizeText(value: unknown) {
@@ -101,9 +102,13 @@ export async function PATCH(request: NextRequest) {
       .in('id', contactIds)
 
     if (!auth.isAdmin) {
-      bulkQuery = auth.memberName
-        ? bulkQuery.ilike('responsible', auth.memberName)
-        : bulkQuery.eq('responsible', '__no_member__')
+      if (auth.memberName) {
+        const assigneeOr = contactAssigneeMatchOrFilter(auth.memberName)
+        if (assigneeOr) bulkQuery = bulkQuery.or(assigneeOr)
+        else bulkQuery = bulkQuery.eq('responsible', '__no_member__')
+      } else {
+        bulkQuery = bulkQuery.eq('responsible', '__no_member__')
+      }
     }
 
     const { data, error } = await bulkQuery.select('*')

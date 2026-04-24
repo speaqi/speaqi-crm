@@ -7,6 +7,7 @@ import {
   syncContactNextFollowupFromPendingTasks,
   updateContactSummary,
 } from '@/lib/server/crm'
+import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { requireRouteUser } from '@/lib/server/supabase'
 
 type RouteContext = {
@@ -37,9 +38,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         .select('id')
         .eq('user_id', auth.workspaceUserId)
         .eq('id', currentTask.contact_id)
-      ownerQuery = auth.memberName
-        ? ownerQuery.ilike('responsible', auth.memberName)
-        : ownerQuery.eq('responsible', '__no_member__')
+      if (auth.memberName) {
+        const assigneeOr = contactAssigneeMatchOrFilter(auth.memberName)
+        if (assigneeOr) ownerQuery = ownerQuery.or(assigneeOr)
+        else ownerQuery = ownerQuery.eq('responsible', '__no_member__')
+      } else {
+        ownerQuery = ownerQuery.eq('responsible', '__no_member__')
+      }
       const { data: contactOwner } = await ownerQuery.single()
 
       if (!contactOwner) {

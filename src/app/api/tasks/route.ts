@@ -1,4 +1,8 @@
 import { NextRequest } from 'next/server'
+import {
+  TASKS_CONTACT_FOREIGN_TABLE,
+  contactAssigneeMatchOrFilter,
+} from '@/lib/server/collaborator-filters'
 import { requireRouteUser } from '@/lib/server/supabase'
 
 function errorMessage(error: unknown, fallback: string) {
@@ -25,14 +29,17 @@ export async function GET(request: NextRequest) {
     let query = auth.supabase
       .from('tasks')
       .select(
-        '*, contact:contacts(id, name, status, source, category, company, phone, responsible, event_tag, last_activity_summary, contact_scope, priority, next_followup_at)'
+        '*, contact:contacts(id, name, status, source, category, company, phone, responsible, assigned_agent, event_tag, last_activity_summary, contact_scope, priority, next_followup_at)'
       )
       .eq('user_id', auth.workspaceUserId)
       .order('due_date', { ascending: true, nullsFirst: false })
 
     if (!auth.isAdmin) {
       if (!auth.memberName) return Response.json({ tasks: [] })
-      query = query.filter('contact.responsible', 'ilike', auth.memberName)
+      const assigneeOr = contactAssigneeMatchOrFilter(auth.memberName)
+      if (assigneeOr) {
+        query = query.or(assigneeOr, { foreignTable: TASKS_CONTACT_FOREIGN_TABLE })
+      }
     }
 
     if (status) {

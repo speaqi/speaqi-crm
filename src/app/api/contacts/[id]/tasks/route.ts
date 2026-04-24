@@ -4,6 +4,7 @@ import { normalizeTaskAction, normalizeTaskPriority, syncLeadActionDates } from 
 import { addTaskToCalendar } from '@/lib/server/gcal'
 import { isCallTaskType } from '@/lib/schedule'
 import { createActivities, formatActivityDate, updateContactSummary } from '@/lib/server/crm'
+import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { requireRouteUser } from '@/lib/server/supabase'
 
 type RouteContext = {
@@ -23,9 +24,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
       .eq('id', id)
 
     if (!auth.isAdmin) {
-      contactQuery = auth.memberName
-        ? contactQuery.ilike('responsible', auth.memberName)
-        : contactQuery.eq('responsible', '__no_member__')
+      if (auth.memberName) {
+        const assigneeOr = contactAssigneeMatchOrFilter(auth.memberName)
+        if (assigneeOr) contactQuery = contactQuery.or(assigneeOr)
+        else contactQuery = contactQuery.eq('responsible', '__no_member__')
+      } else {
+        contactQuery = contactQuery.eq('responsible', '__no_member__')
+      }
     }
 
     const { data: allowedContact } = await contactQuery.single()
@@ -70,9 +75,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
       .eq('id', id)
 
     if (!auth.isAdmin) {
-      contactQuery = auth.memberName
-        ? contactQuery.ilike('responsible', auth.memberName)
-        : contactQuery.eq('responsible', '__no_member__')
+      if (auth.memberName) {
+        const assigneeOr = contactAssigneeMatchOrFilter(auth.memberName)
+        if (assigneeOr) contactQuery = contactQuery.or(assigneeOr)
+        else contactQuery = contactQuery.eq('responsible', '__no_member__')
+      } else {
+        contactQuery = contactQuery.eq('responsible', '__no_member__')
+      }
     }
 
     const { data: contact, error: contactError } = await contactQuery.single()

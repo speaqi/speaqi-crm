@@ -1,10 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { DragEvent, useMemo, useState } from 'react'
+import { DragEvent, MouseEvent, KeyboardEvent, useMemo, useState } from 'react'
+import { ContactDrawer } from '@/components/crm/ContactDrawer'
+import { ContactModal } from '@/components/crm/ContactModal'
 import { useCRMContext } from '../layout'
 import { isClosedStatus, priorityLabel, statusLabel } from '@/lib/data'
 import type { ScheduledCall } from '@/lib/schedule'
+import type { ContactInput, CRMContact } from '@/types'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const DAYS_BACK = 1
@@ -89,13 +92,19 @@ export default function OggiPage() {
     allContacts,
     scheduledCalls,
     stages,
+    teamMembers,
     completeTask,
     updateTask,
     updateContact,
+    deleteContact,
     showToast,
   } = useCRMContext()
   const [dragOverKey, setDragOverKey] = useState<string | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [drawerContactId, setDrawerContactId] = useState<string | null>(null)
+  const [drawerAnchor, setDrawerAnchor] = useState<{ x: number; y: number } | null>(null)
+  const [editingContact, setEditingContact] = useState<CRMContact | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
 
   const now = new Date()
   const today = startOfDay(now)
@@ -254,6 +263,26 @@ export default function OggiPage() {
     }
   }
 
+  function openDrawer(contactId: string, anchor?: { x: number; y: number } | null) {
+    setDrawerContactId(contactId)
+    setDrawerAnchor(anchor || null)
+  }
+
+  function closeDrawer() {
+    setDrawerContactId(null)
+    setDrawerAnchor(null)
+  }
+
+  function openDrawerFromMouse(contactId: string, event: MouseEvent<HTMLElement>) {
+    openDrawer(contactId, { x: event.clientX, y: event.clientY })
+  }
+
+  function openDrawerFromKeyboard(contactId: string, event: KeyboardEvent<HTMLElement>) {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    openDrawer(contactId, null)
+  }
+
   function handleDragStart(event: DragEvent<HTMLElement>, call: ScheduledCall) {
     const payload: DragPayload = {
       contactId: call.contact.id,
@@ -369,6 +398,7 @@ export default function OggiPage() {
                   dragging={draggingId === call.contact.id}
                   onComplete={handleComplete}
                   onQuickMove={handleQuickSchedule}
+                  onOpenContact={openDrawerFromMouse}
                   onDragStart={handleDragStart}
                   onDragEnd={handleDragEnd}
                 />
@@ -391,23 +421,25 @@ export default function OggiPage() {
               {topPipelineContacts.map((contact) => {
                 const call = scheduledByContactId.get(contact.id) || null
                 return (
-                  <Link
-                    key={contact.id}
-                    href={`/contacts?id=${contact.id}`}
-                    className="oggi-pipeline-row"
-                  >
-                    <span className="oggi-pipeline-main">
-                      <strong>{contact.name}</strong>
-                      <span>{statusLabel(contact.status)}</span>
-                    </span>
-                    <span className="oggi-pipeline-meta">
-                      {contact.priority > 0 && <em>{priorityLabel(contact.priority)}</em>}
-                      <span>{followupLabel(call?.due_at || contact.next_followup_at)}</span>
-                    </span>
-                  </Link>
-                )
-              })}
-            </div>
+                <button
+                  type="button"
+                  key={contact.id}
+                  className="oggi-pipeline-row"
+                  onClick={(event) => openDrawerFromMouse(contact.id, event)}
+                  onKeyDown={(event) => openDrawerFromKeyboard(contact.id, event)}
+                >
+                  <span className="oggi-pipeline-main">
+                    <strong>{contact.name}</strong>
+                    <span>{statusLabel(contact.status)}</span>
+                  </span>
+                  <span className="oggi-pipeline-meta">
+                    {contact.priority > 0 && <em>{priorityLabel(contact.priority)}</em>}
+                    <span>{followupLabel(call?.due_at || contact.next_followup_at)}</span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
           )}
         </section>
       </div>
@@ -446,6 +478,7 @@ export default function OggiPage() {
                         variant={day.offset === 0 ? 'today' : 'upcoming'}
                         dragging={draggingId === call.contact.id}
                         onComplete={handleComplete}
+                        onOpenContact={openDrawerFromMouse}
                         onDragStart={handleDragStart}
                         onDragEnd={handleDragEnd}
                       />
@@ -484,19 +517,60 @@ export default function OggiPage() {
           ) : (
             <div className="oggi-stagnant-list">
               {stagnantContacts.map((contact) => (
-                <Link
+                <button
+                  type="button"
                   key={contact.id}
-                  href={`/contacts?id=${contact.id}`}
                   className="oggi-stagnant-row"
+                  onClick={(event) => openDrawerFromMouse(contact.id, event)}
+                  onKeyDown={(event) => openDrawerFromKeyboard(contact.id, event)}
                 >
                   <span className="oggi-stagnant-name">{contact.name}</span>
                   <span className="oggi-stagnant-meta">{statusLabel(contact.status)}</span>
-                </Link>
+                </button>
               ))}
             </div>
           )}
         </section>
       </div>
+
+      <ContactDrawer
+        contactId={drawerContactId}
+        anchorPoint={drawerAnchor}
+        onClose={closeDrawer}
+        onEdit={(id) => {
+          const target = allContacts.find((contact) => contact.id === id) || null
+          setEditingContact(target)
+          setModalOpen(true)
+        }}
+      />
+
+      <ContactModal
+        open={modalOpen}
+        title="Modifica contatto"
+        stages={stages}
+        teamMembers={teamMembers}
+        initialContact={editingContact}
+        onClose={() => {
+          setModalOpen(false)
+          setEditingContact(null)
+        }}
+        onSave={async (payload: ContactInput) => {
+          if (!editingContact) return
+          await updateContact(editingContact.id, payload)
+          showToast('Contatto aggiornato')
+          setDrawerContactId(editingContact.id)
+        }}
+        onDelete={
+          editingContact
+            ? async () => {
+                await deleteContact(editingContact.id)
+                setModalOpen(false)
+                closeDrawer()
+                showToast('Contatto eliminato')
+              }
+            : undefined
+        }
+      />
     </div>
   )
 }
@@ -507,6 +581,7 @@ function CallCard({
   dragging,
   onComplete,
   onQuickMove,
+  onOpenContact,
   onDragStart,
   onDragEnd,
 }: {
@@ -515,6 +590,7 @@ function CallCard({
   dragging: boolean
   onComplete: (taskId: string | null) => void
   onQuickMove?: (call: ScheduledCall, dayOffset: number) => void
+  onOpenContact: (contactId: string, event: MouseEvent<HTMLElement>) => void
   onDragStart: (event: DragEvent<HTMLElement>, call: ScheduledCall) => void
   onDragEnd: () => void
 }) {
@@ -533,11 +609,15 @@ function CallCard({
       <div className="oggi-call-time">
         {variant === 'overdue' ? '⏰' : time}
       </div>
-      <Link href={`/contacts?id=${call.contact.id}`} className="oggi-call-body">
+      <button
+        type="button"
+        className="oggi-call-body"
+        onClick={(event) => onOpenContact(call.contact.id, event)}
+      >
         <strong className="oggi-call-name">{call.contact.name}</strong>
         {call.contact.company && <span className="oggi-call-company">{call.contact.company}</span>}
         {priority > 0 && <span className={`oggi-call-pri pri-${priority}`}>{priorityLabel(priority)}</span>}
-      </Link>
+      </button>
       {variant === 'overdue' ? (
         <div className="oggi-call-actions">
           {[0, 1, 3, 7].map((dayOffset) => (
@@ -557,20 +637,24 @@ function CallCard({
         <button
           type="button"
           className="oggi-call-done"
-          onClick={() => onComplete(call.task!.id)}
+          onClick={(event) => {
+            event.stopPropagation()
+            onComplete(call.task!.id)
+          }}
           title="Segna completato"
           aria-label="Segna completato"
         >
           ✓
         </button>
       ) : (
-        <Link
-          href={`/contacts?id=${call.contact.id}`}
+        <button
+          type="button"
           className="oggi-call-done"
+          onClick={(event) => onOpenContact(call.contact.id, event)}
           aria-label="Apri"
         >
           →
-        </Link>
+        </button>
       )}
     </div>
   )

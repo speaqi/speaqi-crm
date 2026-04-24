@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { completeLeadTask, logLeadActivity, normalizeTaskRecord } from '@/lib/server/ai-ready'
 import { errorMessage } from '@/lib/server/http'
+import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { requireRouteUser } from '@/lib/server/supabase'
 
 type RouteContext = {
@@ -30,9 +31,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
         .select('id')
         .eq('user_id', auth.workspaceUserId)
         .eq('id', currentTask.contact_id)
-      allowedQuery = auth.memberName
-        ? allowedQuery.ilike('responsible', auth.memberName)
-        : allowedQuery.eq('responsible', '__no_member__')
+      if (auth.memberName) {
+        const assigneeOr = contactAssigneeMatchOrFilter(auth.memberName)
+        if (assigneeOr) allowedQuery = allowedQuery.or(assigneeOr)
+        else allowedQuery = allowedQuery.eq('responsible', '__no_member__')
+      } else {
+        allowedQuery = allowedQuery.eq('responsible', '__no_member__')
+      }
       const { data: allowedContact } = await allowedQuery.single()
 
       if (!allowedContact) {
