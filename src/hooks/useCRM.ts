@@ -113,8 +113,8 @@ export function useCRM(pathname = '') {
   const [authEmail, setAuthEmail] = useState<string | null>(null)
   const hasLoadedRef = useRef(false)
   const lastFetchScopeKeyRef = useRef<string | null>(null)
-  /** Solo dashboard: carica tutti i contatti/task workspace (equivale a ?workspace=all). */
-  const [adminDashboardShowAllContacts, setAdminDashboardShowAllContacts] = useState(false)
+  /** Solo dashboard: quando true, stessa copertura del Kanban (nessun filtro “solo non assegnati ai colleghi”). Default true: evita 15 vs 100+ dopo navigazione. */
+  const [adminDashboardShowAllContacts, setAdminDashboardShowAllContacts] = useState(true)
 
   const crmContacts = useMemo(
     () => state.contacts.filter((contact) => !isHoldingContact(contact)),
@@ -282,12 +282,6 @@ export function useCRM(pathname = '') {
       lastFetchScopeKeyRef.current = `${pathname}|${adminDashboardShowAllContacts}`
     }
   }, [pathname, adminDashboardShowAllContacts])
-
-  useEffect(() => {
-    if (pathname !== '/dashboard') {
-      setAdminDashboardShowAllContacts(false)
-    }
-  }, [pathname])
 
   useEffect(() => {
     if (!hasLoadedRef.current) return
