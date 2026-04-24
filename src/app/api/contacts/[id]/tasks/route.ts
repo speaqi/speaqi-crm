@@ -92,6 +92,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return Response.json({ error: 'Non puoi aggiungere task a un contatto chiuso' }, { status: 400 })
     }
 
+    if (isCallTaskType(type)) {
+      const { error: archiveError } = await auth.supabase
+        .from('tasks')
+        .update({ status: 'done' })
+        .eq('user_id', auth.workspaceUserId)
+        .eq('contact_id', id)
+        .eq('status', 'pending')
+        .in('type', ['follow-up', 'call'])
+      if (archiveError) throw archiveError
+    }
+
     const { data: task, error } = await auth.supabase
       .from('tasks')
       .insert({

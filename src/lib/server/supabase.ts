@@ -200,6 +200,24 @@ export async function requireRouteUser(request: NextRequest) {
     // Keep default owner/admin mapping.
   }
 
+  if (isAdmin && !memberName?.trim()) {
+    try {
+      const { data: rows } = await userSb
+        .from('team_members')
+        .select('name, auth_user_id, email')
+        .eq('user_id', workspaceUserId)
+      const self = (rows || []).find(
+        (row) =>
+          row.auth_user_id === user.id ||
+          String(row.email || '').trim().toLowerCase() === emailLc
+      )
+      const picked = self?.name?.trim()
+      if (picked) memberName = picked
+    } catch {
+      // ignore
+    }
+  }
+
   return {
     token,
     user,
