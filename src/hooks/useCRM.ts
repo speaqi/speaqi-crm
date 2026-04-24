@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import { isClosedStatus, isHoldingContact, isPersonalContact } from '@/lib/data'
-import { buildScheduledCalls, isCallTaskType } from '@/lib/schedule'
+import { buildScheduledCalls, dueAtLocalDateKey, isCallTaskType, localDayDateKey } from '@/lib/schedule'
 import { createClient } from '@/lib/supabase'
 import type {
   ActivityInput,
@@ -113,8 +113,8 @@ export function useCRM(pathname = '') {
   const [authEmail, setAuthEmail] = useState<string | null>(null)
   const hasLoadedRef = useRef(false)
   const lastFetchScopeKeyRef = useRef<string | null>(null)
-  /** Solo dashboard: quando true, stessa copertura del Kanban (nessun filtro “solo non assegnati ai colleghi”). Default true: evita 15 vs 100+ dopo navigazione. */
-  const [adminDashboardShowAllContacts, setAdminDashboardShowAllContacts] = useState(true)
+  /** Solo dashboard: false = solo i tuoi / non assegnati ai colleghi (default). True = tutto il workspace come Kanban. */
+  const [adminDashboardShowAllContacts, setAdminDashboardShowAllContacts] = useState(false)
 
   const crmContacts = useMemo(
     () => state.contacts.filter((contact) => !isHoldingContact(contact)),
@@ -183,13 +183,8 @@ export function useCRM(pathname = '') {
   const dueTodayCount = useMemo(() => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    const tomorrow = new Date(today)
-    tomorrow.setDate(tomorrow.getDate() + 1)
-
-    return scheduledCalls.filter((item) => {
-      const due = new Date(item.due_at)
-      return due >= today && due < tomorrow
-    }).length
+    const todayKey = localDayDateKey(today)
+    return scheduledCalls.filter((item) => dueAtLocalDateKey(item.due_at) === todayKey).length
   }, [scheduledCalls])
 
   const loadAll = useCallback(async ({ background = false }: { background?: boolean } = {}) => {

@@ -1,4 +1,4 @@
-import type { CRMContact, ContactInput, ContactScope, PipelineStage } from '@/types'
+import type { CRMContact, ContactInput, ContactScope, PipelineStage, TeamMember } from '@/types'
 
 export const DEFAULT_PIPELINE_STAGES: Array<Omit<PipelineStage, 'id'>> = [
   { name: 'New', order: 0, color: '#3b82f6', system_key: 'new' },
@@ -336,6 +336,36 @@ export function contactAssigneeIsOtherTeammate(
     if (v && otherTeammateNamesNorm.has(v)) return true
   }
   return false
+}
+
+/**
+ * Dashboard admin (vista filtrata): nasconde i lead assegnati a colleghi (match nome ↔ team_members).
+ * I contatti assegnati a te restano sempre visibili usando viewerResolvedName (team + email), utile se più
+ * persone hanno lo stesso nome visualizzato o se prima sparivano i tuoi appena creati.
+ */
+export function contactVisibleToAdminOnDashboard(
+  contact: CRMContact,
+  teamMembers: TeamMember[],
+  authEmail: string | null | undefined,
+  viewerResolvedName: string | null | undefined
+) {
+  const authLc = String(authEmail || '').trim().toLowerCase()
+  const viewerNorm = String(viewerResolvedName || '').trim().toLowerCase()
+  const r = (contact.responsible || '').trim().toLowerCase()
+  const a = (contact.assigned_agent || '').trim().toLowerCase()
+
+  if (viewerNorm && (r === viewerNorm || a === viewerNorm)) {
+    return true
+  }
+
+  for (const m of teamMembers) {
+    const mEmail = String(m.email || '').trim().toLowerCase()
+    if (!mEmail || mEmail === authLc) continue
+    const mName = String(m.name || '').trim().toLowerCase()
+    if (!mName) continue
+    if (r === mName || a === mName) return false
+  }
+  return true
 }
 
 export function contactIsUnassigned(contact: CRMContact) {

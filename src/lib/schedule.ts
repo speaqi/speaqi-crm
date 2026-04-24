@@ -80,3 +80,19 @@ export function buildScheduledCalls(contacts: CRMContact[], tasks: TaskWithConta
 
   return scheduledCalls.sort(compareScheduledCalls)
 }
+
+/** Chiave YYYY-MM-DD nel fuso locale (stesso “giorno di calendario” dell’utente). */
+export function localDayDateKey(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+/** Chiave giorno locale da ISO salvato su DB (evita che “oggi” finisca nel bucket sbagliato con UTC). */
+export function dueAtLocalDateKey(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+  return localDayDateKey(d)
+}

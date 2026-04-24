@@ -6,12 +6,12 @@ import { ContactDrawer } from '@/components/crm/ContactDrawer'
 import { ContactModal } from '@/components/crm/ContactModal'
 import { useCRMContext } from '../layout'
 import {
-  contactAssigneeIsOtherTeammate,
+  contactVisibleToAdminOnDashboard,
   isClosedStatus,
   priorityLabel,
   statusLabel,
 } from '@/lib/data'
-import { buildScheduledCalls, type ScheduledCall } from '@/lib/schedule'
+import { buildScheduledCalls, dueAtLocalDateKey, localDayDateKey, type ScheduledCall } from '@/lib/schedule'
 import type { ContactInput, CRMContact } from '@/types'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -127,22 +127,13 @@ export default function OggiPage() {
     return (viewerMemberName && viewerMemberName.trim()) || fromTeam || null
   }, [authEmail, teamMembers, viewerMemberName])
 
-  /** Nomi (lower) dei colleghi: email ≠ utente loggato. Esclude dalla dashboard i contatti loro. */
-  const otherTeammateNamesNorm = useMemo(() => {
-    const emailLc = (authEmail || '').trim().toLowerCase()
-    return new Set(
-      teamMembers
-        .filter((m) => (m.email || '').trim().toLowerCase() !== emailLc)
-        .map((m) => (m.name || '').trim().toLowerCase())
-        .filter(Boolean)
-    )
-  }, [teamMembers, authEmail])
-
   const scopeContacts = useMemo(() => {
     if (!isAdmin || adminDashboardShowAllContacts) return contacts
-    if (otherTeammateNamesNorm.size === 0) return contacts
-    return contacts.filter((c) => !contactAssigneeIsOtherTeammate(c, otherTeammateNamesNorm))
-  }, [adminDashboardShowAllContacts, contacts, isAdmin, otherTeammateNamesNorm])
+    if (!teamMembers.length) return contacts
+    return contacts.filter((c) =>
+      contactVisibleToAdminOnDashboard(c, teamMembers, authEmail, adminScopeName)
+    )
+  }, [adminDashboardShowAllContacts, adminScopeName, authEmail, contacts, isAdmin, teamMembers])
 
   const scopeContactIds = useMemo(() => new Set(scopeContacts.map((c) => c.id)), [scopeContacts])
 
@@ -160,15 +151,12 @@ export default function OggiPage() {
     const buckets: Array<{ date: Date; calls: ScheduledCall[]; offset: number }> = []
     for (let offset = -DAYS_BACK; offset < DAYS_AHEAD; offset += 1) {
       const dayStart = new Date(today.getTime() + offset * DAY_MS)
-      const dayEnd = new Date(dayStart.getTime() + DAY_MS)
+      const bucketKey = localDayDateKey(dayStart)
       buckets.push({
         date: dayStart,
         offset,
         calls: dashboardScheduledCalls
-          .filter((call) => {
-            const due = new Date(call.due_at)
-            return due >= dayStart && due < dayEnd
-          })
+          .filter((call) => dueAtLocalDateKey(call.due_at) === bucketKey)
           .sort((left, right) => new Date(left.due_at).getTime() - new Date(right.due_at).getTime()),
       })
     }
@@ -242,14 +230,14 @@ export default function OggiPage() {
     [dashboardScheduledCalls]
   )
 
-  const overdueCalls = useMemo<ScheduledCall[]>(
-    () =>
-      dashboardScheduledCalls.filter((call) => {
-        if (new Date(call.due_at) >= today) return false
-        return statusAboveContacted.has(call.contact.status)
-      }),
-    [dashboardScheduledCalls, statusAboveContacted, today]
-  )
+  const overdueCalls = useMemo<ScheduledCall[]>(() => {
+    const todayKey = localDayDateKey(today)
+    return dashboardScheduledCalls.filter((call) => {
+      const key = dueAtLocalDateKey(call.due_at)
+      if (!key || key >= todayKey) return false
+      return statusAboveContacted.has(call.contact.status)
+    })
+  }, [dashboardScheduledCalls, statusAboveContacted, today])
 
   const totalUpcoming = days.reduce((sum, day) => sum + day.calls.length, 0) + overdueCalls.length
 
