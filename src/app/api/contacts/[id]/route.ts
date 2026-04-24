@@ -157,7 +157,7 @@ async function getContactRecord(supabase: any, userId: string, id: string, respo
     .eq('id', id)
 
   if (responsible) {
-    query = query.eq('responsible', responsible)
+    query = query.ilike('responsible', responsible)
   }
 
   const { data, error } = await query.single()
@@ -179,7 +179,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       auth.supabase,
       auth.workspaceUserId,
       id,
-      auth.isAdmin ? null : auth.memberName || '__no_member__'
+      auth.isAdmin ? null : auth.memberName || null
     )
     if (!contact) {
       return Response.json({ error: 'Contatto non trovato' }, { status: 404 })
@@ -249,7 +249,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       auth.supabase,
       auth.workspaceUserId,
       id,
-      auth.isAdmin ? null : auth.memberName || '__no_member__'
+      auth.isAdmin ? null : auth.memberName || null
     )
     if (!current) {
       return Response.json({ error: 'Contatto non trovato' }, { status: 404 })
@@ -396,7 +396,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       auth.supabase,
       auth.workspaceUserId,
       id,
-      auth.isAdmin ? null : auth.memberName || '__no_member__'
+      auth.isAdmin ? null : auth.memberName || null
     )
     if (!contact) {
       return Response.json({ error: 'Contatto non trovato' }, { status: 404 })

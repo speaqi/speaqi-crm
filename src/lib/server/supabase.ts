@@ -49,6 +49,22 @@ export function getBearerToken(request: NextRequest) {
   return header.slice('Bearer '.length)
 }
 
+type TeamMemberCandidate = {
+  user_id?: string | null
+  name?: string | null
+  created_at?: string | null
+}
+
+function pickMostRecentCandidate(candidates: TeamMemberCandidate[]) {
+  const withWorkspace = candidates.filter((candidate) => candidate.user_id)
+  if (!withWorkspace.length) return null
+  return [...withWorkspace].sort(
+    (left, right) =>
+      new Date(String(right.created_at || 0)).getTime() -
+      new Date(String(left.created_at || 0)).getTime()
+  )[0]
+}
+
 export async function requireRouteUser(request: NextRequest) {
   const token = getBearerToken(request)
   if (!token) {
@@ -77,43 +93,38 @@ export async function requireRouteUser(request: NextRequest) {
   if (email) {
     try {
       const admin = createServiceRoleClient()
-      const { data: linkedMembers, error: linkedError } = await admin
-        .from('team_members')
-        .select('user_id, name')
-        .eq('auth_user_id', user.id)
-        .limit(2)
+      let resolvedMember: TeamMemberCandidate | null = null
 
-      if (linkedError) throw linkedError
+      try {
+        const { data: linkedMembers, error: linkedError } = await admin
+          .from('team_members')
+          .select('user_id, name, created_at')
+          .eq('auth_user_id', user.id)
+          .limit(50)
 
-      if ((linkedMembers || []).length === 1) {
-        const member = linkedMembers![0] as { user_id?: string | null; name?: string | null }
-        if (member.user_id) {
-          workspaceUserId = member.user_id
-          isAdmin = member.user_id === user.id
-          memberName = member.name || null
+        if (!linkedError && (linkedMembers || []).length >= 1) {
+          resolvedMember = pickMostRecentCandidate((linkedMembers || []) as TeamMemberCandidate[])
         }
-      } else {
+      } catch {
+        // Ignore and fallback to email lookup (useful before auth_user_id migration).
+      }
+
+      if (!resolvedMember) {
         const { data: matchedMembers, error: memberError } = await admin
-        .from('team_members')
-        .select('user_id, name, created_at')
-        .ilike('email', email)
-        .limit(10)
+          .from('team_members')
+          .select('user_id, name, created_at')
+          .eq('email', email)
+          .limit(50)
 
-        if (memberError) throw memberError
-
-        if ((matchedMembers || []).length >= 1) {
-          const member = [...matchedMembers!]
-            .sort(
-              (left: any, right: any) =>
-                new Date(String(right.created_at || 0)).getTime() -
-                new Date(String(left.created_at || 0)).getTime()
-            )[0] as { user_id?: string | null; name?: string | null }
-          if (member.user_id) {
-            workspaceUserId = member.user_id
-            isAdmin = member.user_id === user.id
-            memberName = member.name || null
-          }
+        if (!memberError && (matchedMembers || []).length >= 1) {
+          resolvedMember = pickMostRecentCandidate((matchedMembers || []) as TeamMemberCandidate[])
         }
+      }
+
+      if (resolvedMember?.user_id) {
+        workspaceUserId = resolvedMember.user_id
+        isAdmin = resolvedMember.user_id === user.id
+        memberName = resolvedMember.name || null
       }
     } catch {
       // Keep default owner/admin behavior when team mapping is unavailable.

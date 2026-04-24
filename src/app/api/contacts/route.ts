@@ -72,6 +72,9 @@ export async function GET(request: NextRequest) {
     if (scope === 'crm') query = query.eq('contact_scope', 'crm')
     if (scope === 'holding') query = query.eq('contact_scope', 'holding')
     if (scope === 'personal') query = query.eq('contact_scope', 'personal')
+    if (!auth.isAdmin && auth.memberName) {
+      query = query.ilike('responsible', auth.memberName)
+    }
 
     const { data, error } = await query
 

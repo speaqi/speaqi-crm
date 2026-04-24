@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     const admin = createServiceRoleClient()
     let authUserId: string | null = null
     if (email && password) {
-      const { error: createError } = await admin.auth.admin.createUser({
+      const { data: createdUserResult, error: createError } = await admin.auth.admin.createUser({
         email,
         password,
         email_confirm: true,
@@ -55,11 +55,14 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         )
       } else {
-        const { data: linkedUsers } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 })
-        const matchedUser = (linkedUsers?.users || []).find(
-          (candidate) => String(candidate.email || '').toLowerCase() === email
-        )
-        authUserId = matchedUser?.id || null
+        authUserId = createdUserResult.user?.id || null
+        if (!authUserId) {
+          const { data: linkedUsers } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 })
+          const matchedUser = (linkedUsers?.users || []).find(
+            (candidate) => String(candidate.email || '').toLowerCase() === email
+          )
+          authUserId = matchedUser?.id || null
+        }
       }
     } else if (email) {
       const { data: linkedUsers } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 })
