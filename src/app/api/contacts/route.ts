@@ -31,12 +31,28 @@ function errorMessage(error: unknown, fallback: string) {
   return fallback
 }
 
-function isMissingEmailDraftNoteColumn(error: unknown) {
+function isMissingOptionalContactColumn(error: unknown, column: 'email_draft_note' | 'personal_section') {
   const message = errorMessage(error, '').toLowerCase()
   return (
-    message.includes('email_draft_note') &&
+    message.includes(column) &&
     (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
   )
+}
+
+function buildContactInsertFallbackPayload(payload: Record<string, unknown>, error: unknown) {
+  const fallback = { ...payload }
+  let changed = false
+
+  if (isMissingOptionalContactColumn(error, 'email_draft_note')) {
+    delete fallback.email_draft_note
+    changed = true
+  }
+  if (isMissingOptionalContactColumn(error, 'personal_section')) {
+    delete fallback.personal_section
+    changed = true
+  }
+
+  return changed ? fallback : null
 }
 
 export async function GET(request: NextRequest) {
@@ -139,8 +155,9 @@ export async function POST(request: NextRequest) {
 
     if (!firstInsert.error) {
       contact = firstInsert.data
-    } else if (isMissingEmailDraftNoteColumn(firstInsert.error)) {
-      const { email_draft_note, ...fallbackPayload } = insertPayload
+    } else {
+      const fallbackPayload = buildContactInsertFallbackPayload(insertPayload, firstInsert.error)
+      if (fallbackPayload) {
       const retryInsert = await auth.supabase
         .from('contacts')
         .insert(fallbackPayload)
@@ -149,8 +166,9 @@ export async function POST(request: NextRequest) {
 
       contact = retryInsert.data
       insertError = retryInsert.error
-    } else {
-      insertError = firstInsert.error
+      } else {
+        insertError = firstInsert.error
+      }
     }
 
     if (insertError) throw insertError

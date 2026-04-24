@@ -34,12 +34,28 @@ function errorMessage(error: unknown, fallback: string) {
   return fallback
 }
 
-function isMissingEmailDraftNoteColumn(error: unknown) {
+function isMissingOptionalContactColumn(error: unknown, column: 'email_draft_note' | 'personal_section') {
   const message = errorMessage(error, '').toLowerCase()
   return (
-    message.includes('email_draft_note') &&
+    message.includes(column) &&
     (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
   )
+}
+
+function buildContactUpdateFallbackPayload(payload: Record<string, unknown>, error: unknown) {
+  const fallback = { ...payload }
+  let changed = false
+
+  if (isMissingOptionalContactColumn(error, 'email_draft_note')) {
+    delete fallback.email_draft_note
+    changed = true
+  }
+  if (isMissingOptionalContactColumn(error, 'personal_section')) {
+    delete fallback.personal_section
+    changed = true
+  }
+
+  return changed ? fallback : null
 }
 
 function isNoRowsError(error: unknown) {
@@ -299,8 +315,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     if (!firstUpdate.error) {
       data = firstUpdate.data
-    } else if (isMissingEmailDraftNoteColumn(firstUpdate.error)) {
-      const { email_draft_note, ...fallbackPayload } = updatePayload
+    } else {
+      const fallbackPayload = buildContactUpdateFallbackPayload(updatePayload, firstUpdate.error)
+      if (fallbackPayload) {
       const retryUpdate = await auth.supabase
         .from('contacts')
         .update(fallbackPayload)
@@ -311,8 +328,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
       data = retryUpdate.data
       updateError = retryUpdate.error
-    } else {
-      updateError = firstUpdate.error
+      } else {
+        updateError = firstUpdate.error
+      }
     }
 
     if (updateError) throw updateError
