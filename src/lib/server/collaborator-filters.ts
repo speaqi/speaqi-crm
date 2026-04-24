@@ -1,3 +1,11 @@
+/** Admin: full workspace list; collaboratore: parametro ignorato (sempre solo assegnati). */
+export function workspaceContactsAllFromRequest(
+  request: { nextUrl: URL },
+  isAdmin: boolean
+): boolean {
+  return isAdmin && request.nextUrl.searchParams.get('workspace') === 'all'
+}
+
 /**
  * PostgREST `.or()` fragment: contact assigned to a team member by `responsible` or `assigned_agent`
  * (case-insensitive match, same as `ilike` without wildcards).

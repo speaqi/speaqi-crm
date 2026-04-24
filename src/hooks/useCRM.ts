@@ -93,7 +93,10 @@ function extractMessage(error: unknown, fallback: string) {
   return fallback
 }
 
-export function useCRM() {
+const ROUTES_WORKSPACE_ALL =
+  /^\/(contacts|kanban|calendario|attivita|import|vinitaly|speaqi)(\/|$)/
+
+export function useCRM(pathname = '') {
   const [state, setState] = useState<CRMState>({
     stages: [],
     contacts: [],
@@ -109,6 +112,9 @@ export function useCRM() {
   const [userId, setUserId] = useState<string | null>(null)
   const [authEmail, setAuthEmail] = useState<string | null>(null)
   const hasLoadedRef = useRef(false)
+  const lastFetchScopeKeyRef = useRef<string | null>(null)
+  /** Solo dashboard: carica tutti i contatti/task workspace (equivale a ?workspace=all). */
+  const [adminDashboardShowAllContacts, setAdminDashboardShowAllContacts] = useState(false)
 
   const crmContacts = useMemo(
     () => state.contacts.filter((contact) => !isHoldingContact(contact)),
@@ -197,9 +203,37 @@ export function useCRM() {
     const warnings: string[] = []
 
     try {
+      let teamIsAdmin = true
+      try {
+        const teamResponse = await apiFetch<{
+          members: TeamMember[]
+          is_admin?: boolean
+          member_name?: string | null
+        }>('/api/team-members')
+        setTeamMembers(teamResponse.members || [])
+        teamIsAdmin = Boolean(teamResponse.is_admin ?? true)
+        setIsAdmin(teamIsAdmin)
+        setViewerMemberName(
+          teamResponse.member_name != null && String(teamResponse.member_name).trim()
+            ? String(teamResponse.member_name).trim()
+            : null
+        )
+      } catch (teamError) {
+        warnings.push(`Team: ${extractMessage(teamError, 'Errore caricando il team')}`)
+      }
+
+      const routeWantsWorkspaceAll = ROUTES_WORKSPACE_ALL.test(pathname)
+      const useWorkspaceAll =
+        teamIsAdmin &&
+        (routeWantsWorkspaceAll ||
+          (pathname === '/dashboard' && adminDashboardShowAllContacts))
+
+      const contactsQuery = useWorkspaceAll ? '/api/contacts?workspace=all' : '/api/contacts'
+      const tasksQuery = useWorkspaceAll ? '/api/tasks?status=pending&workspace=all' : '/api/tasks?status=pending'
+
       const [stagesResult, contactsResult] = await Promise.allSettled([
         apiFetch<{ stages: PipelineStage[] }>('/api/pipeline-stages'),
-        apiFetch<{ contacts: CRMContact[] }>('/api/contacts'),
+        apiFetch<{ contacts: CRMContact[] }>(contactsQuery),
       ])
 
       if (stagesResult.status === 'fulfilled') {
@@ -219,7 +253,7 @@ export function useCRM() {
           await apiFetch<{ migrated_contacts: number; migrated_tasks: number }>('/api/import/legacy', {
             method: 'POST',
           })
-          const reloadedContacts = await apiFetch<{ contacts: CRMContact[] }>('/api/contacts')
+          const reloadedContacts = await apiFetch<{ contacts: CRMContact[] }>(contactsQuery)
           nextContacts = reloadedContacts.contacts || []
         } catch (legacyError) {
           warnings.push(`Import legacy: ${extractMessage(legacyError, 'Errore importando i dati legacy')}`)
@@ -227,27 +261,10 @@ export function useCRM() {
       }
 
       try {
-        const tasksResponse = await apiFetch<{ tasks: TaskWithContact[] }>('/api/tasks?status=pending')
+        const tasksResponse = await apiFetch<{ tasks: TaskWithContact[] }>(tasksQuery)
         nextTasks = tasksResponse.tasks || []
       } catch (tasksError) {
         warnings.push(`Task: ${extractMessage(tasksError, 'Errore caricando i task')}`)
-      }
-
-      try {
-        const teamResponse = await apiFetch<{
-          members: TeamMember[]
-          is_admin?: boolean
-          member_name?: string | null
-        }>('/api/team-members')
-        setTeamMembers(teamResponse.members || [])
-        setIsAdmin(Boolean(teamResponse.is_admin ?? true))
-        setViewerMemberName(
-          teamResponse.member_name != null && String(teamResponse.member_name).trim()
-            ? String(teamResponse.member_name).trim()
-            : null
-        )
-      } catch (teamError) {
-        warnings.push(`Team: ${extractMessage(teamError, 'Errore caricando il team')}`)
       }
 
       setState((previous) => ({
@@ -262,8 +279,22 @@ export function useCRM() {
     } finally {
       hasLoadedRef.current = true
       if (shouldBlockUI) setLoading(false)
+      lastFetchScopeKeyRef.current = `${pathname}|${adminDashboardShowAllContacts}`
     }
-  }, [])
+  }, [pathname, adminDashboardShowAllContacts])
+
+  useEffect(() => {
+    if (pathname !== '/dashboard') {
+      setAdminDashboardShowAllContacts(false)
+    }
+  }, [pathname])
+
+  useEffect(() => {
+    if (!hasLoadedRef.current) return
+    const key = `${pathname}|${adminDashboardShowAllContacts}`
+    if (lastFetchScopeKeyRef.current === key) return
+    void loadAll({ background: true })
+  }, [pathname, adminDashboardShowAllContacts, loadAll])
 
   useEffect(() => {
     const supabase = createClient()
@@ -641,6 +672,8 @@ export function useCRM() {
     error,
     userId,
     refresh: () => loadAll({ background: true }),
+    adminDashboardShowAllContacts,
+    setAdminDashboardShowAllContacts,
     createTeamMember,
     updateTeamMember,
     deleteTeamMember,

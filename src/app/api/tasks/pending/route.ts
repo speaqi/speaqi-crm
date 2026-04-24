@@ -4,6 +4,7 @@ import { errorMessage, parseLimit } from '@/lib/server/http'
 import {
   TASKS_CONTACT_FOREIGN_TABLE,
   contactAssigneeMatchOrFilter,
+  workspaceContactsAllFromRequest,
 } from '@/lib/server/collaborator-filters'
 import { requireRouteUser } from '@/lib/server/supabase'
 
@@ -23,7 +24,8 @@ export async function GET(request: NextRequest) {
       .order('due_date', { ascending: true, nullsFirst: false })
       .limit(limit)
 
-    if (!auth.isAdmin && auth.memberName) {
+    const workspaceAll = workspaceContactsAllFromRequest(request, auth.isAdmin)
+    if (auth.memberName && !workspaceAll) {
       const assigneeOr = contactAssigneeMatchOrFilter(auth.memberName)
       if (assigneeOr) {
         query = query.or(assigneeOr, { foreignTable: TASKS_CONTACT_FOREIGN_TABLE })

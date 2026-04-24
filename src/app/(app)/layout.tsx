@@ -26,7 +26,7 @@ export function useCRMContext() {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  const crm = useCRM()
+  const crm = useCRM(pathname)
   const [authChecked, setAuthChecked] = useState(false)
   const [toastMessage, setToastMessage] = useState('')
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)

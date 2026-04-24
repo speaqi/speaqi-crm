@@ -1,7 +1,10 @@
 import { NextRequest } from 'next/server'
 import { createActivities, ensurePipelineStages, formatActivityDate, updateContactSummary } from '@/lib/server/crm'
 import { priorityLevelFromNumber } from '@/lib/server/ai-ready'
-import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
+import {
+  contactAssigneeMatchOrFilter,
+  workspaceContactsAllFromRequest,
+} from '@/lib/server/collaborator-filters'
 import { requireRouteUser } from '@/lib/server/supabase'
 import { isClosedStatus, normalizeContactScope } from '@/lib/data'
 
@@ -73,9 +76,12 @@ export async function GET(request: NextRequest) {
     if (scope === 'crm') query = query.eq('contact_scope', 'crm')
     if (scope === 'holding') query = query.eq('contact_scope', 'holding')
     if (scope === 'personal') query = query.eq('contact_scope', 'personal')
-    if (!auth.isAdmin && auth.memberName) {
+
+    const workspaceAll = workspaceContactsAllFromRequest(request, auth.isAdmin)
+    if (auth.memberName && !workspaceAll) {
       const assigneeOr = contactAssigneeMatchOrFilter(auth.memberName)
       if (assigneeOr) query = query.or(assigneeOr)
+      else if (!auth.isAdmin) query = query.eq('responsible', '__no_member__')
     }
 
     const { data, error } = await query
