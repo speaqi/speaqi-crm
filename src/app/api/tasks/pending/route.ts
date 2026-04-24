@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       .limit(limit)
 
     const workspaceAll = workspaceContactsAllFromRequest(request, auth.isAdmin)
-    if (auth.memberName && !workspaceAll) {
+    if (!auth.isAdmin && auth.memberName && !workspaceAll) {
       const assigneeOr = contactAssigneeMatchOrFilter(auth.memberName)
       if (assigneeOr) {
         query = query.or(assigneeOr, { foreignTable: TASKS_CONTACT_FOREIGN_TABLE })

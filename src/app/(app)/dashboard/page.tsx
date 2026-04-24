@@ -16,7 +16,8 @@ import type { ContactInput, CRMContact } from '@/types'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const DAYS_BACK = 1
-const DAYS_AHEAD = 5
+/** Offset massimo nel loop (escluso): ieri … oggi … fino a oggi + (DAYS_AHEAD - 1) giorni (~2 settimane). */
+const DAYS_AHEAD = 15
 
 function startOfDay(date: Date) {
   const clone = new Date(date)
@@ -408,7 +409,7 @@ export default function OggiPage() {
           </div>
           <div className="oggi-stat">
             <strong>{totalUpcoming}</strong>
-            <span>prossimi 5gg</span>
+            <span>prossimi ~2 sett.</span>
           </div>
         </div>
         <div className="oggi-hero-actions">
@@ -510,7 +511,7 @@ export default function OggiPage() {
 
       <section className="oggi-week">
         <div className="oggi-week-head">
-          <h2>Ieri + prossimi 5 giorni</h2>
+          <h2>Ieri + circa 2 settimane</h2>
           <span className="oggi-week-hint">Trascina un contatto per spostarlo di giorno</span>
           <Link href="/calendario" className="oggi-week-link">Vista calendario →</Link>
         </div>
