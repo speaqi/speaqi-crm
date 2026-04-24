@@ -322,6 +322,22 @@ export function contactMatchesAssigneeName(contact: CRMContact, memberName: stri
   return r === t || a === t
 }
 
+/**
+ * True se il contatto risulta assegnato (responsible o assigned_agent) a un altro membro del team:
+ * il nome coincide (case-insensitive) con un membro la cui email NON è quella dell’utente loggato.
+ * Usato sulla dashboard admin quando `member_name` API non coincide col testo in scheda.
+ */
+export function contactAssigneeIsOtherTeammate(
+  contact: CRMContact,
+  otherTeammateNamesNorm: Set<string>
+) {
+  for (const raw of [contact.responsible, contact.assigned_agent]) {
+    const v = (raw || '').trim().toLowerCase()
+    if (v && otherTeammateNamesNorm.has(v)) return true
+  }
+  return false
+}
+
 export function contactIsUnassigned(contact: CRMContact) {
   return !(contact.responsible || '').trim() && !(contact.assigned_agent || '').trim()
 }

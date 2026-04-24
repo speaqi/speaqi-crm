@@ -218,6 +218,12 @@ export async function requireRouteUser(request: NextRequest) {
     }
   }
 
+  if (isAdmin && !memberName?.trim()) {
+    const meta = user.user_metadata as Record<string, unknown> | undefined
+    const fromMeta = String(meta?.full_name || meta?.name || meta?.display_name || '').trim()
+    if (fromMeta) memberName = fromMeta
+  }
+
   return {
     token,
     user,
