@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 
     if (!auth.isAdmin) {
       if (!auth.memberName) return Response.json({ tasks: [] })
-      query = query.eq('contact.responsible', auth.memberName)
+      query = query.filter('contact.responsible', 'ilike', auth.memberName)
     }
 
     if (status) {

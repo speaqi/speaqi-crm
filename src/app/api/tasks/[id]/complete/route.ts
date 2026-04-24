@@ -25,13 +25,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
         return Response.json({ error: 'Task non trovato' }, { status: 404 })
       }
 
-      const { data: allowedContact } = await auth.supabase
+      let allowedQuery = auth.supabase
         .from('contacts')
         .select('id')
         .eq('user_id', auth.workspaceUserId)
         .eq('id', currentTask.contact_id)
-        .eq('responsible', auth.memberName || '__no_member__')
-        .single()
+      allowedQuery = auth.memberName
+        ? allowedQuery.ilike('responsible', auth.memberName)
+        : allowedQuery.eq('responsible', '__no_member__')
+      const { data: allowedContact } = await allowedQuery.single()
 
       if (!allowedContact) {
         return Response.json({ error: 'Task non accessibile' }, { status: 403 })

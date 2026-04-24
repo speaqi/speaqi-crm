@@ -15,6 +15,17 @@ export async function GET(request: NextRequest) {
   if ('error' in auth) return auth.error
 
   try {
+    if (!auth.isAdmin) {
+      const { data, error } = await auth.supabase
+        .from('pipeline_stages')
+        .select('*')
+        .eq('user_id', auth.workspaceUserId)
+        .order('order', { ascending: true })
+
+      if (error) throw error
+      return Response.json({ stages: data || [] })
+    }
+
     const stages = await ensurePipelineStages(auth.supabase, auth.workspaceUserId)
     return Response.json({ stages })
   } catch (error) {

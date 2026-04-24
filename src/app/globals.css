@@ -1522,6 +1522,17 @@ select.filter-select {
 .oggi-overdue-list { display: flex; flex-direction: column; gap: 6px; }
 .oggi-overdue-more { text-decoration: none; color: #b91c1c; font-size: 12.5px; padding: 6px 10px; }
 
+.oggi-focus-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.oggi-focus-grid.is-single { grid-template-columns: 1fr; }
+.oggi-focus-grid .oggi-overdue { margin-top: 0; }
+.oggi-top-pipeline-card { min-height: 100%; }
+
 .oggi-week { margin-top: 22px; }
 .oggi-week-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .oggi-week-head h2 { font-size: 15px; font-weight: 600; margin: 0; }
@@ -1661,6 +1672,29 @@ select.filter-select {
   padding: 0;
 }
 .oggi-call-done:hover { background: var(--accent); color: white; border-color: var(--accent); }
+.oggi-call-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.oggi-call-shift {
+  border: 1px solid rgba(185, 28, 28, 0.24);
+  background: white;
+  color: #b91c1c;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  cursor: pointer;
+}
+.oggi-call-shift:hover {
+  background: #b91c1c;
+  color: white;
+  border-color: #b91c1c;
+}
 
 .oggi-bottom-grid {
   margin-top: 22px;
@@ -1714,6 +1748,7 @@ select.filter-select {
 }
 
 @media (max-width: 1000px) {
+  .oggi-focus-grid { grid-template-columns: 1fr; }
   .oggi-week-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
   .oggi-v2 .oggi-hero { grid-template-columns: 1fr; }
   .oggi-hero-stats { border: none; padding: 0; }
@@ -2063,6 +2098,30 @@ select.filter-select {
   flex-direction: column;
   overflow-y: auto;
   animation: drawerSlide .22s ease;
+}
+.drawer.drawer-floating {
+  right: auto;
+  width: 460px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.24);
+}
+@media (max-width: 960px) {
+  .drawer.drawer-floating {
+    right: 0;
+    top: 0;
+    left: auto !important;
+    width: min(460px, 100vw);
+    height: 100vh;
+    max-height: none;
+    border-radius: 0;
+    border-left: 1px solid var(--border);
+    border-top: none;
+    border-right: none;
+  }
 }
 @keyframes drawerFade { from { opacity: 0 } to { opacity: 1 } }
 @keyframes drawerSlide { from { transform: translateX(20px); opacity: 0 } to { transform: translateX(0); opacity: 1 } }

@@ -101,7 +101,9 @@ export async function PATCH(request: NextRequest) {
       .in('id', contactIds)
 
     if (!auth.isAdmin) {
-      bulkQuery = bulkQuery.eq('responsible', auth.memberName || '__no_member__')
+      bulkQuery = auth.memberName
+        ? bulkQuery.ilike('responsible', auth.memberName)
+        : bulkQuery.eq('responsible', '__no_member__')
     }
 
     const { data, error } = await bulkQuery.select('*')

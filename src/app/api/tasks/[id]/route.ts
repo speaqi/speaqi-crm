@@ -32,13 +32,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (currentTaskError) throw currentTaskError
 
     if (!auth.isAdmin) {
-      const { data: contactOwner } = await auth.supabase
+      let ownerQuery = auth.supabase
         .from('contacts')
         .select('id')
         .eq('user_id', auth.workspaceUserId)
         .eq('id', currentTask.contact_id)
-        .eq('responsible', auth.memberName || '__no_member__')
-        .single()
+      ownerQuery = auth.memberName
+        ? ownerQuery.ilike('responsible', auth.memberName)
+        : ownerQuery.eq('responsible', '__no_member__')
+      const { data: contactOwner } = await ownerQuery.single()
 
       if (!contactOwner) {
         return Response.json({ error: 'Task non accessibile' }, { status: 403 })

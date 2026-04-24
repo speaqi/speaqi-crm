@@ -114,6 +114,7 @@ function ContactsPageInner() {
 
   const [modalOpen, setModalOpen] = useState(urlNew === '1')
   const [editingContact, setEditingContact] = useState<CRMContact | null>(null)
+  const [drawerAnchor, setDrawerAnchor] = useState<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     setListFilter(urlList)
@@ -126,13 +127,19 @@ function ContactsPageInner() {
     }
   }, [urlNew])
 
-  function openDrawer(id: string) {
+  useEffect(() => {
+    if (!urlId) setDrawerAnchor(null)
+  }, [urlId])
+
+  function openDrawer(id: string, anchor?: { x: number; y: number } | null) {
+    setDrawerAnchor(anchor || null)
     const params = new URLSearchParams(searchParams.toString())
     params.set('id', id)
     router.replace(`/contacts?${params.toString()}`, { scroll: false })
   }
 
   function closeDrawer() {
+    setDrawerAnchor(null)
     const params = new URLSearchParams(searchParams.toString())
     params.delete('id')
     const query = params.toString()
@@ -946,10 +953,10 @@ function ContactsPageInner() {
               <div
                 key={contact.id}
                 className="contacts-row"
-                onClick={() => openDrawer(contact.id)}
+                onClick={(e) => openDrawer(contact.id, { x: e.clientX, y: e.clientY })}
                 role="button"
                 tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openDrawer(contact.id) }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openDrawer(contact.id, null) }}
               >
                 <label
                   className="contacts-row-check"
@@ -1021,6 +1028,7 @@ function ContactsPageInner() {
 
       <ContactDrawer
         contactId={urlId}
+        anchorPoint={drawerAnchor}
         onClose={closeDrawer}
         onEdit={(id) => {
           const target = contacts.find((contact) => contact.id === id) || null

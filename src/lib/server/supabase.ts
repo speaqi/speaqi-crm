@@ -77,20 +77,42 @@ export async function requireRouteUser(request: NextRequest) {
   if (email) {
     try {
       const admin = createServiceRoleClient()
-      const { data: matchedMembers, error: memberError } = await admin
+      const { data: linkedMembers, error: linkedError } = await admin
         .from('team_members')
-        .select('user_id, name, email')
-        .ilike('email', email)
+        .select('user_id, name')
+        .eq('auth_user_id', user.id)
         .limit(2)
 
-      if (memberError) throw memberError
+      if (linkedError) throw linkedError
 
-      if ((matchedMembers || []).length === 1) {
-        const member = matchedMembers![0] as { user_id?: string | null; name?: string | null }
+      if ((linkedMembers || []).length === 1) {
+        const member = linkedMembers![0] as { user_id?: string | null; name?: string | null }
         if (member.user_id) {
           workspaceUserId = member.user_id
           isAdmin = member.user_id === user.id
           memberName = member.name || null
+        }
+      } else {
+        const { data: matchedMembers, error: memberError } = await admin
+        .from('team_members')
+        .select('user_id, name, created_at')
+        .ilike('email', email)
+        .limit(10)
+
+        if (memberError) throw memberError
+
+        if ((matchedMembers || []).length >= 1) {
+          const member = [...matchedMembers!]
+            .sort(
+              (left: any, right: any) =>
+                new Date(String(right.created_at || 0)).getTime() -
+                new Date(String(left.created_at || 0)).getTime()
+            )[0] as { user_id?: string | null; name?: string | null }
+          if (member.user_id) {
+            workspaceUserId = member.user_id
+            isAdmin = member.user_id === user.id
+            memberName = member.name || null
+          }
         }
       }
     } catch {

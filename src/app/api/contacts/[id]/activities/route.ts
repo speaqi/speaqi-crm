@@ -19,7 +19,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
       .eq('id', id)
 
     if (!auth.isAdmin) {
-      contactQuery = contactQuery.eq('responsible', auth.memberName || '__no_member__')
+      contactQuery = auth.memberName
+        ? contactQuery.ilike('responsible', auth.memberName)
+        : contactQuery.eq('responsible', '__no_member__')
     }
 
     const { data: allowedContact } = await contactQuery.single()
@@ -77,7 +79,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       .eq('id', id)
 
     if (!auth.isAdmin) {
-      contactQuery = contactQuery.eq('responsible', auth.memberName || '__no_member__')
+      contactQuery = auth.memberName
+        ? contactQuery.ilike('responsible', auth.memberName)
+        : contactQuery.eq('responsible', '__no_member__')
     }
 
     const { data: contact, error: contactError } = await contactQuery.single()

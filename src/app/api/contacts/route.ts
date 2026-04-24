@@ -69,11 +69,6 @@ export async function GET(request: NextRequest) {
       .order('next_followup_at', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false })
 
-    if (!auth.isAdmin) {
-      if (!auth.memberName) return Response.json({ contacts: [] })
-      query = query.eq('responsible', auth.memberName)
-    }
-
     if (scope === 'crm') query = query.eq('contact_scope', 'crm')
     if (scope === 'holding') query = query.eq('contact_scope', 'holding')
     if (scope === 'personal') query = query.eq('contact_scope', 'personal')

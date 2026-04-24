@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     const admin = createServiceRoleClient()
+    let authUserId: string | null = null
     if (email && password) {
       const { error: createError } = await admin.auth.admin.createUser({
         email,
@@ -53,13 +54,26 @@ export async function POST(request: NextRequest) {
           },
           { status: 400 }
         )
+      } else {
+        const { data: linkedUsers } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 })
+        const matchedUser = (linkedUsers?.users || []).find(
+          (candidate) => String(candidate.email || '').toLowerCase() === email
+        )
+        authUserId = matchedUser?.id || null
       }
+    } else if (email) {
+      const { data: linkedUsers } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 })
+      const matchedUser = (linkedUsers?.users || []).find(
+        (candidate) => String(candidate.email || '').toLowerCase() === email
+      )
+      authUserId = matchedUser?.id || null
     }
 
     const payload = {
       user_id: auth.workspaceUserId,
       name,
       email,
+      auth_user_id: authUserId,
       color: normalizeText(body.color),
     }
 

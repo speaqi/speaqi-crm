@@ -78,6 +78,11 @@ function followupLabel(value?: string | null) {
   })
 }
 
+function quickShiftLabel(dayOffset: number) {
+  if (dayOffset === 0) return 'Oggi'
+  return `+${dayOffset}`
+}
+
 export default function OggiPage() {
   const {
     contacts,
@@ -227,6 +232,28 @@ export default function OggiPage() {
     }
   }
 
+  async function handleQuickSchedule(call: ScheduledCall, dayOffset: number) {
+    const originalDue = new Date(call.due_at)
+    const targetDate = new Date(today.getTime() + dayOffset * DAY_MS)
+    targetDate.setHours(originalDue.getHours(), originalDue.getMinutes(), 0, 0)
+
+    if (dayOffset === 0 && targetDate.getTime() <= Date.now()) {
+      targetDate.setTime(Date.now() + 15 * 60 * 1000)
+      targetDate.setSeconds(0, 0)
+    }
+
+    try {
+      if (call.task?.id) {
+        await updateTask(call.task.id, { due_date: targetDate.toISOString() })
+      } else {
+        await updateContact(call.contact.id, { next_followup_at: targetDate.toISOString() })
+      }
+      showToast(`${call.contact.name} spostato a ${quickShiftLabel(dayOffset)}`)
+    } catch (error) {
+      showToast(`Errore: ${error instanceof Error ? error.message : 'spostamento rapido'}`)
+    }
+  }
+
   function handleDragStart(event: DragEvent<HTMLElement>, call: ScheduledCall) {
     const payload: DragPayload = {
       contactId: call.contact.id,
@@ -320,67 +347,70 @@ export default function OggiPage() {
         </div>
       </header>
 
-      {overdueCalls.length > 0 && (
-        <section
-          className={`oggi-overdue ${dragOverKey === 'overdue' ? 'is-drop-target' : ''}`}
-          onDragOver={(event) => handleDragOver(event, 'overdue')}
-          onDragLeave={(event) => handleDragLeave(event, 'overdue')}
-          onDrop={(event) => handleDrop(event, today)}
-        >
-          <div className="oggi-overdue-head">
-            <span className="oggi-overdue-icon">⏰</span>
-            <h2>Scaduti da recuperare</h2>
-            <span className="oggi-overdue-count">{overdueCalls.length}</span>
-          </div>
-          <div className="oggi-overdue-list">
-            {overdueCalls.slice(0, 6).map((call) => (
-              <CallCard
-                key={`ovd-${call.contact.id}`}
-                call={call}
-                variant="overdue"
-                dragging={draggingId === call.contact.id}
-                onComplete={handleComplete}
-                onDragStart={handleDragStart}
-                onDragEnd={handleDragEnd}
-              />
-            ))}
-            {overdueCalls.length > 6 && (
-              <Link href="/kanban?view=list" className="oggi-overdue-more">
-                +{overdueCalls.length - 6} altri →
-              </Link>
-            )}
-          </div>
-        </section>
-      )}
-
-      <section className="oggi-card">
-        <div className="oggi-card-title">🔥 Top pipeline in corso</div>
-        {topPipelineContacts.length === 0 ? (
-          <p className="oggi-muted">Nessun contatto in corso da evidenziare.</p>
-        ) : (
-          <div className="oggi-pipeline-list">
-            {topPipelineContacts.map((contact) => {
-              const call = scheduledByContactId.get(contact.id) || null
-              return (
-                <Link
-                  key={contact.id}
-                  href={`/contacts?id=${contact.id}`}
-                  className="oggi-pipeline-row"
-                >
-                  <span className="oggi-pipeline-main">
-                    <strong>{contact.name}</strong>
-                    <span>{statusLabel(contact.status)}</span>
-                  </span>
-                  <span className="oggi-pipeline-meta">
-                    {contact.priority > 0 && <em>{priorityLabel(contact.priority)}</em>}
-                    <span>{followupLabel(call?.due_at || contact.next_followup_at)}</span>
-                  </span>
+      <div className={`oggi-focus-grid ${overdueCalls.length === 0 ? 'is-single' : ''}`}>
+        {overdueCalls.length > 0 && (
+          <section
+            className={`oggi-overdue ${dragOverKey === 'overdue' ? 'is-drop-target' : ''}`}
+            onDragOver={(event) => handleDragOver(event, 'overdue')}
+            onDragLeave={(event) => handleDragLeave(event, 'overdue')}
+            onDrop={(event) => handleDrop(event, today)}
+          >
+            <div className="oggi-overdue-head">
+              <span className="oggi-overdue-icon">⏰</span>
+              <h2>Scaduti da recuperare</h2>
+              <span className="oggi-overdue-count">{overdueCalls.length}</span>
+            </div>
+            <div className="oggi-overdue-list">
+              {overdueCalls.slice(0, 6).map((call) => (
+                <CallCard
+                  key={`ovd-${call.contact.id}`}
+                  call={call}
+                  variant="overdue"
+                  dragging={draggingId === call.contact.id}
+                  onComplete={handleComplete}
+                  onQuickMove={handleQuickSchedule}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                />
+              ))}
+              {overdueCalls.length > 6 && (
+                <Link href="/kanban?view=list" className="oggi-overdue-more">
+                  +{overdueCalls.length - 6} altri →
                 </Link>
-              )
-            })}
-          </div>
+              )}
+            </div>
+          </section>
         )}
-      </section>
+
+        <section className="oggi-card oggi-top-pipeline-card">
+          <div className="oggi-card-title">🔥 Top pipeline in corso</div>
+          {topPipelineContacts.length === 0 ? (
+            <p className="oggi-muted">Nessun contatto in corso da evidenziare.</p>
+          ) : (
+            <div className="oggi-pipeline-list">
+              {topPipelineContacts.map((contact) => {
+                const call = scheduledByContactId.get(contact.id) || null
+                return (
+                  <Link
+                    key={contact.id}
+                    href={`/contacts?id=${contact.id}`}
+                    className="oggi-pipeline-row"
+                  >
+                    <span className="oggi-pipeline-main">
+                      <strong>{contact.name}</strong>
+                      <span>{statusLabel(contact.status)}</span>
+                    </span>
+                    <span className="oggi-pipeline-meta">
+                      {contact.priority > 0 && <em>{priorityLabel(contact.priority)}</em>}
+                      <span>{followupLabel(call?.due_at || contact.next_followup_at)}</span>
+                    </span>
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </section>
+      </div>
 
       <section className="oggi-week">
         <div className="oggi-week-head">
@@ -476,6 +506,7 @@ function CallCard({
   variant,
   dragging,
   onComplete,
+  onQuickMove,
   onDragStart,
   onDragEnd,
 }: {
@@ -483,6 +514,7 @@ function CallCard({
   variant: 'overdue' | 'today' | 'upcoming'
   dragging: boolean
   onComplete: (taskId: string | null) => void
+  onQuickMove?: (call: ScheduledCall, dayOffset: number) => void
   onDragStart: (event: DragEvent<HTMLElement>, call: ScheduledCall) => void
   onDragEnd: () => void
 }) {
@@ -506,7 +538,22 @@ function CallCard({
         {call.contact.company && <span className="oggi-call-company">{call.contact.company}</span>}
         {priority > 0 && <span className={`oggi-call-pri pri-${priority}`}>{priorityLabel(priority)}</span>}
       </Link>
-      {call.task?.id ? (
+      {variant === 'overdue' ? (
+        <div className="oggi-call-actions">
+          {[0, 1, 3, 7].map((dayOffset) => (
+            <button
+              key={dayOffset}
+              type="button"
+              className="oggi-call-shift"
+              onClick={() => onQuickMove?.(call, dayOffset)}
+              onMouseDown={(event) => event.stopPropagation()}
+              title={`Sposta a ${quickShiftLabel(dayOffset)}`}
+            >
+              {quickShiftLabel(dayOffset)}
+            </button>
+          ))}
+        </div>
+      ) : call.task?.id ? (
         <button
           type="button"
           className="oggi-call-done"

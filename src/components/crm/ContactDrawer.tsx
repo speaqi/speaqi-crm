@@ -22,6 +22,7 @@ interface ContactDrawerProps {
   contactId: string | null
   onClose: () => void
   onEdit?: (id: string) => void
+  anchorPoint?: { x: number; y: number } | null
 }
 
 function toInputDate(days: number) {
@@ -31,7 +32,7 @@ function toInputDate(days: number) {
   return date.toISOString().slice(0, 16)
 }
 
-export function ContactDrawer({ contactId, onClose, onEdit }: ContactDrawerProps) {
+export function ContactDrawer({ contactId, onClose, onEdit, anchorPoint = null }: ContactDrawerProps) {
   const { loadContactDetail, addActivity, addTask, updateContact, teamMembers, showToast } = useCRMContext()
   const [detail, setDetail] = useState<ContactDetail | null>(null)
   const [loading, setLoading] = useState(false)
@@ -43,6 +44,7 @@ export function ContactDrawer({ contactId, onClose, onEdit }: ContactDrawerProps
   const [draftNote, setDraftNote] = useState('')
   const [draftNoteSaving, setDraftNoteSaving] = useState(false)
   const [draftGenerating, setDraftGenerating] = useState(false)
+  const [promoting, setPromoting] = useState(false)
 
   useEffect(() => {
     if (!contactId) {
@@ -83,6 +85,14 @@ export function ContactDrawer({ contactId, onClose, onEdit }: ContactDrawerProps
 
   const contact = detail?.contact || null
   const activities = (detail?.activities || []).slice(0, 6)
+  const shouldFloat = Boolean(anchorPoint && typeof window !== 'undefined' && window.innerWidth > 960)
+  const drawerWidth = 460
+  const floatingStyle = shouldFloat
+    ? {
+        left: Math.max(12, Math.min(anchorPoint!.x + 16, window.innerWidth - drawerWidth - 12)),
+        top: Math.max(12, Math.min(anchorPoint!.y - 40, window.innerHeight - 680)),
+      }
+    : undefined
 
   async function saveNote() {
     if (!contactId || !noteText.trim()) return
@@ -128,7 +138,7 @@ export function ContactDrawer({ contactId, onClose, onEdit }: ContactDrawerProps
   return (
     <>
       <div className="drawer-backdrop" onClick={onClose} />
-      <aside className="drawer">
+      <aside className={`drawer ${shouldFloat ? 'drawer-floating' : ''}`} style={floatingStyle}>
         <div className="drawer-head">
           <div className="drawer-title-block">
             {contact ? (
@@ -163,6 +173,35 @@ export function ContactDrawer({ contactId, onClose, onEdit }: ContactDrawerProps
             </div>
 
             <div className="drawer-section">
+              {(isHoldingContact(contact) || isPersonalContact(contact)) && (
+                <div className="drawer-actions-row" style={{ marginBottom: 10 }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    disabled={promoting}
+                    onClick={async () => {
+                      if (!contact) return
+                      setPromoting(true)
+                      try {
+                        const fallbackFollowup = toInputDate(1)
+                        await updateContact(contact.id, {
+                          contact_scope: 'crm',
+                          next_followup_at: contact.next_followup_at || fallbackFollowup,
+                        })
+                        const refreshed = await loadContactDetail(contact.id)
+                        setDetail(refreshed)
+                        showToast('Contatto spostato in pipeline')
+                      } catch (error) {
+                        showToast(`Errore: ${error instanceof Error ? error.message : 'promozione pipeline'}`)
+                      } finally {
+                        setPromoting(false)
+                      }
+                    }}
+                  >
+                    {promoting ? 'Spostamento…' : 'Sposta in Pipeline subito'}
+                  </button>
+                </div>
+              )}
               <div className="drawer-kv">
                 <span>Email</span>
                 <strong>{contact.email || '—'}</strong>

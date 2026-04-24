@@ -78,6 +78,7 @@ export default function CalendarioPage() {
   const [outcomeContact, setOutcomeContact] = useState<CRMContact | null>(null)
   const [outcomeTask, setOutcomeTask] = useState<TaskWithContact | null>(null)
   const [drawerContactId, setDrawerContactId] = useState<string | null>(null)
+  const [drawerAnchor, setDrawerAnchor] = useState<{ x: number; y: number } | null>(null)
   const [draftNotes, setDraftNotes] = useState<Record<string, string>>({})
   const [savingDraftNoteId, setSavingDraftNoteId] = useState<string | null>(null)
   const [generatingDrafts, setGeneratingDrafts] = useState(false)
@@ -362,7 +363,10 @@ export default function CalendarioPage() {
                       )}
                       <button
                         className="btn btn-ghost btn-sm"
-                        onClick={() => setDrawerContactId(contact.id)}
+                        onClick={(event) => {
+                          setDrawerAnchor({ x: event.clientX, y: event.clientY })
+                          setDrawerContactId(contact.id)
+                        }}
                       >
                         Apri
                       </button>
@@ -459,7 +463,11 @@ export default function CalendarioPage() {
 
       <ContactDrawer
         contactId={drawerContactId}
-        onClose={() => setDrawerContactId(null)}
+        anchorPoint={drawerAnchor}
+        onClose={() => {
+          setDrawerContactId(null)
+          setDrawerAnchor(null)
+        }}
       />
     </>
   )

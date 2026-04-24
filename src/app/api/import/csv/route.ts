@@ -412,7 +412,7 @@ function buildInsertPayload(record: ImportedRecord) {
 }
 
 function buildUpdatePayload(record: ImportedRecord, current: ExistingContact) {
-  const effectiveScope = (current.contact_scope || 'crm') === 'crm' ? 'crm' : record.contact_scope
+  const effectiveScope = record.contact_scope
   const effectiveFollowupAt =
     effectiveScope === 'holding'
       ? null
@@ -431,7 +431,7 @@ function buildUpdatePayload(record: ImportedRecord, current: ExistingContact) {
     source: current.source || record.source,
     contact_scope: effectiveScope,
     priority: Math.max(Number(current.priority || 0), Number(record.priority || 0)),
-    responsible: current.responsible || record.responsible,
+    responsible: record.responsible || current.responsible,
     value: current.value ?? record.value,
     note: mergeNotes(current.note, record.note),
     last_activity_summary: record.note || current.last_activity_summary || current.note || record.last_activity_summary,
@@ -470,7 +470,7 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Il contenuto CSV è obbligatorio' }, { status: 400 })
     }
 
-    await ensurePipelineStages(auth.supabase, auth.user.id)
+    await ensurePipelineStages(auth.supabase, auth.workspaceUserId)
 
     const parsedRows = parseCsvText(csvText)
     if (!parsedRows.length) {
@@ -480,8 +480,15 @@ export async function POST(request: NextRequest) {
     const detection = detectCsvColumns(parsedRows)
     const defaultCategory = normalizeText(body.default_category)
     const defaultSource = normalizeText(body.default_source)
-    const defaultResponsible = normalizeText(body.default_responsible)
+    const requestedResponsible = normalizeText(body.default_responsible)
+    const defaultResponsible =
+      auth.isAdmin
+        ? requestedResponsible
+        : auth.memberName
     const contactScope = normalizeContactScope(body.contact_scope)
+    if (!auth.isAdmin && !defaultResponsible) {
+      return Response.json({ error: 'Collaboratore non associato a un membro team' }, { status: 403 })
+    }
     const mapping = resolveCsvMapping(detection, body.mapping)
     const fileName = normalizeText(body.file_name)?.replace(/\.[^.]+$/, '')
     const requestedListName = normalizeText(body.list_name)
@@ -493,7 +500,7 @@ export async function POST(request: NextRequest) {
       buildImportedRecord({
         row,
         index,
-        userId: auth.user.id,
+        userId: auth.workspaceUserId,
         defaultCategory,
         defaultSource,
         defaultResponsible,
@@ -507,7 +514,7 @@ export async function POST(request: NextRequest) {
     const { data: existingRows, error: existingError } = await auth.supabase
       .from('contacts')
       .select('id, legacy_id, name, email, phone, category, company, event_tag, list_name, country, status, source, contact_scope, priority, responsible, value, note, last_activity_summary, next_followup_at, next_action_at')
-      .eq('user_id', auth.user.id)
+      .eq('user_id', auth.workspaceUserId)
 
     if (existingError) throw existingError
 
@@ -526,7 +533,7 @@ export async function POST(request: NextRequest) {
         const { data, error } = await auth.supabase
           .from('contacts')
           .update(payload)
-          .eq('user_id', auth.user.id)
+          .eq('user_id', auth.workspaceUserId)
           .eq('id', matched.contact.id)
           .select('*')
           .single()
@@ -572,7 +579,7 @@ export async function POST(request: NextRequest) {
       const { data, error } = await auth.supabase
         .from('tasks')
         .select('contact_id')
-        .eq('user_id', auth.user.id)
+        .eq('user_id', auth.workspaceUserId)
         .eq('type', 'follow-up')
         .eq('status', 'pending')
         .in('contact_id', batch)
@@ -586,7 +593,7 @@ export async function POST(request: NextRequest) {
     const pendingTasks = openContacts
       .filter((contact) => !existingTaskContactIds.has(contact.id))
       .map((contact) => ({
-        user_id: auth.user.id,
+        user_id: auth.workspaceUserId,
         contact_id: contact.id,
         type: 'follow-up',
         action: 'call',
@@ -608,7 +615,7 @@ export async function POST(request: NextRequest) {
     await createActivities(
       auth.supabase,
       importResults.map(({ contact, created, matchReason }) => ({
-        user_id: auth.user.id,
+        user_id: auth.workspaceUserId,
         contact_id: contact.id,
         type: 'import',
         content: [
