@@ -10,8 +10,7 @@ export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
 
-  const admin = createServiceRoleClient()
-  const { data, error } = await admin
+  const { data, error } = await auth.supabase
     .from('team_members')
     .select('*')
     .eq('user_id', auth.workspaceUserId)

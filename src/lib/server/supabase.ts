@@ -66,6 +66,93 @@ function pickMostRecentCandidate(candidates: TeamMemberCandidate[]) {
   )[0]
 }
 
+async function resolveTeamMemberWithUserClient(
+  userSb: ReturnType<typeof createUserClient>,
+  userId: string,
+  emailLc: string
+): Promise<TeamMemberCandidate | null> {
+  const { data: linkedMembers, error: linkedError } = await userSb
+    .from('team_members')
+    .select('user_id, name, created_at')
+    .eq('auth_user_id', userId)
+    .limit(50)
+
+  if (!linkedError && (linkedMembers || []).length >= 1) {
+    return pickMostRecentCandidate((linkedMembers || []) as TeamMemberCandidate[])
+  }
+
+  if (!emailLc) return null
+
+  const { data: matchedMembers, error: memberError } = await userSb
+    .from('team_members')
+    .select('user_id, name, created_at')
+    .eq('email', emailLc)
+    .limit(50)
+
+  if (!memberError && (matchedMembers || []).length >= 1) {
+    return pickMostRecentCandidate((matchedMembers || []) as TeamMemberCandidate[])
+  }
+
+  const { data: ilikeMembers, error: ilikeError } = await userSb
+    .from('team_members')
+    .select('user_id, name, created_at, email')
+    .ilike('email', emailLc)
+    .limit(50)
+
+  if (!ilikeError && (ilikeMembers || []).length >= 1) {
+    const normalized = (ilikeMembers || []).filter(
+      (row: TeamMemberCandidate) => String(row.email || '').trim().toLowerCase() === emailLc
+    )
+    if (normalized.length) return pickMostRecentCandidate(normalized as TeamMemberCandidate[])
+  }
+
+  return null
+}
+
+async function resolveTeamMemberWithServiceRole(
+  userId: string,
+  emailLc: string
+): Promise<TeamMemberCandidate | null> {
+  const admin = createServiceRoleClient()
+
+  const { data: linkedMembers, error: linkedError } = await admin
+    .from('team_members')
+    .select('user_id, name, created_at')
+    .eq('auth_user_id', userId)
+    .limit(50)
+
+  if (!linkedError && (linkedMembers || []).length >= 1) {
+    return pickMostRecentCandidate((linkedMembers || []) as TeamMemberCandidate[])
+  }
+
+  if (emailLc) {
+    const { data: matchedMembers, error: memberError } = await admin
+      .from('team_members')
+      .select('user_id, name, created_at')
+      .eq('email', emailLc)
+      .limit(50)
+
+    if (!memberError && (matchedMembers || []).length >= 1) {
+      return pickMostRecentCandidate((matchedMembers || []) as TeamMemberCandidate[])
+    }
+
+    const { data: ilikeMembers, error: ilikeError } = await admin
+      .from('team_members')
+      .select('user_id, name, created_at, email')
+      .ilike('email', emailLc)
+      .limit(50)
+
+    if (!ilikeError && (ilikeMembers || []).length >= 1) {
+      const normalized = (ilikeMembers || []).filter(
+        (row: TeamMemberCandidate) => String(row.email || '').trim().toLowerCase() === emailLc
+      )
+      if (normalized.length) return pickMostRecentCandidate(normalized as TeamMemberCandidate[])
+    }
+  }
+
+  return null
+}
+
 export async function requireRouteUser(request: NextRequest) {
   const token = getBearerToken(request)
   if (!token) {
@@ -89,70 +176,34 @@ export async function requireRouteUser(request: NextRequest) {
   let workspaceUserId = user.id
   let isAdmin = true
   let memberName: string | null = null
-  const email = String(user.email || '').trim().toLowerCase()
+  const emailLc = String(user.email || '').trim().toLowerCase()
+  const userSb = createUserClient(token)
 
-  if (email) {
-    try {
-      const admin = createServiceRoleClient()
-      let resolvedMember: TeamMemberCandidate | null = null
+  try {
+    let resolvedMember =
+      (await resolveTeamMemberWithUserClient(userSb, user.id, emailLc)) || null
 
+    if (!resolvedMember) {
       try {
-        const { data: linkedMembers, error: linkedError } = await admin
-          .from('team_members')
-          .select('user_id, name, created_at')
-          .eq('auth_user_id', user.id)
-          .limit(50)
-
-        if (!linkedError && (linkedMembers || []).length >= 1) {
-          resolvedMember = pickMostRecentCandidate((linkedMembers || []) as TeamMemberCandidate[])
-        }
+        resolvedMember = await resolveTeamMemberWithServiceRole(user.id, emailLc)
       } catch {
-        // Ignore and fallback to email lookup (useful before auth_user_id migration).
+        // No service role key or lookup failure; collaborator may be unresolved.
       }
-
-      if (!resolvedMember) {
-        const { data: matchedMembers, error: memberError } = await admin
-          .from('team_members')
-          .select('user_id, name, created_at')
-          .eq('email', email)
-          .limit(50)
-
-        if (!memberError && (matchedMembers || []).length >= 1) {
-          resolvedMember = pickMostRecentCandidate((matchedMembers || []) as TeamMemberCandidate[])
-        }
-      }
-
-      if (!resolvedMember) {
-        const { data: ilikeMembers, error: ilikeError } = await admin
-          .from('team_members')
-          .select('user_id, name, created_at, email')
-          .ilike('email', email)
-          .limit(50)
-
-        if (!ilikeError && (ilikeMembers || []).length >= 1) {
-          const normalized = (ilikeMembers || []).filter(
-            (row: TeamMemberCandidate) => String(row.email || '').trim().toLowerCase() === email
-          )
-          if (normalized.length) {
-            resolvedMember = pickMostRecentCandidate(normalized)
-          }
-        }
-      }
-
-      if (resolvedMember?.user_id) {
-        workspaceUserId = resolvedMember.user_id
-        isAdmin = resolvedMember.user_id === user.id
-        memberName = resolvedMember.name?.trim() || null
-      }
-    } catch {
-      // Keep default owner/admin behavior when team mapping is unavailable.
     }
+
+    if (resolvedMember?.user_id) {
+      workspaceUserId = resolvedMember.user_id
+      isAdmin = resolvedMember.user_id === user.id
+      memberName = resolvedMember.name?.trim() || null
+    }
+  } catch {
+    // Keep default owner/admin mapping.
   }
 
   return {
     token,
     user,
-    supabase: createUserClient(token),
+    supabase: userSb,
     workspaceUserId,
     isAdmin,
     memberName,

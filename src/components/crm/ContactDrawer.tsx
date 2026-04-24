@@ -90,7 +90,6 @@ export function ContactDrawer({ contactId, onClose, onEdit, anchorPoint = null }
   const floatingStyle = shouldFloat
     ? {
         left: Math.max(12, Math.min(anchorPoint!.x + 16, window.innerWidth - drawerWidth - 12)),
-        top: Math.max(12, Math.min(anchorPoint!.y - 40, window.innerHeight - 680)),
       }
     : undefined
 
@@ -152,13 +151,25 @@ export function ContactDrawer({ contactId, onClose, onEdit, anchorPoint = null }
               <h2 className="drawer-name">{loading ? 'Caricamento…' : 'Contatto'}</h2>
             )}
           </div>
-          <button type="button" className="drawer-close" onClick={onClose} aria-label="Chiudi">
-            ×
-          </button>
+          <div className="drawer-head-actions">
+            {contact && onEdit && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => onEdit(contact.id)}
+              >
+                Modifica
+              </button>
+            )}
+            <button type="button" className="drawer-close" onClick={onClose} aria-label="Chiudi">
+              ×
+            </button>
+          </div>
         </div>
 
         {contact && (
           <>
+            <div className="drawer-body">
             <div className="drawer-badges">
               <span className="ctag ctag-contattato">{statusLabel(contact.status)}</span>
               <span className={`ctag ${priorityBadgeClass(contact.priority)}`}>{priorityLabel(contact.priority)}</span>
@@ -425,17 +436,9 @@ export function ContactDrawer({ contactId, onClose, onEdit, anchorPoint = null }
                 </ul>
               </div>
             )}
+            </div>
 
             <div className="drawer-footer">
-              {onEdit && (
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => onEdit(contact.id)}
-                >
-                  Modifica
-                </button>
-              )}
               <Link href={`/contacts/${contact.id}`} className="btn btn-primary btn-sm">
                 Apri scheda completa →
               </Link>

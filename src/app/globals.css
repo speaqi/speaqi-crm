@@ -2148,14 +2148,16 @@ select.filter-select {
   z-index: 41;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+  overflow: hidden;
+  min-height: 0;
   animation: drawerSlide .22s ease;
 }
 .drawer.drawer-floating {
   right: auto;
+  top: 12px;
+  bottom: 12px;
   width: 460px;
   max-width: calc(100vw - 24px);
-  max-height: calc(100vh - 24px);
   height: auto;
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -2165,6 +2167,7 @@ select.filter-select {
   .drawer.drawer-floating {
     right: 0;
     top: 0;
+    bottom: auto;
     left: auto !important;
     width: min(460px, 100vw);
     height: 100vh;
@@ -2200,6 +2203,20 @@ select.filter-select {
   line-height: 1;
 }
 .drawer-close:hover { background: var(--border); }
+
+.drawer-head-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
 
 .drawer-badges {
   display: flex;
@@ -2291,13 +2308,11 @@ select.filter-select {
 
 .drawer-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px;
   padding: 14px 20px;
   border-top: 1px solid var(--border);
-  margin-top: auto;
-  position: sticky;
-  bottom: 0;
+  flex-shrink: 0;
   background: var(--surface);
 }
 .drawer-loading { padding: 24px; color: var(--text3); text-align: center; }

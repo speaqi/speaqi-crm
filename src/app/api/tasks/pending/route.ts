@@ -23,8 +23,7 @@ export async function GET(request: NextRequest) {
       .order('due_date', { ascending: true, nullsFirst: false })
       .limit(limit)
 
-    if (!auth.isAdmin) {
-      if (!auth.memberName) return Response.json({ tasks: [] })
+    if (!auth.isAdmin && auth.memberName) {
       const assigneeOr = contactAssigneeMatchOrFilter(auth.memberName)
       if (assigneeOr) {
         query = query.or(assigneeOr, { foreignTable: TASKS_CONTACT_FOREIGN_TABLE })
