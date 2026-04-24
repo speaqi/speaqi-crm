@@ -5,8 +5,13 @@ import { DragEvent, MouseEvent, KeyboardEvent, useMemo, useState } from 'react'
 import { ContactDrawer } from '@/components/crm/ContactDrawer'
 import { ContactModal } from '@/components/crm/ContactModal'
 import { useCRMContext } from '../layout'
-import { isClosedStatus, priorityLabel, statusLabel } from '@/lib/data'
-import type { ScheduledCall } from '@/lib/schedule'
+import {
+  contactMatchesAssigneeName,
+  isClosedStatus,
+  priorityLabel,
+  statusLabel,
+} from '@/lib/data'
+import { buildScheduledCalls, type ScheduledCall } from '@/lib/schedule'
 import type { ContactInput, CRMContact } from '@/types'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -90,9 +95,13 @@ export default function OggiPage() {
   const {
     contacts,
     allContacts,
-    scheduledCalls,
+    scheduledCalls: globalScheduledCalls,
+    tasks: crmTasks,
     stages,
     teamMembers,
+    isAdmin,
+    viewerMemberName,
+    authEmail,
     completeTask,
     updateTask,
     updateContact,
@@ -105,10 +114,43 @@ export default function OggiPage() {
   const [drawerAnchor, setDrawerAnchor] = useState<{ x: number; y: number } | null>(null)
   const [editingContact, setEditingContact] = useState<CRMContact | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  /** Admin: default solo contatti assegnati al proprio nome team; true = tutti i contatti workspace */
+  const [adminShowAllDashboard, setAdminShowAllDashboard] = useState(false)
 
   const now = new Date()
   const today = startOfDay(now)
   const stagnantCutoff = new Date(today.getTime() - 14 * DAY_MS)
+
+  const adminScopeName = useMemo(() => {
+    const emailLc = (authEmail || '').trim().toLowerCase()
+    const fromTeam = teamMembers.find((m) => (m.email || '').trim().toLowerCase() === emailLc)?.name?.trim()
+    return (viewerMemberName && viewerMemberName.trim()) || fromTeam || null
+  }, [authEmail, teamMembers, viewerMemberName])
+
+  const dashboardContacts = useMemo(() => {
+    if (!isAdmin || !adminScopeName || adminShowAllDashboard) return contacts
+    return contacts.filter((c) => contactMatchesAssigneeName(c, adminScopeName))
+  }, [adminScopeName, adminShowAllDashboard, contacts, isAdmin])
+
+  const dashboardAllContacts = useMemo(() => {
+    if (!isAdmin || !adminScopeName || adminShowAllDashboard) return allContacts
+    return allContacts.filter((c) => contactMatchesAssigneeName(c, adminScopeName))
+  }, [adminScopeName, adminShowAllDashboard, allContacts, isAdmin])
+
+  const scheduledCalls = useMemo(
+    () =>
+      isAdmin && adminScopeName && !adminShowAllDashboard
+        ? buildScheduledCalls(dashboardContacts, crmTasks)
+        : globalScheduledCalls,
+    [
+      adminScopeName,
+      adminShowAllDashboard,
+      crmTasks,
+      dashboardContacts,
+      globalScheduledCalls,
+      isAdmin,
+    ]
+  )
 
   const days = useMemo(() => {
     const buckets: Array<{ date: Date; calls: ScheduledCall[]; offset: number }> = []
@@ -131,7 +173,7 @@ export default function OggiPage() {
 
   const stagnantContacts = useMemo(
     () =>
-      contacts
+      dashboardContacts
         .filter((contact) => !isClosedStatus(contact.status))
         .filter((contact) => !contact.next_followup_at)
         .filter((contact) => {
@@ -139,12 +181,12 @@ export default function OggiPage() {
           return reference && new Date(reference) < stagnantCutoff
         })
         .slice(0, 6),
-    [contacts, stagnantCutoff]
+    [dashboardContacts, stagnantCutoff]
   )
 
   const latestImport = useMemo<LatestImport | null>(() => {
     const byList = new Map<string, { count: number; latest: string }>()
-    for (const contact of allContacts) {
+    for (const contact of dashboardAllContacts) {
       const listName = contact.list_name?.trim()
       if (!listName) continue
       const existing = byList.get(listName) || { count: 0, latest: contact.created_at }
@@ -161,7 +203,7 @@ export default function OggiPage() {
     if (!best) return null
     const age = now.getTime() - new Date(best.createdAt).getTime()
     return age < 30 * DAY_MS ? best : null
-  }, [allContacts, now])
+  }, [dashboardAllContacts, now])
 
   const hour = now.getHours()
   const greeting = greetingForHour(hour)
@@ -208,7 +250,7 @@ export default function OggiPage() {
   const totalUpcoming = days.reduce((sum, day) => sum + day.calls.length, 0) + overdueCalls.length
 
   const topPipelineContacts = useMemo(() => {
-    return contacts
+    return dashboardContacts
       .filter((contact) => isInProgressStatus(contact.status))
       .sort((left, right) => {
         const rightPriority = Number(right.priority || 0)
@@ -230,7 +272,7 @@ export default function OggiPage() {
         return left.name.localeCompare(right.name)
       })
       .slice(0, 8)
-  }, [contacts, scheduledByContactId, stageOrderMap])
+  }, [dashboardContacts, scheduledByContactId, stageOrderMap])
 
   async function handleComplete(taskId: string | null) {
     if (!taskId) return
@@ -367,6 +409,20 @@ export default function OggiPage() {
           </div>
         </div>
         <div className="oggi-hero-actions">
+          {isAdmin && adminScopeName && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => setAdminShowAllDashboard((v) => !v)}
+              title={
+                adminShowAllDashboard
+                  ? `Mostra solo i contatti assegnati a ${adminScopeName}`
+                  : 'Mostra tutti i contatti del workspace'
+              }
+            >
+              {adminShowAllDashboard ? `Solo ${adminScopeName}` : 'Vedi tutti'}
+            </button>
+          )}
           <Link href="/contacts?new=1" className="btn btn-primary">
             + Nuovo contatto
           </Link>

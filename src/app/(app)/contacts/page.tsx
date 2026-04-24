@@ -7,6 +7,8 @@ import { MouseEvent, Suspense, useEffect, useMemo, useState } from 'react'
 import { ContactDrawer } from '@/components/crm/ContactDrawer'
 import { ContactModal } from '@/components/crm/ContactModal'
 import {
+  contactIsUnassigned,
+  contactMatchesAssigneeName,
   formatDateTime,
   holdingListLabel,
   isClosedStatus,
@@ -221,8 +223,8 @@ function ContactsPageInner() {
       if (listFilter && contact.list_name !== listFilter) return false
       if (assigneeFilter) {
         if (assigneeFilter === '__unassigned__') {
-          if (contact.responsible?.trim()) return false
-        } else if (contact.responsible?.trim() !== assigneeFilter) {
+          if (!contactIsUnassigned(contact)) return false
+        } else if (!contactMatchesAssigneeName(contact, assigneeFilter)) {
           return false
         }
       }
@@ -446,21 +448,20 @@ function ContactsPageInner() {
         >
           {repairingNames ? 'Correzione…' : 'Correggi nomi email'}
         </button>
-        {assignees.length > 0 && (
-          <select
-            className="filter-select"
-            value={assigneeFilter}
-            onChange={(event) => setAssigneeFilter(event.target.value)}
-          >
-            <option value="">Assegnato: tutti</option>
-            {assignees.map((assignee) => (
-              <option key={assignee} value={assignee}>
-                👤 {assignee}
-              </option>
-            ))}
-            <option value="__unassigned__">— Non assegnato —</option>
-          </select>
-        )}
+        <select
+          className="filter-select"
+          value={assigneeFilter}
+          onChange={(event) => setAssigneeFilter(event.target.value)}
+          aria-label="Filtra per assegnatario"
+        >
+          <option value="">Assegnato: tutti</option>
+          {assignees.map((assignee) => (
+            <option key={assignee} value={assignee}>
+              👤 {assignee}
+            </option>
+          ))}
+          <option value="__unassigned__">— Non assegnato a nessuno —</option>
+        </select>
         <button
           type="button"
           className={`filter-chip ${dataCompletenessFilter === 'missing_phone' ? 'active' : ''}`}

@@ -312,3 +312,16 @@ export function mapLegacyPriority(priority?: string | null) {
       return 0
   }
 }
+
+/** Match come RLS/API: responsible o assigned_agent uguale al nome (trim + lower). */
+export function contactMatchesAssigneeName(contact: CRMContact, memberName: string) {
+  const t = (memberName || '').trim().toLowerCase()
+  if (!t) return false
+  const r = (contact.responsible || '').trim().toLowerCase()
+  const a = (contact.assigned_agent || '').trim().toLowerCase()
+  return r === t || a === t
+}
+
+export function contactIsUnassigned(contact: CRMContact) {
+  return !(contact.responsible || '').trim() && !(contact.assigned_agent || '').trim()
+}

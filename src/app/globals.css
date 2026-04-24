@@ -1390,7 +1390,7 @@ select.filter-select {
 }
 .oggi-hero h1 { font-size: 26px; font-weight: 700; margin: 0 0 4px 0; }
 .oggi-date { color: var(--text2); font-size: 14px; text-transform: capitalize; }
-.oggi-hero-actions { display: flex; gap: 8px; }
+.oggi-hero-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
 
 .oggi-empty {
   background: var(--surface);

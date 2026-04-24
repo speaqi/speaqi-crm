@@ -120,7 +120,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       })
     }
 
-    return Response.json({ task: data })
+    const { data: contactRefresh } = await auth.supabase
+      .from('contacts')
+      .select('*')
+      .eq('user_id', auth.workspaceUserId)
+      .eq('id', data.contact_id)
+      .maybeSingle()
+
+    return Response.json({ task: data, contact: contactRefresh ?? null })
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : 'Failed to update task' },

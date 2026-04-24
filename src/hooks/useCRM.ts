@@ -506,29 +506,48 @@ export function useCRM() {
       },
       options: MutationOptions = {}
     ) => {
-      const response = await apiFetch<{ task: TaskWithContact }>(`/api/tasks/${taskId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
+      const response = await apiFetch<{ task: TaskWithContact; contact?: CRMContact | null }>(
+        `/api/tasks/${taskId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      )
 
-      setState((previous) => ({
-        ...previous,
-        tasks:
-          response.task.status === 'done'
-            ? previous.tasks.filter((task) => task.id !== taskId)
-            : sortTasks(
-                previous.tasks.map((task) =>
-                  task.id === taskId
-                    ? {
-                        ...task,
-                        ...response.task,
-                        contact: task.contact,
-                      }
-                    : task
-                )
-              ),
-      }))
+      setState((previous) => {
+        let contacts = previous.contacts
+        if (response.contact) {
+          contacts = sortContacts(
+            previous.contacts.map((c) => (c.id === response.contact!.id ? response.contact! : c))
+          )
+        }
+        const contactForTask = (cid: string) =>
+          contacts.find((c) => c.id === cid) ||
+          previous.contacts.find((c) => c.id === cid) ||
+          null
+
+        return {
+          ...previous,
+          contacts,
+          tasks:
+            response.task.status === 'done'
+              ? previous.tasks.filter((task) => task.id !== taskId)
+              : sortTasks(
+                  previous.tasks.map((task) =>
+                    task.id === taskId
+                      ? {
+                          ...task,
+                          ...response.task,
+                          contact: buildTaskContactSnapshot(
+                            contactForTask(response.task.contact_id || task.contact_id)
+                          ),
+                        }
+                      : task
+                  )
+                ),
+        }
+      })
 
       if (options.refresh !== false) {
         void loadAll({ background: true })
