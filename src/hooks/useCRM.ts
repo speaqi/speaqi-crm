@@ -102,9 +102,12 @@ export function useCRM() {
   const [vNotes, setVNotes] = useState<VoiceNote[]>([])
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
   const [isAdmin, setIsAdmin] = useState(true)
+  /** Nome nel team per il collaboratore loggato (dal server); null per admin o non risolto. */
+  const [viewerMemberName, setViewerMemberName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
+  const [authEmail, setAuthEmail] = useState<string | null>(null)
   const hasLoadedRef = useRef(false)
 
   const crmContacts = useMemo(
@@ -231,9 +234,18 @@ export function useCRM() {
       }
 
       try {
-        const teamResponse = await apiFetch<{ members: TeamMember[]; is_admin?: boolean }>('/api/team-members')
+        const teamResponse = await apiFetch<{
+          members: TeamMember[]
+          is_admin?: boolean
+          member_name?: string | null
+        }>('/api/team-members')
         setTeamMembers(teamResponse.members || [])
         setIsAdmin(Boolean(teamResponse.is_admin ?? true))
+        setViewerMemberName(
+          teamResponse.member_name != null && String(teamResponse.member_name).trim()
+            ? String(teamResponse.member_name).trim()
+            : null
+        )
       } catch (teamError) {
         warnings.push(`Team: ${extractMessage(teamError, 'Errore caricando il team')}`)
       }
@@ -261,9 +273,11 @@ export function useCRM() {
       if (!mounted) return
       if (session?.user) {
         setUserId(session.user.id)
+        setAuthEmail(session.user.email ?? null)
         loadAll()
       } else {
         setLoading(false)
+        setAuthEmail(null)
       }
     })
 
@@ -588,6 +602,8 @@ export function useCRM() {
     vNotes,
     teamMembers,
     isAdmin,
+    viewerMemberName,
+    authEmail,
     loading,
     error,
     userId,

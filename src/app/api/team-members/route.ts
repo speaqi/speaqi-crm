@@ -18,7 +18,11 @@ export async function GET(request: NextRequest) {
     .order('name', { ascending: true })
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
-  return Response.json({ members: data || [], is_admin: auth.isAdmin })
+  return Response.json({
+    members: data || [],
+    is_admin: auth.isAdmin,
+    member_name: auth.memberName,
+  })
 }
 
 export async function POST(request: NextRequest) {

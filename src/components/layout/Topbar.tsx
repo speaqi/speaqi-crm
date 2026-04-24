@@ -21,9 +21,29 @@ const PAGE_TITLES: Record<string, string> = {
   '/voice': '🎤 Note vocali',
 }
 
-export function Topbar({ pathname }: { pathname: string }) {
+export function Topbar({
+  pathname,
+  authEmail = null,
+  isAdmin = true,
+  viewerMemberName = null,
+  loading = false,
+}: {
+  pathname: string
+  authEmail?: string | null
+  isAdmin?: boolean
+  viewerMemberName?: string | null
+  loading?: boolean
+}) {
   const router = useRouter()
   const title = PAGE_TITLES[pathname] || 'CRM'
+
+  const userLabel = !authEmail
+    ? null
+    : isAdmin
+      ? authEmail
+      : viewerMemberName
+        ? `${viewerMemberName} · collaboratore`
+        : `${authEmail} · collaboratore`
 
   async function handleLogout() {
     const supabase = createClient()
@@ -34,6 +54,14 @@ export function Topbar({ pathname }: { pathname: string }) {
   return (
     <div className="topbar">
       <div className="topbar-title">{title}</div>
+      {!loading && userLabel && (
+        <div className="topbar-user" title={authEmail || undefined}>
+          <span className="topbar-user-icon" aria-hidden>
+            {isAdmin ? '●' : '◆'}
+          </span>
+          <span className="topbar-user-text">{userLabel}</span>
+        </div>
+      )}
       <div className="topbar-actions">
         <Link
           href="/contacts?new=1"

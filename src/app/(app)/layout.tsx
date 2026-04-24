@@ -84,13 +84,40 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="app-layout">
         <Sidebar counts={counts} />
         <div className="app-main">
-          <Topbar pathname={pathname} />
+          <Topbar
+            pathname={pathname}
+            authEmail={crm.authEmail}
+            isAdmin={crm.isAdmin}
+            viewerMemberName={crm.viewerMemberName}
+            loading={crm.loading}
+          />
           <div className="page-content">
             {crm.error && (
               <div className="inline-error">
                 <strong>Qualcosa è andato storto:</strong> {crm.error}
               </div>
             )}
+            {!crm.loading &&
+              !crm.isAdmin &&
+              crm.contacts.length === 0 &&
+              crm.viewerMemberName && (
+                <div className="inline-hint">
+                  <strong>Collaboratore:</strong> vedi solo i contatti con responsabile «{crm.viewerMemberName}»
+                  (come in Impostazioni → Team). Se il nome in scheda contatto differisce anche solo di spazi o
+                  maiuscole, riassegna dal menu «Assegnato a».
+                </div>
+              )}
+            {!crm.loading &&
+              !crm.isAdmin &&
+              crm.contacts.length === 0 &&
+              !crm.viewerMemberName &&
+              crm.authEmail && (
+                <div className="inline-hint inline-hint-warn">
+                  <strong>Account non riconosciuto come membro del team:</strong> l’email di login (
+                  {crm.authEmail}) non risulta collegata a un collaboratore. In Supabase verifica{' '}
+                  <code>team_members.email</code> o <code>auth_user_id</code> per questo utente.
+                </div>
+              )}
             {children}
           </div>
         </div>

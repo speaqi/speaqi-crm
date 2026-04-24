@@ -52,6 +52,7 @@ export function getBearerToken(request: NextRequest) {
 type TeamMemberCandidate = {
   user_id?: string | null
   name?: string | null
+  email?: string | null
   created_at?: string | null
 }
 
@@ -121,10 +122,27 @@ export async function requireRouteUser(request: NextRequest) {
         }
       }
 
+      if (!resolvedMember) {
+        const { data: ilikeMembers, error: ilikeError } = await admin
+          .from('team_members')
+          .select('user_id, name, created_at, email')
+          .ilike('email', email)
+          .limit(50)
+
+        if (!ilikeError && (ilikeMembers || []).length >= 1) {
+          const normalized = (ilikeMembers || []).filter(
+            (row: TeamMemberCandidate) => String(row.email || '').trim().toLowerCase() === email
+          )
+          if (normalized.length) {
+            resolvedMember = pickMostRecentCandidate(normalized)
+          }
+        }
+      }
+
       if (resolvedMember?.user_id) {
         workspaceUserId = resolvedMember.user_id
         isAdmin = resolvedMember.user_id === user.id
-        memberName = resolvedMember.name || null
+        memberName = resolvedMember.name?.trim() || null
       }
     } catch {
       // Keep default owner/admin behavior when team mapping is unavailable.
