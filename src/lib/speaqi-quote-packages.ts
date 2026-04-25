@@ -20,8 +20,7 @@ const START_DETAILS = `Perfetto per introdurre Speaqi nella tua struttura.
 
 • 1 video multilingua con lip-sync realistico fino a 1 min*
 • Traduzione fino a 7 lingue
-• QR dinamico
-• Accesso piano Premium incluso per 1 anno (dopo 299€/anno)`
+• QR dinamico`
 
 const EXPERIENCE_DETAILS = `La base per un'esperienza completa e professionale.
 
@@ -30,7 +29,6 @@ const EXPERIENCE_DETAILS = `La base per un'esperienza completa e professionale.
 • Fino a 3 video multilingua fino a 1 min*
 • Traduzione fino a 7 lingue
 • QR dinamico
-• Accesso piano Premium incluso per 1 anno (dopo 299€/anno)
 • Analytics su lingue e utilizzo
 • Supporto prioritario`
 
@@ -41,7 +39,6 @@ const SIGNATURE_DETAILS = `La soluzione completa per trasformare la percezione d
 • Fino a 6 video multilingua fino a 1 min*
 • Traduzione fino a 7 lingue
 • QR dinamico
-• Accesso piano Premium incluso per 1 anno (dopo 299€/anno)
 • Analytics avanzate (paesi, engagement, performance)
 • Supporto dedicato`
 

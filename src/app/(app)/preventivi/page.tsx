@@ -33,7 +33,7 @@ const PRO_PLAN_LINE_ID = 'speaqi-pro-plan-option'
 function makeProPlanLine(): QuoteLineItem {
   return {
     id: PRO_PLAN_LINE_ID,
-    description: 'Piano PRO Speaqi — accesso 12 mesi (listino €299/anno + IVA)',
+    description: 'Piano PRO Speaqi',
     details:
       'Nella presente offerta: primo anno incluso a €0. Dal secondo anno il servizio si rinnova al prezzo di listino (€299/anno + IVA), salvo diversa comunicazione scritta del Fornitore.',
     quantity: 1,
