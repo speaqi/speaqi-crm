@@ -24,7 +24,7 @@ const SETTINGS_ITEMS = [
   {
     href: '/preventivi',
     icon: '💶',
-    title: 'Preventivi online',
+    title: 'Preventivi',
     description: 'Crea offerte con link pubblico, acconto, bonifico e Stripe opzionale.',
   },
   {

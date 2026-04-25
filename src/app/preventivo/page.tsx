@@ -1,4 +1,6 @@
+import Link from 'next/link'
 import { BrandLockup } from '@/components/layout/BrandLockup'
+import { resolvePublicBankInstructions, resolvePublicContractTerms } from '@/lib/quote-defaults'
 import { createPublicServerClient } from '@/lib/server/supabase'
 import type { Quote, QuoteLineItem } from '@/types'
 import { QuotePaymentActions } from './QuotePaymentActions'
@@ -65,6 +67,8 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
   const hasBankTransfer = quote.payment_method === 'bank_transfer' || quote.payment_method === 'both'
   const validUntil = formatDate(quote.valid_until)
   const checkoutStatus = params.checkout
+  const contractBody = resolvePublicContractTerms(quote.contract_terms)
+  const bankBody = resolvePublicBankInstructions(quote.bank_transfer_instructions)
 
   return (
     <main className="public-quote-page">
@@ -169,8 +173,13 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
           <section className="public-quote-card">
             <h2>Contratto</h2>
             <div className="public-quote-contract-badge">Contratto accettato</div>
-            {quote.contract_terms ? (
-              <div className="public-quote-contract-body">{quote.contract_terms}</div>
+            <p className="public-quote-contract-links">
+              <Link href="/termini-speaqi" target="_blank" rel="noopener noreferrer">
+                Apri i Termini di servizio Speaqi (pagina dedicata)
+              </Link>
+            </p>
+            {contractBody ? (
+              <div className="public-quote-contract-body">{contractBody}</div>
             ) : (
               <p className="public-quote-muted">Nessun testo contrattuale allegato.</p>
             )}
@@ -182,8 +191,8 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
           <section className="public-quote-card">
             <h2>Bonifico</h2>
             {hasBankTransfer ? (
-              quote.bank_transfer_instructions ? (
-                <div className="public-quote-bank-body">{quote.bank_transfer_instructions}</div>
+              bankBody ? (
+                <div className="public-quote-bank-body">{bankBody}</div>
               ) : (
                 <p className="public-quote-muted">Coordinate bonifico non specificate.</p>
               )

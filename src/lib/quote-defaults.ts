@@ -137,3 +137,28 @@ Per qualsiasi controversia è competente in via esclusiva il Foro di Napoli.
 12. Accettazione
 
 L’utilizzo del servizio e/o il completamento dell’acquisto costituiscono accettazione dei presenti Termini.`
+
+/** Testi salvati nei preventivi creati prima dell’aggiornamento coordinate/termini */
+export const LEGACY_BANK_TRANSFER_INSTRUCTIONS =
+  'Bonifico bancario intestato a Speaqi. Inserire nella causale il numero del preventivo.'
+
+export const LEGACY_CONTRACT_TERMS_SHORT =
+  "Il contratto commerciale associato al preventivo è considerato accettato alla generazione dell'offerta. L'acconto avvia la lavorazione; il saldo è dovuto alla consegna."
+
+export function resolvePublicBankInstructions(stored: string | null | undefined): string {
+  const s = String(stored || '').trim()
+  if (!s) return DEFAULT_BANK_TRANSFER_INSTRUCTIONS
+  if (s === LEGACY_BANK_TRANSFER_INSTRUCTIONS) return DEFAULT_BANK_TRANSFER_INSTRUCTIONS
+  if (s.includes('intestato a Speaqi') && !s.includes('IT46')) return DEFAULT_BANK_TRANSFER_INSTRUCTIONS
+  return s
+}
+
+export function resolvePublicContractTerms(stored: string | null | undefined): string {
+  const s = String(stored || '').trim()
+  if (!s) return DEFAULT_CONTRACT_TERMS
+  if (s === LEGACY_CONTRACT_TERMS_SHORT) return DEFAULT_CONTRACT_TERMS
+  if (s.startsWith('Il contratto commerciale associato al preventivo') && s.length < 400) {
+    return DEFAULT_CONTRACT_TERMS
+  }
+  return s
+}

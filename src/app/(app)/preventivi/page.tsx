@@ -31,6 +31,31 @@ const STATUS_LABELS: Record<QuoteStatus, string> = {
   cancelled: 'Annullato',
 }
 
+const PRO_PLAN_LINE_ID = 'speaqi-pro-plan-option'
+
+function makeProPlanLine(): QuoteLineItem {
+  return {
+    id: PRO_PLAN_LINE_ID,
+    description: 'Piano PRO Speaqi — accesso 12 mesi (listino €299/anno + IVA)',
+    details:
+      'Nella presente offerta: primo anno incluso a €0. Dal secondo anno il servizio si rinnova al prezzo di listino (€299/anno + IVA), salvo diversa comunicazione scritta del Fornitore.',
+    quantity: 1,
+    unit_price: 0,
+  }
+}
+
+function isProPlanLine(item: QuoteLineItem) {
+  if (item.id === PRO_PLAN_LINE_ID) return true
+  const d = String(item.description || '')
+  return d.includes('Piano PRO') && d.includes('Speaqi')
+}
+
+function normalizeItemsProIds(items: QuoteLineItem[]): QuoteLineItem[] {
+  return items.map((item) =>
+    isProPlanLine(item) && item.id !== PRO_PLAN_LINE_ID ? { ...item, id: PRO_PLAN_LINE_ID } : item
+  )
+}
+
 function makeLineId() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
   return `line-${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -174,17 +199,20 @@ export default function PreventiviPage() {
 
   function applyPreset(kind: 'vini' | 'bnb') {
     const isVini = kind === 'vini'
+    const keepPro = draft.items.some(isProPlanLine)
+    const baseItems: QuoteLineItem[] = [
+      {
+        id: makeLineId(),
+        description: isVini ? '13 Vini' : '3 B&B',
+        details: OFFER_FEATURES,
+        quantity: 1,
+        unit_price: isVini ? 1999.99 : 499.99,
+      },
+    ]
+    if (keepPro) baseItems.push(makeProPlanLine())
     patchDraft({
       title: isVini ? '13 Vini' : '3 B&B',
-      items: [
-        {
-          id: makeLineId(),
-          description: isVini ? '13 Vini' : '3 B&B',
-          details: OFFER_FEATURES,
-          quantity: 1,
-          unit_price: isVini ? 1999.99 : 499.99,
-        },
-      ],
+      items: baseItems,
       deposit_percent: 30,
       public_note: 'Acconto 30%. Saldo alla consegna.',
     })
@@ -250,6 +278,17 @@ export default function PreventiviPage() {
     })
   }
 
+  function setIncludeProPlan(include: boolean) {
+    const has = draft.items.some(isProPlanLine)
+    if (include && !has) {
+      patchDraft({ items: [...draft.items, makeProPlanLine()] })
+      return
+    }
+    if (!include && has) {
+      patchDraft({ items: draft.items.filter((item) => !isProPlanLine(item)) })
+    }
+  }
+
   function editQuote(quote: Quote) {
     setEditingId(quote.id)
     const linked = quote.contact_id ? contacts.find((item) => item.id === quote.contact_id) : null
@@ -264,7 +303,7 @@ export default function PreventiviPage() {
       customer_company: quote.customer_company || '',
       customer_tax_id: quote.customer_tax_id || '',
       customer_address: quote.customer_address || '',
-      items: quote.items?.length ? quote.items : blankDraft().items,
+      items: quote.items?.length ? normalizeItemsProIds(quote.items) : blankDraft().items,
       discount_amount: quote.discount_amount,
       tax_rate: quote.tax_rate,
       deposit_percent: quote.deposit_percent,
@@ -346,7 +385,7 @@ export default function PreventiviPage() {
     <div className="quotes-page">
       <div className="quotes-hero">
         <div>
-          <h1>Preventivi online</h1>
+          <h1>Preventivi</h1>
           <p>
             Crea offerte con link pubblico, contratto già accettato, acconto 30% e saldo a consegna.
           </p>
@@ -542,6 +581,16 @@ export default function PreventiviPage() {
                 </div>
               </div>
             ))}
+            <label className="quotes-pro-opt">
+              <input
+                type="checkbox"
+                checked={draft.items.some(isProPlanLine)}
+                onChange={(event) => setIncludeProPlan(event.target.checked)}
+              />
+              <span>
+                Includi Piano PRO (1° anno a €0, listino €299/anno + IVA dal 2° anno)
+              </span>
+            </label>
           </div>
 
           <div className="quotes-form-grid quotes-money-grid">

@@ -9,7 +9,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/contacts': '👥 Contatti',
   '/personali': '🗂️ Personali',
   '/kanban': '🔀 Pipeline',
-  '/preventivi': '💶 Preventivi online',
+  '/preventivi': '💶 Preventivi',
   '/import': '📥 Importa',
   '/impostazioni': '⚙️ Impostazioni',
   '/impostazioni/team': '👥 Team',
