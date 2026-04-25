@@ -32,14 +32,25 @@ function toInputDate(days: number) {
   return date.toISOString().slice(0, 16)
 }
 
+const TOUCH_CHANNELS = [
+  { value: 'call', label: 'Chiamata', activityType: 'call', verb: 'Chiamata effettuata' },
+  { value: 'email', label: 'Email', activityType: 'email_sent', verb: 'Email inviata' },
+  { value: 'whatsapp', label: 'WhatsApp', activityType: 'whatsapp', verb: 'WhatsApp inviato' },
+  { value: 'msg', label: 'Messaggio', activityType: 'msg', verb: 'Messaggio inviato' },
+] as const
+
+type TouchChannel = (typeof TOUCH_CHANNELS)[number]['value']
+
 export function ContactDrawer({ contactId, onClose, onEdit, anchorPoint = null }: ContactDrawerProps) {
-  const { loadContactDetail, addActivity, addTask, updateContact, teamMembers, showToast } = useCRMContext()
+  const { loadContactDetail, addActivity, updateContact, teamMembers, showToast } = useCRMContext()
   const [detail, setDetail] = useState<ContactDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [noteText, setNoteText] = useState('')
   const [noteSaving, setNoteSaving] = useState(false)
   const [followupDate, setFollowupDate] = useState('')
   const [followupSaving, setFollowupSaving] = useState(false)
+  const [touchChannel, setTouchChannel] = useState<TouchChannel>('call')
+  const [touchNote, setTouchNote] = useState('')
   const [assigning, setAssigning] = useState(false)
   const [draftNote, setDraftNote] = useState('')
   const [draftNoteSaving, setDraftNoteSaving] = useState(false)
@@ -114,16 +125,30 @@ export function ContactDrawer({ contactId, onClose, onEdit, anchorPoint = null }
   }
 
   async function schedule(days: number) {
-    if (!contactId) return
+    if (!contactId || !contact) return
     const due = toInputDate(days)
     setFollowupDate(due)
     setFollowupSaving(true)
     try {
-      await addTask(contactId, {
-        type: 'follow-up',
-        due_date: due,
-        priority: 'medium',
+      const channel = TOUCH_CHANNELS.find((item) => item.value === touchChannel) || TOUCH_CHANNELS[0]
+      const dueIso = new Date(due).toISOString()
+      await addActivity(contactId, {
+        type: channel.activityType,
+        content: [
+          `${channel.verb} oggi con ${contact.name}.`,
+          touchNote.trim() || null,
+          `Prossimo follow-up: ${formatDateTime(dueIso)}.`,
+        ].filter(Boolean).join(' '),
+        metadata: {
+          channel: channel.value,
+          scheduled_from_drawer: true,
+        },
+        next_followup_at: dueIso,
+        task_type: 'follow-up',
+        task_note: `Follow-up dopo ${channel.label.toLowerCase()}${touchNote.trim() ? `: ${touchNote.trim()}` : ''}`,
+        task_priority: contact.priority >= 3 ? 'high' : contact.priority >= 2 ? 'medium' : 'low',
       })
+      setTouchNote('')
       showToast(`Follow-up pianificato fra ${days}gg`)
       const refreshed = await loadContactDetail(contactId)
       setDetail(refreshed)
@@ -283,6 +308,25 @@ export function ContactDrawer({ contactId, onClose, onEdit, anchorPoint = null }
 
             <div className="drawer-section">
               <div className="drawer-section-label">Ricontatta fra</div>
+              <div className="drawer-touch-row" role="group" aria-label="Come hai contattato il lead oggi">
+                {TOUCH_CHANNELS.map((channel) => (
+                  <button
+                    key={channel.value}
+                    type="button"
+                    className={`drawer-touch-chip ${touchChannel === channel.value ? 'active' : ''}`}
+                    onClick={() => setTouchChannel(channel.value)}
+                  >
+                    {channel.label}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="text"
+                className="drawer-touch-note"
+                value={touchNote}
+                onChange={(event) => setTouchNote(event.target.value)}
+                placeholder="Esito rapido di oggi (opzionale)"
+              />
               <div className="drawer-quick-actions">
                 <button
                   type="button"
@@ -414,6 +458,24 @@ export function ContactDrawer({ contactId, onClose, onEdit, anchorPoint = null }
                   >
                     {draftGenerating ? 'Generazione…' : 'Crea bozza in Gmail'}
                   </button>
+                </div>
+              </div>
+            )}
+
+            {detail?.emails && detail.emails.length > 0 && (
+              <div className="drawer-section">
+                <div className="drawer-section-label">Email recenti</div>
+                <div className="drawer-email-list">
+                  {detail.emails.slice(0, 4).map((email) => (
+                    <div key={email.id} className={`drawer-email-item ${email.direction}`}>
+                      <div className="drawer-email-title">
+                        <strong>{email.subject || 'Senza oggetto'}</strong>
+                        <span>{email.direction === 'outbound' ? 'Inviata' : 'Ricevuta'}</span>
+                      </div>
+                      <div className="drawer-email-meta">{formatDateTime(email.sent_at)}</div>
+                      <div className="drawer-email-preview">{email.snippet || email.body_text || 'Nessun contenuto'}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

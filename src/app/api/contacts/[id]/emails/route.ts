@@ -38,14 +38,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return Response.json({ error: 'Corpo email obbligatorio' }, { status: 400 })
     }
 
-    const contact = await getContact(auth.supabase, auth.user.id, id)
-    const result = await sendContactEmail(auth.supabase, auth.user.id, contact, {
+    const contact = await getContact(auth.supabase, auth.workspaceUserId, id)
+    const result = await sendContactEmail(auth.supabase, auth.workspaceUserId, contact, {
       subject,
       text,
       html: simpleTextToHtml(text),
       followupAt,
     })
-    const autoFollowupDraft = await maybeAutoCreateFollowupDraft(auth.supabase, auth.user.id, contact)
+    const autoFollowupDraft = await maybeAutoCreateFollowupDraft(auth.supabase, auth.workspaceUserId, contact)
 
     return Response.json({
       message: result.message,

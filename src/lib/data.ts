@@ -154,6 +154,8 @@ export function activityTypeLabel(type: string) {
       return 'Risposta email'
     case 'msg':
       return 'Messaggio'
+    case 'whatsapp':
+      return 'WhatsApp'
     case 'note':
       return 'Nota'
     case 'task':

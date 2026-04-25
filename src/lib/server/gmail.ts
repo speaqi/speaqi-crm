@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import { createActivities, updateContactSummary } from '@/lib/server/crm'
+import { createActivities, syncPendingCallTask, updateContactSummary } from '@/lib/server/crm'
 import { applyReplyOutcome, logAiDecision, logLeadActivity } from '@/lib/server/ai-ready'
 import type { CRMContact, GmailAccountStatus, GmailMessage } from '@/types'
 
@@ -704,8 +704,15 @@ export async function sendContactEmail(
     {
       user_id: userId,
       contact_id: contact.id,
-      type: 'email',
+      type: 'email_sent',
       content: `Email inviata: ${input.subject}`,
+      metadata: {
+        source: 'gmail_send',
+        gmail_message_id: normalized.gmail_message_id,
+        gmail_thread_id: normalized.gmail_thread_id,
+        subject: input.subject,
+        to: contact.email,
+      },
     },
   ])
 
@@ -715,18 +722,12 @@ export async function sendContactEmail(
   })
 
   if (effectiveFollowupAt) {
-    const { error: taskError } = await supabase
-      .from('tasks')
-      .insert({
-        user_id: userId,
-        contact_id: contact.id,
-        type: 'email',
-        due_date: effectiveFollowupAt,
-        status: 'pending',
-        note: `Follow-up email: ${input.subject}`,
-      })
-
-    if (taskError) throw taskError
+    await syncPendingCallTask(supabase, userId, contact.id, effectiveFollowupAt, {
+      type: 'follow-up',
+      priority: Number(contact.priority || 0) >= 3 ? 'high' : Number(contact.priority || 0) >= 2 ? 'medium' : 'low',
+      note: `Follow-up dopo email: ${input.subject}`,
+      overwriteNote: true,
+    })
   }
 
   const { error: logError } = await supabase

@@ -93,8 +93,8 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const account = await getGmailAccount(auth.supabase, auth.user.id)
-    const sentHistory = await loadSentHistory(auth.supabase, auth.user.id)
+    const account = await getGmailAccount(auth.supabase, auth.workspaceUserId)
+    const sentHistory = await loadSentHistory(auth.supabase, auth.workspaceUserId)
     return Response.json({
       ready: true,
       gmail: gmailStatus(account),
@@ -133,7 +133,7 @@ export async function DELETE(request: NextRequest) {
     const { error } = await auth.supabase
       .from('gmail_accounts')
       .delete()
-      .eq('user_id', auth.user.id)
+      .eq('user_id', auth.workspaceUserId)
 
     if (error) throw error
 

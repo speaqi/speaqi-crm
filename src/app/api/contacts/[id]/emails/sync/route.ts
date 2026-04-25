@@ -41,9 +41,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   try {
     const { id } = await context.params
-    const contact = await getContact(auth.supabase, auth.user.id, id)
-    const result = await syncContactGmailMessages(auth.supabase, auth.user.id, contact)
-    const emails = await readStoredMessages(auth.supabase, auth.user.id, id)
+    const contact = await getContact(auth.supabase, auth.workspaceUserId, id)
+    const result = await syncContactGmailMessages(auth.supabase, auth.workspaceUserId, contact)
+    const emails = await readStoredMessages(auth.supabase, auth.workspaceUserId, id)
 
     return Response.json({
       synced: result.synced,
