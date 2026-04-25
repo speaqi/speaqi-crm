@@ -52,6 +52,18 @@ function fmtFullDate(dateStr: string) {
   })
 }
 
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('it-IT', {
+    style: 'currency',
+    currency: 'EUR',
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0))
+}
+
+function formatPercent(value: number) {
+  return `${Math.round(Number(value || 0) * 100)}%`
+}
+
 function shiftDate(value: string | null | undefined, days: number) {
   const base = value ? new Date(value) : new Date()
   if (Number.isNaN(base.getTime())) {
@@ -114,10 +126,52 @@ interface DayTotal {
   contactsWorked: number
 }
 
+interface CommercialSummary {
+  contacts: number
+  valuedContacts: number
+  quoteCount: number
+  quoteValue: number
+  wonCount: number
+  revenue: number
+  paidRevenue: number
+  openPipelineValue: number
+  lostCount: number
+  averageWonValue: number
+  winRate: number
+}
+
+interface CommercialAgentSummary {
+  agent: string
+  contacts: number
+  quoteCount: number
+  quoteValue: number
+  wonCount: number
+  revenue: number
+  paidRevenue: number
+  openPipelineValue: number
+  lostCount: number
+}
+
+interface TopDeal {
+  id: string
+  name: string
+  company?: string | null
+  status?: string | null
+  responsible?: string | null
+  value: number
+  updated_at?: string | null
+}
+
 interface AnalyticsData {
   agentSummary: AgentSummary[]
   byDate: DayTotal[]
   totalActivities: number
+  commercial: {
+    summary: CommercialSummary
+    byAgent: CommercialAgentSummary[]
+    byStatus: Array<{ status: string; count: number; value: number }>
+    topDeals: TopDeal[]
+  }
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -303,12 +357,117 @@ export default function AttivitaPage() {
           <p style={{ color: 'var(--text3)' }}>Caricamento analytics...</p>
         ) : analyticsError ? (
           <p style={{ color: 'var(--danger)' }}>{analyticsError}</p>
-        ) : analytics && analytics.agentSummary.length === 0 ? (
-          <p style={{ color: 'var(--text3)' }}>Nessuna attività nel periodo selezionato.</p>
+        ) : analytics && analytics.agentSummary.length === 0 && analytics.commercial.summary.contacts === 0 ? (
+          <p style={{ color: 'var(--text3)' }}>Nessuna attività o dato commerciale disponibile.</p>
         ) : analytics ? (
           <>
+            {/* Commercial analytics */}
+            <div className="dash-meta-grid" style={{ marginBottom: 24 }}>
+              <div className="meta-card meta-card-strong">
+                <strong>{formatCurrency(analytics.commercial.summary.revenue)}</strong>
+                <span>fatturato / chiusi</span>
+              </div>
+              <div className="meta-card">
+                <strong>{formatCurrency(analytics.commercial.summary.quoteValue)}</strong>
+                <span>{analytics.commercial.summary.quoteCount} preventivi</span>
+              </div>
+              <div className="meta-card">
+                <strong>{formatCurrency(analytics.commercial.summary.openPipelineValue)}</strong>
+                <span>pipeline aperta</span>
+              </div>
+              <div className="meta-card">
+                <strong>{formatPercent(analytics.commercial.summary.winRate)}</strong>
+                <span>tasso chiusura</span>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: 20,
+                alignItems: 'start',
+                marginBottom: 28,
+              }}
+            >
+              <div style={{ minWidth: 0, overflowX: 'auto' }}>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10, color: 'var(--text2)' }}>
+                  Commerciale per agente
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text2)', textAlign: 'left' }}>
+                      <th style={{ padding: '8px 12px' }}>Agente</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>Preventivi</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>Val. prev.</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>Chiusi</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>Fatturato</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right' }}>Pipeline</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analytics.commercial.byAgent.map(agent => (
+                      <tr key={agent.agent} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '10px 12px', fontWeight: 500 }}>{agent.agent}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right' }}>{agent.quoteCount}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right' }}>{formatCurrency(agent.quoteValue)}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right' }}>{agent.wonCount}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(agent.revenue)}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--text2)' }}>{formatCurrency(agent.openPipelineValue)}</td>
+                      </tr>
+                    ))}
+                    {analytics.commercial.byAgent.length === 0 && (
+                      <tr>
+                        <td colSpan={6} style={{ padding: '10px 12px', color: 'var(--text3)' }}>
+                          Nessun valore commerciale registrato.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10, color: 'var(--text2)' }}>
+                  Top preventivi / chiusi
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {analytics.commercial.topDeals.length === 0 ? (
+                    <div style={{ color: 'var(--text3)', fontSize: 13 }}>Nessun importo valorizzato.</div>
+                  ) : analytics.commercial.topDeals.map(deal => (
+                    <Link
+                      key={deal.id}
+                      href={`/contacts/${deal.id}`}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(0, 1fr) auto',
+                        gap: 10,
+                        padding: '9px 0',
+                        borderBottom: '1px solid var(--border)',
+                        color: 'inherit',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      <span style={{ minWidth: 0 }}>
+                        <strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {deal.name}
+                        </strong>
+                        <span style={{ color: 'var(--text2)', fontSize: 12 }}>
+                          {statusLabel(deal.status)}{deal.responsible ? ` · ${deal.responsible}` : ''}
+                        </span>
+                      </span>
+                      <strong>{formatCurrency(deal.value)}</strong>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             {/* Agent table */}
             <div style={{ overflowX: 'auto', marginBottom: 24 }}>
+              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10, color: 'var(--text2)' }}>
+                Attività per agente
+              </div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text2)', textAlign: 'left' }}>
