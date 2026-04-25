@@ -22,6 +22,12 @@ const SETTINGS_ITEMS = [
     description: 'Collega account per sincronizzare thread ai contatti.',
   },
   {
+    href: '/preventivi',
+    icon: '💶',
+    title: 'Preventivi online',
+    description: 'Crea offerte con link pubblico, acconto, bonifico e Stripe opzionale.',
+  },
+  {
     href: '/voice',
     icon: '🎤',
     title: 'Note vocali',

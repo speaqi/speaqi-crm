@@ -21,6 +21,7 @@ const NAV_ITEMS = [
   { href: '/contacts', label: 'Contatti', icon: '👥', badgeKey: 'contacts' as const },
   { href: '/personali', label: 'Personali', icon: '🗂️', badgeKey: 'personal' as const },
   { href: '/kanban', label: 'Pipeline', icon: '🔀', badgeKey: 'kanban' as const },
+  { href: '/preventivi', label: 'Preventivi online', icon: '💶' },
   { href: '/calendario', label: 'Calendario', icon: '📅' },
   { href: '/attivita', label: 'Attività', icon: '📊' },
   { href: '/import', label: 'Importa', icon: '📥' },

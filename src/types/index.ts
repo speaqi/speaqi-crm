@@ -135,6 +135,95 @@ export interface TeamMember {
   updated_at: string
 }
 
+export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'paid' | 'cancelled'
+export type QuotePaymentMethod = 'bank_transfer' | 'stripe' | 'both'
+export type QuotePaymentState = 'pending' | 'deposit_requested' | 'paid' | 'waived'
+
+export interface QuoteLineItem {
+  id?: string
+  description: string
+  details?: string | null
+  quantity: number
+  unit_price: number
+  line_total?: number
+}
+
+export interface QuoteContactSnapshot {
+  id: string
+  name: string
+  email?: string | null
+  company?: string | null
+  phone?: string | null
+  status?: string | null
+  responsible?: string | null
+  assigned_agent?: string | null
+}
+
+export interface Quote {
+  id: string
+  user_id?: string
+  contact_id?: string | null
+  contact?: QuoteContactSnapshot | null
+  quote_number: string
+  public_token: string
+  status: QuoteStatus
+  title: string
+  customer_name: string
+  customer_email?: string | null
+  customer_company?: string | null
+  customer_tax_id?: string | null
+  customer_address?: string | null
+  items: QuoteLineItem[]
+  currency: string
+  subtotal_amount: number
+  discount_amount: number
+  tax_rate: number
+  tax_amount: number
+  total_amount: number
+  deposit_percent: number
+  deposit_amount: number
+  balance_amount: number
+  payment_method: QuotePaymentMethod
+  payment_state: QuotePaymentState
+  bank_transfer_instructions?: string | null
+  stripe_checkout_url?: string | null
+  stripe_checkout_session_id?: string | null
+  stripe_payment_status?: string | null
+  contract_auto_accepted: boolean
+  contract_terms?: string | null
+  contract_accepted_at?: string | null
+  valid_until?: string | null
+  public_note?: string | null
+  internal_note?: string | null
+  sent_at?: string | null
+  accepted_at?: string | null
+  paid_at?: string | null
+  created_at: string
+  updated_at?: string
+}
+
+export interface QuoteInput {
+  contact_id?: string | null
+  quote_number?: string
+  status?: QuoteStatus
+  title: string
+  customer_name: string
+  customer_email?: string | null
+  customer_company?: string | null
+  customer_tax_id?: string | null
+  customer_address?: string | null
+  items: QuoteLineItem[]
+  discount_amount?: number | null
+  tax_rate?: number | null
+  deposit_percent?: number | null
+  payment_method?: QuotePaymentMethod
+  bank_transfer_instructions?: string | null
+  contract_terms?: string | null
+  valid_until?: string | null
+  public_note?: string | null
+  internal_note?: string | null
+}
+
 export interface VoiceNote {
   uid?: string
   _u?: string
