@@ -128,9 +128,9 @@ export async function POST(request: NextRequest) {
       payment_state: totals.deposit_amount > 0 ? 'pending' : 'waived',
       bank_transfer_instructions:
         normalizeText(body.bank_transfer_instructions) || DEFAULT_BANK_TRANSFER_INSTRUCTIONS,
-      contract_auto_accepted: true,
+      contract_auto_accepted: false,
       contract_terms: normalizeText(body.contract_terms) || DEFAULT_CONTRACT_TERMS,
-      contract_accepted_at: now,
+      contract_accepted_at: null,
       valid_until: normalizeText(body.valid_until),
       public_note: normalizeText(body.public_note),
       internal_note: normalizeText(body.internal_note),

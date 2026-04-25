@@ -120,7 +120,6 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         body.bank_transfer_instructions !== undefined
           ? normalizeText(body.bank_transfer_instructions) || DEFAULT_BANK_TRANSFER_INSTRUCTIONS
           : current.bank_transfer_instructions,
-      contract_auto_accepted: true,
       contract_terms:
         body.contract_terms !== undefined
           ? normalizeText(body.contract_terms) || DEFAULT_CONTRACT_TERMS

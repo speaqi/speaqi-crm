@@ -1,8 +1,8 @@
-import Link from 'next/link'
 import { BrandLockup } from '@/components/layout/BrandLockup'
 import { resolvePublicBankInstructions } from '@/lib/quote-defaults'
 import { createPublicServerClient } from '@/lib/server/supabase'
 import type { Quote, QuoteLineItem } from '@/types'
+import { QuoteContractAcceptance } from './QuoteContractAcceptance'
 import { QuotePaymentActions } from './QuotePaymentActions'
 
 export const dynamic = 'force-dynamic'
@@ -85,7 +85,8 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
   const validUntil = formatDate(quote.valid_until)
   const checkoutStatus = params.checkout
   const bankBody = resolvePublicBankInstructions(quote.bank_transfer_instructions)
-  const heroInitialNet = initialListNetTotal(items)
+  const initialNetTotal = initialListNetTotal(items)
+  const hasInitialListTotal = initialNetTotal > Number(quote.subtotal_amount || 0) + 0.005
 
   return (
     <main className="public-quote-page">
@@ -117,11 +118,6 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
               {quote.customer_company || quote.customer_name}
               {quote.customer_company && quote.customer_name ? ` · ${quote.customer_name}` : ''}
             </p>
-          </div>
-          <div className="public-quote-total">
-            <span>Prezzo totale iniziale</span>
-            <strong>{formatMoney(heroInitialNet, quote.currency)}</strong>
-            <small>+ IVA</small>
           </div>
         </div>
 
@@ -180,6 +176,28 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
 
           <aside className="public-quote-card public-quote-side">
             <h2>Pagamento</h2>
+            <div className="public-quote-price-summary">
+              {hasInitialListTotal && (
+                <div className="public-quote-list-total">
+                  <span>Prezzo iniziale</span>
+                  <div>
+                    <strong>{formatMoney(initialNetTotal, quote.currency)}</strong>
+                    <small>+ IVA</small>
+                  </div>
+                </div>
+              )}
+              <div className="public-quote-final-total">
+                <span>Totale offerta</span>
+                <strong>{formatMoney(quote.total_amount, quote.currency)}</strong>
+                <small>IVA inclusa</small>
+              </div>
+              <div className="public-quote-due-now">
+                <span>Da pagare ora</span>
+                <strong>{formatMoney(quote.deposit_amount, quote.currency)}</strong>
+                <small>Acconto {Number(quote.deposit_percent || 0)}% con bonifico</small>
+              </div>
+            </div>
+
             <div className="public-quote-money-row">
               <span>Subtotale</span>
               <strong>{formatMoney(quote.subtotal_amount, quote.currency)}</strong>
@@ -216,19 +234,13 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
         <div className="public-quote-grid lower">
           <section className="public-quote-card">
             <h2>Contratto</h2>
-            <div className="public-quote-contract-badge">Contratto accettato</div>
-            <p className="public-quote-contract-summary">
-              Con la presente offerta, l’accettazione del pagamento da parte del Cliente — inclusi acconto, saldo o
-              importo totale, effettuati tramite bonifico — comporta anche l’accettazione integrale delle
-              condizioni contrattuali stabilite nei{' '}
-              <Link href="/termini-speaqi" target="_blank" rel="noopener noreferrer">
-                Termini di servizio Speaqi
-              </Link>
-              .
-            </p>
-            <p className="public-quote-muted">
-              Accettazione registrata il {formatDate(quote.contract_accepted_at) || 'giorno di emissione'}.
-            </p>
+            <QuoteContractAcceptance
+              token={quote.public_token}
+              contractAcceptedAt={quote.contract_accepted_at ?? null}
+              defaultEmail={String(quote.customer_email || '')}
+              contractSignerEmail={quote.contract_signer_email ?? null}
+              acceptedAtLabel={formatDate(quote.contract_accepted_at)}
+            />
           </section>
 
           <section className="public-quote-card">

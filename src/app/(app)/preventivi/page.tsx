@@ -368,7 +368,7 @@ export default function PreventiviPage() {
         <div>
           <h1>Preventivi</h1>
           <p>
-            Crea offerte con link pubblico, contratto già accettato, acconto 30% e saldo a consegna.
+            Crea offerte con link pubblico, accettazione contratto con conferma email, acconto 30% e saldo a consegna.
           </p>
         </div>
         <div className="quotes-hero-stats">

@@ -143,7 +143,7 @@ export const LEGACY_BANK_TRANSFER_INSTRUCTIONS =
   'Bonifico bancario intestato a Speaqi. Inserire nella causale il numero del preventivo.'
 
 export const LEGACY_CONTRACT_TERMS_SHORT =
-  "Il contratto commerciale associato al preventivo è considerato accettato alla generazione dell'offerta. L'acconto avvia la lavorazione; il saldo è dovuto alla consegna."
+  "Il contratto commerciale associato al preventivo si intende accettato dal Cliente al momento della conferma sul link pubblico (con email). L'acconto avvia la lavorazione; il saldo è dovuto alla consegna."
 
 export function resolvePublicBankInstructions(stored: string | null | undefined): string {
   const s = String(stored || '').trim()

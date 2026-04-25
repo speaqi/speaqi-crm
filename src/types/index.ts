@@ -195,6 +195,7 @@ export interface Quote {
   contract_auto_accepted: boolean
   contract_terms?: string | null
   contract_accepted_at?: string | null
+  contract_signer_email?: string | null
   valid_until?: string | null
   public_note?: string | null
   internal_note?: string | null
