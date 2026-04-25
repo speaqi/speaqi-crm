@@ -6,6 +6,7 @@ import { ContactDrawer } from '@/components/crm/ContactDrawer'
 import { ContactModal } from '@/components/crm/ContactModal'
 import { useCRMContext } from '../layout'
 import {
+  contactMatchesAssigneeName,
   contactVisibleToAdminOnDashboard,
   isClosedStatus,
   priorityLabel,
@@ -124,8 +125,19 @@ export default function OggiPage() {
   const adminScopeName = useMemo(() => {
     const emailLc = (authEmail || '').trim().toLowerCase()
     const fromTeam = teamMembers.find((m) => (m.email || '').trim().toLowerCase() === emailLc)?.name?.trim()
-    return (viewerMemberName && viewerMemberName.trim()) || fromTeam || null
-  }, [authEmail, teamMembers, viewerMemberName])
+    if (viewerMemberName && viewerMemberName.trim()) return viewerMemberName.trim()
+    if (fromTeam) return fromTeam
+
+    const assignedUnlinkedMembers = teamMembers.filter(
+      (member) =>
+        member.name?.trim() &&
+        !String(member.email || '').trim() &&
+        !String(member.auth_user_id || '').trim() &&
+        contacts.some((contact) => contactMatchesAssigneeName(contact, member.name))
+    )
+
+    return assignedUnlinkedMembers.length === 1 ? assignedUnlinkedMembers[0].name.trim() : null
+  }, [authEmail, contacts, teamMembers, viewerMemberName])
 
   const scopeContacts = useMemo(() => {
     if (!isAdmin || adminDashboardShowAllContacts) return contacts

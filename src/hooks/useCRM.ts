@@ -418,16 +418,31 @@ export function useCRM(pathname = '') {
         )
 
         const updatedContact = contacts.find((contact) => contact.id === contactId) || null
-        const nextTasks =
+        const responseTask =
           response && typeof response === 'object' && 'task' in response && response.task
-            ? sortTasks([
-                ...previous.tasks,
-                {
-                  ...(response.task as TaskWithContact),
-                  contact: buildTaskContactSnapshot(updatedContact),
-                },
-              ])
+            ? (response.task as TaskWithContact)
+            : null
+        const baseTasks =
+          responseTask && isCallTaskType(responseTask.type)
+            ? previous.tasks.filter(
+                (task) =>
+                  !(
+                    task.contact_id === contactId &&
+                    task.status === 'pending' &&
+                    isCallTaskType(task.type) &&
+                    task.id !== responseTask.id
+                  )
+              )
             : previous.tasks
+        const nextTasks = responseTask
+          ? sortTasks([
+              ...baseTasks.filter((task) => task.id !== responseTask.id),
+              {
+                ...responseTask,
+                contact: buildTaskContactSnapshot(updatedContact),
+              },
+            ])
+          : previous.tasks
 
         return {
           ...previous,

@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     let query = auth.supabase
       .from('tasks')
       .select(
-        '*, contact:contacts(id, name, status, source, category, company, phone, responsible, assigned_agent, event_tag, last_activity_summary, contact_scope, priority, next_followup_at)'
+        '*, contact:contacts!inner(id, name, status, source, category, company, phone, responsible, assigned_agent, event_tag, last_activity_summary, contact_scope, priority, next_followup_at)'
       )
       .eq('user_id', auth.workspaceUserId)
       .order('due_date', { ascending: true, nullsFirst: false })

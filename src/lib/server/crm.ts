@@ -199,6 +199,7 @@ export async function syncPendingCallTask(
   nextFollowupAt: string,
   options?: {
     type?: string
+    priority?: 'low' | 'medium' | 'high'
     note?: string | null
     overwriteNote?: boolean
   }
@@ -228,7 +229,7 @@ export async function syncPendingCallTask(
     const updatePayload: Record<string, unknown> = {
       due_date: nextFollowupAt,
       action: 'call',
-      priority: 'medium',
+      priority: options?.priority || 'medium',
     }
 
     if (options?.type && isCallTaskType(options.type)) {
@@ -259,7 +260,7 @@ export async function syncPendingCallTask(
       type: options?.type && isCallTaskType(options.type) ? options.type : 'follow-up',
       action: 'call',
       due_date: nextFollowupAt,
-      priority: 'medium',
+      priority: options?.priority || 'medium',
       status: 'pending',
       note: options?.note || null,
     })

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
-import { updateContactAfterActivity, ensureNextAction } from '@/lib/server/crm'
+import { ensureNextAction, syncPendingCallTask, updateContactAfterActivity } from '@/lib/server/crm'
+import { isCallTaskType } from '@/lib/schedule'
 import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { requireRouteUser } from '@/lib/server/supabase'
 
@@ -119,23 +120,34 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     let task = null
     if (nextFollowupAt) {
-      const { data: createdTask, error: taskError } = await auth.supabase
-        .from('tasks')
-        .insert({
-          user_id: auth.workspaceUserId,
-          contact_id: id,
-          type: taskType,
-          action: taskType === 'email' ? 'send_email' : 'call',
-          due_date: nextFollowupAt,
-          priority: taskPriority,
-          status: 'pending',
-          note: body.task_note ? String(body.task_note) : `Follow-up dopo attività ${type}`,
-        })
-        .select('*')
-        .single()
+      const taskNote = body.task_note ? String(body.task_note) : `Follow-up dopo attività ${type}`
 
-      if (taskError) throw taskError
-      task = createdTask
+      if (isCallTaskType(taskType)) {
+        task = await syncPendingCallTask(auth.supabase, auth.workspaceUserId, id, nextFollowupAt, {
+          type: taskType,
+          priority: taskPriority,
+          note: taskNote,
+          overwriteNote: true,
+        })
+      } else {
+        const { data: createdTask, error: taskError } = await auth.supabase
+          .from('tasks')
+          .insert({
+            user_id: auth.workspaceUserId,
+            contact_id: id,
+            type: taskType,
+            action: taskType === 'email' ? 'send_email' : 'call',
+            due_date: nextFollowupAt,
+            priority: taskPriority,
+            status: 'pending',
+            note: taskNote,
+          })
+          .select('*')
+          .single()
+
+        if (taskError) throw taskError
+        task = createdTask
+      }
     }
 
     return Response.json({ activity, task }, { status: 201 })
