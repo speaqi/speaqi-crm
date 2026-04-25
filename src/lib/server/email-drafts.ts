@@ -6,7 +6,7 @@ import {
   signatureFromPlainText,
   type EmailSignature,
 } from '@/lib/server/gmail'
-import { loadUserSettings, type UserSettings } from '@/lib/server/user-settings'
+import { EMPTY_USER_SETTINGS, loadUserSettings, type UserSettings } from '@/lib/server/user-settings'
 import type { CRMContact, GmailMessage } from '@/types'
 
 type GeneratedEmail = {
@@ -247,10 +247,12 @@ export async function createGeneratedContactDraft(
   }
 
   const [settings, leadMemory, messages, activitySummary, gmailSignature] = await Promise.all([
-    shared?.settings ? Promise.resolve(shared.settings) : loadUserSettings(supabase, userId),
-    loadLeadMemory(supabase, userId, contact.id),
-    loadContactMessages(supabase, userId, contact.id),
-    loadRecentActivityContext(supabase, userId, contact.id),
+    shared?.settings
+      ? Promise.resolve(shared.settings)
+      : loadUserSettings(supabase, userId).catch(() => EMPTY_USER_SETTINGS),
+    loadLeadMemory(supabase, userId, contact.id).catch(() => null),
+    loadContactMessages(supabase, userId, contact.id).catch(() => []),
+    loadRecentActivityContext(supabase, userId, contact.id).catch(() => ''),
     shared && 'emailSignature' in shared
       ? Promise.resolve(shared.emailSignature || null)
       : loadGmailSignature(supabase, userId).catch(() => null),

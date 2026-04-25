@@ -4,7 +4,7 @@ import { createGeneratedContactDraft } from '@/lib/server/email-drafts'
 import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { loadGmailSignature } from '@/lib/server/gmail'
 import { requireRouteUser } from '@/lib/server/supabase'
-import { loadUserSettings } from '@/lib/server/user-settings'
+import { EMPTY_USER_SETTINGS, loadUserSettings } from '@/lib/server/user-settings'
 
 type DraftRequest = {
   contact_id: string
@@ -75,27 +75,34 @@ export async function POST(request: NextRequest) {
     const contacts = contactsResult.data || []
     const contactMap = new Map((contacts || []).map((contact: any) => [contact.id, contact]))
     const [settings, emailSignature] = await Promise.all([
-      loadUserSettings(auth.supabase, auth.workspaceUserId),
+      loadUserSettings(auth.supabase, auth.workspaceUserId).catch(() => EMPTY_USER_SETTINGS),
       loadGmailSignature(auth.supabase, auth.workspaceUserId).catch(() => null),
     ])
     const results = await runWithConcurrency(drafts, 3, async (item) => {
-      const contact = contactMap.get(item.contact_id)
-      if (!contact) {
-        return { contact_id: item.contact_id, error: 'Contatto non trovato' }
-      }
+      try {
+        const contact = contactMap.get(item.contact_id)
+        if (!contact) {
+          return { contact_id: item.contact_id, error: 'Contatto non trovato' }
+        }
 
-      const result = await createGeneratedContactDraft(
-        auth.supabase,
-        auth.workspaceUserId,
-        contact,
-        mergeNotes(item.note, commonNote),
-        { settings, emailSignature }
-      )
-      if ('error' in result) {
-        return { contact_id: item.contact_id, error: result.error }
-      }
+        const result = await createGeneratedContactDraft(
+          auth.supabase,
+          auth.workspaceUserId,
+          contact,
+          mergeNotes(item.note, commonNote),
+          { settings, emailSignature }
+        )
+        if ('error' in result) {
+          return { contact_id: item.contact_id, error: result.error }
+        }
 
-      return { contact_id: item.contact_id, draft_id: result.draftId }
+        return { contact_id: item.contact_id, draft_id: result.draftId }
+      } catch (error) {
+        return {
+          contact_id: item.contact_id,
+          error: errorMessage(error, 'Bozza non generata'),
+        }
+      }
     })
 
     const created = results.filter((result) => result.draft_id).length
@@ -103,6 +110,7 @@ export async function POST(request: NextRequest) {
 
     return Response.json({ results, created, failed })
   } catch (error) {
+    console.error('generate-drafts failed', error)
     return Response.json({ error: errorMessage(error, 'Failed to generate drafts') }, { status: 500 })
   }
 }
