@@ -2,11 +2,10 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 type QuoteContractAcceptanceProps = {
   token: string
-  contractAcceptedAt: string | null
   defaultEmail: string
   contractSignerEmail: string | null
   acceptedAtLabel: string | null
@@ -26,7 +25,6 @@ function formatAcceptedDate() {
 
 export function QuoteContractAcceptance({
   token,
-  contractAcceptedAt,
   defaultEmail,
   contractSignerEmail,
   acceptedAtLabel,
@@ -37,11 +35,15 @@ export function QuoteContractAcceptance({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
-  const [signedAt, setSignedAt] = useState<string | null>(contractAcceptedAt)
-  const [signer, setSigner] = useState<string | null>(contractSignerEmail)
+  const [signer, setSigner] = useState<string | null>(contractSignerEmail?.trim() || null)
   const [dateLabel, setDateLabel] = useState<string | null>(acceptedAtLabel)
 
-  const isDone = Boolean(signedAt)
+  // "Completato" = email firmatario presente. contract_accepted_at da solo era precompilato sui preventivi vecchi.
+  const isDone = Boolean(signer)
+
+  useEffect(() => {
+    setSigner(contractSignerEmail?.trim() || null)
+  }, [contractSignerEmail])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -71,7 +73,6 @@ export function QuoteContractAcceptance({
       if (typeof payload?.warning === 'string') {
         setWarning(payload.warning)
       }
-      setSignedAt(new Date().toISOString())
       setSigner(typeof payload?.signer_email === 'string' ? payload.signer_email : em)
       setDateLabel(formatAcceptedDate())
       router.refresh()
@@ -138,9 +139,9 @@ export function QuoteContractAcceptance({
         </Link>
         .
       </p>
-      {isDone && dateLabel && (
+      {isDone && (
         <p className="public-quote-muted">
-          Accettazione registrata il {dateLabel}
+          {dateLabel ? `Accettazione registrata il ${dateLabel}` : 'Accettazione registrata'}
           {signer ? ` · ${signer}` : ''}
         </p>
       )}

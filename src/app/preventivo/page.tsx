@@ -236,7 +236,6 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
             <h2>Contratto</h2>
             <QuoteContractAcceptance
               token={quote.public_token}
-              contractAcceptedAt={quote.contract_accepted_at ?? null}
               defaultEmail={String(quote.customer_email || '')}
               contractSignerEmail={quote.contract_signer_email ?? null}
               acceptedAtLabel={formatDate(quote.contract_accepted_at)}
