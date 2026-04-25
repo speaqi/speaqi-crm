@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { BrandLockup } from '@/components/layout/BrandLockup'
 import { resolvePublicBankInstructions } from '@/lib/quote-defaults'
 import { createPublicServerClient } from '@/lib/server/supabase'
@@ -231,6 +232,17 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
         </div>
 
         <div className="public-quote-grid lower">
+          <section className="public-quote-card">
+            <h2>Contratto</h2>
+            <p className="public-quote-contract-summary">
+              Con l’invio del pagamento si accettano le condizioni del contratto. Testo e dettagli:{' '}
+              <Link href="/termini-speaqi" target="_blank" rel="noopener noreferrer">
+                Termini di servizio Speaqi
+              </Link>
+              .
+            </p>
+          </section>
+
           <section className="public-quote-card">
             <h2>Bonifico</h2>
             {bankBody ? (
