@@ -195,6 +195,8 @@ export interface GmailAccountStatus {
   connected: boolean
   email?: string | null
   last_sync_at?: string | null
+  signature_readable?: boolean
+  needs_reconnect_for_signature?: boolean
 }
 
 export interface GmailMessage {

@@ -101,6 +101,8 @@ function ContactsPageInner() {
   const [bulkFollowupMonths, setBulkFollowupMonths] = useState('')
   const [bulkFolderName, setBulkFolderName] = useState('')
   const [bulkSaving, setBulkSaving] = useState(false)
+  const [bulkDraftNote, setBulkDraftNote] = useState('')
+  const [bulkDraftGenerating, setBulkDraftGenerating] = useState(false)
   const [bulkEditOpen, setBulkEditOpen] = useState(false)
   const [repairingNames, setRepairingNames] = useState(false)
   const [bulkUpdate, setBulkUpdate] = useState<BulkUpdateDraft>({
@@ -272,6 +274,7 @@ function ContactsPageInner() {
     () => contacts.filter((contact) => selectedIds.includes(contact.id)),
     [contacts, selectedIds]
   )
+  const selectedWithEmailCount = selectedContacts.filter((contact) => Boolean(contact.email?.trim())).length
   const canRemoveSelectedFromList = selectedContacts.some((contact) => Boolean(contact.list_name?.trim()))
 
   useEffect(() => {
@@ -383,6 +386,38 @@ function ContactsPageInner() {
       window.alert(error instanceof Error ? error.message : 'Aggiornamento massivo non riuscito')
     } finally {
       setBulkSaving(false)
+    }
+  }
+
+  async function generateBulkDrafts() {
+    const draftsPayload = selectedContacts
+      .filter((contact) => contact.email?.trim())
+      .map((contact) => ({
+        contact_id: contact.id,
+        note: contact.email_draft_note || undefined,
+      }))
+
+    if (!draftsPayload.length) {
+      showToast('Nessun contatto selezionato con email')
+      return
+    }
+
+    setBulkDraftGenerating(true)
+    try {
+      const result = await apiFetch<{ created: number; failed: number }>('/api/ai/generate-drafts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          drafts: draftsPayload,
+          common_note: bulkDraftNote || undefined,
+        }),
+      })
+      showToast(`${result.created} bozze create in Gmail${result.failed ? ` · ${result.failed} fallite` : ''}`)
+      if (result.created > 0) setBulkDraftNote('')
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Generazione bozze non riuscita')
+    } finally {
+      setBulkDraftGenerating(false)
     }
   }
 
@@ -647,9 +682,23 @@ function ContactsPageInner() {
         <div className="contacts-bulkbar">
           <div className="contacts-bulkbar-copy">
             <strong>{selectedIds.length} contatti selezionati</strong>
-            <span>Puoi assegnarli o aggiornare i dati in blocco.</span>
+            <span>Puoi assegnarli, aggiornare i dati o creare bozze Gmail in blocco.</span>
           </div>
           <div className="contacts-bulkbar-actions">
+            <input
+              className="form-input contacts-bulk-draft-note"
+              value={bulkDraftNote}
+              onChange={(event) => setBulkDraftNote(event.target.value)}
+              placeholder="Contesto comune bozze Gmail"
+            />
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={bulkDraftGenerating || selectedWithEmailCount === 0}
+              onClick={generateBulkDrafts}
+            >
+              {bulkDraftGenerating ? 'Generazione…' : `Bozze Gmail (${selectedWithEmailCount})`}
+            </button>
             {canRemoveSelectedFromList && (
               <button
                 type="button"

@@ -398,11 +398,11 @@ export function ContactDrawer({ contactId, onClose, onEdit, anchorPoint = null }
             {contact.email && (
               <div className="drawer-section">
                 <div className="drawer-section-label">Genera bozza email</div>
-                <input
-                  type="text"
+                <textarea
                   className="form-input"
-                  style={{ fontSize: 13, marginBottom: 8 }}
-                  placeholder="Nota salvata per le bozze email"
+                  rows={4}
+                  style={{ fontSize: 13, marginBottom: 8, minHeight: 96, resize: 'vertical' }}
+                  placeholder="Contesto per la bozza: proposta, obiezioni, materiali, prossima azione"
                   value={draftNote}
                   onChange={(e) => setDraftNote(e.target.value)}
                 />

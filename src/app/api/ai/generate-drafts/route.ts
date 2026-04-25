@@ -1,19 +1,44 @@
 import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
 import { createGeneratedContactDraft } from '@/lib/server/email-drafts'
+import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
+import { loadGmailSignature } from '@/lib/server/gmail'
 import { requireRouteUser } from '@/lib/server/supabase'
+import { loadUserSettings } from '@/lib/server/user-settings'
 
 type DraftRequest = {
   contact_id: string
   note?: string
 }
 
-function isMissingEmailDraftNoteColumn(error: unknown) {
-  const message = errorMessage(error, '').toLowerCase()
-  return (
-    message.includes('email_draft_note') &&
-    (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
+async function runWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<R>
+) {
+  const results = new Array<R>(items.length)
+  let nextIndex = 0
+
+  async function runNext() {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex
+      nextIndex += 1
+      results[currentIndex] = await worker(items[currentIndex], currentIndex)
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, () => runNext())
   )
+
+  return results
+}
+
+function mergeNotes(primary?: string | null, common?: string | null) {
+  return [primary, common]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .join('\n\n') || null
 }
 
 export async function POST(request: NextRequest) {
@@ -23,53 +48,55 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const drafts: DraftRequest[] = Array.isArray(body.drafts) ? body.drafts : []
+    const commonNote = String(body.common_note || '').trim() || null
 
     if (!drafts.length) {
       return Response.json({ error: 'Nessun contatto fornito' }, { status: 400 })
     }
 
     const contactIds = drafts.map((draft) => draft.contact_id)
-    const primaryContactsResult = await auth.supabase
+    let contactsQuery = auth.supabase
       .from('contacts')
-      .select('id, name, email, company, last_activity_summary, email_draft_note')
-      .eq('user_id', auth.user.id)
+      .select('*')
+      .eq('user_id', auth.workspaceUserId)
       .in('id', contactIds)
 
-    let contacts = primaryContactsResult.data || []
-    if (primaryContactsResult.error && isMissingEmailDraftNoteColumn(primaryContactsResult.error)) {
-      const fallbackContactsResult = await auth.supabase
-        .from('contacts')
-        .select('id, name, email, company, last_activity_summary')
-        .eq('user_id', auth.user.id)
-        .in('id', contactIds)
-
-      if (fallbackContactsResult.error) throw fallbackContactsResult.error
-      contacts = (fallbackContactsResult.data || []).map((contact: any) => ({
-        ...contact,
-        email_draft_note: null,
-      }))
-    } else if (primaryContactsResult.error) {
-      throw primaryContactsResult.error
+    if (!auth.isAdmin) {
+      if (!auth.memberName) {
+        return Response.json({ error: 'Collaboratore non associato a un membro team' }, { status: 403 })
+      }
+      const assigneeOr = contactAssigneeMatchOrFilter(auth.memberName)
+      contactsQuery = assigneeOr ? contactsQuery.or(assigneeOr) : contactsQuery.eq('responsible', '__no_member__')
     }
 
-    const contactMap = new Map((contacts || []).map((contact: any) => [contact.id, contact]))
-    const results: { contact_id: string; draft_id?: string; error?: string }[] = []
+    const contactsResult = await contactsQuery
+    if (contactsResult.error) throw contactsResult.error
 
-    for (const item of drafts) {
+    const contacts = contactsResult.data || []
+    const contactMap = new Map((contacts || []).map((contact: any) => [contact.id, contact]))
+    const [settings, emailSignature] = await Promise.all([
+      loadUserSettings(auth.supabase, auth.workspaceUserId),
+      loadGmailSignature(auth.supabase, auth.workspaceUserId).catch(() => null),
+    ])
+    const results = await runWithConcurrency(drafts, 3, async (item) => {
       const contact = contactMap.get(item.contact_id)
       if (!contact) {
-        results.push({ contact_id: item.contact_id, error: 'Contatto non trovato' })
-        continue
+        return { contact_id: item.contact_id, error: 'Contatto non trovato' }
       }
 
-      const result = await createGeneratedContactDraft(auth.supabase, auth.user.id, contact, item.note || null)
+      const result = await createGeneratedContactDraft(
+        auth.supabase,
+        auth.workspaceUserId,
+        contact,
+        mergeNotes(item.note, commonNote),
+        { settings, emailSignature }
+      )
       if ('error' in result) {
-        results.push({ contact_id: item.contact_id, error: result.error })
-        continue
+        return { contact_id: item.contact_id, error: result.error }
       }
 
-      results.push({ contact_id: item.contact_id, draft_id: result.draftId })
-    }
+      return { contact_id: item.contact_id, draft_id: result.draftId }
+    })
 
     const created = results.filter((result) => result.draft_id).length
     const failed = results.filter((result) => result.error).length

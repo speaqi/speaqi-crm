@@ -572,14 +572,14 @@ export default function ContactDetailPage() {
               <div className="detail-grid" style={{ marginTop: 0 }}>
                 <div>
                   <div className="fg">
-                    <label className="fl">Nota per generazione AI</label>
+                    <label className="fl">Contesto AI per questa email</label>
                     <textarea
                       className="fi"
-                      rows={3}
+                      rows={8}
                       value={gmailDraftNote}
                       onChange={(event) => setGmailDraftNote(event.target.value)}
-                      placeholder="Questo testo viene salvato sul contatto e riusato per le bozze e i follow-up automatici"
-                      style={{ resize: 'vertical' }}
+                      placeholder="Inserisci dettagli utili: cosa e emerso, proposta da fare, tono da usare, materiali da citare, obiezioni o prossima azione concordata"
+                      style={{ resize: 'vertical', minHeight: 180 }}
                     />
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
                       <button
@@ -640,11 +640,11 @@ export default function ContactDetailPage() {
                     <label className="fl">Messaggio</label>
                     <textarea
                       className="fi"
-                      rows={6}
+                      rows={9}
                       value={gmailBody}
                       onChange={(event) => setGmailBody(event.target.value)}
                       placeholder="Scrivi qui il testo dell’email"
-                      style={{ resize: 'vertical' }}
+                      style={{ resize: 'vertical', minHeight: 220 }}
                     />
                   </div>
                   <div className="fg">

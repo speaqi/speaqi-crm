@@ -49,13 +49,29 @@ type GmailApiMessage = {
   payload?: GmailPayload
 }
 
+type GmailSendAs = {
+  sendAsEmail?: string
+  displayName?: string
+  isDefault?: boolean
+  signature?: string
+  verificationStatus?: string
+}
+
+export type EmailSignature = {
+  html: string
+  text: string
+  source: 'gmail' | 'settings'
+}
+
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const GMAIL_API_BASE_URL = 'https://gmail.googleapis.com/gmail/v1'
+const GMAIL_SIGNATURE_SCOPE = 'https://www.googleapis.com/auth/gmail.settings.basic'
 const GMAIL_SCOPES = [
   'https://www.googleapis.com/auth/gmail.send',
   'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/gmail.compose',
+  GMAIL_SIGNATURE_SCOPE,
   'https://www.googleapis.com/auth/calendar.events',
 ]
 
@@ -180,11 +196,30 @@ function decodeBase64Url(value?: string) {
 
 function stripHtml(html: string) {
   return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|tr|h[1-6])>/gi, '\n')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+function normalizeScopeList(scope?: string | null) {
+  return String(scope || '')
+    .split(/\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+export function gmailAccountHasSignatureScope(account: { scope?: string | null } | null | undefined) {
+  return normalizeScopeList(account?.scope).includes(GMAIL_SIGNATURE_SCOPE)
 }
 
 function collectBodies(payload?: GmailPayload | null, bucket = { plain: [] as string[], html: [] as string[] }) {
@@ -266,6 +301,43 @@ export function simpleTextToHtml(value: string) {
   return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.55;color:#111827">${escaped.replace(/\n/g, '<br />')}</div>`
 }
 
+export function signatureFromPlainText(value?: string | null): EmailSignature | null {
+  const text = String(value || '').trim()
+  if (!text) return null
+
+  return {
+    source: 'settings',
+    text,
+    html: simpleTextToHtml(text),
+  }
+}
+
+function signatureAlreadyIncluded(messageText: string, signatureText: string) {
+  const normalizedMessage = String(messageText || '').replace(/\s+/g, ' ').trim().toLowerCase()
+  const normalizedSignature = String(signatureText || '').replace(/\s+/g, ' ').trim().toLowerCase()
+  if (!normalizedMessage || !normalizedSignature) return false
+  return normalizedMessage.includes(normalizedSignature.slice(0, Math.min(80, normalizedSignature.length)))
+}
+
+export function appendEmailSignature(
+  input: { html: string; text: string },
+  signature: EmailSignature | null
+) {
+  if (!signature?.text && !signature?.html) return input
+  if (signature.text && signatureAlreadyIncluded(input.text, signature.text)) return input
+
+  const text = [String(input.text || '').trim(), signature.text].filter(Boolean).join('\n\n')
+  const html = [
+    String(input.html || '').trim() || simpleTextToHtml(input.text || ''),
+    '<br />',
+    signature.html || simpleTextToHtml(signature.text || ''),
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  return { html, text }
+}
+
 async function parseResponse<T>(response: Response, fallback: string) {
   const payload = await response.json().catch(() => null)
   if (!response.ok) {
@@ -286,6 +358,45 @@ async function gmailApiRequest<T>(accessToken: string, path: string, init: Reque
   })
 
   return parseResponse<T>(response, 'Gmail API request failed')
+}
+
+async function listGmailSendAs(accessToken: string) {
+  return gmailApiRequest<{ sendAs?: GmailSendAs[] }>(
+    accessToken,
+    '/users/me/settings/sendAs'
+  )
+}
+
+async function loadGmailSignatureForAccount(account: GmailAccountRecord | null): Promise<EmailSignature | null> {
+  if (!account || !gmailAccountHasSignatureScope(account)) return null
+
+  try {
+    const accessToken = await refreshAccessToken(account)
+    const payload = await listGmailSendAs(accessToken)
+    const accountEmail = normalizeEmail(account.email)
+    const candidates = payload.sendAs || []
+    const selected =
+      candidates.find((item) => item.isDefault && normalizeEmail(item.sendAsEmail) === accountEmail) ||
+      candidates.find((item) => normalizeEmail(item.sendAsEmail) === accountEmail) ||
+      candidates.find((item) => item.isDefault) ||
+      candidates[0]
+
+    const html = String(selected?.signature || '').trim()
+    if (!html) return null
+
+    return {
+      source: 'gmail',
+      html,
+      text: stripHtml(html),
+    }
+  } catch {
+    return null
+  }
+}
+
+export async function loadGmailSignature(supabase: any, userId: string): Promise<EmailSignature | null> {
+  const account = await getGmailAccount(supabase, userId)
+  return loadGmailSignatureForAccount(account)
 }
 
 export function buildGmailConnectUrl(state: string) {
@@ -380,6 +491,8 @@ export function gmailStatus(account: GmailAccountRecord | null): GmailAccountSta
     connected: true,
     email: account.email,
     last_sync_at: account.last_sync_at || null,
+    signature_readable: gmailAccountHasSignatureScope(account),
+    needs_reconnect_for_signature: !gmailAccountHasSignatureScope(account),
   }
 }
 
@@ -663,6 +776,7 @@ export async function sendContactEmail(
     html: string
     text: string
     followupAt?: string | null
+    appendSignature?: boolean
   }
 ) {
   if (!contact.email) {
@@ -675,7 +789,12 @@ export async function sendContactEmail(
   }
 
   const accessToken = await refreshAccessToken(account)
-  const raw = encodeMessageBody(input.subject, contact.email, input.html, input.text)
+  const signature = input.appendSignature === false ? null : await loadGmailSignatureForAccount(account)
+  const signedInput = appendEmailSignature(
+    { html: input.html, text: input.text },
+    signature
+  )
+  const raw = encodeMessageBody(input.subject, contact.email, signedInput.html, signedInput.text)
   const effectiveFollowupAt = (contact.contact_scope || 'crm') === 'holding' ? null : (input.followupAt || null)
 
   const sendResult = await gmailApiRequest<{ id: string; threadId?: string }>(
@@ -757,13 +876,18 @@ export async function createContactDraft(
   supabase: any,
   userId: string,
   contact: { email: string; name: string },
-  input: { subject: string; html: string; text: string }
+  input: { subject: string; html: string; text: string; appendSignature?: boolean }
 ): Promise<{ draftId: string } | null> {
   const account = await getGmailAccount(supabase, userId)
   if (!account) return null
 
   const accessToken = await refreshAccessToken(account)
-  const raw = encodeMessageBody(input.subject, contact.email, input.html, input.text)
+  const signature = input.appendSignature === false ? null : await loadGmailSignatureForAccount(account)
+  const signedInput = appendEmailSignature(
+    { html: input.html, text: input.text },
+    signature
+  )
+  const raw = encodeMessageBody(input.subject, contact.email, signedInput.html, signedInput.text)
 
   const result = await gmailApiRequest<{ id: string; message: { id: string } }>(
     accessToken,

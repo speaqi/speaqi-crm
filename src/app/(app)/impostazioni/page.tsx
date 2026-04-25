@@ -13,7 +13,7 @@ const SETTINGS_ITEMS = [
     href: '/impostazioni/email-ai',
     icon: '✍️',
     title: 'Email AI',
-    description: 'Contesto Speaqi, tono e firma per la generazione automatica di bozze email.',
+    description: 'Contesto commerciale, struttura, CTA e fallback firma per le bozze Gmail.',
   },
   {
     href: '/gmail',

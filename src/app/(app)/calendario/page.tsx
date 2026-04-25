@@ -306,11 +306,11 @@ export default function CalendarioPage() {
                       </div>
                       {contact.email && (
                         <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                          <input
-                            type="text"
+                          <textarea
                             className="form-input"
-                            style={{ fontSize: 13, flex: '1 1 280px', minWidth: 220 }}
-                            placeholder="Nota per bozza email..."
+                            rows={2}
+                            style={{ fontSize: 13, flex: '1 1 320px', minWidth: 240, minHeight: 64, resize: 'vertical' }}
+                            placeholder="Contesto per bozza email..."
                             value={draftNotes[contact.id] ?? ''}
                             onChange={(e) =>
                               setDraftNotes((prev) => ({ ...prev, [contact.id]: e.target.value }))

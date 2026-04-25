@@ -2055,6 +2055,11 @@ select.filter-select {
   align-items: center;
   flex-wrap: wrap;
 }
+.contacts-bulk-draft-note {
+  width: min(320px, 100%);
+  min-width: 220px;
+  font-size: 13px;
+}
 .contacts-bulkpanel {
   align-items: stretch;
 }

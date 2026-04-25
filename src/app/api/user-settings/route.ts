@@ -1,20 +1,17 @@
 import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
 import { requireRouteUser } from '@/lib/server/supabase'
+import { EMPTY_USER_SETTINGS, loadUserSettings, saveUserSettings } from '@/lib/server/user-settings'
 
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
 
   try {
-    const { data } = await auth.supabase
-      .from('user_settings')
-      .select('speaqi_context, email_tone, email_signature')
-      .eq('user_id', auth.user.id)
-      .maybeSingle()
+    const settings = await loadUserSettings(auth.supabase, auth.workspaceUserId)
 
     return Response.json({
-      settings: data ?? { speaqi_context: null, email_tone: null, email_signature: null },
+      settings: settings ?? EMPTY_USER_SETTINGS,
     })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Failed to load settings') }, { status: 500 })
@@ -27,19 +24,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const payload = {
-      user_id: auth.user.id,
-      speaqi_context: body.speaqi_context ?? null,
-      email_tone: body.email_tone ?? null,
-      email_signature: body.email_signature ?? null,
-      updated_at: new Date().toISOString(),
-    }
-
-    const { error } = await auth.supabase
-      .from('user_settings')
-      .upsert(payload, { onConflict: 'user_id' })
-
-    if (error) throw error
+    await saveUserSettings(auth.supabase, auth.workspaceUserId, body)
 
     return Response.json({ ok: true })
   } catch (error) {
