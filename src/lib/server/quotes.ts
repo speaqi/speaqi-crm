@@ -47,6 +47,8 @@ export function normalizeQuoteItems(value: unknown): QuoteLineItem[] {
 
       const quantity = Math.max(0, normalizeNumber(row.quantity, 1))
       const unitPrice = Math.max(0, normalizeNumber(row.unit_price, 0))
+      const listUnitRaw = normalizeNumber(row.list_unit_price, 0)
+      const listUnitPrice = listUnitRaw > 0 ? roundMoney(listUnitRaw) : null
       const lineTotal = roundMoney(quantity * unitPrice)
 
       return {
@@ -55,6 +57,7 @@ export function normalizeQuoteItems(value: unknown): QuoteLineItem[] {
         details: normalizeText(row.details),
         quantity,
         unit_price: roundMoney(unitPrice),
+        ...(listUnitPrice ? { list_unit_price: listUnitPrice } : {}),
         line_total: lineTotal,
       }
     })

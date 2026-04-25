@@ -4,6 +4,11 @@ import Link from 'next/link'
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import { DEFAULT_BANK_TRANSFER_INSTRUCTIONS, DEFAULT_CONTRACT_TERMS } from '@/lib/quote-defaults'
+import {
+  SPEAQI_PACKAGES,
+  quoteLineFromPackage,
+  type SpeaqiPackageKey,
+} from '@/lib/speaqi-quote-packages'
 import type { CRMContact, Quote, QuoteInput, QuoteLineItem, QuoteStatus } from '@/types'
 import { useCRMContext } from '../layout'
 
@@ -13,15 +18,7 @@ type QuoteDraft = Omit<QuoteInput, 'title' | 'customer_name' | 'items'> & {
   items: QuoteLineItem[]
 }
 
-const OFFER_FEATURES = [
-  'Video multilingua fino a 1 min',
-  'Traduzione fino a 7 lingue',
-  'QR dinamico',
-  'Accesso piano Premium incluso per 1 anno',
-  'Analytics avanzate',
-  'Supporto dedicato',
-  'Video forniti dal cliente',
-].join('\n')
+const PACKAGE_KEYS = Object.keys(SPEAQI_PACKAGES) as SpeaqiPackageKey[]
 
 const STATUS_LABELS: Record<QuoteStatus, string> = {
   draft: 'Bozza',
@@ -71,15 +68,7 @@ function blankDraft(): QuoteDraft {
     customer_company: '',
     customer_tax_id: '',
     customer_address: '',
-    items: [
-      {
-        id: makeLineId(),
-        description: 'Pacchetto video multilingua',
-        details: OFFER_FEATURES,
-        quantity: 1,
-        unit_price: 499.99,
-      },
-    ],
+    items: [quoteLineFromPackage('start', makeLineId())],
     discount_amount: 0,
     tax_rate: 22,
     deposit_percent: 30,
@@ -197,21 +186,13 @@ export default function PreventiviPage() {
     setDraft((previous) => ({ ...previous, ...partial }))
   }
 
-  function applyPreset(kind: 'vini' | 'bnb') {
-    const isVini = kind === 'vini'
+  function applyPreset(key: SpeaqiPackageKey) {
     const keepPro = draft.items.some(isProPlanLine)
-    const baseItems: QuoteLineItem[] = [
-      {
-        id: makeLineId(),
-        description: isVini ? '13 Vini' : '3 B&B',
-        details: OFFER_FEATURES,
-        quantity: 1,
-        unit_price: isVini ? 1999.99 : 499.99,
-      },
-    ]
+    const baseItems: QuoteLineItem[] = [quoteLineFromPackage(key, makeLineId())]
     if (keepPro) baseItems.push(makeProPlanLine())
+    const p = SPEAQI_PACKAGES[key]
     patchDraft({
-      title: isVini ? '13 Vini' : '3 B&B',
+      title: p.quoteTitle,
       items: baseItems,
       deposit_percent: 30,
       public_note: 'Acconto 30%. Saldo alla consegna.',
@@ -419,14 +400,20 @@ export default function PreventiviPage() {
           </div>
 
           <div className="quotes-preset-row">
-            <button type="button" className="quote-preset" onClick={() => applyPreset('vini')}>
-              <strong>13 Vini</strong>
-              <span>{formatMoney(1999.99)} + IVA</span>
-            </button>
-            <button type="button" className="quote-preset" onClick={() => applyPreset('bnb')}>
-              <strong>3 B&B</strong>
-              <span>{formatMoney(499.99)} + IVA</span>
-            </button>
+            {PACKAGE_KEYS.map((key) => {
+              const p = SPEAQI_PACKAGES[key]
+              return (
+                <button key={key} type="button" className="quote-preset" onClick={() => applyPreset(key)}>
+                  <span className="quote-preset-name">{p.label}</span>
+                  <span className="quote-preset-sub">{p.subtitle}</span>
+                  <span className="quote-preset-tagline">{p.tagline}</span>
+                  <span className="quote-preset-prices">
+                    <span className="quote-preset-was">{formatMoney(p.list_unit_price)}</span>
+                    <span className="quote-preset-now">{formatMoney(p.unit_price)} + IVA</span>
+                  </span>
+                </button>
+              )
+            })}
           </div>
 
           <div className="quotes-form-grid">
@@ -565,15 +552,34 @@ export default function PreventiviPage() {
                     value={item.quantity}
                     onChange={(event) => updateItem(item.id || '', { quantity: Number(event.target.value) })}
                     aria-label="Quantità"
+                    title="Quantità"
                   />
                   <input
                     className="fi"
                     type="number"
                     min="0"
                     step="0.01"
+                    placeholder="Listino"
+                    value={item.list_unit_price != null && item.list_unit_price > 0 ? item.list_unit_price : ''}
+                    onChange={(event) => {
+                      const v = event.target.value
+                      updateItem(item.id || '', {
+                        list_unit_price: v === '' ? null : Math.max(0, Number(v)),
+                      })
+                    }}
+                    aria-label="Prezzo di listino unitario (opzionale)"
+                    title="Listino unitario (opzionale, prima dello sconto)"
+                  />
+                  <input
+                    className="fi"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Prezzo"
                     value={item.unit_price}
                     onChange={(event) => updateItem(item.id || '', { unit_price: Number(event.target.value) })}
-                    aria-label="Prezzo unitario"
+                    aria-label="Prezzo unitario in offerta"
+                    title="Prezzo unitario (offerta)"
                   />
                   <button type="button" className="icon-btn quote-remove" onClick={() => removeItem(item.id || '')}>
                     ×

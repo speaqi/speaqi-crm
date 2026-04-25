@@ -144,7 +144,10 @@ export interface QuoteLineItem {
   description: string
   details?: string | null
   quantity: number
+  /** Prezzo effettivo in offerta (netto IVA) */
   unit_price: number
+  /** Prezzo di listino / prima dello sconto, solo espositivo (stesso criterio di unit_price) */
+  list_unit_price?: number | null
   line_total?: number
 }
 

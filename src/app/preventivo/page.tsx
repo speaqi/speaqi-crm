@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { BrandLockup } from '@/components/layout/BrandLockup'
-import { resolvePublicBankInstructions, resolvePublicContractTerms } from '@/lib/quote-defaults'
+import { resolvePublicBankInstructions } from '@/lib/quote-defaults'
 import { createPublicServerClient } from '@/lib/server/supabase'
 import type { Quote, QuoteLineItem } from '@/types'
 import { QuotePaymentActions } from './QuotePaymentActions'
@@ -67,7 +67,6 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
   const hasBankTransfer = quote.payment_method === 'bank_transfer' || quote.payment_method === 'both'
   const validUntil = formatDate(quote.valid_until)
   const checkoutStatus = params.checkout
-  const contractBody = resolvePublicContractTerms(quote.contract_terms)
   const bankBody = resolvePublicBankInstructions(quote.bank_transfer_instructions)
 
   return (
@@ -112,25 +111,52 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
           <section className="public-quote-card public-quote-items">
             <h2>Dettaglio offerta</h2>
             <div className="public-quote-item-list">
-              {items.map((item) => (
-                <article className="public-quote-item" key={item.id || item.description}>
-                  <div>
-                    <h3>{item.description}</h3>
-                    {item.details && (
-                      <ul>
-                        {String(item.details)
-                          .split('\n')
-                          .map((detail) => detail.trim())
-                          .filter(Boolean)
-                          .map((detail) => (
-                            <li key={detail}>{detail}</li>
-                          ))}
-                      </ul>
-                    )}
-                  </div>
-                  <strong>{formatMoney(Number(item.quantity || 0) * Number(item.unit_price || 0), quote.currency)}</strong>
-                </article>
-              ))}
+              {items.map((item) => {
+                const qty = Number(item.quantity || 0)
+                const unit = Number(item.unit_price || 0)
+                const listUnit = item.list_unit_price != null ? Number(item.list_unit_price) : null
+                const lineNet = qty * unit
+                const lineList =
+                  listUnit != null && Number.isFinite(listUnit) && listUnit > 0 ? qty * listUnit : null
+                const showListPrice = lineList != null && lineList > lineNet + 0.005
+
+                return (
+                  <article className="public-quote-item" key={item.id || item.description}>
+                    <div>
+                      <h3>{item.description}</h3>
+                      {item.details && (
+                        <ul>
+                          {String(item.details)
+                            .split('\n')
+                            .map((line) => line.trim())
+                            .filter(Boolean)
+                            .map((line, index) => {
+                              const isBullet = line.startsWith('•') || /^-\s/.test(line)
+                              const text = isBullet ? line.replace(/^[•-]\s*/, '') : line
+                              return (
+                                <li
+                                  key={`${item.id || index}-${index}`}
+                                  className={isBullet ? undefined : 'public-quote-li-plain'}
+                                >
+                                  {text}
+                                </li>
+                              )
+                            })}
+                        </ul>
+                      )}
+                    </div>
+                    <div className="public-quote-item-prices">
+                      {showListPrice && lineList != null && (
+                        <span className="public-quote-price-was">{formatMoney(lineList, quote.currency)}</span>
+                      )}
+                      <div className="public-quote-price-active">
+                        <strong>{formatMoney(lineNet, quote.currency)}</strong>
+                        <span className="public-quote-price-tax">+ IVA</span>
+                      </div>
+                    </div>
+                  </article>
+                )
+              })}
             </div>
           </section>
 
@@ -173,16 +199,15 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
           <section className="public-quote-card">
             <h2>Contratto</h2>
             <div className="public-quote-contract-badge">Contratto accettato</div>
-            <p className="public-quote-contract-links">
+            <p className="public-quote-contract-summary">
+              Con la presente offerta, l’accettazione del pagamento da parte del Cliente — inclusi acconto, saldo o
+              importo totale, effettuati tramite Stripe o bonifico — comporta anche l’accettazione integrale delle
+              condizioni contrattuali stabilite nei{' '}
               <Link href="/termini-speaqi" target="_blank" rel="noopener noreferrer">
-                Apri i Termini di servizio Speaqi (pagina dedicata)
+                Termini di servizio Speaqi
               </Link>
+              .
             </p>
-            {contractBody ? (
-              <div className="public-quote-contract-body">{contractBody}</div>
-            ) : (
-              <p className="public-quote-muted">Nessun testo contrattuale allegato.</p>
-            )}
             <p className="public-quote-muted">
               Accettazione registrata il {formatDate(quote.contract_accepted_at) || 'giorno di emissione'}.
             </p>
@@ -203,6 +228,10 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
             {validUntil && <p className="public-quote-muted">Offerta valida fino al {validUntil}.</p>}
           </section>
         </div>
+
+        <p className="public-quote-legal-footer">
+          Speaqi di TheBestItaly · P.IVA: 10831191217 · C.F.: 95125440636
+        </p>
       </section>
     </main>
   )
