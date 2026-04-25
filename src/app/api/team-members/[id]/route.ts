@@ -26,6 +26,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if ('color' in body) update.color = normalizeText(body.color)
 
     const admin = createServiceRoleClient()
+    if (body.make_admin === true) {
+      await admin
+        .from('team_members')
+        .update({ auth_user_id: null })
+        .eq('user_id', auth.workspaceUserId)
+        .eq('auth_user_id', auth.user.id)
+      update.auth_user_id = auth.user.id
+    }
+
     let previousName: string | null = null
     if (nextName) {
       const { data: currentMember, error: currentMemberError } = await admin

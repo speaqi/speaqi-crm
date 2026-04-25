@@ -124,8 +124,10 @@ export default function OggiPage() {
 
   const adminScopeName = useMemo(() => {
     const emailLc = (authEmail || '').trim().toLowerCase()
+    const currentAdmin = teamMembers.find((m) => m.is_current_admin)?.name?.trim()
     const fromTeam = teamMembers.find((m) => (m.email || '').trim().toLowerCase() === emailLc)?.name?.trim()
     if (viewerMemberName && viewerMemberName.trim()) return viewerMemberName.trim()
+    if (currentAdmin) return currentAdmin
     if (fromTeam) return fromTeam
 
     const assignedUnlinkedMembers = teamMembers.filter(

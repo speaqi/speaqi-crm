@@ -127,6 +127,7 @@ export interface TeamMember {
   id: string
   user_id?: string
   auth_user_id?: string | null
+  is_current_admin?: boolean
   name: string
   email?: string | null
   color?: string | null

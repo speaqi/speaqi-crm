@@ -637,15 +637,28 @@ export function useCRM(pathname = '') {
     return response.member
   }, [])
 
-  const updateTeamMember = useCallback(async (id: string, payload: { name?: string; email?: string | null; color?: string | null }) => {
+  const updateTeamMember = useCallback(async (id: string, payload: { name?: string; email?: string | null; color?: string | null; make_admin?: boolean }) => {
     const response = await apiFetch<{ member: TeamMember }>(`/api/team-members/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
     setTeamMembers((previous) =>
-      previous.map((member) => (member.id === id ? response.member : member)).sort((a, b) => a.name.localeCompare(b.name))
+      previous
+        .map((member) => {
+          if (member.id !== id) {
+            return payload.make_admin ? { ...member, is_current_admin: false } : member
+          }
+          return {
+            ...response.member,
+            is_current_admin: payload.make_admin ? true : response.member.is_current_admin,
+          }
+        })
+        .sort((a, b) => a.name.localeCompare(b.name))
     )
+    if (payload.make_admin) {
+      setViewerMemberName(response.member.name?.trim() || null)
+    }
     return response.member
   }, [])
 

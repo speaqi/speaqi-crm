@@ -17,8 +17,18 @@ export async function GET(request: NextRequest) {
     .order('name', { ascending: true })
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
+  const emailLc = String(auth.user.email || '').trim().toLowerCase()
+  const members = (data || []).map((member: any) => {
+    const memberEmail = String(member.email || '').trim().toLowerCase()
+    return {
+      ...member,
+      is_current_admin:
+        auth.isAdmin &&
+        (member.auth_user_id === auth.user.id || (Boolean(memberEmail) && memberEmail === emailLc)),
+    }
+  })
   return Response.json({
-    members: data || [],
+    members,
     is_admin: auth.isAdmin,
     member_name: auth.memberName,
   })

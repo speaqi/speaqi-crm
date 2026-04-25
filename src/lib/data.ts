@@ -358,10 +358,6 @@ export function contactVisibleToAdminOnDashboard(
     return true
   }
 
-  // If the admin account is not linked to a team member yet, keep the dashboard
-  // complete instead of hiding contacts that may actually be assigned to the admin.
-  if (!viewerNorm) return true
-
   for (const m of teamMembers) {
     const mEmail = String(m.email || '').trim().toLowerCase()
     if (!mEmail || mEmail === authLc) continue

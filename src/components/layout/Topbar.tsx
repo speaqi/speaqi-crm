@@ -40,7 +40,9 @@ export function Topbar({
   const userLabel = !authEmail
     ? null
     : isAdmin
-      ? authEmail
+      ? viewerMemberName
+        ? `${viewerMemberName} · admin`
+        : `${authEmail} · admin`
       : viewerMemberName
         ? `${viewerMemberName} · collaboratore`
         : `${authEmail} · collaboratore`

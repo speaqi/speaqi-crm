@@ -55,6 +55,16 @@ export default function TeamAdminPage() {
     }
   }
 
+  async function handleSetAdmin(id: string, memberName: string) {
+    if (!window.confirm(`Impostare "${memberName}" come admin della dashboard? La vista Oggi mostrerà di default solo i contatti assegnati a questo membro.`)) return
+    try {
+      await updateTeamMember(id, { make_admin: true })
+      showToast(`${memberName} impostato come admin`)
+    } catch (updateError) {
+      showToast(`Errore: ${updateError instanceof Error ? updateError.message : 'admin non aggiornato'}`)
+    }
+  }
+
   return (
     <div className="page-container">
       <div className="page-header">
@@ -111,10 +121,23 @@ export default function TeamAdminPage() {
                 {member.name.slice(0, 1).toUpperCase()}
               </div>
               <div className="team-row-body">
-                <strong>{member.name}</strong>
+                <div className="team-row-title">
+                  <strong>{member.name}</strong>
+                  {member.is_current_admin && <span className="team-role-badge">Admin</span>}
+                </div>
                 {member.email && <span className="team-row-email">{member.email}</span>}
               </div>
               <div className="team-row-actions">
+                {!member.is_current_admin && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    disabled={!isAdmin}
+                    onClick={() => handleSetAdmin(member.id, member.name)}
+                  >
+                    Imposta admin
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm"
