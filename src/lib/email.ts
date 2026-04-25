@@ -14,6 +14,22 @@ function getResendClient() {
   return resendClient
 }
 
+/** Resend non lancia su errori API: controlla sempre `error` nel risultato. */
+function assertResendEmailSent(
+  result: { data: { id?: string } | null; error: { message: string; name?: string } | null },
+  context: string
+) {
+  if (result.error) {
+    const msg = result.error.message || 'Resend error'
+    console.error(`[Resend] ${context}:`, result.error)
+    throw new Error(msg)
+  }
+  if (!result.data?.id) {
+    console.error(`[Resend] ${context}: no message id in response`, result)
+    throw new Error('Invio email non confermato dal provider')
+  }
+}
+
 export async function sendFollowupEmail(to: string, contactName: string, cardName: string) {
   return getResendClient().emails.send({
     from: 'CRM <crm@speaqi.it>',
@@ -77,12 +93,16 @@ type QuoteContractMailPayload = {
   publicUrl: string
 }
 
+/** Opzionale: mittente verificato Resend (es. `CRM <notifiche@tuodominio.it>`). */
+const defaultQuoteContractFrom = () => (process.env.RESEND_FROM || 'CRM <crm@speaqi.it>').trim()
+
 export async function sendQuoteContractAcceptanceEmail(
   to: string,
   { quoteNumber, title, customerName, publicUrl }: QuoteContractMailPayload
 ) {
-  return getResendClient().emails.send({
-    from: 'Speaqi <crm@speaqi.it>',
+  const from = defaultQuoteContractFrom()
+  const result = await getResendClient().emails.send({
+    from: from.includes('<') ? from : `CRM <${from}>`,
     to,
     subject: `Conferma accettazione contratto — Preventivo ${quoteNumber}`,
     html: `
@@ -100,4 +120,9 @@ export async function sendQuoteContractAcceptanceEmail(
       </div>
     `,
   })
+  assertResendEmailSent(
+    result as { data: { id?: string } | null; error: { message: string } | null },
+    'sendQuoteContractAcceptanceEmail'
+  )
+  return result
 }

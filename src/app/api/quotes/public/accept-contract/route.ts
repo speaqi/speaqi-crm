@@ -3,6 +3,18 @@ import { sendQuoteContractAcceptanceEmail } from '@/lib/email'
 import { errorMessage } from '@/lib/server/http'
 import { createPublicServerClient } from '@/lib/server/supabase'
 
+function parseRpcJsonb(data: unknown): unknown {
+  if (data == null) return null
+  if (typeof data === 'string') {
+    try {
+      return JSON.parse(data) as unknown
+    } catch {
+      return data
+    }
+  }
+  return data
+}
+
 function absolutePublicUrl(request: NextRequest, token: string) {
   const q = `?id=${encodeURIComponent(token)}`
   try {
@@ -43,7 +55,7 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: errorMessage(error, 'Operazione non riuscita') }, { status: 500 })
     }
 
-    const row = data as {
+    const row = parseRpcJsonb(data) as {
       ok?: boolean
       error?: string
       already?: boolean
@@ -64,7 +76,9 @@ export async function POST(request: NextRequest) {
     }
 
     const publicUrl = absolutePublicUrl(request, token)
-    if (!row.already) {
+    // Invia solo se c’è stata una scrittura utile (already=true = già completo, nessuna email duplicata)
+    const shouldSendEmail = row.already !== true
+    if (shouldSendEmail) {
       try {
         await sendQuoteContractAcceptanceEmail(email, {
           quoteNumber: String(row.quote_number || ''),
@@ -73,11 +87,12 @@ export async function POST(request: NextRequest) {
           publicUrl,
         })
       } catch (mailError) {
-        console.error('accept-contract: Resend', mailError)
+        const detail = mailError instanceof Error ? mailError.message : 'unknown'
+        console.error('accept-contract: Resend', detail, mailError)
         return Response.json(
           {
             success: true,
-            warning: 'Accettazione registrata; l’email di conferma potrebbe non essere stata inviata. Contatta il team se necessario.',
+            warning: `Accettazione registrata; l’email non è partita (${detail}). Verifica RESEND_API_KEY, dominio mittente in Resend e opzionale RESEND_FROM.`,
             quote_number: row.quote_number,
           },
           { status: 200 }
