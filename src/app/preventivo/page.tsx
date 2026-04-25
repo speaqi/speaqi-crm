@@ -2,7 +2,6 @@ import { BrandLockup } from '@/components/layout/BrandLockup'
 import { resolvePublicBankInstructions } from '@/lib/quote-defaults'
 import { createPublicServerClient } from '@/lib/server/supabase'
 import type { Quote, QuoteLineItem } from '@/types'
-import { QuoteContractAcceptance } from './QuoteContractAcceptance'
 import { QuotePaymentActions } from './QuotePaymentActions'
 
 export const dynamic = 'force-dynamic'
@@ -232,16 +231,6 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
         </div>
 
         <div className="public-quote-grid lower">
-          <section className="public-quote-card">
-            <h2>Contratto</h2>
-            <QuoteContractAcceptance
-              token={quote.public_token}
-              defaultEmail={String(quote.customer_email || '')}
-              contractSignerEmail={quote.contract_signer_email ?? null}
-              acceptedAtLabel={formatDate(quote.contract_accepted_at)}
-            />
-          </section>
-
           <section className="public-quote-card">
             <h2>Bonifico</h2>
             {bankBody ? (

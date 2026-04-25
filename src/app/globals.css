@@ -3137,6 +3137,10 @@ select.filter-select {
   grid-template-columns: 1fr 1fr;
   margin-top: 18px;
 }
+/* Una sola card sotto (es. Contratto nascosto): niente colonna vuota */
+.public-quote-grid.lower:has(> section:only-child) {
+  grid-template-columns: 1fr;
+}
 .public-quote-card {
   background: rgba(255,255,255,.72);
   border: 1px solid rgba(17,24,39,.09);
