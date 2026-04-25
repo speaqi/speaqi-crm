@@ -93,6 +93,9 @@ $$;
 
 grant execute on function public.accept_public_quote_contract(text, text) to anon, authenticated;
 
+-- Cannot change return columns with CREATE OR REPLACE: drop and recreate.
+drop function if exists public.get_public_quote(text);
+
 create or replace function public.get_public_quote(p_public_token text)
 returns table (
   id uuid,
@@ -174,3 +177,5 @@ as $$
     and q.status <> 'cancelled'
   limit 1;
 $$;
+
+grant execute on function public.get_public_quote(text) to anon, authenticated;
