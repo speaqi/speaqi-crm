@@ -34,6 +34,23 @@ function safeItems(value: unknown): QuoteLineItem[] {
   return Array.isArray(value) ? (value as QuoteLineItem[]) : []
 }
 
+/** Somma imponibile di listino (o prezzo unitario se listino assente) per riga — coerente con le righe + IVA. */
+function initialListNetTotal(items: QuoteLineItem[]) {
+  return items.reduce((sum, item) => {
+    const qty = Number(item.quantity || 0)
+    const listRaw = item.list_unit_price != null ? Number(item.list_unit_price) : null
+    const list = listRaw != null && listRaw > 0 ? listRaw : null
+    const unit = Number(item.unit_price || 0)
+    return sum + qty * (list ?? unit)
+  }, 0)
+}
+
+function publicLineHeading(description: string) {
+  return description
+    .replace(/\s*—\s*accesso 12 mesi\s*\(listino[^)]*\)/i, '')
+    .trim()
+}
+
 function MissingQuote({ message }: { message: string }) {
   return (
     <main className="public-quote-page">
@@ -63,11 +80,12 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
   }
 
   const items = safeItems(quote.items)
-  const canUseStripe = quote.payment_method === 'stripe' || quote.payment_method === 'both'
-  const hasBankTransfer = quote.payment_method === 'bank_transfer' || quote.payment_method === 'both'
+  const canUseStripe = false
+  const hasBankTransfer = true
   const validUntil = formatDate(quote.valid_until)
   const checkoutStatus = params.checkout
   const bankBody = resolvePublicBankInstructions(quote.bank_transfer_instructions)
+  const heroInitialNet = initialListNetTotal(items)
 
   return (
     <main className="public-quote-page">
@@ -101,9 +119,9 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
             </p>
           </div>
           <div className="public-quote-total">
-            <span>Totale offerta</span>
-            <strong>{formatMoney(quote.total_amount, quote.currency)}</strong>
-            <small>IVA inclusa</small>
+            <span>Prezzo totale iniziale</span>
+            <strong>{formatMoney(heroInitialNet, quote.currency)}</strong>
+            <small>+ IVA</small>
           </div>
         </div>
 
@@ -123,7 +141,7 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
                 return (
                   <article className="public-quote-item" key={item.id || item.description}>
                     <div>
-                      <h3>{item.description}</h3>
+                      <h3>{publicLineHeading(item.description)}</h3>
                       {item.details && (
                         <ul>
                           {String(item.details)
@@ -201,7 +219,7 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
             <div className="public-quote-contract-badge">Contratto accettato</div>
             <p className="public-quote-contract-summary">
               Con la presente offerta, l’accettazione del pagamento da parte del Cliente — inclusi acconto, saldo o
-              importo totale, effettuati tramite Stripe o bonifico — comporta anche l’accettazione integrale delle
+              importo totale, effettuati tramite bonifico — comporta anche l’accettazione integrale delle
               condizioni contrattuali stabilite nei{' '}
               <Link href="/termini-speaqi" target="_blank" rel="noopener noreferrer">
                 Termini di servizio Speaqi
@@ -215,14 +233,10 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
 
           <section className="public-quote-card">
             <h2>Bonifico</h2>
-            {hasBankTransfer ? (
-              bankBody ? (
-                <div className="public-quote-bank-body">{bankBody}</div>
-              ) : (
-                <p className="public-quote-muted">Coordinate bonifico non specificate.</p>
-              )
+            {bankBody ? (
+              <div className="public-quote-bank-body">{bankBody}</div>
             ) : (
-              <p>Pagamento tramite Stripe previsto per questa offerta.</p>
+              <p className="public-quote-muted">Coordinate bonifico non specificate.</p>
             )}
             {quote.public_note && <p className="public-quote-note">{quote.public_note}</p>}
             {validUntil && <p className="public-quote-muted">Offerta valida fino al {validUntil}.</p>}
