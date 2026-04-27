@@ -99,7 +99,7 @@ src/
 │   │   ├── speaqi/
 │   │   └── impostazioni/   # Settings & team admin
 │   ├── api/                # API routes
-│   │   ├── auth/           # /signup — registrazione self-service
+│   │   ├── auth/           # Session management
 │   │   ├── contacts/
 │   │   ├── leads/          # AI-ready lead API
 │   │   ├── tasks/
@@ -117,12 +117,11 @@ src/
 │   │   ├── voice/
 │   │   ├── team-members/
 │   │   └── health/
-│   ├── login/              # Public login con value prop
-│   ├── signup/             # Public registrazione self-service
-│   ├── preventivo/         # Public quote with payment + trust
+│   ├── login/              # Login page
+│   ├── preventivo/         # Preventivo pubblico con pagamento
 │   ├── termini-speaqi/     # Terms of service
 │   ├── api-docs/           # Swagger UI
-│   └── page.tsx            # Landing page (auth-aware)
+│   └── page.tsx            # Root → redirect('/login')
 ├── components/
 │   ├── crm/                # ContactDrawer, ContactModal, CallOutcomeModal
 │   ├── layout/             # Sidebar, Topbar, BrandLockup
@@ -153,34 +152,19 @@ Path alias: `@/*` → `./src/*`
 - Contacts have `contact_scope`: `crm` (active pipeline) or `holding` (waiting for reply)
 - Vinitaly/Acumbamail leads enter as `holding` scope until engaged
 
-## Brand Identity
+## Brand & Legal
 
-- **Primary brand**: Speaqi — AI Multilingual Video per Cantine
 - **Legal entity**: Speaqi di TheBestItaly · P.IVA: 10831191217 · C.F.: 95125440636
-- **Colors public**: Warm cream `#f4efe6` bg, white `#fffaf1` card, orange `#ff4f1f` accent, navy `#1b2f4a` text
 - **Colors CRM**: Dark `#16192e` sidebar, accent `#4f6ef7` blue, white surface
 
-## Public Pages
+## Public Routes
 
-| Route | Description | Auth |
-|---|---|---|
-| `/` | Landing page — value prop, benefits, pricing, features, CTA | Public |
-| `/login` | Login con value prop headline e trust bar | Public |
-| `/signup` | Registrazione self-service (nome, email, password) | Public |
-| `/preventivo?id=TOKEN` | Preventivo pubblico con pagamento, garanzia, urgenza | Token-gated |
-| `/termini-speaqi` | Termini di servizio legali | Public |
-| `/api-docs` | Swagger UI documentazione API | Public |
-
-- Landing page: hero section, 3 benefit card (Lip-Sync AI, QR Code, Analytics), features grid 2×2 (Gmail, Voice, Pipeline, AI), pricing 3-colonne (START/EXPERIENCE/SIGNATURE), CTA contatto
-- Root page (`/`) checks auth client-side: logged-in → redirect `/dashboard`, not logged-in → landing page
-- Signup via `/api/auth/signup` (POST): creates Supabase auth user + `team_members` record using service role, auto-login after registration
-- SEO metadata in root layout: title "Speaqi CRM — AI Multilingual Video per Cantine"
-
-## Trust Elements (public pages)
-
-- **Login page**: P.IVA trust bar, "Nuovo cliente? Crea account" link
-- **Preventivo page**: Badge "Garanzia soddisfatti o rimborsati" + urgenza scadenza offerta + link contatto team
-- **Landing page**: Features section, pricing trasparente, CTA contatto
+| Route | Description |
+|---|---|
+| `/login` | Login page (email + password) |
+| `/preventivo?id=TOKEN` | Preventivo pubblico con pagamento, garanzia, urgenza |
+| `/termini-speaqi` | Termini di servizio |
+| `/api-docs` | Swagger UI |
 
 ## Onboarding
 
