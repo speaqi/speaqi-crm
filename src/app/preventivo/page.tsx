@@ -242,14 +242,6 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
               totalLabel={formatMoney(quote.total_amount, quote.currency)}
             />
 
-            <div className="public-quote-guarantee">
-              <span className="public-quote-guarantee-badge">✓ Garanzia soddisfatti o rimborsati</span>
-              <p className="public-quote-guarantee-text">
-                Se non sei soddisfatto del servizio, ricevi il rimborso completo entro 14 giorni
-                dall&rsquo;attivazione. Senza domande.
-              </p>
-            </div>
-
             {validUntil && (
               <div className="public-quote-urgency">
                 <div className="public-quote-urgency-badge">⏳ Scadenza offerta</div>
