@@ -443,6 +443,22 @@ export default function OggiPage() {
         </div>
       </header>
 
+      {allContacts.length === 0 && (
+        <section className="oggi-onboarding">
+          <div className="oggi-onboarding-icon">👋</div>
+          <h2>Benvenuto in Speaqi!</h2>
+          <p>
+            Inizia caricando i tuoi contatti esistenti o crea il primo contatto manualmente.
+            Puoi anche provare il comando vocale per inserire dati senza scrivere.
+          </p>
+          <div className="oggi-onboarding-actions">
+            <Link href="/import" className="btn btn-primary">📥 Importa CSV</Link>
+            <Link href="/contacts?new=1" className="btn btn-ghost">➕ Crea contatto</Link>
+            <Link href="/voice" className="btn btn-ghost">🎤 Prova nota vocale</Link>
+          </div>
+        </section>
+      )}
+
       <div className={`oggi-focus-grid ${overdueCalls.length === 0 ? 'is-single' : ''}`}>
         {overdueCalls.length > 0 && (
           <section
@@ -610,6 +626,10 @@ export default function OggiPage() {
           setModalOpen(true)
         }}
       />
+
+      <Link href="/voice" className="voice-fab" title="Nota vocale rapida">
+        🎤
+      </Link>
 
       <ContactModal
         open={modalOpen}

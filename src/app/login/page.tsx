@@ -33,6 +33,16 @@ export default function LoginPage() {
 
   return (
     <div className="login-page">
+      <div className="login-brand">
+        <p className="login-brand-kicker">AI Multilingual Video</p>
+        <h1 className="login-brand-title">
+          Da un video sorgente a 7+ lingue con lip-sync AI.
+        </h1>
+        <p className="login-brand-sub">
+          Gestisci contatti, preventivi e video multilingual per la tua cantina.
+        </p>
+      </div>
+
       <div className="login-box">
         <div className="login-logo">
           <BrandLockup subtitle="Accedi per continuare" tone="light" size="hero" centered />
@@ -66,6 +76,14 @@ export default function LoginPage() {
             {loading ? 'Accesso in corso…' : 'Accedi'}
           </button>
         </form>
+
+        <div className="login-trust">
+          Speaqi di TheBestItaly · P.IVA: 10831191217
+        </div>
+
+        <div className="signup-footer">
+          Nuovo cliente? <a href="/signup" className="signup-link">Crea account</a>
+        </div>
       </div>
     </div>
   )

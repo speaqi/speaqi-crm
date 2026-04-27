@@ -19,7 +19,7 @@ const SETTINGS_ITEMS = [
     href: '/gmail',
     icon: '✉️',
     title: 'Gmail',
-    description: 'Collega account per sincronizzare thread ai contatti.',
+    description: 'Collega account, sincronizza thread ai contatti, traccia aperture e scrivi bozze con AI.',
   },
   {
     href: '/preventivi',
