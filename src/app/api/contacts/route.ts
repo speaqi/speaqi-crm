@@ -78,8 +78,8 @@ export async function GET(request: NextRequest) {
     if (scope === 'personal') query = query.eq('contact_scope', 'personal')
 
     const workspaceAll = workspaceContactsAllFromRequest(request, auth.isAdmin)
-    // Solo collaboratori: filtro assegnatario. Admin: elenco completo (RLS); la dashboard filtra in client.
-    if (!auth.isAdmin && auth.memberName && !workspaceAll) {
+    // Filtro assegnatario per tutti (admin incluso) quando non è richiesto workspace completo.
+    if (auth.memberName && !workspaceAll) {
       const assigneeOr = contactAssigneeMatchOrFilter(auth.memberName)
       if (assigneeOr) query = query.or(assigneeOr)
       else query = query.eq('responsible', '__no_member__')
