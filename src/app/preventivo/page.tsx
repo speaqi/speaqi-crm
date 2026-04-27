@@ -87,6 +87,10 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
   const bankBody = resolvePublicBankInstructions(quote.bank_transfer_instructions)
   const initialNetTotal = initialListNetTotal(items)
   const hasInitialListTotal = initialNetTotal > Number(quote.subtotal_amount || 0) + 0.005
+  const taxRate = Number(quote.tax_rate || 0)
+  const depositNet = taxRate > 0
+    ? Number(quote.deposit_amount || 0) / (1 + taxRate / 100)
+    : Number(quote.deposit_amount || 0)
 
   return (
     <main className="public-quote-page">
@@ -187,13 +191,16 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
                 </div>
               )}
               <div className="public-quote-final-total">
-                <span>Totale offerta</span>
+                <span>Totale da pagare</span>
                 <strong>{formatMoney(quote.total_amount, quote.currency)}</strong>
                 <small>IVA inclusa</small>
               </div>
               <div className="public-quote-due-now">
-                <span>Da pagare ora</span>
-                <strong>{formatMoney(quote.deposit_amount, quote.currency)}</strong>
+                <span>Prezzo</span>
+                <div>
+                  <strong>{formatMoney(depositNet, quote.currency)}</strong>
+                  <small>+ IVA {taxRate}%</small>
+                </div>
                 <small>Acconto {Number(quote.deposit_percent || 0)}% con bonifico</small>
               </div>
             </div>
