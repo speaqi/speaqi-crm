@@ -1848,6 +1848,125 @@ select.filter-select {
   .oggi-hero-stats { border: none; padding: 0; }
 }
 
+/* === Email Draft Panel === */
+.oggi-email-draft {
+  margin-top: 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+.oggi-email-draft-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.oggi-email-draft-head h2 { font-size: 15px; font-weight: 600; margin: 0; }
+.oggi-email-draft-count {
+  font-size: 11px;
+  color: var(--text3);
+  background: var(--surface2);
+  padding: 3px 8px;
+  border-radius: 8px;
+}
+.oggi-email-draft-common { margin-bottom: 12px; }
+.oggi-email-draft-common-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  background: var(--surface2);
+  color: var(--text);
+  transition: border-color 0.15s;
+}
+.oggi-email-draft-common-input:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(79, 110, 247, 0.15);
+}
+.oggi-email-draft-common-input::placeholder { color: var(--text3); }
+
+.oggi-email-draft-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+.oggi-email-draft-row {
+  display: grid;
+  grid-template-columns: 1fr 240px 28px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface2);
+  border: 1px solid transparent;
+  transition: border-color 0.15s;
+}
+.oggi-email-draft-row.no-email { grid-template-columns: 1fr; opacity: 0.5; }
+.oggi-email-draft-row.has-draft { border-color: #10b981; background: rgba(16, 185, 129, 0.04); }
+.oggi-email-draft-row.has-error { border-color: #ef4444; background: rgba(239, 68, 68, 0.04); }
+.oggi-email-draft-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.oggi-email-draft-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.oggi-email-draft-company { font-size: 11px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.oggi-email-draft-addr { font-size: 11px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.oggi-email-draft-noemail {
+  font-size: 10px;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 600;
+  width: fit-content;
+  margin-top: 2px;
+}
+.oggi-email-draft-note {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-family: inherit;
+  background: white;
+  color: var(--text);
+  transition: border-color 0.15s;
+}
+.oggi-email-draft-note:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(79, 110, 247, 0.12);
+}
+.oggi-email-draft-note::placeholder { color: var(--text3); font-size: 12px; }
+.oggi-email-draft-status {
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.oggi-email-draft-status.status-ok { color: #10b981; }
+.oggi-email-draft-status.status-error { color: #ef4444; }
+
+.oggi-email-draft-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.oggi-email-draft-summary {
+  font-size: 12.5px;
+  color: var(--text2);
+}
+
 /* === Team admin === */
 .team-breadcrumb { margin-bottom: 8px; font-size: 13px; }
 .team-breadcrumb a { color: var(--text3); text-decoration: none; }

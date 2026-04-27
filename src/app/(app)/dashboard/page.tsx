@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { DragEvent, MouseEvent, KeyboardEvent, useMemo, useState } from 'react'
 import { ContactDrawer } from '@/components/crm/ContactDrawer'
 import { ContactModal } from '@/components/crm/ContactModal'
+import { EmailDraftPanel } from '@/components/crm/EmailDraftPanel'
 import { useCRMContext } from '../layout'
 import {
   contactMatchesAssigneeName,
@@ -526,6 +527,12 @@ export default function OggiPage() {
           )}
         </section>
       </div>
+
+      <EmailDraftPanel
+        todayCalls={days[0]?.calls || []}
+        updateContact={updateContact}
+        showToast={showToast}
+      />
 
       <section className="oggi-week">
         <div className="oggi-week-head">
