@@ -31,6 +31,31 @@ function normalizeDateTime(value: unknown) {
   return parsed.toISOString()
 }
 
+function isMissingOptionalMarketingColumn(error: unknown, column: 'marketing_status' | 'marketing_paused_until') {
+  const message = errorMessage(error, '').toLowerCase()
+  return (
+    message.includes(column) &&
+    (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
+  )
+}
+
+function buildMarketingFallbackPayload(payload: Record<string, unknown>, error: unknown) {
+  const fallback = { ...payload }
+  let changed = false
+
+  if (isMissingOptionalMarketingColumn(error, 'marketing_paused_until')) {
+    delete fallback.marketing_paused_until
+    changed = true
+  }
+  if (isMissingOptionalMarketingColumn(error, 'marketing_status')) {
+    delete fallback.marketing_status
+    delete fallback.marketing_paused_until
+    changed = true
+  }
+
+  return changed ? fallback : null
+}
+
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
@@ -73,21 +98,55 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return Response.json({ error: 'Nessun campo da aggiornare' }, { status: 400 })
     }
 
-    let query = auth.supabase
-      .from('contacts')
-      .update(updatePayload)
-      .eq('user_id', auth.workspaceUserId)
-      .eq('id', id)
+    const applyScope = (query: any) => {
+      if (!auth.isAdmin) {
+        if (!auth.memberName) return null
+        const assigneeOr = contactAssigneeMatchOrFilter(auth.memberName)
+        return assigneeOr ? query.or(assigneeOr) : query.eq('responsible', '__no_member__')
+      }
+      return query
+    }
 
     if (!auth.isAdmin) {
       if (!auth.memberName) {
         return Response.json({ error: 'Collaboratore non associato a un membro team' }, { status: 403 })
       }
-      const assigneeOr = contactAssigneeMatchOrFilter(auth.memberName)
-      query = assigneeOr ? query.or(assigneeOr) : query.eq('responsible', '__no_member__')
     }
 
-    const { data, error } = await query.select('*').single()
+    const runUpdate = async (payload: Record<string, unknown>) => {
+      const baseQuery = auth.supabase
+        .from('contacts')
+        .update(payload)
+        .eq('user_id', auth.workspaceUserId)
+        .eq('id', id)
+
+      const scopedQuery = applyScope(baseQuery)
+      if (!scopedQuery) return { data: null, error: { message: 'Collaboratore non associato a un membro team' } }
+      return scopedQuery.select('*').single()
+    }
+
+    let { data, error } = await runUpdate(updatePayload)
+    if (error) {
+      const fallbackPayload = buildMarketingFallbackPayload(updatePayload, error)
+      if (fallbackPayload && Object.keys(fallbackPayload).length) {
+        const retry = await runUpdate(fallbackPayload)
+        data = retry.data
+        error = retry.error
+      } else if (fallbackPayload) {
+        const baseQuery = auth.supabase
+          .from('contacts')
+          .select('*')
+          .eq('user_id', auth.workspaceUserId)
+          .eq('id', id)
+        const scopedQuery = applyScope(baseQuery)
+        const retry = scopedQuery
+          ? await scopedQuery.single()
+          : { data: null, error: { message: 'Collaboratore non associato a un membro team' } }
+        data = retry.data
+        error = retry.error
+      }
+    }
+
     if (error) throw error
 
     return Response.json({ contact: data })

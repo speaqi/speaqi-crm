@@ -19,6 +19,22 @@ async function getContact(supabase: any, userId: string, id: string) {
   return data
 }
 
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message?: unknown }).message || '')
+  }
+  return ''
+}
+
+function isMissingOptionalMarketingColumn(error: unknown, column: 'marketing_status' | 'marketing_paused_until') {
+  const message = errorMessage(error).toLowerCase()
+  return (
+    message.includes(column) &&
+    (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
+  )
+}
+
 export async function POST(request: NextRequest, context: RouteContext) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
@@ -45,7 +61,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       html: simpleTextToHtml(text),
       followupAt,
     })
-    await auth.supabase
+    const marketingUpdate = await auth.supabase
       .from('contacts')
       .update({
         marketing_status: followupAt ? 'followup_due' : 'sent',
@@ -53,6 +69,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
       })
       .eq('user_id', auth.workspaceUserId)
       .eq('id', id)
+    if (
+      marketingUpdate.error &&
+      (isMissingOptionalMarketingColumn(marketingUpdate.error, 'marketing_status') ||
+        isMissingOptionalMarketingColumn(marketingUpdate.error, 'marketing_paused_until'))
+    ) {
+      // Marketing columns are optional until the production migration/schema cache has caught up.
+    } else if (marketingUpdate.error) {
+      throw marketingUpdate.error
+    }
     const autoFollowupDraft = await maybeAutoCreateFollowupDraft(auth.supabase, auth.workspaceUserId, contact)
 
     return Response.json({
