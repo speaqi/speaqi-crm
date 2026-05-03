@@ -8,19 +8,21 @@ export async function POST(request: NextRequest) {
   if ('error' in auth) return auth.error
 
   try {
-    await ensurePipelineStages(auth.supabase, auth.user.id)
+    const workspaceUserId = auth.workspaceUserId
+
+    await ensurePipelineStages(auth.supabase, workspaceUserId)
 
     const { data: userState, error: stateError } = await auth.supabase
       .from('user_state')
       .select('*')
-      .eq('user_id', auth.user.id)
+      .eq('user_id', workspaceUserId)
       .single()
 
     if (stateError || !userState) {
       return Response.json({ migrated_contacts: 0, migrated_tasks: 0 })
     }
 
-    const records = await mapLegacyStateToRecords(userState, auth.user.id)
+    const records = await mapLegacyStateToRecords(userState, workspaceUserId)
     if (!records.length) {
       return Response.json({ migrated_contacts: 0, migrated_tasks: 0 })
     }
@@ -28,7 +30,7 @@ export async function POST(request: NextRequest) {
     const { data: existingLegacy, error: existingError } = await auth.supabase
       .from('contacts')
       .select('legacy_id')
-      .eq('user_id', auth.user.id)
+      .eq('user_id', workspaceUserId)
       .not('legacy_id', 'is', null)
 
     if (existingError) throw existingError
@@ -50,7 +52,7 @@ export async function POST(request: NextRequest) {
     const pendingTasks = (inserted || [])
       .filter((contact: any) => contact.next_followup_at && !isClosedStatus(contact.status))
       .map((contact: any) => ({
-        user_id: auth.user.id,
+        user_id: workspaceUserId,
         contact_id: contact.id,
         type: 'follow-up',
         due_date: contact.next_followup_at,
@@ -76,7 +78,7 @@ export async function POST(request: NextRequest) {
     await createActivities(
       auth.supabase,
       (inserted || []).map((contact: any) => ({
-        user_id: auth.user.id,
+        user_id: workspaceUserId,
         contact_id: contact.id,
         type: 'import',
         content: [

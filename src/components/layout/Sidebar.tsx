@@ -11,6 +11,7 @@ interface SidebarProps {
     personal: number
     vinitaly: number
     speaqi: number
+    marketing: number
     oggi: number
     tasks: number
   }
@@ -19,6 +20,7 @@ interface SidebarProps {
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Oggi', icon: '🏠', badgeKey: 'oggi' as const, badgeRed: true },
   { href: '/contacts', label: 'Contatti', icon: '👥', badgeKey: 'contacts' as const },
+  { href: '/marketing', label: 'Marketing', icon: '✉️', badgeKey: 'marketing' as const },
   { href: '/personali', label: 'Personali', icon: '🗂️', badgeKey: 'personal' as const },
   { href: '/kanban', label: 'Pipeline', icon: '🔀', badgeKey: 'kanban' as const },
   { href: '/preventivi', label: 'Preventivi', icon: '💶' },

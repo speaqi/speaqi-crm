@@ -1,4 +1,13 @@
 export type ContactScope = 'crm' | 'holding' | 'personal'
+export type MarketingStatus =
+  | 'not_ready'
+  | 'ready_to_draft'
+  | 'draft_created'
+  | 'ready_to_send'
+  | 'sent'
+  | 'followup_due'
+  | 'paused'
+  | 'unsubscribed'
 
 export interface PipelineStage {
   id: string
@@ -45,6 +54,8 @@ export interface CRMContact {
   last_email_click_at?: string | null
   email_unsubscribed_at?: string | null
   email_unsubscribe_source?: string | null
+  marketing_status?: MarketingStatus | null
+  marketing_paused_until?: string | null
   created_at: string
   updated_at: string
 }

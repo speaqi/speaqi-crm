@@ -53,7 +53,11 @@ export async function PATCH(request: NextRequest) {
     const updatePayload: Record<string, unknown> = {}
 
     if ('responsible' in patch) updatePayload.responsible = normalizeText(patch.responsible)
-    if ('status' in patch) updatePayload.status = normalizeNullableText(patch.status)
+    if ('status' in patch) {
+      const status = normalizeText(patch.status)
+      if (!status) return Response.json({ error: 'Stato non valido' }, { status: 400 })
+      updatePayload.status = status
+    }
     if ('source' in patch) updatePayload.source = normalizeText(patch.source)
     if ('list_name' in patch) updatePayload.list_name = normalizeNullableText(patch.list_name)
     if ('event_tag' in patch) updatePayload.event_tag = normalizeNullableText(patch.event_tag)

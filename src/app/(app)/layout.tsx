@@ -8,7 +8,7 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { Topbar } from '@/components/layout/Topbar'
 import { Toast } from '@/components/ui/Toast'
 import { useCRM } from '@/hooks/useCRM'
-import { isPipelineVisible } from '@/lib/data'
+import { isClosedStatus, isPipelineVisible } from '@/lib/data'
 import { createClient } from '@/lib/supabase'
 
 interface CRMContextType extends ReturnType<typeof useCRM> {
@@ -70,6 +70,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     personal: crm.personalContacts.length,
     vinitaly: crm.holdingContacts.length,
     speaqi: crm.speaqiContacts.length,
+    marketing: crm.allContacts.filter(
+      (contact) =>
+        contact.contact_scope !== 'personal' &&
+        !isClosedStatus(String(contact.status || '')) &&
+        (contact.email || contact.email_draft_note || contact.next_followup_at || contact.email_unsubscribed_at)
+    ).length,
     oggi: crm.dueTodayCount,
     tasks: crm.tasks.length,
   }

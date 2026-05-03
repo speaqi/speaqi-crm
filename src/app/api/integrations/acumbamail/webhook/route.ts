@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { timingSafeEqual } from 'crypto'
 import { normalizeLeadRecord, logLeadActivity } from '@/lib/server/ai-ready'
 import { ensurePipelineStages } from '@/lib/server/crm'
 import { errorMessage } from '@/lib/server/http'
@@ -599,15 +600,16 @@ async function resolveEffectiveScopedUserId(request: NextRequest, payload: unkno
 
 function isAuthorizedWebhook(request: NextRequest) {
   const expectedToken = process.env.ACUMBAMAIL_WEBHOOK_TOKEN
-  if (!expectedToken) return true
+  if (!expectedToken) return false
 
   const providedToken =
-    request.nextUrl.searchParams.get('token') ||
     request.headers.get('x-webhook-secret') ||
     request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
     ''
 
-  return providedToken === expectedToken
+  const expected = Buffer.from(expectedToken)
+  const provided = Buffer.from(providedToken)
+  return expected.length === provided.length && timingSafeEqual(expected, provided)
 }
 
 export async function GET() {

@@ -298,10 +298,12 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'La trascrizione e obbligatoria' }, { status: 400 })
     }
 
+    const workspaceUserId = auth.workspaceUserId
+
     const { data: contacts, error: contactsError } = await auth.supabase
       .from('contacts')
       .select('id, name, phone, email, legacy_id, status, priority, next_followup_at')
-      .eq('user_id', auth.user.id)
+      .eq('user_id', workspaceUserId)
       .order('updated_at', { ascending: false })
 
     if (contactsError) throw contactsError
@@ -355,7 +357,7 @@ export async function POST(request: NextRequest) {
     }
 
     const taskNote = intent.note?.trim() || `Comando vocale: ${transcript}`
-    const task = await syncPendingCallTask(auth.supabase, auth.user.id, selectedContact.id, scheduledFor, {
+    const task = await syncPendingCallTask(auth.supabase, workspaceUserId, selectedContact.id, scheduledFor, {
       type: 'follow-up',
       note: taskNote,
       overwriteNote: true,
@@ -365,7 +367,7 @@ export async function POST(request: NextRequest) {
 
     await createActivities(auth.supabase, [
       {
-        user_id: auth.user.id,
+        user_id: workspaceUserId,
         contact_id: selectedContact.id,
         type: 'system',
         content: activityContent,
@@ -379,7 +381,7 @@ export async function POST(request: NextRequest) {
     const { data: contact, error: contactError } = await auth.supabase
       .from('contacts')
       .select('*')
-      .eq('user_id', auth.user.id)
+      .eq('user_id', workspaceUserId)
       .eq('id', selectedContact.id)
       .single()
 

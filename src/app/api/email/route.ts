@@ -1,8 +1,11 @@
 import { NextRequest } from 'next/server'
 import { sendCustomEmail, sendFollowupEmail, sendReminderEmail } from '@/lib/email'
-import { createServiceRoleClient, getBearerToken, createPublicServerClient } from '@/lib/server/supabase'
+import { createServiceRoleClient, requireRouteUser } from '@/lib/server/supabase'
 
 export async function POST(request: NextRequest) {
+  const auth = await requireRouteUser(request)
+  if ('error' in auth) return auth.error
+
   try {
     const body = await request.json()
     const { to, subject, html, type } = body
@@ -24,20 +27,10 @@ export async function POST(request: NextRequest) {
       result = await sendCustomEmail(to, subject, html)
     }
 
-    let userId: string | null = null
-    const token = getBearerToken(request)
-    if (token) {
-      const authClient = createPublicServerClient()
-      const {
-        data: { user },
-      } = await authClient.auth.getUser(token)
-      userId = user?.id || null
-    }
-
     try {
       const admin = createServiceRoleClient()
       await admin.from('email_logs').insert({
-        user_id: userId,
+        user_id: auth.workspaceUserId,
         to,
         subject: subject || type,
         type: type || 'custom',

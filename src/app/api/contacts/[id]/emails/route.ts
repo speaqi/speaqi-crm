@@ -45,6 +45,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
       html: simpleTextToHtml(text),
       followupAt,
     })
+    await auth.supabase
+      .from('contacts')
+      .update({
+        marketing_status: followupAt ? 'followup_due' : 'sent',
+        marketing_paused_until: null,
+      })
+      .eq('user_id', auth.workspaceUserId)
+      .eq('id', id)
     const autoFollowupDraft = await maybeAutoCreateFollowupDraft(auth.supabase, auth.workspaceUserId, contact)
 
     return Response.json({
