@@ -399,6 +399,23 @@ export async function loadGmailSignature(supabase: any, userId: string): Promise
   return loadGmailSignatureForAccount(account)
 }
 
+export async function loadRequiredGmailSignature(supabase: any, userId: string): Promise<EmailSignature> {
+  const account = await getGmailAccount(supabase, userId)
+  if (!account) {
+    throw new Error('Gmail non collegato: collega Gmail prima di creare bozze email.')
+  }
+  if (!gmailAccountHasSignatureScope(account)) {
+    throw new Error('Firma Gmail non autorizzata: ricollega Gmail dalla pagina Gmail per consentire la lettura della firma.')
+  }
+
+  const signature = await loadGmailSignatureForAccount(account)
+  if (!signature?.html && !signature?.text) {
+    throw new Error('Firma Gmail non trovata: configura una firma in Gmail e poi rigenera la bozza.')
+  }
+
+  return signature
+}
+
 export function buildGmailConnectUrl(state: string) {
   const { clientId, redirectUri } = getGoogleConfig()
   const params = new URLSearchParams({

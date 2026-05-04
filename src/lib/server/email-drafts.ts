@@ -2,8 +2,8 @@ import {
   appendEmailSignature,
   createContactDraft,
   loadGmailSignature,
+  loadRequiredGmailSignature,
   simpleTextToHtml,
-  signatureFromPlainText,
   type EmailSignature,
 } from '@/lib/server/gmail'
 import { EMPTY_USER_SETTINGS, loadUserSettings, type UserSettings } from '@/lib/server/user-settings'
@@ -255,7 +255,7 @@ export async function createGeneratedContactDraft(
     loadRecentActivityContext(supabase, userId, contact.id).catch(() => ''),
     shared && 'emailSignature' in shared
       ? Promise.resolve(shared.emailSignature || null)
-      : loadGmailSignature(supabase, userId).catch(() => null),
+      : loadRequiredGmailSignature(supabase, userId),
   ])
 
   const threadContext = buildDraftContext(messages)
@@ -282,7 +282,10 @@ export async function createGeneratedContactDraft(
   try {
     const generatedText = String(generated.body_text || '').trim()
     const generatedHtml = String(generated.body_html || '').trim()
-    const signature = gmailSignature || signatureFromPlainText(settings.email_signature)
+    const signature = gmailSignature
+    if (!signature?.html && !signature?.text) {
+      return { error: 'Firma Gmail non trovata: configura una firma in Gmail e poi rigenera la bozza.' as const }
+    }
     const signed = appendEmailSignature(
       {
         html: generatedHtml || simpleTextToHtml(generatedText),

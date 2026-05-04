@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
 import { createGeneratedContactDraft } from '@/lib/server/email-drafts'
 import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
-import { loadGmailSignature } from '@/lib/server/gmail'
+import { loadRequiredGmailSignature } from '@/lib/server/gmail'
 import { requireRouteUser } from '@/lib/server/supabase'
 import { EMPTY_USER_SETTINGS, loadUserSettings } from '@/lib/server/user-settings'
 
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     const contactMap = new Map((contacts || []).map((contact: any) => [contact.id, contact]))
     const [settings, emailSignature] = await Promise.all([
       loadUserSettings(auth.supabase, auth.workspaceUserId).catch(() => EMPTY_USER_SETTINGS),
-      loadGmailSignature(auth.supabase, auth.workspaceUserId).catch(() => null),
+      loadRequiredGmailSignature(auth.supabase, auth.workspaceUserId),
     ])
     const results = await runWithConcurrency(drafts, 3, async (item) => {
       try {
