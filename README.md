@@ -211,4 +211,13 @@ Il callback da inserire in Acumbamail è:
 
 `https://crm.speaqi.com/api/integrations/acumbamail/webhook?token=<ACUMBAMAIL_WEBHOOK_TOKEN>`
 
+Per una lista assegnata a un collaboratore specifico puoi usare parametri per-lista:
+
+`https://crm.speaqi.com/api/integrations/acumbamail/webhook?token=<ACUMBAMAIL_WEBHOOK_TOKEN>&user_id=<WORKSPACE_OWNER_AUTH_USER_ID>&contact_scope=crm&responsible=Pierpaolo%20Izzo&create_events=opens&list_name=Vinitaly`
+
+- `user_id` deve essere l'`auth.users.id` del proprietario del workspace CRM, non l'id del collaboratore.
+- `responsible` deve combaciare con `team_members.name`; i collaboratori vedono i contatti assegnati quando `responsible` o `assigned_agent` combacia col loro nome.
+- `create_events=opens` crea nuovi contatti gia dalle aperture; usa `create_events=clicks` per crearli solo sui click.
+- `contact_scope=crm` li inserisce nel CRM operativo; `holding` li lascia nella lista separata.
+
 Con `ACUMBAMAIL_DEFAULT_CONTACT_SCOPE=holding` i contatti creati dal webhook restano nella lista separata e non entrano nel CRM operativo finché non vengono promossi o arriva una reply email sincronizzata via Gmail.

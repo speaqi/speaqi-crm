@@ -26,10 +26,13 @@ type ContactRow = {
   priority?: number | null
   category?: string | null
   company?: string | null
+  responsible?: string | null
   country?: string | null
   language?: string | null
   score?: number | null
   assigned_agent?: string | null
+  list_name?: string | null
+  event_tag?: string | null
   email_open_count?: number | null
   email_click_count?: number | null
   last_email_open_at?: string | null
@@ -53,6 +56,16 @@ type NormalizedWebhookEvent = {
 type ScopedUserResolution = {
   userId: string | null
   source: 'query' | 'body' | 'env' | 'single_auth_user' | null
+}
+
+type AcumbamailContactDefaults = {
+  source: string
+  contactScope: 'crm' | 'holding'
+  category: string | null
+  responsible: string | null
+  assignedAgent: string | null
+  listName: string | null
+  eventTag: string | null
 }
 
 const HANDLED_EVENTS = new Set<AcumbamailEventName>([
@@ -380,16 +393,22 @@ function defaultNextActionAt() {
   return new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
 }
 
-function readAcumbamailContactDefaults() {
+function readAcumbamailContactDefaults(request: NextRequest): AcumbamailContactDefaults {
+  const params = request.nextUrl.searchParams
+
   return {
-    source: normalizeText(process.env.ACUMBAMAIL_DEFAULT_SOURCE) || 'vinitaly',
-    contactScope: normalizeContactScope(process.env.ACUMBAMAIL_DEFAULT_CONTACT_SCOPE || 'holding') as 'crm' | 'holding',
-    category: normalizeText(process.env.ACUMBAMAIL_DEFAULT_CATEGORY),
+    source: normalizeText(params.get('source')) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_SOURCE) || 'vinitaly',
+    contactScope: normalizeContactScope(params.get('contact_scope') || process.env.ACUMBAMAIL_DEFAULT_CONTACT_SCOPE || 'holding') as 'crm' | 'holding',
+    category: normalizeText(params.get('category')) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_CATEGORY),
+    responsible: normalizeText(params.get('responsible')) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_RESPONSIBLE),
+    assignedAgent: normalizeText(params.get('assigned_agent')) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_ASSIGNED_AGENT),
+    listName: normalizeText(params.get('list_name')) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_LIST_NAME),
+    eventTag: normalizeText(params.get('event_tag')) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_EVENT_TAG),
   }
 }
 
-function readAcumbamailCreateEvents() {
-  const configured = String(process.env.ACUMBAMAIL_CREATE_EVENTS || 'clicks')
+function readAcumbamailCreateEvents(request: NextRequest) {
+  const configured = String(request.nextUrl.searchParams.get('create_events') || process.env.ACUMBAMAIL_CREATE_EVENTS || 'clicks')
     .split(',')
     .map((event) => normalizeEventName(event))
     .filter(Boolean) as AcumbamailEventName[]
@@ -450,11 +469,11 @@ async function findContactsByEmail(supabase: any, email: string, userId?: string
 async function createContactFromWebhook(
   supabase: any,
   userId: string,
-  event: NormalizedWebhookEvent
+  event: NormalizedWebhookEvent,
+  defaults: AcumbamailContactDefaults
 ) {
   await ensurePipelineStages(supabase, userId)
 
-  const defaults = readAcumbamailContactDefaults()
   const shouldSuppressFollowup = event.event === 'unsubscribes'
   const nextActionAt =
     shouldSuppressFollowup || defaults.contactScope === 'holding'
@@ -468,6 +487,8 @@ async function createContactFromWebhook(
       ? 'Instradato automaticamente nella lista Vinitaly separata.'
       : 'Inserito automaticamente nel CRM operativo.',
     defaults.category ? `Categoria predefinita: ${defaults.category}.` : null,
+    defaults.responsible ? `Responsabile predefinito: ${defaults.responsible}.` : null,
+    defaults.listName ? `Lista Acumbamail: ${defaults.listName}.` : null,
   ]
     .filter(Boolean)
     .join(' ')
@@ -483,6 +504,10 @@ async function createContactFromWebhook(
       contact_scope: defaults.contactScope,
       priority: event.event === 'clicks' ? 3 : 2,
       category: defaults.category,
+      responsible: defaults.responsible,
+      assigned_agent: defaults.assignedAgent,
+      list_name: defaults.listName,
+      event_tag: defaults.eventTag,
       note,
       last_activity_summary: summary,
       next_action_at: nextActionAt,
@@ -631,7 +656,8 @@ export async function GET() {
       'Invia una POST JSON o form-urlencoded con uno o piu eventi Acumbamail.',
       'Per installazioni multi-account aggiungi ?user_id=<uuid> al callback URL.',
       'Puoi proteggere il webhook con ?token=... se imposti ACUMBAMAIL_WEBHOOK_TOKEN nel deploy.',
-      'ACUMBAMAIL_CREATE_EVENTS controlla quali eventi possono creare nuovi contatti; default: clicks.',
+      'create_events o ACUMBAMAIL_CREATE_EVENTS controlla quali eventi possono creare nuovi contatti; default: clicks.',
+      'Puoi passare contact_scope=crm e responsible=<nome team member> per assegnare i contatti creati da una lista a un collaboratore.',
     ],
   })
 }
@@ -664,7 +690,8 @@ export async function POST(request: NextRequest) {
     let createdContacts = 0
     let skippedEvents = 0
     let skippedMissingScope = 0
-    const createEvents = readAcumbamailCreateEvents()
+    const createEvents = readAcumbamailCreateEvents(request)
+    const contactDefaults = readAcumbamailContactDefaults(request)
     const processed: Array<{
       event: string
       email: string
@@ -683,7 +710,7 @@ export async function POST(request: NextRequest) {
       const canCreateFromEvent = createEvents.has(event.event)
 
       if (!contacts.length && scopedUserId && canCreateFromEvent) {
-        contacts = [await createContactFromWebhook(supabase, scopedUserId, event)]
+        contacts = [await createContactFromWebhook(supabase, scopedUserId, event, contactDefaults)]
         createdContact = true
         createdContacts += 1
       }
