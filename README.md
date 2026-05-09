@@ -219,6 +219,14 @@ Forma corta equivalente, utile quando Acumbamail limita la lunghezza del campo:
 
 `https://crm.speaqi.com/api/integrations/acumbamail/webhook?t=<TOKEN_URL_SAFE>&u=<WORKSPACE_OWNER_AUTH_USER_ID>&s=crm&r=Pierpaolo%20Izzo&e=opens&l=Vinitaly`
 
+Forma ultra-corta con routing configurato in Railway:
+
+`https://crm.speaqi.com/api/integrations/acumbamail/webhook?t=<TOKEN_URL_SAFE>&k=WMDEVENT`
+
+Variabile Railway richiesta:
+
+`ACUMBAMAIL_ROUTE_WMDEVENT=u=<WORKSPACE_OWNER_AUTH_USER_ID>&s=crm&r=PierPaolo%20Izzo&e=opens&l=WMDEVENT`
+
 - `user_id` deve essere l'`auth.users.id` del proprietario del workspace CRM, non l'id del collaboratore.
 - `responsible` deve combaciare con `team_members.name`; i collaboratori vedono i contatti assegnati quando `responsible` o `assigned_agent` combacia col loro nome.
 - `create_events=opens` crea nuovi contatti gia dalle aperture; usa `create_events=clicks` per crearli solo sui click.

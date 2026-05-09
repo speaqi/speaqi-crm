@@ -401,8 +401,49 @@ function firstQueryParam(params: URLSearchParams, keys: string[]) {
   return null
 }
 
+function routeKeyEnvName(key: string) {
+  const normalized = key
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+
+  return normalized ? `ACUMBAMAIL_ROUTE_${normalized}` : null
+}
+
+function parseRouteParams(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return new URLSearchParams()
+
+  if (trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed) as Record<string, unknown>
+      const params = new URLSearchParams()
+      for (const [key, raw] of Object.entries(parsed)) {
+        if (raw !== null && raw !== undefined && raw !== '') params.set(key, String(raw))
+      }
+      return params
+    } catch {}
+  }
+
+  return new URLSearchParams(trimmed.replace(/^\?/, ''))
+}
+
+function readAcumbamailParams(request: NextRequest) {
+  const queryParams = request.nextUrl.searchParams
+  const key = firstQueryParam(queryParams, ['key', 'route', 'k'])
+  const routeEnvName = key ? routeKeyEnvName(key) : null
+  const routeParams = routeEnvName ? parseRouteParams(process.env[routeEnvName] || '') : new URLSearchParams()
+
+  for (const [paramKey, value] of queryParams.entries()) {
+    routeParams.set(paramKey, value)
+  }
+
+  return routeParams
+}
+
 function readAcumbamailContactDefaults(request: NextRequest): AcumbamailContactDefaults {
-  const params = request.nextUrl.searchParams
+  const params = readAcumbamailParams(request)
 
   return {
     source: normalizeText(firstQueryParam(params, ['source', 'src'])) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_SOURCE) || 'vinitaly',
@@ -416,7 +457,8 @@ function readAcumbamailContactDefaults(request: NextRequest): AcumbamailContactD
 }
 
 function readAcumbamailCreateEvents(request: NextRequest) {
-  const configured = String(firstQueryParam(request.nextUrl.searchParams, ['create_events', 'events', 'e']) || process.env.ACUMBAMAIL_CREATE_EVENTS || 'clicks')
+  const params = readAcumbamailParams(request)
+  const configured = String(firstQueryParam(params, ['create_events', 'events', 'e']) || process.env.ACUMBAMAIL_CREATE_EVENTS || 'clicks')
     .split(',')
     .map((event) => normalizeEventName(event))
     .filter(Boolean) as AcumbamailEventName[]
@@ -618,7 +660,7 @@ async function applyEventToContact(
 function resolveScopedUserId(request: NextRequest, payload: unknown) {
   const bodyUserId =
     payload && typeof payload === 'object' && 'user_id' in payload ? String((payload as { user_id?: unknown }).user_id || '').trim() : ''
-  const queryUserId = String(firstQueryParam(request.nextUrl.searchParams, ['user_id', 'user', 'u']) || '').trim()
+  const queryUserId = String(firstQueryParam(readAcumbamailParams(request), ['user_id', 'user', 'u']) || '').trim()
   if (queryUserId) return { userId: queryUserId, source: 'query' } satisfies ScopedUserResolution
   if (bodyUserId) return { userId: bodyUserId, source: 'body' } satisfies ScopedUserResolution
 
@@ -677,6 +719,7 @@ export async function GET() {
       'Puoi proteggere il webhook con ?token=... se imposti ACUMBAMAIL_WEBHOOK_TOKEN nel deploy.',
       'create_events o ACUMBAMAIL_CREATE_EVENTS controlla quali eventi possono creare nuovi contatti; default: clicks.',
       'Puoi passare contact_scope=crm e responsible=<nome team member> per assegnare i contatti creati da una lista a un collaboratore.',
+      'Per URL molto corti puoi usare k=<chiave> e configurare ACUMBAMAIL_ROUTE_<CHIAVE> in Railway con i parametri della lista.',
     ],
   })
 }
