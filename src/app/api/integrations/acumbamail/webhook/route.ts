@@ -551,7 +551,8 @@ async function markPendingTasksDone(supabase: any, userId: string, contactId: st
 async function applyEventToContact(
   supabase: any,
   contact: ContactRow,
-  event: NormalizedWebhookEvent
+  event: NormalizedWebhookEvent,
+  defaults?: AcumbamailContactDefaults
 ) {
   const activity = await logLeadActivity(supabase, contact.user_id, {
     leadId: contact.id,
@@ -567,6 +568,16 @@ async function applyEventToContact(
 
   const updates: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
+  }
+
+  if (defaults) {
+    updates.source = defaults.source || contact.source || 'vinitaly'
+    updates.contact_scope = defaults.contactScope || contact.contact_scope || 'holding'
+    if (defaults.category) updates.category = defaults.category
+    if (defaults.responsible) updates.responsible = defaults.responsible
+    if (defaults.assignedAgent) updates.assigned_agent = defaults.assignedAgent
+    if (defaults.listName) updates.list_name = defaults.listName
+    if (defaults.eventTag) updates.event_tag = defaults.eventTag
   }
 
   if (event.event === 'opens') {
@@ -739,7 +750,7 @@ export async function POST(request: NextRequest) {
 
       const contactIds: string[] = []
       for (const contact of contacts) {
-        const result = await applyEventToContact(supabase, contact, event)
+        const result = await applyEventToContact(supabase, contact, event, contactDefaults)
         contactIds.push(result.contact.id)
       }
 
