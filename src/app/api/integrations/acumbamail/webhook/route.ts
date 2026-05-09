@@ -393,22 +393,30 @@ function defaultNextActionAt() {
   return new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
 }
 
+function firstQueryParam(params: URLSearchParams, keys: string[]) {
+  for (const key of keys) {
+    const value = params.get(key)
+    if (value) return value
+  }
+  return null
+}
+
 function readAcumbamailContactDefaults(request: NextRequest): AcumbamailContactDefaults {
   const params = request.nextUrl.searchParams
 
   return {
-    source: normalizeText(params.get('source')) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_SOURCE) || 'vinitaly',
-    contactScope: normalizeContactScope(params.get('contact_scope') || process.env.ACUMBAMAIL_DEFAULT_CONTACT_SCOPE || 'holding') as 'crm' | 'holding',
-    category: normalizeText(params.get('category')) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_CATEGORY),
-    responsible: normalizeText(params.get('responsible')) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_RESPONSIBLE),
-    assignedAgent: normalizeText(params.get('assigned_agent')) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_ASSIGNED_AGENT),
-    listName: normalizeText(params.get('list_name')) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_LIST_NAME),
-    eventTag: normalizeText(params.get('event_tag')) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_EVENT_TAG),
+    source: normalizeText(firstQueryParam(params, ['source', 'src'])) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_SOURCE) || 'vinitaly',
+    contactScope: normalizeContactScope(firstQueryParam(params, ['contact_scope', 'scope', 's']) || process.env.ACUMBAMAIL_DEFAULT_CONTACT_SCOPE || 'holding') as 'crm' | 'holding',
+    category: normalizeText(firstQueryParam(params, ['category', 'cat'])) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_CATEGORY),
+    responsible: normalizeText(firstQueryParam(params, ['responsible', 'resp', 'r'])) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_RESPONSIBLE),
+    assignedAgent: normalizeText(firstQueryParam(params, ['assigned_agent', 'agent', 'a'])) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_ASSIGNED_AGENT),
+    listName: normalizeText(firstQueryParam(params, ['list_name', 'list', 'l'])) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_LIST_NAME),
+    eventTag: normalizeText(firstQueryParam(params, ['event_tag', 'tag'])) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_EVENT_TAG),
   }
 }
 
 function readAcumbamailCreateEvents(request: NextRequest) {
-  const configured = String(request.nextUrl.searchParams.get('create_events') || process.env.ACUMBAMAIL_CREATE_EVENTS || 'clicks')
+  const configured = String(firstQueryParam(request.nextUrl.searchParams, ['create_events', 'events', 'e']) || process.env.ACUMBAMAIL_CREATE_EVENTS || 'clicks')
     .split(',')
     .map((event) => normalizeEventName(event))
     .filter(Boolean) as AcumbamailEventName[]
@@ -599,7 +607,7 @@ async function applyEventToContact(
 function resolveScopedUserId(request: NextRequest, payload: unknown) {
   const bodyUserId =
     payload && typeof payload === 'object' && 'user_id' in payload ? String((payload as { user_id?: unknown }).user_id || '').trim() : ''
-  const queryUserId = String(request.nextUrl.searchParams.get('user_id') || '').trim()
+  const queryUserId = String(firstQueryParam(request.nextUrl.searchParams, ['user_id', 'user', 'u']) || '').trim()
   if (queryUserId) return { userId: queryUserId, source: 'query' } satisfies ScopedUserResolution
   if (bodyUserId) return { userId: bodyUserId, source: 'body' } satisfies ScopedUserResolution
 
@@ -637,7 +645,7 @@ function isAuthorizedWebhook(request: NextRequest) {
   if (!expectedToken) return false
 
   const providedToken =
-    request.nextUrl.searchParams.get('token') ||
+    firstQueryParam(request.nextUrl.searchParams, ['token', 't']) ||
     request.headers.get('x-webhook-secret') ||
     request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
     ''
