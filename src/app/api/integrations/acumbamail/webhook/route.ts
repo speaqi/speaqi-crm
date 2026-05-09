@@ -388,6 +388,15 @@ function readAcumbamailContactDefaults() {
   }
 }
 
+function readAcumbamailCreateEvents() {
+  const configured = String(process.env.ACUMBAMAIL_CREATE_EVENTS || 'clicks')
+    .split(',')
+    .map((event) => normalizeEventName(event))
+    .filter(Boolean) as AcumbamailEventName[]
+
+  return new Set(configured)
+}
+
 function activityTypeForEvent(event: AcumbamailEventName) {
   switch (event) {
     case 'opens':
@@ -603,6 +612,7 @@ function isAuthorizedWebhook(request: NextRequest) {
   if (!expectedToken) return false
 
   const providedToken =
+    request.nextUrl.searchParams.get('token') ||
     request.headers.get('x-webhook-secret') ||
     request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
     ''
@@ -621,6 +631,7 @@ export async function GET() {
       'Invia una POST JSON o form-urlencoded con uno o piu eventi Acumbamail.',
       'Per installazioni multi-account aggiungi ?user_id=<uuid> al callback URL.',
       'Puoi proteggere il webhook con ?token=... se imposti ACUMBAMAIL_WEBHOOK_TOKEN nel deploy.',
+      'ACUMBAMAIL_CREATE_EVENTS controlla quali eventi possono creare nuovi contatti; default: clicks.',
     ],
   })
 }
@@ -653,6 +664,7 @@ export async function POST(request: NextRequest) {
     let createdContacts = 0
     let skippedEvents = 0
     let skippedMissingScope = 0
+    const createEvents = readAcumbamailCreateEvents()
     const processed: Array<{
       event: string
       email: string
@@ -668,7 +680,7 @@ export async function POST(request: NextRequest) {
     for (const event of events) {
       let contacts = await findContactsByEmail(supabase, event.email, scopedUserId)
       let createdContact = false
-      const canCreateFromEvent = ['opens', 'clicks', 'unsubscribes'].includes(event.event)
+      const canCreateFromEvent = createEvents.has(event.event)
 
       if (!contacts.length && scopedUserId && canCreateFromEvent) {
         contacts = [await createContactFromWebhook(supabase, scopedUserId, event)]

@@ -203,7 +203,12 @@ I workflow template sono in:
 Per la campagna Vinitaly, i lead creati automaticamente dal webhook possono essere instradati subito nella lista separata:
 
 - `ACUMBAMAIL_DEFAULT_SOURCE=vinitaly`
-- `ACUMBAMAIL_DEFAULT_CONTACT_SCOPE=holding`
+- `ACUMBAMAIL_DEFAULT_CONTACT_SCOPE=holding` oppure `crm` se vuoi inserirli subito nel CRM operativo
+- `ACUMBAMAIL_CREATE_EVENTS=clicks` per creare nuovi contatti solo quando cliccano
 - `ACUMBAMAIL_DEFAULT_CATEGORY=` opzionale se vuoi precompilare una categoria
 
-Con questa configurazione i contatti creati dal webhook non entrano nel CRM operativo finché non arriva una reply email sincronizzata via Gmail.
+Il callback da inserire in Acumbamail è:
+
+`https://crm.speaqi.com/api/integrations/acumbamail/webhook?token=<ACUMBAMAIL_WEBHOOK_TOKEN>`
+
+Con `ACUMBAMAIL_DEFAULT_CONTACT_SCOPE=holding` i contatti creati dal webhook restano nella lista separata e non entrano nel CRM operativo finché non vengono promossi o arriva una reply email sincronizzata via Gmail.
