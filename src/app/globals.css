@@ -1703,9 +1703,15 @@ select.filter-select {
 .oggi-card-accent { border-color: var(--accent); background: linear-gradient(135deg, rgba(79, 110, 247, 0.06), transparent); }
 .oggi-card-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--text); display: flex; align-items: center; gap: 6px; }
 .oggi-muted { color: var(--text3); font-size: 13px; margin: 0; }
-.oggi-acumbamail-form { display: grid; grid-template-columns: minmax(120px, 0.8fr) minmax(160px, 1fr) minmax(160px, 1fr) auto; gap: 10px; align-items: end; }
-.oggi-acumbamail-form .fl { margin: 0; }
-.oggi-acumbamail-form .btn { min-height: 38px; white-space: nowrap; }
+.oggi-acumbamail-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: end; }
+.oggi-acumbamail-form .fl { margin: 0; min-width: 0; }
+.oggi-acumbamail-form .fi { width: 100%; }
+.oggi-acumbamail-form .btn {
+  min-height: 38px;
+  white-space: nowrap;
+  grid-column: 1 / -1;
+  justify-self: flex-start;
+}
 
 .oggi-onboarding {
   background: linear-gradient(135deg, rgba(79, 110, 247, 0.08), rgba(79, 110, 247, 0.03));
@@ -2013,7 +2019,9 @@ select.filter-select {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 14px;
+  align-items: start;
 }
+.oggi-bottom-grid .oggi-card { min-width: 0; }
 .oggi-stagnant-list { display: flex; flex-direction: column; }
 .oggi-pipeline-list { display: flex; flex-direction: column; gap: 6px; }
 .oggi-pipeline-row {
@@ -2073,6 +2081,7 @@ select.filter-select {
   .oggi-v2 .oggi-hero { grid-template-columns: 1fr; }
   .oggi-hero-stats { border: none; padding: 0; }
   .oggi-acumbamail-form { grid-template-columns: 1fr; }
+  .oggi-acumbamail-form .btn { width: 100%; justify-self: stretch; }
 }
 
 /* === Email Draft Panel === */
