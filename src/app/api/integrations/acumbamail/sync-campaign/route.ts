@@ -7,6 +7,7 @@ import { isClosedStatus } from '@/lib/data'
 type EngagementSummary = {
   count: number
   lastAt: string | null
+  name?: string | null
 }
 
 type ContactRow = {
@@ -69,10 +70,55 @@ function laterTimestamp(left: string | null, right: string | null) {
   return new Date(right).getTime() > new Date(left).getTime() ? right : left
 }
 
-function addSummary(map: Map<string, EngagementSummary>, email: string, occurredAt: string | null) {
-  const current = map.get(email) || { count: 0, lastAt: null }
-  current.count += 1
+function normalizePositiveInt(value: unknown) {
+  if (value === null || value === undefined || value === '') return null
+  const parsed = Number(String(value).replace(',', '.'))
+  if (!Number.isFinite(parsed)) return null
+  const normalized = Math.round(parsed)
+  return normalized > 0 ? normalized : null
+}
+
+function eventCountFromRecord(record: Record<string, unknown>) {
+  return (
+    normalizePositiveInt(
+      firstValue(record, [
+        'count',
+        'total',
+        'opens',
+        'open_count',
+        'clicks',
+        'click_count',
+        'times_opened',
+        'times_clicked',
+      ])
+    ) || 1
+  )
+}
+
+function eventNameFromRecord(record: Record<string, unknown>) {
+  return normalizeText(
+    firstValue(record, [
+      'name',
+      'full_name',
+      'subscriber_name',
+      'subscriber_full_name',
+      'nombre',
+      'nombre_completo',
+    ])
+  )
+}
+
+function addSummaryWithMeta(
+  map: Map<string, EngagementSummary>,
+  email: string,
+  occurredAt: string | null,
+  count: number,
+  name?: string | null
+) {
+  const current = map.get(email) || { count: 0, lastAt: null, name: null }
+  current.count += Math.max(1, count)
   current.lastAt = laterTimestamp(current.lastAt, occurredAt || new Date().toISOString())
+  if (!current.name && name) current.name = name
   map.set(email, current)
 }
 
@@ -88,13 +134,19 @@ function firstValue(record: Record<string, unknown>, keys: string[]) {
   return null
 }
 
-function collectEmailEvents(payload: unknown, out = new Map<string, EngagementSummary>()) {
+function collectEmailEvents(
+  payload: unknown,
+  out = new Map<string, EngagementSummary>(),
+  seen = new WeakSet<object>()
+) {
   if (Array.isArray(payload)) {
-    for (const item of payload) collectEmailEvents(item, out)
+    for (const item of payload) collectEmailEvents(item, out, seen)
     return out
   }
 
   if (!isRecord(payload)) return out
+  if (seen.has(payload)) return out
+  seen.add(payload)
 
   const directEmail = normalizeEmail(
     firstValue(payload, ['email', 'mail', 'subscriber_email', 'email_address', 'recipient'])
@@ -103,19 +155,29 @@ function collectEmailEvents(payload: unknown, out = new Map<string, EngagementSu
     const occurredAt = normalizeTimestamp(
       firstValue(payload, ['date', 'timestamp', 'created_at', 'occurred_at', 'click_date', 'open_date'])
     )
-    addSummary(out, directEmail, occurredAt)
+    addSummaryWithMeta(out, directEmail, occurredAt, eventCountFromRecord(payload), eventNameFromRecord(payload))
+    return out
   }
 
+  let handledEmailKeys = false
   for (const [key, value] of Object.entries(payload)) {
     const keyEmail = normalizeEmail(key)
     if (keyEmail) {
       const occurredAt = isRecord(value)
         ? normalizeTimestamp(firstValue(value, ['date', 'timestamp', 'created_at', 'occurred_at', 'click_date', 'open_date']))
         : normalizeTimestamp(value)
-      addSummary(out, keyEmail, occurredAt)
+      const valueRecord = isRecord(value) ? value : {}
+      const count = isRecord(valueRecord) ? eventCountFromRecord(valueRecord) : 1
+      const name = isRecord(valueRecord) ? eventNameFromRecord(valueRecord) : null
+      addSummaryWithMeta(out, keyEmail, occurredAt, count, name)
+      handledEmailKeys = true
       continue
     }
-    collectEmailEvents(value, out)
+    collectEmailEvents(value, out, seen)
+  }
+
+  if (handledEmailKeys) {
+    return out
   }
 
   return out
@@ -131,6 +193,17 @@ function inferContactName(email: string) {
     .split(/\s+/)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ')
+}
+
+function shouldReplaceWithImportedName(currentName: string, email: string, importedName: string) {
+  const current = normalizeText(currentName)?.toLowerCase() || ''
+  const imported = normalizeText(importedName)?.toLowerCase() || ''
+  if (!imported || imported === current) return false
+  const genericNames = new Set(['contatto senza nome', 'lead legacy', 'import csv'])
+  if (genericNames.has(current)) return true
+  if (current.includes('@')) return true
+  if (current === email.toLowerCase()) return true
+  return false
 }
 
 function defaultFollowupAt(days: number) {
@@ -264,9 +337,10 @@ export async function POST(request: NextRequest) {
       for (const batch of chunk(missingEmails, 100)) {
         const payload = batch.map((email) => {
           const hasClick = clickers.has(email)
+          const inferredName = clickers.get(email)?.name || openers.get(email)?.name || inferContactName(email)
           return {
             user_id: auth.workspaceUserId,
-            name: inferContactName(email),
+            name: inferredName,
             email,
             status: hasClick ? 'Interested' : 'Contacted',
             source,
@@ -322,8 +396,15 @@ export async function POST(request: NextRequest) {
         if (assignedAgent) updates.assigned_agent = assignedAgent
         if (listName) updates.list_name = listName
         if (eventTag) updates.event_tag = eventTag
-
         let changed = false
+        const importedName = click?.name || open?.name || null
+        if (
+          importedName &&
+          shouldReplaceWithImportedName(contact.name || '', email, importedName)
+        ) {
+          updates.name = importedName
+          changed = true
+        }
         const openKey = `${contact.id}:email_open`
         if (open && !alreadySynced.has(openKey)) {
           updates.email_open_count = Math.max(0, Number(contact.email_open_count || 0)) + open.count
