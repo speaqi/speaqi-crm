@@ -260,6 +260,20 @@ export function ContactDrawer({ contactId, onClose, onEdit, anchorPoint = null }
                 <span>Prossimo follow-up</span>
                 <strong>{formatDateTime(contact.next_followup_at) || 'Non pianificato'}</strong>
               </div>
+              <div className="drawer-kv">
+                <span>Aperture email</span>
+                <strong>
+                  {Number(contact.email_open_count || 0)}
+                  {contact.last_email_open_at ? ` · ultima ${formatDateTime(contact.last_email_open_at)}` : ''}
+                </strong>
+              </div>
+              <div className="drawer-kv">
+                <span>Click email</span>
+                <strong>
+                  {Number(contact.email_click_count || 0)}
+                  {contact.last_email_click_at ? ` · ultimo ${formatDateTime(contact.last_email_click_at)}` : ''}
+                </strong>
+              </div>
             </div>
 
             <div className="drawer-section">

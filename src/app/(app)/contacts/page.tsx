@@ -1031,6 +1031,11 @@ function ContactsPageInner() {
                     {holdingTag && <span>📁 {holdingTag}</span>}
                     {contact.list_name && !holdingTag && <span>📁 {contact.list_name}</span>}
                     {contact.responsible && <span>👤 {contact.responsible}</span>}
+                    {(contact.email_open_count || contact.email_click_count) ? (
+                      <span>
+                        Engagement: {contact.email_open_count || 0} aperture · {contact.email_click_count || 0} click
+                      </span>
+                    ) : null}
                   </div>
                 </div>
                 <div className="contacts-row-side">
