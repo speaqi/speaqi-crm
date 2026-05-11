@@ -1,11 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { DragEvent, MouseEvent, KeyboardEvent, useMemo, useState } from 'react'
+import { DragEvent, FormEvent, MouseEvent, KeyboardEvent, useMemo, useState } from 'react'
 import { ContactDrawer } from '@/components/crm/ContactDrawer'
 import { ContactModal } from '@/components/crm/ContactModal'
 import { EmailDraftPanel } from '@/components/crm/EmailDraftPanel'
 import { useCRMContext } from '../layout'
+import { apiFetch } from '@/lib/api'
 import {
   contactMatchesAssigneeName,
   contactVisibleToAdminOnDashboard,
@@ -72,6 +73,16 @@ interface DragPayload {
 
 const DRAG_MIME = 'application/x-call'
 
+type AcumbamailSyncResponse = {
+  campaign_id: string
+  openers: number
+  clickers: number
+  total_emails: number
+  created_contacts: number
+  updated_contacts: number
+  skipped_duplicates: number
+}
+
 function isInProgressStatus(status: string) {
   return status.toLowerCase() !== 'new' && !isClosedStatus(status)
 }
@@ -110,6 +121,7 @@ export default function OggiPage() {
     updateTask,
     updateContact,
     deleteContact,
+    refresh,
     showToast,
   } = useCRMContext()
   const [dragOverKey, setDragOverKey] = useState<string | null>(null)
@@ -118,6 +130,10 @@ export default function OggiPage() {
   const [drawerAnchor, setDrawerAnchor] = useState<{ x: number; y: number } | null>(null)
   const [editingContact, setEditingContact] = useState<CRMContact | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const [acumbaCampaignId, setAcumbaCampaignId] = useState('')
+  const [acumbaResponsible, setAcumbaResponsible] = useState('')
+  const [acumbaListName, setAcumbaListName] = useState('')
+  const [acumbaSyncing, setAcumbaSyncing] = useState(false)
 
   const now = new Date()
   const today = startOfDay(now)
@@ -394,6 +410,38 @@ export default function OggiPage() {
     }
   }
 
+  async function handleAcumbamailSync(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const campaignId = acumbaCampaignId.trim()
+    if (!campaignId) {
+      showToast('Inserisci ID campagna Acumbamail')
+      return
+    }
+
+    setAcumbaSyncing(true)
+    try {
+      const result = await apiFetch<AcumbamailSyncResponse>('/api/integrations/acumbamail/sync-campaign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaign_id: campaignId,
+          responsible: acumbaResponsible || null,
+          list_name: acumbaListName || `Acumbamail ${campaignId}`,
+          contact_scope: 'crm',
+          create_missing: true,
+        }),
+      })
+      showToast(
+        `Acumbamail: ${result.openers} aperture, ${result.clickers} click, ${result.created_contacts} nuovi`
+      )
+      refresh()
+    } catch (error) {
+      showToast(`Errore Acumbamail: ${error instanceof Error ? error.message : 'sync non riuscita'}`)
+    } finally {
+      setAcumbaSyncing(false)
+    }
+  }
+
   return (
     <div className="oggi-page oggi-v2">
       <header className="oggi-hero">
@@ -582,6 +630,54 @@ export default function OggiPage() {
       </section>
 
       <div className="oggi-bottom-grid">
+        {isAdmin && (
+          <section className="oggi-card oggi-acumbamail-sync">
+            <div className="oggi-card-title">Acumbamail interessi</div>
+            <form className="oggi-acumbamail-form" onSubmit={handleAcumbamailSync}>
+              <label className="fl" htmlFor="acumba-campaign-id">
+                ID campagna
+                <input
+                  id="acumba-campaign-id"
+                  className="fi"
+                  value={acumbaCampaignId}
+                  onChange={(event) => setAcumbaCampaignId(event.target.value)}
+                  placeholder="Es. 123456"
+                  inputMode="numeric"
+                />
+              </label>
+              <label className="fl" htmlFor="acumba-responsible">
+                Responsabile
+                <select
+                  id="acumba-responsible"
+                  className="fi"
+                  value={acumbaResponsible}
+                  onChange={(event) => setAcumbaResponsible(event.target.value)}
+                >
+                  <option value="">Non assegnato</option>
+                  {teamMembers.map((member) => (
+                    <option key={member.id} value={member.name}>
+                      {member.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="fl" htmlFor="acumba-list-name">
+                Lista / tag
+                <input
+                  id="acumba-list-name"
+                  className="fi"
+                  value={acumbaListName}
+                  onChange={(event) => setAcumbaListName(event.target.value)}
+                  placeholder="Es. WMDEVENT"
+                />
+              </label>
+              <button className="btn btn-primary btn-sm" type="submit" disabled={acumbaSyncing}>
+                {acumbaSyncing ? 'Sincronizzo...' : 'Sincronizza interessi'}
+              </button>
+            </form>
+          </section>
+        )}
+
         {latestImport && (
           <section className="oggi-card oggi-card-accent">
             <div className="oggi-card-title">📥 Ultimo import</div>

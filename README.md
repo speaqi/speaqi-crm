@@ -202,6 +202,7 @@ I workflow template sono in:
 
 Per la campagna Vinitaly, i lead creati automaticamente dal webhook possono essere instradati subito nella lista separata:
 
+- `ACUMBAMAIL_AUTH_TOKEN=` auth token Acumbamail usato dalla sync manuale campagna nella dashboard
 - `ACUMBAMAIL_DEFAULT_SOURCE=vinitaly`
 - `ACUMBAMAIL_DEFAULT_CONTACT_SCOPE=holding` oppure `crm` se vuoi inserirli subito nel CRM operativo
 - `ACUMBAMAIL_CREATE_EVENTS=clicks` per creare nuovi contatti solo quando cliccano
@@ -234,3 +235,5 @@ Variabile Railway richiesta:
 - Usa un token URL-safe, solo lettere/numeri/trattini/underscore. Se il token contiene caratteri come `%`, `?`, `&`, `£`, `]`, `}`, va ruotato o codificato con encodeURIComponent.
 
 Con `ACUMBAMAIL_DEFAULT_CONTACT_SCOPE=holding` i contatti creati dal webhook restano nella lista separata e non entrano nel CRM operativo finché non vengono promossi o arriva una reply email sincronizzata via Gmail.
+
+La dashboard include una sync manuale Acumbamail per campagna: inserendo `campaign_id`, responsabile e lista, il CRM chiama `getCampaignOpeners` e `getCampaignClicks`, aggiorna aperture/click sui contatti, crea i mancanti e registra attivita idempotenti per evitare doppi conteggi sulla stessa campagna.
