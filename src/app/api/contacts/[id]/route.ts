@@ -344,14 +344,6 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       billing_city: body.billing_city !== undefined ? normalizeText(body.billing_city) : current.billing_city,
       event_tag: body.event_tag !== undefined ? normalizeText(body.event_tag) : current.event_tag,
       list_name: body.list_name !== undefined ? normalizeText(body.list_name) : current.list_name,
-      personal_section:
-        body.personal_section !== undefined
-          ? nextContactScope === 'personal'
-            ? normalizeText(body.personal_section)
-            : null
-          : nextContactScope === 'personal'
-            ? current.personal_section
-            : null,
       country: body.country !== undefined ? normalizeText(body.country) : current.country,
       language: body.language !== undefined ? normalizeText(body.language) : current.language,
       status: nextStatus,
@@ -383,6 +375,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         body.email_draft_note !== undefined ? normalizeText(body.email_draft_note) : current.email_draft_note,
       next_action_at: nextFollowupAt,
       next_followup_at: nextFollowupAt,
+    }
+
+    if (nextContactScope === 'personal') {
+      updatePayload.personal_section =
+        body.personal_section !== undefined
+          ? normalizeText(body.personal_section)
+          : current.personal_section
     }
 
     let data: any = null

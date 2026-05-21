@@ -109,7 +109,7 @@ export function ContactModal({
         billing_zip: form.billing_zip?.trim(),
         billing_city: form.billing_city?.trim(),
         event_tag: form.event_tag?.trim(),
-        personal_section: form.personal_section?.trim(),
+        personal_section: form.contact_scope === 'personal' ? form.personal_section?.trim() : '',
         source: form.source?.trim(),
         responsible: form.responsible?.trim(),
         note: form.note?.trim(),
