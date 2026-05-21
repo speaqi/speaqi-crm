@@ -253,6 +253,18 @@ export function ContactDrawer({ contactId, onClose, onEdit, anchorPoint = null }
                 </strong>
               </div>
               <div className="drawer-kv">
+                <span>Indirizzo sede</span>
+                <strong>{contact.billing_address || '—'}</strong>
+              </div>
+              <div className="drawer-kv">
+                <span>CAP</span>
+                <strong>{contact.billing_zip || '—'}</strong>
+              </div>
+              <div className="drawer-kv">
+                <span>Città</span>
+                <strong>{contact.billing_city || '—'}</strong>
+              </div>
+              <div className="drawer-kv">
                 <span>Partita IVA / CF</span>
                 <strong>{contact.billing_tax_id || '—'}</strong>
               </div>

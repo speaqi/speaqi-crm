@@ -41,6 +41,9 @@ type OptionalContactColumn =
   | 'billing_tax_id'
   | 'billing_pec'
   | 'billing_sdi'
+  | 'billing_address'
+  | 'billing_zip'
+  | 'billing_city'
 
 function isMissingOptionalContactColumn(error: unknown, column: OptionalContactColumn) {
   const message = errorMessage(error, '').toLowerCase()
@@ -74,6 +77,18 @@ function buildContactUpdateFallbackPayload(payload: Record<string, unknown>, err
     delete fallback.billing_sdi
     changed = true
   }
+  if (isMissingOptionalContactColumn(error, 'billing_address')) {
+    delete fallback.billing_address
+    changed = true
+  }
+  if (isMissingOptionalContactColumn(error, 'billing_zip')) {
+    delete fallback.billing_zip
+    changed = true
+  }
+  if (isMissingOptionalContactColumn(error, 'billing_city')) {
+    delete fallback.billing_city
+    changed = true
+  }
 
   return changed ? fallback : null
 }
@@ -90,6 +105,15 @@ function isNoRowsError(error: unknown) {
 function displayValue(value: unknown) {
   const normalized = value === null || value === undefined ? '' : String(value).trim()
   return normalized || 'vuoto'
+}
+
+function formatBillingLocation(contact: any) {
+  return [
+    contact?.billing_address,
+    [contact?.billing_zip, contact?.billing_city].filter(Boolean).join(' '),
+  ]
+    .filter(Boolean)
+    .join(', ')
 }
 
 function buildContactUpdateSummary(current: any, next: any) {
@@ -152,6 +176,11 @@ function buildContactUpdateSummary(current: any, next: any) {
     (current.billing_sdi || null) !== (next.billing_sdi || null)
   ) {
     changes.push('dati fatturazione aggiornati')
+  }
+  const currentBillingLocation = formatBillingLocation(current)
+  const nextBillingLocation = formatBillingLocation(next)
+  if (currentBillingLocation !== nextBillingLocation) {
+    changes.push(`sede ${displayValue(currentBillingLocation)} -> ${displayValue(nextBillingLocation)}`)
   }
   if (Number(current.priority || 0) !== Number(next.priority || 0)) {
     changes.push(`priorità ${current.priority} -> ${next.priority}`)
@@ -309,6 +338,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       billing_tax_id: body.billing_tax_id !== undefined ? normalizeText(body.billing_tax_id) : current.billing_tax_id,
       billing_pec: body.billing_pec !== undefined ? normalizeText(body.billing_pec) : current.billing_pec,
       billing_sdi: body.billing_sdi !== undefined ? normalizeText(body.billing_sdi) : current.billing_sdi,
+      billing_address:
+        body.billing_address !== undefined ? normalizeText(body.billing_address) : current.billing_address,
+      billing_zip: body.billing_zip !== undefined ? normalizeText(body.billing_zip) : current.billing_zip,
+      billing_city: body.billing_city !== undefined ? normalizeText(body.billing_city) : current.billing_city,
       event_tag: body.event_tag !== undefined ? normalizeText(body.event_tag) : current.event_tag,
       list_name: body.list_name !== undefined ? normalizeText(body.list_name) : current.list_name,
       personal_section:

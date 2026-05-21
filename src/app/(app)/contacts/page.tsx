@@ -213,6 +213,9 @@ function ContactsPageInner() {
               contact.billing_tax_id,
               contact.billing_pec,
               contact.billing_sdi,
+              contact.billing_address,
+              contact.billing_zip,
+              contact.billing_city,
               contact.email,
               contact.phone,
               contact.event_tag,
@@ -1002,6 +1005,12 @@ function ContactsPageInner() {
             const holdingTag = isHoldingContact(contact) ? holdingListLabel(contact) : null
             const isToday = toLocalDateKey(call?.due_at) === todayKey
             const isClosed = isClosedStatus(contact.status)
+            const billingLocation = [
+              contact.billing_address,
+              [contact.billing_zip, contact.billing_city].filter(Boolean).join(' '),
+            ]
+              .filter(Boolean)
+              .join(', ')
             return (
               <div
                 key={contact.id}
@@ -1031,6 +1040,11 @@ function ContactsPageInner() {
                   <div className="contacts-row-meta">
                     {contact.email ? <span>{contact.email}</span> : <span className="contacts-missing">Senza email</span>}
                     {contact.phone ? <span>{contact.phone}</span> : <span className="contacts-missing">Senza telefono</span>}
+                    {billingLocation && (
+                      <span className="contacts-row-billing" title="Indirizzo sede">
+                        Sede: {billingLocation}
+                      </span>
+                    )}
                     {contact.billing_tax_id && (
                       <span className="contacts-row-billing" title="Partita IVA / Codice fiscale">
                         P.IVA/CF: {contact.billing_tax_id}

@@ -70,6 +70,8 @@ function blankDraft(): QuoteDraft {
     customer_pec: '',
     customer_sdi: '',
     customer_address: '',
+    customer_zip: '',
+    customer_city: '',
     items: [quoteLineFromPackage('start', makeLineId())],
     discount_amount: 0,
     tax_rate: 22,
@@ -128,6 +130,9 @@ function contactMatchesSearch(contact: CRMContact, query: string) {
     contact.billing_tax_id,
     contact.billing_pec,
     contact.billing_sdi,
+    contact.billing_address,
+    contact.billing_zip,
+    contact.billing_city,
   ]
     .filter(Boolean)
     .join(' ')
@@ -221,6 +226,9 @@ export default function PreventiviPage() {
       customer_tax_id: contact?.billing_tax_id || '',
       customer_pec: contact?.billing_pec || '',
       customer_sdi: contact?.billing_sdi || '',
+      customer_address: contact?.billing_address || '',
+      customer_zip: contact?.billing_zip || '',
+      customer_city: contact?.billing_city || '',
     })
   }
 
@@ -301,6 +309,8 @@ export default function PreventiviPage() {
       customer_pec: quote.customer_pec || '',
       customer_sdi: quote.customer_sdi || '',
       customer_address: quote.customer_address || '',
+      customer_zip: quote.customer_zip || '',
+      customer_city: quote.customer_city || '',
       items: quote.items?.length ? normalizeItemsProIds(quote.items) : blankDraft().items,
       discount_amount: quote.discount_amount,
       tax_rate: quote.tax_rate,
@@ -523,6 +533,33 @@ export default function PreventiviPage() {
                 className="fi"
                 value={draft.customer_company || ''}
                 onChange={(event) => patchDraft({ customer_company: event.target.value })}
+              />
+            </label>
+            <label className="fg">
+              <span className="fl">Indirizzo sede</span>
+              <input
+                className="fi"
+                value={draft.customer_address || ''}
+                onChange={(event) => patchDraft({ customer_address: event.target.value })}
+                placeholder="Via, numero civico"
+              />
+            </label>
+            <label className="fg">
+              <span className="fl">CAP</span>
+              <input
+                className="fi"
+                value={draft.customer_zip || ''}
+                onChange={(event) => patchDraft({ customer_zip: event.target.value })}
+                placeholder="Es. 20100"
+              />
+            </label>
+            <label className="fg">
+              <span className="fl">Città</span>
+              <input
+                className="fi"
+                value={draft.customer_city || ''}
+                onChange={(event) => patchDraft({ customer_city: event.target.value })}
+                placeholder="Es. Milano"
               />
             </label>
             <label className="fg">

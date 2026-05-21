@@ -13,6 +13,9 @@ export interface CRMContact {
   billing_tax_id?: string
   billing_pec?: string
   billing_sdi?: string
+  billing_address?: string
+  billing_zip?: string
+  billing_city?: string
   status: string
   source?: string
   priority?: string
@@ -96,6 +99,9 @@ export async function dbCreateContact(
       billing_tax_id: data.billing_tax_id,
       billing_pec: data.billing_pec,
       billing_sdi: data.billing_sdi,
+      billing_address: data.billing_address,
+      billing_zip: data.billing_zip,
+      billing_city: data.billing_city,
       status: data.status || 'da-contattare',
       source: data.source,
       priority: data.priority,

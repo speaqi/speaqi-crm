@@ -263,6 +263,18 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
             </p>
             <div style={{ marginTop: 16 }}>
               <div className="public-quote-money-row">
+                <span>Indirizzo sede</span>
+                <strong>{quote.customer_address || 'Non compilato'}</strong>
+              </div>
+              <div className="public-quote-money-row">
+                <span>CAP</span>
+                <strong>{quote.customer_zip || 'Non compilato'}</strong>
+              </div>
+              <div className="public-quote-money-row">
+                <span>Città</span>
+                <strong>{quote.customer_city || 'Non compilata'}</strong>
+              </div>
+              <div className="public-quote-money-row">
                 <span>Partita IVA / CF</span>
                 <strong>{quote.customer_tax_id || 'Non compilata'}</strong>
               </div>

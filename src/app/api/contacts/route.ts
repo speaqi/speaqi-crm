@@ -41,6 +41,9 @@ type OptionalContactColumn =
   | 'billing_tax_id'
   | 'billing_pec'
   | 'billing_sdi'
+  | 'billing_address'
+  | 'billing_zip'
+  | 'billing_city'
 
 function isMissingOptionalContactColumn(error: unknown, column: OptionalContactColumn) {
   const message = errorMessage(error, '').toLowerCase()
@@ -72,6 +75,18 @@ function buildContactInsertFallbackPayload(payload: Record<string, unknown>, err
   }
   if (isMissingOptionalContactColumn(error, 'billing_sdi')) {
     delete fallback.billing_sdi
+    changed = true
+  }
+  if (isMissingOptionalContactColumn(error, 'billing_address')) {
+    delete fallback.billing_address
+    changed = true
+  }
+  if (isMissingOptionalContactColumn(error, 'billing_zip')) {
+    delete fallback.billing_zip
+    changed = true
+  }
+  if (isMissingOptionalContactColumn(error, 'billing_city')) {
+    delete fallback.billing_city
     changed = true
   }
 
@@ -136,6 +151,12 @@ export async function POST(request: NextRequest) {
     const listName = normalizeText(body.list_name)
     const personalSection = normalizeText(body.personal_section)
     const initialTaskNote = normalizeText(body.initial_task_note)
+    const billingLocation = [
+      normalizeText(body.billing_address),
+      [normalizeText(body.billing_zip), normalizeText(body.billing_city)].filter(Boolean).join(' '),
+    ]
+      .filter(Boolean)
+      .join(', ')
 
     if (!name) {
       return Response.json({ error: 'Inserisci almeno un referente o un nome organizzazione' }, { status: 400 })
@@ -159,6 +180,9 @@ export async function POST(request: NextRequest) {
       billing_tax_id: normalizeText(body.billing_tax_id),
       billing_pec: normalizeText(body.billing_pec),
       billing_sdi: normalizeText(body.billing_sdi),
+      billing_address: normalizeText(body.billing_address),
+      billing_zip: normalizeText(body.billing_zip),
+      billing_city: normalizeText(body.billing_city),
       event_tag: eventTag,
       list_name: listName,
       country: normalizeText(body.country),
@@ -252,6 +276,7 @@ export async function POST(request: NextRequest) {
       contact.billing_tax_id ? `P.IVA/CF: ${contact.billing_tax_id}.` : null,
       contact.billing_pec ? `PEC: ${contact.billing_pec}.` : null,
       contact.billing_sdi ? `SDI: ${contact.billing_sdi}.` : null,
+      billingLocation ? `Sede: ${billingLocation}.` : null,
       contact.event_tag ? `Evento: ${contact.event_tag}.` : null,
       contact.list_name ? `Lista import: ${contact.list_name}.` : null,
       contact.personal_section ? `Sezione personale: ${contact.personal_section}.` : null,

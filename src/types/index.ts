@@ -30,6 +30,9 @@ export interface CRMContact {
   billing_tax_id?: string | null
   billing_pec?: string | null
   billing_sdi?: string | null
+  billing_address?: string | null
+  billing_zip?: string | null
+  billing_city?: string | null
   event_tag?: string | null
   list_name?: string | null
   country?: string | null
@@ -173,6 +176,9 @@ export interface QuoteContactSnapshot {
   billing_tax_id?: string | null
   billing_pec?: string | null
   billing_sdi?: string | null
+  billing_address?: string | null
+  billing_zip?: string | null
+  billing_city?: string | null
   phone?: string | null
   status?: string | null
   responsible?: string | null
@@ -195,6 +201,8 @@ export interface Quote {
   customer_pec?: string | null
   customer_sdi?: string | null
   customer_address?: string | null
+  customer_zip?: string | null
+  customer_city?: string | null
   items: QuoteLineItem[]
   currency: string
   subtotal_amount: number
@@ -237,6 +245,8 @@ export interface QuoteInput {
   customer_pec?: string | null
   customer_sdi?: string | null
   customer_address?: string | null
+  customer_zip?: string | null
+  customer_city?: string | null
   items: QuoteLineItem[]
   discount_amount?: number | null
   tax_rate?: number | null
@@ -269,6 +279,9 @@ export interface ContactInput {
   billing_tax_id?: string
   billing_pec?: string
   billing_sdi?: string
+  billing_address?: string
+  billing_zip?: string
+  billing_city?: string
   event_tag?: string
   list_name?: string
   country?: string

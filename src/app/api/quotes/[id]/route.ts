@@ -21,7 +21,7 @@ type RouteContext = {
 
 const CONTACT_SELECT_BASE = 'id, name, email, company, phone, status, responsible, assigned_agent'
 const CONTACT_SELECT_BILLING =
-  'id, name, email, company, phone, status, responsible, assigned_agent, billing_tax_id, billing_pec, billing_sdi'
+  'id, name, email, company, phone, status, responsible, assigned_agent, billing_tax_id, billing_pec, billing_sdi, billing_address, billing_zip, billing_city'
 
 async function readContactForQuote(
   supabase: any,
@@ -60,12 +60,19 @@ function normalizeQuoteRow(row: any) {
   }
 }
 
-type OptionalQuoteColumn = 'customer_pec' | 'customer_sdi'
+type OptionalQuoteColumn = 'customer_pec' | 'customer_sdi' | 'customer_zip' | 'customer_city'
 
 function isMissingContactBillingColumnError(error: unknown) {
   const message = errorText(error)
   return (
-    (message.includes('billing_tax_id') || message.includes('billing_pec') || message.includes('billing_sdi')) &&
+    (
+      message.includes('billing_tax_id') ||
+      message.includes('billing_pec') ||
+      message.includes('billing_sdi') ||
+      message.includes('billing_address') ||
+      message.includes('billing_zip') ||
+      message.includes('billing_city')
+    ) &&
     (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
   )
 }
@@ -104,6 +111,14 @@ function buildQuotePayloadFallback(payload: Record<string, unknown>, error: unkn
   }
   if (isMissingOptionalQuoteColumn(error, 'customer_sdi')) {
     delete fallback.customer_sdi
+    changed = true
+  }
+  if (isMissingOptionalQuoteColumn(error, 'customer_zip')) {
+    delete fallback.customer_zip
+    changed = true
+  }
+  if (isMissingOptionalQuoteColumn(error, 'customer_city')) {
+    delete fallback.customer_city
     changed = true
   }
 
@@ -246,7 +261,23 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
             ? normalizeText(nextContact?.billing_sdi) || current.customer_sdi
             : current.customer_sdi,
       customer_address:
-        body.customer_address !== undefined ? normalizeText(body.customer_address) : current.customer_address,
+        body.customer_address !== undefined
+          ? normalizeText(body.customer_address)
+          : contactChanged
+            ? normalizeText(nextContact?.billing_address) || current.customer_address
+            : current.customer_address,
+      customer_zip:
+        body.customer_zip !== undefined
+          ? normalizeText(body.customer_zip)
+          : contactChanged
+            ? normalizeText(nextContact?.billing_zip) || current.customer_zip
+            : current.customer_zip,
+      customer_city:
+        body.customer_city !== undefined
+          ? normalizeText(body.customer_city)
+          : contactChanged
+            ? normalizeText(nextContact?.billing_city) || current.customer_city
+            : current.customer_city,
       items,
       currency: body.currency !== undefined ? currencyCode(body.currency) : current.currency,
       ...totals,

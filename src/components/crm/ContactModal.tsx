@@ -44,6 +44,9 @@ function buildInitialState(contact?: CRMContact | null, defaultSource?: string):
     billing_tax_id: contact.billing_tax_id || '',
     billing_pec: contact.billing_pec || '',
     billing_sdi: contact.billing_sdi || '',
+    billing_address: contact.billing_address || '',
+    billing_zip: contact.billing_zip || '',
+    billing_city: contact.billing_city || '',
     event_tag: contact.event_tag || '',
     list_name: contact.list_name || '',
     status: contact.status,
@@ -102,6 +105,9 @@ export function ContactModal({
         billing_tax_id: form.billing_tax_id?.trim(),
         billing_pec: form.billing_pec?.trim(),
         billing_sdi: form.billing_sdi?.trim(),
+        billing_address: form.billing_address?.trim(),
+        billing_zip: form.billing_zip?.trim(),
+        billing_city: form.billing_city?.trim(),
         event_tag: form.event_tag?.trim(),
         personal_section: form.personal_section?.trim(),
         source: form.source?.trim(),
@@ -199,6 +205,37 @@ export function ContactModal({
             value={form.phone || ''}
             onChange={(event) => setForm((previous) => ({ ...previous, phone: event.target.value }))}
             placeholder="+39 ..."
+          />
+        </div>
+      </div>
+
+      <div className="fg">
+        <label className="fl">Indirizzo sede</label>
+        <input
+          className="fi"
+          value={form.billing_address || ''}
+          onChange={(event) => setForm((previous) => ({ ...previous, billing_address: event.target.value }))}
+          placeholder="Via, numero civico"
+        />
+      </div>
+
+      <div className="frow">
+        <div className="fg">
+          <label className="fl">CAP</label>
+          <input
+            className="fi"
+            value={form.billing_zip || ''}
+            onChange={(event) => setForm((previous) => ({ ...previous, billing_zip: event.target.value }))}
+            placeholder="Es. 20100"
+          />
+        </div>
+        <div className="fg">
+          <label className="fl">Città</label>
+          <input
+            className="fi"
+            value={form.billing_city || ''}
+            onChange={(event) => setForm((previous) => ({ ...previous, billing_city: event.target.value }))}
+            placeholder="Es. Milano"
           />
         </div>
       </div>

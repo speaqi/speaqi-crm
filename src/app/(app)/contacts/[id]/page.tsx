@@ -215,6 +215,9 @@ export default function ContactDetailPage() {
             <div className="dash-card-title">Scheda lead</div>
             <div className="detail-stack">
               <div><strong>Azienda:</strong> {contact.company || 'Non impostata'}</div>
+              <div><strong>Indirizzo sede:</strong> {contact.billing_address || 'Non impostato'}</div>
+              <div><strong>CAP:</strong> {contact.billing_zip || 'Non impostato'}</div>
+              <div><strong>Città:</strong> {contact.billing_city || 'Non impostata'}</div>
               <div><strong>Partita IVA / CF:</strong> {contact.billing_tax_id || 'Non impostata'}</div>
               <div><strong>PEC:</strong> {contact.billing_pec || 'Non impostata'}</div>
               <div><strong>Codice SDI:</strong> {contact.billing_sdi || 'Non impostato'}</div>

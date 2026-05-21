@@ -19,7 +19,7 @@ import { requireRouteUser } from '@/lib/server/supabase'
 
 const CONTACT_SELECT_BASE = 'id, name, email, company, phone, status, responsible, assigned_agent'
 const CONTACT_SELECT_BILLING =
-  'id, name, email, company, phone, status, responsible, assigned_agent, billing_tax_id, billing_pec, billing_sdi'
+  'id, name, email, company, phone, status, responsible, assigned_agent, billing_tax_id, billing_pec, billing_sdi, billing_address, billing_zip, billing_city'
 
 async function readContactForQuote(
   supabase: any,
@@ -58,12 +58,19 @@ function normalizeQuoteRow(row: any) {
   }
 }
 
-type OptionalQuoteColumn = 'customer_pec' | 'customer_sdi'
+type OptionalQuoteColumn = 'customer_pec' | 'customer_sdi' | 'customer_zip' | 'customer_city'
 
 function isMissingContactBillingColumnError(error: unknown) {
   const message = errorText(error)
   return (
-    (message.includes('billing_tax_id') || message.includes('billing_pec') || message.includes('billing_sdi')) &&
+    (
+      message.includes('billing_tax_id') ||
+      message.includes('billing_pec') ||
+      message.includes('billing_sdi') ||
+      message.includes('billing_address') ||
+      message.includes('billing_zip') ||
+      message.includes('billing_city')
+    ) &&
     (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
   )
 }
@@ -102,6 +109,14 @@ function buildQuotePayloadFallback(payload: Record<string, unknown>, error: unkn
   }
   if (isMissingOptionalQuoteColumn(error, 'customer_sdi')) {
     delete fallback.customer_sdi
+    changed = true
+  }
+  if (isMissingOptionalQuoteColumn(error, 'customer_zip')) {
+    delete fallback.customer_zip
+    changed = true
+  }
+  if (isMissingOptionalQuoteColumn(error, 'customer_city')) {
+    delete fallback.customer_city
     changed = true
   }
 
@@ -216,7 +231,9 @@ export async function POST(request: NextRequest) {
       customer_tax_id: normalizeText(body.customer_tax_id) || normalizeText(contact?.billing_tax_id),
       customer_pec: normalizeText(body.customer_pec) || normalizeText(contact?.billing_pec),
       customer_sdi: normalizeText(body.customer_sdi) || normalizeText(contact?.billing_sdi),
-      customer_address: normalizeText(body.customer_address),
+      customer_address: normalizeText(body.customer_address) || normalizeText(contact?.billing_address),
+      customer_zip: normalizeText(body.customer_zip) || normalizeText(contact?.billing_zip),
+      customer_city: normalizeText(body.customer_city) || normalizeText(contact?.billing_city),
       items,
       currency: currencyCode(body.currency),
       ...totals,
