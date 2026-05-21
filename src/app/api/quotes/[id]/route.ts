@@ -66,15 +66,17 @@ type OptionalQuoteColumn =
   | 'customer_sdi'
   | 'customer_zip'
   | 'customer_city'
-  | 'payment_terms_mode'
-  | 'deposit_manual_amount'
-  | 'payment_terms_note'
 
 const OPTIONAL_QUOTE_COLUMNS: OptionalQuoteColumn[] = [
   'customer_pec',
   'customer_sdi',
   'customer_zip',
   'customer_city',
+]
+
+type RequiredPaymentTermsColumn = 'payment_terms_mode' | 'deposit_manual_amount' | 'payment_terms_note'
+
+const REQUIRED_PAYMENT_TERMS_COLUMNS: RequiredPaymentTermsColumn[] = [
   'payment_terms_mode',
   'deposit_manual_amount',
   'payment_terms_note',
@@ -123,6 +125,16 @@ function hasOptionalQuoteColumnSchemaError(error: unknown) {
   return OPTIONAL_QUOTE_COLUMNS.some((column) => isMissingOptionalQuoteColumn(error, column))
 }
 
+function hasMissingPaymentTermsSchemaError(error: unknown) {
+  return REQUIRED_PAYMENT_TERMS_COLUMNS.some((column) => {
+    const message = errorText(error)
+    return (
+      message.includes(column) &&
+      (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
+    )
+  })
+}
+
 function stripOptionalQuoteColumns(payload: Record<string, unknown>) {
   const fallback = { ...payload }
   OPTIONAL_QUOTE_COLUMNS.forEach((column) => {
@@ -134,6 +146,12 @@ function stripOptionalQuoteColumns(payload: Record<string, unknown>) {
 function buildQuotePayloadFallback(payload: Record<string, unknown>, error: unknown) {
   const fallback = { ...payload }
   let changed = false
+
+  if (hasMissingPaymentTermsSchemaError(error)) {
+    throw new Error(
+      'Il database non ha ancora le colonne per le condizioni di pagamento manuali. Applica la migration Supabase più recente e riprova.'
+    )
+  }
 
   if (hasOptionalQuoteColumnSchemaError(error)) {
     return stripOptionalQuoteColumns(fallback)
