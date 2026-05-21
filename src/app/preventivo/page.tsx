@@ -261,6 +261,20 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
               </Link>
               .
             </p>
+            <div style={{ marginTop: 16 }}>
+              <div className="public-quote-money-row">
+                <span>Partita IVA / CF</span>
+                <strong>{quote.customer_tax_id || 'Non compilata'}</strong>
+              </div>
+              <div className="public-quote-money-row">
+                <span>PEC</span>
+                <strong>{quote.customer_pec || 'Non compilata'}</strong>
+              </div>
+              <div className="public-quote-money-row">
+                <span>Codice SDI</span>
+                <strong>{quote.customer_sdi || 'Non compilato'}</strong>
+              </div>
+            </div>
           </section>
 
           <section className="public-quote-card">

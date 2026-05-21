@@ -17,26 +17,37 @@ import {
 } from '@/lib/server/quotes'
 import { requireRouteUser } from '@/lib/server/supabase'
 
+const CONTACT_SELECT_BASE = 'id, name, email, company, phone, status, responsible, assigned_agent'
+const CONTACT_SELECT_BILLING =
+  'id, name, email, company, phone, status, responsible, assigned_agent, billing_tax_id, billing_pec, billing_sdi'
+
 async function readContactForQuote(
   supabase: any,
   userId: string,
   contactId: string,
   responsible?: string | null
 ) {
-  let query = supabase
-    .from('contacts')
-    .select('id, name, email, company, phone, status, responsible, assigned_agent')
-    .eq('user_id', userId)
-    .eq('id', contactId)
+  const selectContact = async (selectClause: string) => {
+    let query = supabase.from('contacts').select(selectClause).eq('user_id', userId).eq('id', contactId)
 
-  if (responsible) {
-    const assigneeOr = contactAssigneeMatchOrFilter(responsible)
-    if (assigneeOr) query = query.or(assigneeOr)
+    if (responsible) {
+      const assigneeOr = contactAssigneeMatchOrFilter(responsible)
+      if (assigneeOr) query = query.or(assigneeOr)
+    }
+
+    return await query.maybeSingle()
   }
 
-  const { data, error } = await query.maybeSingle()
-  if (error) throw error
-  return data || null
+  const first = await selectContact(CONTACT_SELECT_BILLING)
+  if (!first.error) return first.data || null
+
+  if (isMissingContactBillingColumnError(first.error)) {
+    const retry = await selectContact(CONTACT_SELECT_BASE)
+    if (retry.error) throw retry.error
+    return retry.data || null
+  }
+
+  throw first.error
 }
 
 function normalizeQuoteRow(row: any) {
@@ -47,21 +58,104 @@ function normalizeQuoteRow(row: any) {
   }
 }
 
+type OptionalQuoteColumn = 'customer_pec' | 'customer_sdi'
+
+function isMissingContactBillingColumnError(error: unknown) {
+  const message = errorText(error)
+  return (
+    (message.includes('billing_tax_id') || message.includes('billing_pec') || message.includes('billing_sdi')) &&
+    (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
+  )
+}
+
+function errorText(error: unknown) {
+  if (error instanceof Error) return error.message.toLowerCase()
+  if (error && typeof error === 'object') {
+    if ('message' in error && (error as { message?: unknown }).message) {
+      return String((error as { message?: unknown }).message).toLowerCase()
+    }
+    if ('details' in error && (error as { details?: unknown }).details) {
+      return String((error as { details?: unknown }).details).toLowerCase()
+    }
+    if ('hint' in error && (error as { hint?: unknown }).hint) {
+      return String((error as { hint?: unknown }).hint).toLowerCase()
+    }
+  }
+  return ''
+}
+
+function isMissingOptionalQuoteColumn(error: unknown, column: OptionalQuoteColumn) {
+  const message = errorText(error)
+  return (
+    message.includes(column) &&
+    (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
+  )
+}
+
+function buildQuotePayloadFallback(payload: Record<string, unknown>, error: unknown) {
+  const fallback = { ...payload }
+  let changed = false
+
+  if (isMissingOptionalQuoteColumn(error, 'customer_pec')) {
+    delete fallback.customer_pec
+    changed = true
+  }
+  if (isMissingOptionalQuoteColumn(error, 'customer_sdi')) {
+    delete fallback.customer_sdi
+    changed = true
+  }
+
+  return changed ? fallback : null
+}
+
+async function fetchQuotesForWorkspace(supabase: any, userId: string) {
+  const selectQuotes = async (selectClause: string) =>
+    await supabase
+      .from('quotes')
+      .select(selectClause)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+
+  const first = await selectQuotes(`*, contact:contacts(${CONTACT_SELECT_BILLING})`)
+  if (!first.error) return first.data || []
+
+  if (isMissingContactBillingColumnError(first.error)) {
+    const retry = await selectQuotes(`*, contact:contacts(${CONTACT_SELECT_BASE})`)
+    if (retry.error) throw retry.error
+    return retry.data || []
+  }
+
+  throw first.error
+}
+
+async function fetchQuoteById(supabase: any, userId: string, id: string) {
+  const selectQuote = async (selectClause: string) =>
+    await supabase
+      .from('quotes')
+      .select(selectClause)
+      .eq('user_id', userId)
+      .eq('id', id)
+      .maybeSingle()
+
+  const first = await selectQuote(`*, contact:contacts(${CONTACT_SELECT_BILLING})`)
+  if (!first.error) return first.data || null
+
+  if (isMissingContactBillingColumnError(first.error)) {
+    const retry = await selectQuote(`*, contact:contacts(${CONTACT_SELECT_BASE})`)
+    if (retry.error) throw retry.error
+    return retry.data || null
+  }
+
+  throw first.error
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
 
   try {
-    const { data, error } = await auth.supabase
-      .from('quotes')
-      .select(
-        '*, contact:contacts(id, name, email, company, phone, status, responsible, assigned_agent)'
-      )
-      .eq('user_id', auth.workspaceUserId)
-      .order('created_at', { ascending: false })
-
-    if (error) throw error
-    return Response.json({ quotes: (data || []).map(normalizeQuoteRow) })
+    const quotes = await fetchQuotesForWorkspace(auth.supabase, auth.workspaceUserId)
+    return Response.json({ quotes: quotes.map(normalizeQuoteRow) })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Impossibile caricare i preventivi') }, { status: 500 })
   }
@@ -119,7 +213,9 @@ export async function POST(request: NextRequest) {
       customer_name: customerName,
       customer_email: normalizeText(body.customer_email) || normalizeText(contact?.email),
       customer_company: normalizeText(body.customer_company) || normalizeText(contact?.company),
-      customer_tax_id: normalizeText(body.customer_tax_id),
+      customer_tax_id: normalizeText(body.customer_tax_id) || normalizeText(contact?.billing_tax_id),
+      customer_pec: normalizeText(body.customer_pec) || normalizeText(contact?.billing_pec),
+      customer_sdi: normalizeText(body.customer_sdi) || normalizeText(contact?.billing_sdi),
       customer_address: normalizeText(body.customer_address),
       items,
       currency: currencyCode(body.currency),
@@ -139,13 +235,38 @@ export async function POST(request: NextRequest) {
       paid_at: status === 'paid' ? now : null,
     }
 
-    const { data, error } = await auth.supabase
+    let insertedId: string | null = null
+    let insertError: unknown = null
+
+    const firstInsert = await auth.supabase
       .from('quotes')
       .insert(insertPayload)
-      .select('*, contact:contacts(id, name, email, company, phone, status, responsible, assigned_agent)')
+      .select('id')
       .single()
 
-    if (error) throw error
+    if (!firstInsert.error) {
+      insertedId = firstInsert.data?.id || null
+    } else {
+      const fallbackPayload = buildQuotePayloadFallback(insertPayload, firstInsert.error)
+      if (fallbackPayload) {
+        const retry = await auth.supabase
+          .from('quotes')
+          .insert(fallbackPayload)
+          .select('id')
+          .single()
+
+        insertedId = retry.data?.id || null
+        insertError = retry.error
+      } else {
+        insertError = firstInsert.error
+      }
+    }
+
+    if (insertError) throw insertError
+    if (!insertedId) throw new Error('Impossibile creare il preventivo')
+
+    const data = await fetchQuoteById(auth.supabase, auth.workspaceUserId, insertedId)
+    if (!data) throw new Error('Preventivo non trovato dopo la creazione')
 
     if (contact?.id) {
       await createActivities(auth.supabase, [

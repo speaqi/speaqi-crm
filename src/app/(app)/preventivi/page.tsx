@@ -67,6 +67,8 @@ function blankDraft(): QuoteDraft {
     customer_email: '',
     customer_company: '',
     customer_tax_id: '',
+    customer_pec: '',
+    customer_sdi: '',
     customer_address: '',
     items: [quoteLineFromPackage('start', makeLineId())],
     discount_amount: 0,
@@ -119,7 +121,17 @@ function contactLabel(contact: CRMContact) {
 function contactMatchesSearch(contact: CRMContact, query: string) {
   const q = query.trim().toLowerCase()
   if (!q) return true
-  const blob = [contact.company, contact.name, contact.email].filter(Boolean).join(' ').toLowerCase()
+  const blob = [
+    contact.company,
+    contact.name,
+    contact.email,
+    contact.billing_tax_id,
+    contact.billing_pec,
+    contact.billing_sdi,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
   return blob.includes(q)
 }
 
@@ -206,6 +218,9 @@ export default function PreventiviPage() {
       customer_name: contact?.name || '',
       customer_email: contact?.email || '',
       customer_company: contact?.company || '',
+      customer_tax_id: contact?.billing_tax_id || '',
+      customer_pec: contact?.billing_pec || '',
+      customer_sdi: contact?.billing_sdi || '',
     })
   }
 
@@ -283,6 +298,8 @@ export default function PreventiviPage() {
       customer_email: quote.customer_email || '',
       customer_company: quote.customer_company || '',
       customer_tax_id: quote.customer_tax_id || '',
+      customer_pec: quote.customer_pec || '',
+      customer_sdi: quote.customer_sdi || '',
       customer_address: quote.customer_address || '',
       items: quote.items?.length ? normalizeItemsProIds(quote.items) : blankDraft().items,
       discount_amount: quote.discount_amount,
@@ -514,6 +531,24 @@ export default function PreventiviPage() {
                 className="fi"
                 value={draft.customer_tax_id || ''}
                 onChange={(event) => patchDraft({ customer_tax_id: event.target.value })}
+              />
+            </label>
+            <label className="fg">
+              <span className="fl">PEC</span>
+              <input
+                className="fi"
+                type="email"
+                value={draft.customer_pec || ''}
+                onChange={(event) => patchDraft({ customer_pec: event.target.value })}
+              />
+            </label>
+            <label className="fg">
+              <span className="fl">Codice SDI</span>
+              <input
+                className="fi"
+                value={draft.customer_sdi || ''}
+                onChange={(event) => patchDraft({ customer_sdi: event.target.value })}
+                placeholder="Es. ABCD123"
               />
             </label>
           </div>

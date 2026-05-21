@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createActivities } from '@/lib/server/crm'
+import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { errorMessage } from '@/lib/server/http'
 import {
   DEFAULT_BANK_TRANSFER_INSTRUCTIONS,
@@ -18,6 +19,39 @@ type RouteContext = {
   params: Promise<{ id: string }>
 }
 
+const CONTACT_SELECT_BASE = 'id, name, email, company, phone, status, responsible, assigned_agent'
+const CONTACT_SELECT_BILLING =
+  'id, name, email, company, phone, status, responsible, assigned_agent, billing_tax_id, billing_pec, billing_sdi'
+
+async function readContactForQuote(
+  supabase: any,
+  userId: string,
+  contactId: string,
+  responsible?: string | null
+) {
+  const selectContact = async (selectClause: string) => {
+    let query = supabase.from('contacts').select(selectClause).eq('user_id', userId).eq('id', contactId)
+
+    if (responsible) {
+      const assigneeOr = contactAssigneeMatchOrFilter(responsible)
+      if (assigneeOr) query = query.or(assigneeOr)
+    }
+
+    return await query.maybeSingle()
+  }
+
+  const first = await selectContact(CONTACT_SELECT_BILLING)
+  if (!first.error) return first.data || null
+
+  if (isMissingContactBillingColumnError(first.error)) {
+    const retry = await selectContact(CONTACT_SELECT_BASE)
+    if (retry.error) throw retry.error
+    return retry.data || null
+  }
+
+  throw first.error
+}
+
 function normalizeQuoteRow(row: any) {
   return {
     ...row,
@@ -26,16 +60,79 @@ function normalizeQuoteRow(row: any) {
   }
 }
 
-async function readQuote(supabase: any, userId: string, id: string) {
-  const { data, error } = await supabase
-    .from('quotes')
-    .select('*, contact:contacts(id, name, email, company, phone, status, responsible, assigned_agent)')
-    .eq('user_id', userId)
-    .eq('id', id)
-    .maybeSingle()
+type OptionalQuoteColumn = 'customer_pec' | 'customer_sdi'
 
-  if (error) throw error
-  return data || null
+function isMissingContactBillingColumnError(error: unknown) {
+  const message = errorText(error)
+  return (
+    (message.includes('billing_tax_id') || message.includes('billing_pec') || message.includes('billing_sdi')) &&
+    (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
+  )
+}
+
+function errorText(error: unknown) {
+  if (error instanceof Error) return error.message.toLowerCase()
+  if (error && typeof error === 'object') {
+    if ('message' in error && (error as { message?: unknown }).message) {
+      return String((error as { message?: unknown }).message).toLowerCase()
+    }
+    if ('details' in error && (error as { details?: unknown }).details) {
+      return String((error as { details?: unknown }).details).toLowerCase()
+    }
+    if ('hint' in error && (error as { hint?: unknown }).hint) {
+      return String((error as { hint?: unknown }).hint).toLowerCase()
+    }
+  }
+  return ''
+}
+
+function isMissingOptionalQuoteColumn(error: unknown, column: OptionalQuoteColumn) {
+  const message = errorText(error)
+  return (
+    message.includes(column) &&
+    (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
+  )
+}
+
+function buildQuotePayloadFallback(payload: Record<string, unknown>, error: unknown) {
+  const fallback = { ...payload }
+  let changed = false
+
+  if (isMissingOptionalQuoteColumn(error, 'customer_pec')) {
+    delete fallback.customer_pec
+    changed = true
+  }
+  if (isMissingOptionalQuoteColumn(error, 'customer_sdi')) {
+    delete fallback.customer_sdi
+    changed = true
+  }
+
+  return changed ? fallback : null
+}
+
+async function fetchQuoteById(supabase: any, userId: string, id: string) {
+  const selectQuote = async (selectClause: string) =>
+    await supabase
+      .from('quotes')
+      .select(selectClause)
+      .eq('user_id', userId)
+      .eq('id', id)
+      .maybeSingle()
+
+  const first = await selectQuote(`*, contact:contacts(${CONTACT_SELECT_BILLING})`)
+  if (!first.error) return first.data || null
+
+  if (isMissingContactBillingColumnError(first.error)) {
+    const retry = await selectQuote(`*, contact:contacts(${CONTACT_SELECT_BASE})`)
+    if (retry.error) throw retry.error
+    return retry.data || null
+  }
+
+  throw first.error
+}
+
+async function readQuote(supabase: any, userId: string, id: string) {
+  return await fetchQuoteById(supabase, userId, id)
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {
@@ -62,6 +159,27 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (!current) return Response.json({ error: 'Preventivo non trovato' }, { status: 404 })
 
     const body = await request.json()
+    const currentContact = Array.isArray(current.contact) ? current.contact[0] : current.contact
+    let nextContact = currentContact || null
+    let nextContactId = current.contact_id || null
+    const contactChanged = body.contact_id !== undefined
+
+    if (contactChanged) {
+      nextContactId = normalizeText(body.contact_id)
+      nextContact = nextContactId
+        ? await readContactForQuote(
+            auth.supabase,
+            auth.workspaceUserId,
+            nextContactId,
+            auth.isAdmin ? null : auth.memberName || null
+          )
+        : null
+
+      if (nextContactId && !nextContact) {
+        return Response.json({ error: 'Contatto non trovato o non assegnato a te' }, { status: 404 })
+      }
+    }
+
     const items =
       body.items !== undefined
         ? normalizeQuoteItems(body.items)
@@ -89,17 +207,44 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const nextStatus = normalizeStatus(body.status, current.status)
     const now = new Date().toISOString()
     const updatePayload: Record<string, unknown> = {
+      contact_id: nextContactId,
       title: body.title !== undefined ? normalizeText(body.title) || current.title : current.title,
       customer_name:
         body.customer_name !== undefined
           ? normalizeText(body.customer_name) || current.customer_name
-          : current.customer_name,
+          : contactChanged
+            ? normalizeText(nextContact?.name) || current.customer_name
+            : current.customer_name,
       customer_email:
-        body.customer_email !== undefined ? normalizeText(body.customer_email) : current.customer_email,
+        body.customer_email !== undefined
+          ? normalizeText(body.customer_email)
+          : contactChanged
+            ? normalizeText(nextContact?.email) || current.customer_email
+            : current.customer_email,
       customer_company:
-        body.customer_company !== undefined ? normalizeText(body.customer_company) : current.customer_company,
+        body.customer_company !== undefined
+          ? normalizeText(body.customer_company)
+          : contactChanged
+            ? normalizeText(nextContact?.company) || current.customer_company
+            : current.customer_company,
       customer_tax_id:
-        body.customer_tax_id !== undefined ? normalizeText(body.customer_tax_id) : current.customer_tax_id,
+        body.customer_tax_id !== undefined
+          ? normalizeText(body.customer_tax_id)
+          : contactChanged
+            ? normalizeText(nextContact?.billing_tax_id) || current.customer_tax_id
+            : current.customer_tax_id,
+      customer_pec:
+        body.customer_pec !== undefined
+          ? normalizeText(body.customer_pec)
+          : contactChanged
+            ? normalizeText(nextContact?.billing_pec) || current.customer_pec
+            : current.customer_pec,
+      customer_sdi:
+        body.customer_sdi !== undefined
+          ? normalizeText(body.customer_sdi)
+          : contactChanged
+            ? normalizeText(nextContact?.billing_sdi) || current.customer_sdi
+            : current.customer_sdi,
       customer_address:
         body.customer_address !== undefined ? normalizeText(body.customer_address) : current.customer_address,
       items,
@@ -136,33 +281,60 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       paid_at: nextStatus === 'paid' ? current.paid_at || now : current.paid_at,
     }
 
-    const { data, error } = await auth.supabase
+    let updatedId: string | null = null
+    let updateError: unknown = null
+
+    const firstUpdate = await auth.supabase
       .from('quotes')
       .update(updatePayload)
       .eq('user_id', auth.workspaceUserId)
       .eq('id', id)
-      .select('*, contact:contacts(id, name, email, company, phone, status, responsible, assigned_agent)')
+      .select('id')
       .single()
 
-    if (error) throw error
+    if (!firstUpdate.error) {
+      updatedId = firstUpdate.data?.id || null
+    } else {
+      const fallbackPayload = buildQuotePayloadFallback(updatePayload, firstUpdate.error)
+      if (fallbackPayload) {
+        const retry = await auth.supabase
+          .from('quotes')
+          .update(fallbackPayload)
+          .eq('user_id', auth.workspaceUserId)
+          .eq('id', id)
+          .select('id')
+          .single()
 
-    if (data.contact_id && current.status !== data.status) {
+        updatedId = retry.data?.id || null
+        updateError = retry.error
+      } else {
+        updateError = firstUpdate.error
+      }
+    }
+
+    if (updateError) throw updateError
+    if (!updatedId) throw new Error('Impossibile aggiornare il preventivo')
+
+    const quoteData = await fetchQuoteById(auth.supabase, auth.workspaceUserId, updatedId)
+    if (!quoteData) throw new Error('Preventivo non trovato dopo l’aggiornamento')
+
+    if (quoteData.contact_id && current.status !== quoteData.status) {
       await createActivities(auth.supabase, [
         {
           user_id: auth.workspaceUserId,
-          contact_id: data.contact_id,
+          contact_id: quoteData.contact_id,
           type: 'system',
-          content: `Preventivo ${data.quote_number}: stato ${current.status} -> ${data.status}.`,
+          content: `Preventivo ${quoteData.quote_number}: stato ${current.status} -> ${quoteData.status}.`,
           metadata: {
-            quote_id: data.id,
+            quote_id: quoteData.id,
             previous_status: current.status,
-            next_status: data.status,
+            next_status: quoteData.status,
           },
         },
       ])
     }
 
-    return Response.json({ quote: normalizeQuoteRow(data) })
+    return Response.json({ quote: normalizeQuoteRow(quoteData) })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Impossibile aggiornare il preventivo') }, { status: 500 })
   }

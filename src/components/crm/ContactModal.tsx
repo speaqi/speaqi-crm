@@ -41,6 +41,9 @@ function buildInitialState(contact?: CRMContact | null, defaultSource?: string):
     phone: contact.phone || '',
     category: contact.category || '',
     company: contact.company || '',
+    billing_tax_id: contact.billing_tax_id || '',
+    billing_pec: contact.billing_pec || '',
+    billing_sdi: contact.billing_sdi || '',
     event_tag: contact.event_tag || '',
     list_name: contact.list_name || '',
     status: contact.status,
@@ -96,6 +99,9 @@ export function ContactModal({
         phone: form.phone?.trim(),
         category: form.category?.trim(),
         company: form.company?.trim(),
+        billing_tax_id: form.billing_tax_id?.trim(),
+        billing_pec: form.billing_pec?.trim(),
+        billing_sdi: form.billing_sdi?.trim(),
         event_tag: form.event_tag?.trim(),
         personal_section: form.personal_section?.trim(),
         source: form.source?.trim(),
@@ -195,6 +201,38 @@ export function ContactModal({
             placeholder="+39 ..."
           />
         </div>
+      </div>
+
+      <div className="frow">
+        <div className="fg">
+          <label className="fl">Partita IVA / CF</label>
+          <input
+            className="fi"
+            value={form.billing_tax_id || ''}
+            onChange={(event) => setForm((previous) => ({ ...previous, billing_tax_id: event.target.value }))}
+            placeholder="Es. 10831191217"
+          />
+        </div>
+        <div className="fg">
+          <label className="fl">PEC</label>
+          <input
+            className="fi"
+            type="email"
+            value={form.billing_pec || ''}
+            onChange={(event) => setForm((previous) => ({ ...previous, billing_pec: event.target.value }))}
+            placeholder="pec@azienda.it"
+          />
+        </div>
+      </div>
+
+      <div className="fg">
+        <label className="fl">Codice SDI</label>
+        <input
+          className="fi"
+          value={form.billing_sdi || ''}
+          onChange={(event) => setForm((previous) => ({ ...previous, billing_sdi: event.target.value }))}
+          placeholder="Es. ABCD123"
+        />
       </div>
 
       <div className="fg">

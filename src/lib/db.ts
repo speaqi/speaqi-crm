@@ -10,6 +10,9 @@ export interface CRMContact {
   email?: string
   phone?: string
   category?: string
+  billing_tax_id?: string
+  billing_pec?: string
+  billing_sdi?: string
   status: string
   source?: string
   priority?: string
@@ -90,6 +93,9 @@ export async function dbCreateContact(
       email: data.email,
       phone: data.phone,
       category: data.category,
+      billing_tax_id: data.billing_tax_id,
+      billing_pec: data.billing_pec,
+      billing_sdi: data.billing_sdi,
       status: data.status || 'da-contattare',
       source: data.source,
       priority: data.priority,

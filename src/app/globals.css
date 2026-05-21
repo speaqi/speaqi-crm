@@ -2518,6 +2518,18 @@ select.filter-select {
   margin-top: 2px;
   flex-wrap: wrap;
 }
+.contacts-row-billing {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text2);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+}
 .contacts-missing {
   color: #b45309;
   background: #fffbeb;

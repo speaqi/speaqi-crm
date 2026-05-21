@@ -35,7 +35,14 @@ function errorMessage(error: unknown, fallback: string) {
   return fallback
 }
 
-function isMissingOptionalContactColumn(error: unknown, column: 'email_draft_note' | 'personal_section') {
+type OptionalContactColumn =
+  | 'email_draft_note'
+  | 'personal_section'
+  | 'billing_tax_id'
+  | 'billing_pec'
+  | 'billing_sdi'
+
+function isMissingOptionalContactColumn(error: unknown, column: OptionalContactColumn) {
   const message = errorMessage(error, '').toLowerCase()
   return (
     message.includes(column) &&
@@ -53,6 +60,18 @@ function buildContactInsertFallbackPayload(payload: Record<string, unknown>, err
   }
   if (isMissingOptionalContactColumn(error, 'personal_section')) {
     delete fallback.personal_section
+    changed = true
+  }
+  if (isMissingOptionalContactColumn(error, 'billing_tax_id')) {
+    delete fallback.billing_tax_id
+    changed = true
+  }
+  if (isMissingOptionalContactColumn(error, 'billing_pec')) {
+    delete fallback.billing_pec
+    changed = true
+  }
+  if (isMissingOptionalContactColumn(error, 'billing_sdi')) {
+    delete fallback.billing_sdi
     changed = true
   }
 
@@ -137,6 +156,9 @@ export async function POST(request: NextRequest) {
       phone: normalizeText(body.phone),
       category: normalizeText(body.category),
       company: normalizedCompany,
+      billing_tax_id: normalizeText(body.billing_tax_id),
+      billing_pec: normalizeText(body.billing_pec),
+      billing_sdi: normalizeText(body.billing_sdi),
       event_tag: eventTag,
       list_name: listName,
       country: normalizeText(body.country),
@@ -183,14 +205,14 @@ export async function POST(request: NextRequest) {
     } else {
       const fallbackPayload = buildContactInsertFallbackPayload(insertPayload, firstInsert.error)
       if (fallbackPayload) {
-      const retryInsert = await auth.supabase
-        .from('contacts')
-        .insert(fallbackPayload)
-        .select('*')
-        .single()
+        const retryInsert = await auth.supabase
+          .from('contacts')
+          .insert(fallbackPayload)
+          .select('*')
+          .single()
 
-      contact = retryInsert.data
-      insertError = retryInsert.error
+        contact = retryInsert.data
+        insertError = retryInsert.error
       } else {
         insertError = firstInsert.error
       }
@@ -227,6 +249,9 @@ export async function POST(request: NextRequest) {
         : 'Contatto creato nel CRM.',
       `Stato iniziale: ${contact.status}.`,
       contact.company ? `Azienda: ${contact.company}.` : null,
+      contact.billing_tax_id ? `P.IVA/CF: ${contact.billing_tax_id}.` : null,
+      contact.billing_pec ? `PEC: ${contact.billing_pec}.` : null,
+      contact.billing_sdi ? `SDI: ${contact.billing_sdi}.` : null,
       contact.event_tag ? `Evento: ${contact.event_tag}.` : null,
       contact.list_name ? `Lista import: ${contact.list_name}.` : null,
       contact.personal_section ? `Sezione personale: ${contact.personal_section}.` : null,

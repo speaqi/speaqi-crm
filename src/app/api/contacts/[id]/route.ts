@@ -35,7 +35,14 @@ function errorMessage(error: unknown, fallback: string) {
   return fallback
 }
 
-function isMissingOptionalContactColumn(error: unknown, column: 'email_draft_note' | 'personal_section') {
+type OptionalContactColumn =
+  | 'email_draft_note'
+  | 'personal_section'
+  | 'billing_tax_id'
+  | 'billing_pec'
+  | 'billing_sdi'
+
+function isMissingOptionalContactColumn(error: unknown, column: OptionalContactColumn) {
   const message = errorMessage(error, '').toLowerCase()
   return (
     message.includes(column) &&
@@ -53,6 +60,18 @@ function buildContactUpdateFallbackPayload(payload: Record<string, unknown>, err
   }
   if (isMissingOptionalContactColumn(error, 'personal_section')) {
     delete fallback.personal_section
+    changed = true
+  }
+  if (isMissingOptionalContactColumn(error, 'billing_tax_id')) {
+    delete fallback.billing_tax_id
+    changed = true
+  }
+  if (isMissingOptionalContactColumn(error, 'billing_pec')) {
+    delete fallback.billing_pec
+    changed = true
+  }
+  if (isMissingOptionalContactColumn(error, 'billing_sdi')) {
+    delete fallback.billing_sdi
     changed = true
   }
 
@@ -126,6 +145,13 @@ function buildContactUpdateSummary(current: any, next: any) {
   }
   if ((current.personal_section || null) !== (next.personal_section || null)) {
     changes.push(`sezione personale ${displayValue(current.personal_section)} -> ${displayValue(next.personal_section)}`)
+  }
+  if (
+    (current.billing_tax_id || null) !== (next.billing_tax_id || null) ||
+    (current.billing_pec || null) !== (next.billing_pec || null) ||
+    (current.billing_sdi || null) !== (next.billing_sdi || null)
+  ) {
+    changes.push('dati fatturazione aggiornati')
   }
   if (Number(current.priority || 0) !== Number(next.priority || 0)) {
     changes.push(`priorità ${current.priority} -> ${next.priority}`)
@@ -280,6 +306,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       phone: body.phone !== undefined ? normalizeText(body.phone) : current.phone,
       category: body.category !== undefined ? normalizeText(body.category) : current.category,
       company: normalizedCompany,
+      billing_tax_id: body.billing_tax_id !== undefined ? normalizeText(body.billing_tax_id) : current.billing_tax_id,
+      billing_pec: body.billing_pec !== undefined ? normalizeText(body.billing_pec) : current.billing_pec,
+      billing_sdi: body.billing_sdi !== undefined ? normalizeText(body.billing_sdi) : current.billing_sdi,
       event_tag: body.event_tag !== undefined ? normalizeText(body.event_tag) : current.event_tag,
       list_name: body.list_name !== undefined ? normalizeText(body.list_name) : current.list_name,
       personal_section:

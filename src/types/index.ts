@@ -27,6 +27,9 @@ export interface CRMContact {
   phone?: string | null
   category?: string | null
   company?: string | null
+  billing_tax_id?: string | null
+  billing_pec?: string | null
+  billing_sdi?: string | null
   event_tag?: string | null
   list_name?: string | null
   country?: string | null
@@ -167,6 +170,9 @@ export interface QuoteContactSnapshot {
   name: string
   email?: string | null
   company?: string | null
+  billing_tax_id?: string | null
+  billing_pec?: string | null
+  billing_sdi?: string | null
   phone?: string | null
   status?: string | null
   responsible?: string | null
@@ -186,6 +192,8 @@ export interface Quote {
   customer_email?: string | null
   customer_company?: string | null
   customer_tax_id?: string | null
+  customer_pec?: string | null
+  customer_sdi?: string | null
   customer_address?: string | null
   items: QuoteLineItem[]
   currency: string
@@ -226,6 +234,8 @@ export interface QuoteInput {
   customer_email?: string | null
   customer_company?: string | null
   customer_tax_id?: string | null
+  customer_pec?: string | null
+  customer_sdi?: string | null
   customer_address?: string | null
   items: QuoteLineItem[]
   discount_amount?: number | null
@@ -256,6 +266,9 @@ export interface ContactInput {
   phone?: string
   category?: string
   company?: string
+  billing_tax_id?: string
+  billing_pec?: string
+  billing_sdi?: string
   event_tag?: string
   list_name?: string
   country?: string

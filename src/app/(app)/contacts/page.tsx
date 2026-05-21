@@ -205,15 +205,18 @@ function ContactsPageInner() {
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
     return contacts.filter((contact) => {
-      const call = scheduledCallsByContactId.get(contact.id) || null
-      if (query) {
-        const haystack = [
-          contact.name,
-          contact.company,
-          contact.email,
-          contact.phone,
-          contact.event_tag,
-          contact.list_name,
+          const call = scheduledCallsByContactId.get(contact.id) || null
+          if (query) {
+            const haystack = [
+              contact.name,
+              contact.company,
+              contact.billing_tax_id,
+              contact.billing_pec,
+              contact.billing_sdi,
+              contact.email,
+              contact.phone,
+              contact.event_tag,
+              contact.list_name,
           contact.category,
         ]
           .filter(Boolean)
@@ -1028,6 +1031,21 @@ function ContactsPageInner() {
                   <div className="contacts-row-meta">
                     {contact.email ? <span>{contact.email}</span> : <span className="contacts-missing">Senza email</span>}
                     {contact.phone ? <span>{contact.phone}</span> : <span className="contacts-missing">Senza telefono</span>}
+                    {contact.billing_tax_id && (
+                      <span className="contacts-row-billing" title="Partita IVA / Codice fiscale">
+                        P.IVA/CF: {contact.billing_tax_id}
+                      </span>
+                    )}
+                    {contact.billing_pec && (
+                      <span className="contacts-row-billing" title="PEC">
+                        PEC: {contact.billing_pec}
+                      </span>
+                    )}
+                    {contact.billing_sdi && (
+                      <span className="contacts-row-billing" title="Codice SDI">
+                        SDI: {contact.billing_sdi}
+                      </span>
+                    )}
                     {holdingTag && <span>📁 {holdingTag}</span>}
                     {contact.list_name && !holdingTag && <span>📁 {contact.list_name}</span>}
                     {contact.responsible && <span>👤 {contact.responsible}</span>}

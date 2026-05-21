@@ -253,6 +253,18 @@ export function ContactDrawer({ contactId, onClose, onEdit, anchorPoint = null }
                 </strong>
               </div>
               <div className="drawer-kv">
+                <span>Partita IVA / CF</span>
+                <strong>{contact.billing_tax_id || '—'}</strong>
+              </div>
+              <div className="drawer-kv">
+                <span>PEC</span>
+                <strong>{contact.billing_pec || '—'}</strong>
+              </div>
+              <div className="drawer-kv">
+                <span>Codice SDI</span>
+                <strong>{contact.billing_sdi || '—'}</strong>
+              </div>
+              <div className="drawer-kv">
                 <span>Ultimo contatto</span>
                 <strong>{formatDateTime(contact.last_contact_at) || 'Mai'}</strong>
               </div>
