@@ -89,9 +89,10 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
   const hasInitialListTotal = initialNetTotal > Number(quote.subtotal_amount || 0) + 0.005
   const taxRate = Number(quote.tax_rate || 0)
   const totalNet = Number(quote.subtotal_amount || 0)
+  const hasCustomPaymentTerms = Boolean(String(quote.payment_terms_note || '').trim())
   const paymentTermsMode = quote.payment_terms_mode === 'manual' ? 'manual' : 'percent'
   const depositPercent = Number(quote.deposit_percent || 0)
-  const isManualPaymentTerms = paymentTermsMode === 'manual'
+  const isManualPaymentTerms = paymentTermsMode === 'manual' || hasCustomPaymentTerms
   const depositNet =
     isManualPaymentTerms
       ? Number(quote.deposit_manual_amount || 0)
