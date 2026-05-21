@@ -9,6 +9,7 @@ import {
   currencyCode,
   normalizeNumber,
   normalizePaymentMethod,
+  normalizePaymentTermsMode,
   normalizeQuoteItems,
   normalizeStatus,
   normalizeText,
@@ -60,13 +61,23 @@ function normalizeQuoteRow(row: any) {
   }
 }
 
-type OptionalQuoteColumn = 'customer_pec' | 'customer_sdi' | 'customer_zip' | 'customer_city'
+type OptionalQuoteColumn =
+  | 'customer_pec'
+  | 'customer_sdi'
+  | 'customer_zip'
+  | 'customer_city'
+  | 'payment_terms_mode'
+  | 'deposit_manual_amount'
+  | 'payment_terms_note'
 
 const OPTIONAL_QUOTE_COLUMNS: OptionalQuoteColumn[] = [
   'customer_pec',
   'customer_sdi',
   'customer_zip',
   'customer_city',
+  'payment_terms_mode',
+  'deposit_manual_amount',
+  'payment_terms_note',
 ]
 
 function isMissingContactBillingColumnError(error: unknown) {
@@ -219,10 +230,18 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         body.tax_rate !== undefined
           ? normalizeNumber(body.tax_rate, 22)
           : Number(current.tax_rate || 22),
+      paymentTermsMode:
+        body.payment_terms_mode !== undefined
+          ? normalizePaymentTermsMode(body.payment_terms_mode, 'percent')
+          : normalizePaymentTermsMode(current.payment_terms_mode, 'percent'),
       depositPercent:
         body.deposit_percent !== undefined
           ? normalizeNumber(body.deposit_percent, 30)
           : Number(current.deposit_percent || 30),
+      depositManualAmount:
+        body.deposit_manual_amount !== undefined
+          ? normalizeNumber(body.deposit_manual_amount, 0)
+          : Number(current.deposit_manual_amount || 0),
     })
 
     const nextStatus = normalizeStatus(body.status, current.status)
@@ -298,6 +317,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           : totals.deposit_amount > 0
             ? current.payment_state || 'pending'
             : 'waived',
+      payment_terms_note:
+        body.payment_terms_note !== undefined
+          ? normalizeText(body.payment_terms_note)
+          : current.payment_terms_note,
       bank_transfer_instructions:
         body.bank_transfer_instructions !== undefined
           ? normalizeText(body.bank_transfer_instructions) || DEFAULT_BANK_TRANSFER_INSTRUCTIONS

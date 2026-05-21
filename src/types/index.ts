@@ -155,6 +155,7 @@ export interface TeamMember {
 export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'paid' | 'cancelled'
 export type QuotePaymentMethod = 'bank_transfer' | 'stripe' | 'both'
 export type QuotePaymentState = 'pending' | 'deposit_requested' | 'paid' | 'waived'
+export type QuotePaymentTermsMode = 'percent' | 'manual'
 
 export interface QuoteLineItem {
   id?: string
@@ -210,11 +211,14 @@ export interface Quote {
   tax_rate: number
   tax_amount: number
   total_amount: number
+  payment_terms_mode?: QuotePaymentTermsMode
   deposit_percent: number
+  deposit_manual_amount?: number | null
   deposit_amount: number
   balance_amount: number
   payment_method: QuotePaymentMethod
   payment_state: QuotePaymentState
+  payment_terms_note?: string | null
   bank_transfer_instructions?: string | null
   stripe_checkout_url?: string | null
   stripe_checkout_session_id?: string | null
@@ -250,8 +254,11 @@ export interface QuoteInput {
   items: QuoteLineItem[]
   discount_amount?: number | null
   tax_rate?: number | null
+  payment_terms_mode?: QuotePaymentTermsMode
   deposit_percent?: number | null
+  deposit_manual_amount?: number | null
   payment_method?: QuotePaymentMethod
+  payment_terms_note?: string | null
   bank_transfer_instructions?: string | null
   contract_terms?: string | null
   valid_until?: string | null

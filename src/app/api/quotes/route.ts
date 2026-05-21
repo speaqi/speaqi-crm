@@ -11,6 +11,7 @@ import {
   currencyCode,
   normalizeNumber,
   normalizePaymentMethod,
+  normalizePaymentTermsMode,
   normalizeQuoteItems,
   normalizeStatus,
   normalizeText,
@@ -58,13 +59,23 @@ function normalizeQuoteRow(row: any) {
   }
 }
 
-type OptionalQuoteColumn = 'customer_pec' | 'customer_sdi' | 'customer_zip' | 'customer_city'
+type OptionalQuoteColumn =
+  | 'customer_pec'
+  | 'customer_sdi'
+  | 'customer_zip'
+  | 'customer_city'
+  | 'payment_terms_mode'
+  | 'deposit_manual_amount'
+  | 'payment_terms_note'
 
 const OPTIONAL_QUOTE_COLUMNS: OptionalQuoteColumn[] = [
   'customer_pec',
   'customer_sdi',
   'customer_zip',
   'customer_city',
+  'payment_terms_mode',
+  'deposit_manual_amount',
+  'payment_terms_note',
 ]
 
 function isMissingContactBillingColumnError(error: unknown) {
@@ -219,7 +230,9 @@ export async function POST(request: NextRequest) {
     const totals = calculateQuoteTotals(items, {
       discountAmount: normalizeNumber(body.discount_amount, 0),
       taxRate: normalizeNumber(body.tax_rate, 22),
+      paymentTermsMode: normalizePaymentTermsMode(body.payment_terms_mode, 'percent'),
       depositPercent: normalizeNumber(body.deposit_percent, 30),
+      depositManualAmount: normalizeNumber(body.deposit_manual_amount, 0),
     })
     const status = normalizeStatus(body.status, 'sent')
     const now = new Date().toISOString()
@@ -245,6 +258,7 @@ export async function POST(request: NextRequest) {
       ...totals,
       payment_method: normalizePaymentMethod(body.payment_method),
       payment_state: totals.deposit_amount > 0 ? 'pending' : 'waived',
+      payment_terms_note: normalizeText(body.payment_terms_note),
       bank_transfer_instructions:
         normalizeText(body.bank_transfer_instructions) || DEFAULT_BANK_TRANSFER_INSTRUCTIONS,
       contract_auto_accepted: false,

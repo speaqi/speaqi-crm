@@ -3744,6 +3744,25 @@ select.filter-select {
   color: #1b2f4a;
   font-weight: 800;
 }
+.public-quote-payment-terms {
+  margin-top: 8px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(27, 47, 74, 0.04);
+}
+.public-quote-payment-terms-title {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+.public-quote-payment-terms-body {
+  white-space: pre-wrap;
+  color: #1b2f4a;
+  font-size: 13px;
+  line-height: 1.6;
+}
 .public-quote-actions {
   display: flex;
   flex-direction: column;

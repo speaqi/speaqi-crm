@@ -9,7 +9,14 @@ import {
   quoteLineFromPackage,
   type SpeaqiPackageKey,
 } from '@/lib/speaqi-quote-packages'
-import type { CRMContact, Quote, QuoteInput, QuoteLineItem, QuoteStatus } from '@/types'
+import type {
+  CRMContact,
+  Quote,
+  QuoteInput,
+  QuoteLineItem,
+  QuotePaymentTermsMode,
+  QuoteStatus,
+} from '@/types'
 import { useCRMContext } from '../layout'
 
 type QuoteDraft = Omit<QuoteInput, 'title' | 'customer_name' | 'items'> & {
@@ -77,8 +84,11 @@ function blankDraft(): QuoteDraft {
     items: [],
     discount_amount: 0,
     tax_rate: 22,
+    payment_terms_mode: 'percent',
     deposit_percent: 30,
+    deposit_manual_amount: null,
     payment_method: 'both',
+    payment_terms_note: '',
     bank_transfer_instructions: DEFAULT_BANK_TRANSFER_INSTRUCTIONS,
     contract_terms: DEFAULT_CONTRACT_TERMS,
     valid_until: '',
@@ -107,12 +117,20 @@ function calculateDraftTotals(draft: QuoteDraft) {
   const taxable = Math.max(0, subtotal - discount)
   const tax = taxable * (Math.max(0, Number(draft.tax_rate || 0)) / 100)
   const total = taxable + tax
-  const deposit = total * (Math.max(0, Math.min(100, Number(draft.deposit_percent || 0))) / 100)
+  const paymentTermsMode = draft.payment_terms_mode === 'manual' ? 'manual' : 'percent'
+  const depositNet =
+    paymentTermsMode === 'manual'
+      ? Math.min(Math.max(0, Number(draft.deposit_manual_amount || 0)), taxable)
+      : taxable * (Math.max(0, Math.min(100, Number(draft.deposit_percent || 0))) / 100)
+  const depositPercent = taxable > 0 ? (depositNet / taxable) * 100 : 0
+  const deposit = depositNet + depositNet * (Math.max(0, Number(draft.tax_rate || 0)) / 100)
   return {
     subtotal,
     discount,
     tax,
     total,
+    depositNet,
+    depositPercent,
     deposit,
     balance: Math.max(0, total - deposit),
   }
@@ -203,6 +221,22 @@ export default function PreventiviPage() {
 
   function patchDraft(partial: Partial<QuoteDraft>) {
     setDraft((previous) => ({ ...previous, ...partial }))
+  }
+
+  function setPaymentTermsMode(mode: QuotePaymentTermsMode) {
+    setDraft((previous) => {
+      const currentTotals = calculateDraftTotals(previous)
+      return {
+        ...previous,
+        payment_terms_mode: mode,
+        deposit_manual_amount:
+          mode === 'manual'
+            ? previous.deposit_manual_amount != null
+              ? previous.deposit_manual_amount
+              : Number(currentTotals.depositNet.toFixed(2))
+            : null,
+      }
+    })
   }
 
   function applyPreset(key: SpeaqiPackageKey) {
@@ -340,8 +374,11 @@ export default function PreventiviPage() {
       items: quote.items?.length ? normalizeItemsProIds(quote.items) : blankDraft().items,
       discount_amount: quote.discount_amount,
       tax_rate: quote.tax_rate,
+      payment_terms_mode: quote.payment_terms_mode || 'percent',
       deposit_percent: quote.deposit_percent,
+      deposit_manual_amount: quote.deposit_manual_amount ?? null,
       payment_method: quote.payment_method,
+      payment_terms_note: quote.payment_terms_note || '',
       bank_transfer_instructions: quote.bank_transfer_instructions || '',
       contract_terms: quote.contract_terms || '',
       valid_until: quote.valid_until || '',
@@ -743,16 +780,40 @@ export default function PreventiviPage() {
               />
             </label>
             <label className="fg">
-              <span className="fl">Acconto %</span>
-              <input
+              <span className="fl">Condizioni pagamento</span>
+              <select
                 className="fi"
-                type="number"
-                min="0"
-                max="100"
-                step="1"
-                value={draft.deposit_percent || 0}
-                onChange={(event) => patchDraft({ deposit_percent: Number(event.target.value) })}
-              />
+                value={draft.payment_terms_mode || 'percent'}
+                onChange={(event) => setPaymentTermsMode(event.target.value as QuotePaymentTermsMode)}
+              >
+                <option value="percent">Acconto %</option>
+                <option value="manual">Acconto manuale</option>
+              </select>
+            </label>
+            <label className="fg">
+              <span className="fl">
+                {draft.payment_terms_mode === 'manual' ? 'Acconto imponibile' : 'Acconto %'}
+              </span>
+              {draft.payment_terms_mode === 'manual' ? (
+                <input
+                  className="fi"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={draft.deposit_manual_amount ?? 0}
+                  onChange={(event) => patchDraft({ deposit_manual_amount: Number(event.target.value) })}
+                />
+              ) : (
+                <input
+                  className="fi"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={draft.deposit_percent || 0}
+                  onChange={(event) => patchDraft({ deposit_percent: Number(event.target.value) })}
+                />
+              )}
             </label>
             <label className="fg">
               <span className="fl">Pagamento</span>
@@ -768,6 +829,18 @@ export default function PreventiviPage() {
             </label>
           </div>
 
+          <label className="fg">
+            <span className="fl">Condizioni di pagamento</span>
+            <textarea
+              className="fi"
+              rows={4}
+              value={draft.payment_terms_note || ''}
+              onChange={(event) => patchDraft({ payment_terms_note: event.target.value })}
+              placeholder={
+                'Es.\n- Acconto: € 375 + IVA all’accettazione del progetto\n- Saldo: € 2.850 + IVA alla consegna dei materiali definitivi'
+              }
+            />
+          </label>
           <label className="fg">
             <span className="fl">Coordinate / istruzioni bonifico</span>
             <textarea
@@ -791,7 +864,12 @@ export default function PreventiviPage() {
             <span>Subtotale {formatMoney(totals.subtotal)}</span>
             <span>IVA {formatMoney(totals.tax)}</span>
             <strong>Totale {formatMoney(totals.total)}</strong>
-            <strong>Acconto {formatMoney(totals.deposit)}</strong>
+            <strong>
+              Acconto{' '}
+              {draft.payment_terms_mode === 'manual'
+                ? formatMoney(totals.deposit)
+                : `${Math.round(totals.depositPercent)}% · ${formatMoney(totals.deposit)}`}
+            </strong>
           </div>
 
           <button className="btn btn-primary quotes-submit" disabled={saving} type="submit">

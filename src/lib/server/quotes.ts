@@ -1,10 +1,11 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import type { QuoteLineItem, QuotePaymentMethod, QuoteStatus } from '@/types'
+import type { QuoteLineItem, QuotePaymentMethod, QuotePaymentTermsMode, QuoteStatus } from '@/types'
 
 export { DEFAULT_BANK_TRANSFER_INSTRUCTIONS, DEFAULT_CONTRACT_TERMS } from '@/lib/quote-defaults'
 
 const VALID_STATUSES = new Set<QuoteStatus>(['draft', 'sent', 'accepted', 'paid', 'cancelled'])
 const VALID_PAYMENT_METHODS = new Set<QuotePaymentMethod>(['bank_transfer', 'stripe', 'both'])
+const VALID_PAYMENT_TERMS_MODES = new Set<QuotePaymentTermsMode>(['percent', 'manual'])
 
 export function normalizeText(value: unknown) {
   const normalized = String(value || '').trim()
@@ -28,6 +29,14 @@ export function normalizePaymentMethod(
 ): QuotePaymentMethod {
   const normalized = String(value || '').trim() as QuotePaymentMethod
   return VALID_PAYMENT_METHODS.has(normalized) ? normalized : fallback
+}
+
+export function normalizePaymentTermsMode(
+  value: unknown,
+  fallback: QuotePaymentTermsMode = 'percent'
+): QuotePaymentTermsMode {
+  const normalized = String(value || '').trim() as QuotePaymentTermsMode
+  return VALID_PAYMENT_TERMS_MODES.has(normalized) ? normalized : fallback
 }
 
 export function roundMoney(value: number) {
@@ -73,7 +82,9 @@ export function calculateQuoteTotals(
   options?: {
     discountAmount?: number
     taxRate?: number
+    paymentTermsMode?: QuotePaymentTermsMode
     depositPercent?: number
+    depositManualAmount?: number
   }
 ) {
   const subtotalAmount = roundMoney(
@@ -84,8 +95,21 @@ export function calculateQuoteTotals(
   const taxRate = roundMoney(Math.max(0, options?.taxRate ?? 22))
   const taxAmount = roundMoney(taxableAmount * (taxRate / 100))
   const totalAmount = roundMoney(taxableAmount + taxAmount)
-  const depositPercent = roundMoney(Math.max(0, Math.min(100, options?.depositPercent ?? 30)))
-  const depositAmount = roundMoney(totalAmount * (depositPercent / 100))
+  const paymentTermsMode = normalizePaymentTermsMode(options?.paymentTermsMode, 'percent')
+  const requestedPercent = roundMoney(Math.max(0, Math.min(100, options?.depositPercent ?? 30)))
+  const requestedManualNet = roundMoney(Math.max(0, options?.depositManualAmount ?? 0))
+  const clampedManualNet = roundMoney(Math.min(requestedManualNet, taxableAmount))
+  const depositNet =
+    paymentTermsMode === 'manual'
+      ? clampedManualNet
+      : roundMoney(taxableAmount * (requestedPercent / 100))
+  const depositPercent =
+    paymentTermsMode === 'manual'
+      ? taxableAmount > 0
+        ? roundMoney((depositNet / taxableAmount) * 100)
+        : 0
+      : requestedPercent
+  const depositAmount = roundMoney(depositNet + depositNet * (taxRate / 100))
   const balanceAmount = roundMoney(Math.max(0, totalAmount - depositAmount))
 
   return {
@@ -94,7 +118,9 @@ export function calculateQuoteTotals(
     tax_rate: taxRate,
     tax_amount: taxAmount,
     total_amount: totalAmount,
+    payment_terms_mode: paymentTermsMode,
     deposit_percent: depositPercent,
+    deposit_manual_amount: paymentTermsMode === 'manual' ? depositNet : null,
     deposit_amount: depositAmount,
     balance_amount: balanceAmount,
   }

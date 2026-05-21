@@ -89,8 +89,16 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
   const hasInitialListTotal = initialNetTotal > Number(quote.subtotal_amount || 0) + 0.005
   const taxRate = Number(quote.tax_rate || 0)
   const totalNet = Number(quote.subtotal_amount || 0)
+  const paymentTermsMode = quote.payment_terms_mode === 'manual' ? 'manual' : 'percent'
   const depositPercent = Number(quote.deposit_percent || 0)
-  const depositNet = (totalNet * depositPercent) / 100
+  const depositNet =
+    paymentTermsMode === 'manual'
+      ? Number(quote.deposit_manual_amount || 0)
+      : (totalNet * depositPercent) / 100
+  const depositSummaryLabel =
+    paymentTermsMode === 'manual' ? 'Acconto concordato' : `Acconto ${depositPercent}%`
+  const balanceSummaryLabel =
+    paymentTermsMode === 'manual' ? 'Saldo concordato' : 'Saldo alla consegna'
 
   return (
     <main className="public-quote-page">
@@ -198,7 +206,7 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
                 </div>
               </div>
               <div className="public-quote-due-now">
-                <span>Acconto {depositPercent}%</span>
+                <span>{depositSummaryLabel}</span>
                 <div>
                   <strong>{formatMoney(depositNet, quote.currency)}</strong>
                   <small>+ IVA {taxRate}%</small>
@@ -226,13 +234,20 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
               <strong>{formatMoney(quote.tax_amount, quote.currency)}</strong>
             </div>
             <div className="public-quote-money-row main">
-              <span>Acconto {Number(quote.deposit_percent || 0)}%</span>
+              <span>{depositSummaryLabel}</span>
               <strong>{formatMoney(quote.deposit_amount, quote.currency)}</strong>
             </div>
             <div className="public-quote-money-row">
-              <span>Saldo alla consegna</span>
+              <span>{balanceSummaryLabel}</span>
               <strong>{formatMoney(quote.balance_amount, quote.currency)}</strong>
             </div>
+
+            {quote.payment_terms_note && (
+              <div className="public-quote-payment-terms">
+                <div className="public-quote-payment-terms-title">Condizioni di pagamento</div>
+                <div className="public-quote-payment-terms-body">{quote.payment_terms_note}</div>
+              </div>
+            )}
 
             <QuotePaymentActions
               token={quote.public_token}
