@@ -91,14 +91,15 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
   const totalNet = Number(quote.subtotal_amount || 0)
   const paymentTermsMode = quote.payment_terms_mode === 'manual' ? 'manual' : 'percent'
   const depositPercent = Number(quote.deposit_percent || 0)
+  const isManualPaymentTerms = paymentTermsMode === 'manual'
   const depositNet =
-    paymentTermsMode === 'manual'
+    isManualPaymentTerms
       ? Number(quote.deposit_manual_amount || 0)
       : (totalNet * depositPercent) / 100
   const depositSummaryLabel =
-    paymentTermsMode === 'manual' ? 'Acconto concordato' : `Acconto ${depositPercent}%`
+    isManualPaymentTerms ? 'Acconto concordato' : `Acconto ${depositPercent}%`
   const balanceSummaryLabel =
-    paymentTermsMode === 'manual' ? 'Saldo concordato' : 'Saldo alla consegna'
+    isManualPaymentTerms ? 'Saldo concordato' : 'Saldo alla consegna'
 
   return (
     <main className="public-quote-page">
@@ -205,18 +206,22 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
                   <small>+ IVA {taxRate}%</small>
                 </div>
               </div>
-              <div className="public-quote-due-now">
-                <span>{depositSummaryLabel}</span>
-                <div>
-                  <strong>{formatMoney(depositNet, quote.currency)}</strong>
-                  <small>+ IVA {taxRate}%</small>
+              {!isManualPaymentTerms && (
+                <div className="public-quote-due-now">
+                  <span>{depositSummaryLabel}</span>
+                  <div>
+                    <strong>{formatMoney(depositNet, quote.currency)}</strong>
+                    <small>+ IVA {taxRate}%</small>
+                  </div>
                 </div>
-              </div>
-              <div className="public-quote-due-now">
-                <span>Da pagare ora</span>
-                <strong>{formatMoney(quote.deposit_amount, quote.currency)}</strong>
-                <small>IVA inclusa</small>
-              </div>
+              )}
+              {!isManualPaymentTerms && (
+                <div className="public-quote-due-now">
+                  <span>Da pagare ora</span>
+                  <strong>{formatMoney(quote.deposit_amount, quote.currency)}</strong>
+                  <small>IVA inclusa</small>
+                </div>
+              )}
             </div>
 
             <div className="public-quote-money-row">
@@ -233,10 +238,12 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
               <span>IVA {Number(quote.tax_rate || 0)}%</span>
               <strong>{formatMoney(quote.tax_amount, quote.currency)}</strong>
             </div>
-            <div className="public-quote-money-row main">
-              <span>{depositSummaryLabel}</span>
-              <strong>{formatMoney(quote.deposit_amount, quote.currency)}</strong>
-            </div>
+            {!isManualPaymentTerms && (
+              <div className="public-quote-money-row main">
+                <span>{depositSummaryLabel}</span>
+                <strong>{formatMoney(quote.deposit_amount, quote.currency)}</strong>
+              </div>
+            )}
             <div className="public-quote-money-row">
               <span>{balanceSummaryLabel}</span>
               <strong>{formatMoney(quote.balance_amount, quote.currency)}</strong>
