@@ -28,6 +28,8 @@ const STATUS_LABELS: Record<QuoteStatus, string> = {
   cancelled: 'Annullato',
 }
 
+const DEFAULT_QUOTE_TITLE = 'Offerta Speaqi'
+const DEFAULT_PUBLIC_NOTE = 'Acconto 30%. Saldo alla consegna.'
 const PRO_PLAN_LINE_ID = 'speaqi-pro-plan-option'
 
 function makeProPlanLine(): QuoteLineItem {
@@ -62,7 +64,7 @@ function blankDraft(): QuoteDraft {
   return {
     contact_id: '',
     status: 'sent',
-    title: 'Offerta Speaqi',
+    title: DEFAULT_QUOTE_TITLE,
     customer_name: '',
     customer_email: '',
     customer_company: '',
@@ -72,7 +74,7 @@ function blankDraft(): QuoteDraft {
     customer_address: '',
     customer_zip: '',
     customer_city: '',
-    items: [quoteLineFromPackage('start', makeLineId())],
+    items: [],
     discount_amount: 0,
     tax_rate: 22,
     deposit_percent: 30,
@@ -80,7 +82,7 @@ function blankDraft(): QuoteDraft {
     bank_transfer_instructions: DEFAULT_BANK_TRANSFER_INSTRUCTIONS,
     contract_terms: DEFAULT_CONTRACT_TERMS,
     valid_until: '',
-    public_note: 'Acconto 30%. Saldo alla consegna.',
+    public_note: DEFAULT_PUBLIC_NOTE,
     internal_note: '',
   }
 }
@@ -204,15 +206,20 @@ export default function PreventiviPage() {
   }
 
   function applyPreset(key: SpeaqiPackageKey) {
-    const keepPro = draft.items.some(isProPlanLine)
-    const baseItems: QuoteLineItem[] = [quoteLineFromPackage(key, makeLineId())]
-    if (keepPro) baseItems.push(makeProPlanLine())
     const p = SPEAQI_PACKAGES[key]
-    patchDraft({
-      title: p.quoteTitle,
-      items: baseItems,
-      deposit_percent: 30,
-      public_note: 'Acconto 30%. Saldo alla consegna.',
+    setDraft((previous) => {
+      const regularItems = previous.items.filter((item) => !isProPlanLine(item))
+      const proItems = previous.items.filter(isProPlanLine)
+      const shouldUsePackageTitle =
+        regularItems.length === 0 && previous.title.trim() === DEFAULT_QUOTE_TITLE
+
+      return {
+        ...previous,
+        title: shouldUsePackageTitle ? p.quoteTitle : previous.title,
+        items: [...regularItems, quoteLineFromPackage(key, makeLineId()), ...proItems],
+        deposit_percent: previous.deposit_percent || 30,
+        public_note: previous.public_note || DEFAULT_PUBLIC_NOTE,
+      }
     })
   }
 
@@ -278,7 +285,26 @@ export default function PreventiviPage() {
 
   function removeItem(id: string) {
     patchDraft({
-      items: draft.items.length > 1 ? draft.items.filter((item) => item.id !== id) : draft.items,
+      items: draft.items.filter((item) => item.id !== id),
+    })
+  }
+
+  function moveItem(id: string, direction: 'up' | 'down') {
+    setDraft((previous) => {
+      const index = previous.items.findIndex((item) => item.id === id)
+      if (index < 0) return previous
+
+      const targetIndex = direction === 'up' ? index - 1 : index + 1
+      if (targetIndex < 0 || targetIndex >= previous.items.length) return previous
+
+      const items = [...previous.items]
+      const [moved] = items.splice(index, 1)
+      items.splice(targetIndex, 0, moved)
+
+      return {
+        ...previous,
+        items,
+      }
     })
   }
 
@@ -597,7 +623,7 @@ export default function PreventiviPage() {
                 + Riga
               </button>
             </div>
-            {draft.items.map((item) => (
+            {draft.items.map((item, index) => (
               <div className="quote-line" key={item.id}>
                 <div className="quote-line-main">
                   <input
@@ -616,6 +642,28 @@ export default function PreventiviPage() {
                   />
                 </div>
                 <div className="quote-line-numbers">
+                  <div className="quote-line-order">
+                    <button
+                      type="button"
+                      className="icon-btn quote-move"
+                      onClick={() => moveItem(item.id || '', 'up')}
+                      disabled={index === 0}
+                      aria-label="Sposta riga in alto"
+                      title="Sposta in alto"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn quote-move"
+                      onClick={() => moveItem(item.id || '', 'down')}
+                      disabled={index === draft.items.length - 1}
+                      aria-label="Sposta riga in basso"
+                      title="Sposta in basso"
+                    >
+                      ↓
+                    </button>
+                  </div>
                   <input
                     className="fi"
                     type="number"

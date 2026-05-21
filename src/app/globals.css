@@ -3333,9 +3333,23 @@ select.filter-select {
 }
 .quote-line-numbers {
   display: grid;
-  grid-template-columns: 56px 72px minmax(64px, 1fr) 28px;
+  grid-template-columns: 32px 56px 72px minmax(64px, 1fr) 28px;
   gap: 6px;
   align-items: start;
+}
+.quote-line-order {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+.quote-move {
+  width: 28px;
+  height: 16px;
+  font-size: 10px;
+}
+.quote-move:disabled {
+  opacity: .35;
+  cursor: not-allowed;
 }
 .quote-remove {
   width: 28px;
