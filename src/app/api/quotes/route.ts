@@ -60,6 +60,13 @@ function normalizeQuoteRow(row: any) {
 
 type OptionalQuoteColumn = 'customer_pec' | 'customer_sdi' | 'customer_zip' | 'customer_city'
 
+const OPTIONAL_QUOTE_COLUMNS: OptionalQuoteColumn[] = [
+  'customer_pec',
+  'customer_sdi',
+  'customer_zip',
+  'customer_city',
+]
+
 function isMissingContactBillingColumnError(error: unknown) {
   const message = errorText(error)
   return (
@@ -99,25 +106,24 @@ function isMissingOptionalQuoteColumn(error: unknown, column: OptionalQuoteColum
   )
 }
 
+function hasOptionalQuoteColumnSchemaError(error: unknown) {
+  return OPTIONAL_QUOTE_COLUMNS.some((column) => isMissingOptionalQuoteColumn(error, column))
+}
+
+function stripOptionalQuoteColumns(payload: Record<string, unknown>) {
+  const fallback = { ...payload }
+  OPTIONAL_QUOTE_COLUMNS.forEach((column) => {
+    delete fallback[column]
+  })
+  return fallback
+}
+
 function buildQuotePayloadFallback(payload: Record<string, unknown>, error: unknown) {
   const fallback = { ...payload }
   let changed = false
 
-  if (isMissingOptionalQuoteColumn(error, 'customer_pec')) {
-    delete fallback.customer_pec
-    changed = true
-  }
-  if (isMissingOptionalQuoteColumn(error, 'customer_sdi')) {
-    delete fallback.customer_sdi
-    changed = true
-  }
-  if (isMissingOptionalQuoteColumn(error, 'customer_zip')) {
-    delete fallback.customer_zip
-    changed = true
-  }
-  if (isMissingOptionalQuoteColumn(error, 'customer_city')) {
-    delete fallback.customer_city
-    changed = true
+  if (hasOptionalQuoteColumnSchemaError(error)) {
+    return stripOptionalQuoteColumns(fallback)
   }
 
   return changed ? fallback : null

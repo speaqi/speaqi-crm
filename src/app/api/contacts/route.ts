@@ -45,12 +45,33 @@ type OptionalContactColumn =
   | 'billing_zip'
   | 'billing_city'
 
+const BILLING_CONTACT_COLUMNS: OptionalContactColumn[] = [
+  'billing_tax_id',
+  'billing_pec',
+  'billing_sdi',
+  'billing_address',
+  'billing_zip',
+  'billing_city',
+]
+
 function isMissingOptionalContactColumn(error: unknown, column: OptionalContactColumn) {
   const message = errorMessage(error, '').toLowerCase()
   return (
     message.includes(column) &&
     (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
   )
+}
+
+function hasBillingColumnSchemaError(error: unknown) {
+  return BILLING_CONTACT_COLUMNS.some((column) => isMissingOptionalContactColumn(error, column))
+}
+
+function stripBillingColumns(payload: Record<string, unknown>) {
+  const fallback = { ...payload }
+  BILLING_CONTACT_COLUMNS.forEach((column) => {
+    delete fallback[column]
+  })
+  return fallback
 }
 
 function buildContactInsertFallbackPayload(payload: Record<string, unknown>, error: unknown) {
@@ -65,29 +86,8 @@ function buildContactInsertFallbackPayload(payload: Record<string, unknown>, err
     delete fallback.personal_section
     changed = true
   }
-  if (isMissingOptionalContactColumn(error, 'billing_tax_id')) {
-    delete fallback.billing_tax_id
-    changed = true
-  }
-  if (isMissingOptionalContactColumn(error, 'billing_pec')) {
-    delete fallback.billing_pec
-    changed = true
-  }
-  if (isMissingOptionalContactColumn(error, 'billing_sdi')) {
-    delete fallback.billing_sdi
-    changed = true
-  }
-  if (isMissingOptionalContactColumn(error, 'billing_address')) {
-    delete fallback.billing_address
-    changed = true
-  }
-  if (isMissingOptionalContactColumn(error, 'billing_zip')) {
-    delete fallback.billing_zip
-    changed = true
-  }
-  if (isMissingOptionalContactColumn(error, 'billing_city')) {
-    delete fallback.billing_city
-    changed = true
+  if (hasBillingColumnSchemaError(error)) {
+    return stripBillingColumns(fallback)
   }
 
   return changed ? fallback : null
