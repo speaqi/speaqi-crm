@@ -23,6 +23,17 @@ type OcrExtractionResult = {
 const MAX_FILES = 12
 const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024
 const OCR_MODEL = process.env.OPENAI_VISION_MODEL || process.env.OPENAI_MODEL || 'gpt-5-mini'
+const OCR_PROMPT = [
+  'Analizza l\'immagine come una foto che puo contenere uno o piu biglietti da visita, badge o contatti fiera.',
+  'Prima individua tutti i blocchi fisicamente separati: rettangoli di biglietti, card distanziate, badge o aree di testo autonome.',
+  'Crea un elemento nell\'array contacts per ogni biglietto/card/persona distinta visibile, anche se alcuni campi sono incompleti o poco leggibili.',
+  'Non fondere dati di biglietti diversi nello stesso contatto: nome, azienda, email e telefono devono provenire dallo stesso blocco visivo.',
+  'Se una foto mostra 6 biglietti separati, restituisci 6 elementi in contacts.',
+  'Ordina i contatti dall\'alto verso il basso e da sinistra verso destra.',
+  'Restituisci solo i dati chiaramente presenti. Se un campo non e leggibile o non esiste, usa null.',
+  'Non inventare email, telefono, nome o azienda.',
+  'Metti in note solo dettagli testuali utili non mappabili altrove, per esempio indirizzo, sito web, padiglione, stand o note manoscritte.',
+].join(' ')
 
 function normalizeText(value: unknown) {
   const normalized = String(value || '').trim()
@@ -81,7 +92,7 @@ async function extractContactsFromImage(file: File): Promise<OcrExtractedContact
     },
     body: JSON.stringify({
       model: OCR_MODEL,
-      reasoning: { effort: 'minimal' },
+      reasoning: { effort: 'low' },
       text: {
         format: {
           type: 'json_schema',
@@ -133,12 +144,7 @@ async function extractContactsFromImage(file: File): Promise<OcrExtractedContact
           content: [
             {
               type: 'input_text',
-              text:
-                'Leggi questa immagine di biglietto da visita o contatto fiera e restituisci solo i dati chiaramente presenti. ' +
-                'Se un campo non e leggibile o non esiste, usa null. ' +
-                'Se trovi una sola persona, restituisci un array con un solo elemento. ' +
-                'Non inventare email, telefono, nome o azienda. ' +
-                'Metti in note solo dettagli testuali utili non mappabili altrove, per esempio indirizzo, sito web, padiglione, stand o note manoscritte.',
+              text: OCR_PROMPT,
             },
             {
               type: 'input_image',
