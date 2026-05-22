@@ -127,11 +127,13 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
         <div className="public-quote-hero">
           <div>
             <p className="public-quote-kicker">Offerta commerciale</p>
-            <h1>{quote.title}</h1>
+            <h1 className="public-quote-customer-title">{quote.customer_company || quote.customer_name}</h1>
             <p className="public-quote-customer">
-              {quote.customer_company || quote.customer_name}
-              {quote.customer_company && quote.customer_name ? ` · ${quote.customer_name}` : ''}
+              {quote.customer_company && quote.customer_name
+                ? quote.customer_name
+                : quote.customer_company || quote.customer_name}
             </p>
+            <p className="public-quote-offer-title">{quote.title}</p>
           </div>
         </div>
 

@@ -3539,17 +3539,25 @@ select.filter-select {
   letter-spacing: .08em;
   margin-bottom: 8px;
 }
-.public-quote-hero h1 {
-  font-size: clamp(38px, 6vw, 72px);
+.public-quote-customer-title {
+  font-size: clamp(42px, 6.4vw, 84px);
   line-height: .95;
   letter-spacing: 0;
   color: #ff4f1f;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 .public-quote-customer {
   color: #1b2f4a;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
+  margin: 0 0 10px;
+}
+.public-quote-offer-title {
+  color: #1b2f4a;
+  font-size: clamp(26px, 4vw, 44px);
+  line-height: 1.05;
+  font-weight: 800;
+  margin: 0;
 }
 .public-quote-grid {
   display: grid;
@@ -4083,8 +4091,11 @@ select.filter-select {
   .public-quote-price-active strong {
     white-space: normal;
   }
-  .public-quote-hero h1 {
-    font-size: 42px;
+  .public-quote-customer-title {
+    font-size: 48px;
+  }
+  .public-quote-offer-title {
+    font-size: 32px;
   }
   .public-quote-list-total {
     align-items: flex-start;
