@@ -36,19 +36,19 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const token = String(body?.token || '').trim()
-    const email = String(body?.email || '').trim().toLowerCase()
+    const acceptanceToken = String(body?.acceptance_token || '').trim()
 
     if (!token) {
       return Response.json({ error: 'Token mancante' }, { status: 400 })
     }
-    if (email.length < 5 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return Response.json({ error: 'Inserisci un indirizzo email valido' }, { status: 400 })
+    if (!acceptanceToken) {
+      return Response.json({ error: 'Apri il link di accettazione ricevuto via email' }, { status: 400 })
     }
 
     const supabase = createPublicServerClient()
     const { data, error } = await supabase.rpc('accept_public_quote_contract', {
       p_public_token: token,
-      p_signer_email: email,
+      p_acceptance_token: acceptanceToken,
     })
 
     if (error) {
@@ -69,8 +69,8 @@ export async function POST(request: NextRequest) {
       if (row?.error === 'not_found') {
         return Response.json({ error: 'Preventivo non trovato' }, { status: 404 })
       }
-      if (row?.error === 'invalid_email') {
-        return Response.json({ error: 'Inserisci un indirizzo email valido' }, { status: 400 })
+      if (row?.error === 'invalid_acceptance_token') {
+        return Response.json({ error: 'Link di accettazione non valido. Usa il link ricevuto via email.' }, { status: 403 })
       }
       return Response.json({ error: 'Operazione non riuscita' }, { status: 400 })
     }
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     const shouldSendEmail = row.already !== true
     if (shouldSendEmail) {
       try {
-        await sendQuoteContractAcceptanceEmail(email, {
+        await sendQuoteContractAcceptanceEmail(String(row.signer_email || ''), {
           quoteNumber: String(row.quote_number || ''),
           title: String(row.title || 'Preventivo Speaqi'),
           customerName: String(row.customer_name || ''),

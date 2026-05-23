@@ -803,6 +803,20 @@ function ContactsPageInner() {
             >
               Pianifica
             </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={bulkSaving}
+              onClick={async () => {
+                if (!window.confirm(`Nascondere ${selectedIds.length} contatti dalla pagina Contatti e dalla pipeline?`)) return
+                await runBulkUpdate(
+                  { contact_scope: 'holding', list_name: 'Nascosti' },
+                  'Contatti nascosti da Contatti e pipeline'
+                )
+              }}
+            >
+              Nascondi
+            </button>
             <input
               className="form-input contacts-folder-input"
               list="folder-options"

@@ -1,8 +1,8 @@
-import Link from 'next/link'
 import { BrandLockup } from '@/components/layout/BrandLockup'
 import { resolvePublicBankInstructions } from '@/lib/quote-defaults'
 import { createPublicServerClient } from '@/lib/server/supabase'
 import type { Quote, QuoteLineItem } from '@/types'
+import { QuoteContractAcceptance } from './QuoteContractAcceptance'
 import { QuotePaymentActions } from './QuotePaymentActions'
 
 export const dynamic = 'force-dynamic'
@@ -11,6 +11,7 @@ type PreventivoPageProps = {
   searchParams: Promise<{
     id?: string
     checkout?: string
+    accept?: string
   }>
 }
 
@@ -84,6 +85,7 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
   const hasBankTransfer = true
   const validUntil = formatDate(quote.valid_until)
   const checkoutStatus = params.checkout
+  const acceptanceToken = String(params.accept || '').trim()
   const bankBody = resolvePublicBankInstructions(quote.bank_transfer_instructions)
   const initialNetTotal = initialListNetTotal(items)
   const hasInitialListTotal = initialNetTotal > Number(quote.subtotal_amount || 0) + 0.005
@@ -279,13 +281,30 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
         <div className="public-quote-grid lower">
           <section className="public-quote-card">
             <h2>Contratto</h2>
-            <p className="public-quote-contract-summary">
-              Con l’invio del pagamento si accettano le condizioni del contratto. Testo e dettagli:{' '}
-              <Link href="/termini-speaqi" target="_blank" rel="noopener noreferrer">
-                Termini di servizio Speaqi
-              </Link>
-              .
-            </p>
+            {quote.contract_signer_email ? (
+              <QuoteContractAcceptance
+                token={quote.public_token}
+                acceptanceToken=""
+                contractSignerEmail={quote.contract_signer_email}
+                acceptedAtLabel={formatDate(quote.contract_accepted_at)}
+              />
+            ) : acceptanceToken ? (
+              <QuoteContractAcceptance
+                token={quote.public_token}
+                acceptanceToken={acceptanceToken}
+                contractSignerEmail={quote.contract_signer_email || null}
+                acceptedAtLabel={formatDate(quote.contract_accepted_at)}
+              />
+            ) : (
+              <>
+                <p className="public-quote-contract-summary">
+                  Questo preventivo è in sola visione. Per accettarlo usa il link personale ricevuto via email.
+                </p>
+                <p className="public-quote-muted">
+                  Se non hai ricevuto l’email, chiedi al team Speaqi di inviarti il link di accettazione.
+                </p>
+              </>
+            )}
             <div style={{ marginTop: 16 }}>
               <div className="public-quote-money-row">
                 <span>Indirizzo sede</span>

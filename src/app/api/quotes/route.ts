@@ -286,7 +286,7 @@ export async function POST(request: NextRequest) {
       public_note: normalizeText(body.public_note),
       internal_note: normalizeText(body.internal_note),
       sent_at: status === 'draft' ? null : now,
-      accepted_at: now,
+      accepted_at: status === 'accepted' || status === 'paid' ? now : null,
       paid_at: status === 'paid' ? now : null,
     }
 

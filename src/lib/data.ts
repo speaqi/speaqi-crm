@@ -283,8 +283,34 @@ export function isNeverContacted(contact: Pick<CRMContact, 'status' | 'last_cont
   return contact.status === 'New' && !contact.last_contact_at
 }
 
-export function isPipelineVisible(contact: Pick<CRMContact, 'status' | 'last_contact_at'>) {
-  return !isNeverContacted(contact)
+function timestampValue(value?: string | null) {
+  if (!value) return 0
+  const timestamp = new Date(value).getTime()
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+export function contactActivityTimestamp(
+  contact: Pick<CRMContact, 'created_at' | 'updated_at' | 'last_contact_at'>
+) {
+  return Math.max(
+    timestampValue(contact.last_contact_at),
+    timestampValue(contact.updated_at),
+    timestampValue(contact.created_at)
+  )
+}
+
+export function hasContactAction(
+  contact: Pick<CRMContact, 'status' | 'last_contact_at' | 'created_at' | 'updated_at'>
+) {
+  if (contact.last_contact_at) return true
+  if (!isNeverContacted(contact)) return true
+  return timestampValue(contact.updated_at) > timestampValue(contact.created_at)
+}
+
+export function isPipelineVisible(
+  contact: Pick<CRMContact, 'status' | 'last_contact_at' | 'created_at' | 'updated_at'>
+) {
+  return hasContactAction(contact)
 }
 
 export function mapLegacyStatus(status?: string | null) {

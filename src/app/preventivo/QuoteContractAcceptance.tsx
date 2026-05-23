@@ -6,13 +6,9 @@ import { useEffect, useState } from 'react'
 
 type QuoteContractAcceptanceProps = {
   token: string
-  defaultEmail: string
+  acceptanceToken: string
   contractSignerEmail: string | null
   acceptedAtLabel: string | null
-}
-
-function normalizeEmail(s: string) {
-  return s.trim().toLowerCase()
 }
 
 function formatAcceptedDate() {
@@ -25,12 +21,11 @@ function formatAcceptedDate() {
 
 export function QuoteContractAcceptance({
   token,
-  defaultEmail,
+  acceptanceToken,
   contractSignerEmail,
   acceptedAtLabel,
 }: QuoteContractAcceptanceProps) {
   const router = useRouter()
-  const [email, setEmail] = useState(defaultEmail)
   const [accepted, setAccepted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -53,9 +48,8 @@ export function QuoteContractAcceptance({
       setError('Devi spuntare la casella per accettare le condizioni contrattuali.')
       return
     }
-    const em = normalizeEmail(email)
-    if (em.length < 5 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
-      setError('Inserisci un indirizzo email valido per la conferma.')
+    if (!acceptanceToken.trim()) {
+      setError('Apri il link di accettazione ricevuto via email.')
       return
     }
 
@@ -64,7 +58,7 @@ export function QuoteContractAcceptance({
       const response = await fetch('/api/quotes/public/accept-contract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, email: em }),
+        body: JSON.stringify({ token, acceptance_token: acceptanceToken }),
       })
       const payload = await response.json().catch(() => null)
       if (!response.ok || !payload?.success) {
@@ -73,7 +67,7 @@ export function QuoteContractAcceptance({
       if (typeof payload?.warning === 'string') {
         setWarning(payload.warning)
       }
-      setSigner(typeof payload?.signer_email === 'string' ? payload.signer_email : em)
+      setSigner(typeof payload?.signer_email === 'string' ? payload.signer_email : null)
       setDateLabel(formatAcceptedDate())
       router.refresh()
     } catch (err) {
@@ -96,20 +90,6 @@ export function QuoteContractAcceptance({
         </>
       ) : (
         <form className="public-quote-contract-form" onSubmit={onSubmit} noValidate>
-          <label className="public-quote-contract-label" htmlFor="quote-contract-email">
-            Email per la conferma
-          </label>
-          <input
-            id="quote-contract-email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            className="public-quote-contract-input"
-            value={email}
-            onChange={(ev) => setEmail(ev.target.value)}
-            placeholder="nome@azienda.it"
-            required
-          />
           <label className="public-quote-contract-check">
             <input
               type="checkbox"

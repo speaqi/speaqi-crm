@@ -140,8 +140,17 @@ export function buildPublicToken() {
   return randomBytes(18).toString('hex')
 }
 
+export function buildQuoteAcceptanceToken() {
+  return randomBytes(24).toString('hex')
+}
+
 export function publicQuoteUrl(origin: string, token: string) {
   return `${origin.replace(/\/$/, '')}/preventivo?id=${encodeURIComponent(token)}`
+}
+
+export function quoteAcceptanceUrl(origin: string, publicToken: string, acceptanceToken: string) {
+  const base = publicQuoteUrl(origin, publicToken)
+  return `${base}&accept=${encodeURIComponent(acceptanceToken)}`
 }
 
 export function currencyCode(value?: string | null) {

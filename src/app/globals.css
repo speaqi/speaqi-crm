@@ -3446,6 +3446,16 @@ select.filter-select {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.quote-card-email-state {
+  margin-top: 8px;
+  color: var(--text2);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.quote-card-email-state-ok {
+  color: #047857;
+  font-weight: 700;
+}
 .quote-card-actions {
   display: flex;
   flex-wrap: wrap;

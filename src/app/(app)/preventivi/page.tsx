@@ -170,6 +170,7 @@ export default function PreventiviPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [sendingQuoteId, setSendingQuoteId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [origin, setOrigin] = useState('https://crm.speaqi.com')
 
@@ -449,7 +450,48 @@ export default function PreventiviPage() {
   async function copyLink(quote: Quote) {
     const url = quoteUrl(origin, quote.public_token)
     await navigator.clipboard.writeText(url)
-    showToast('Link preventivo copiato')
+    showToast('Link di visione copiato')
+  }
+
+  async function sendAcceptanceEmail(quote: Quote) {
+    const recipient = String(quote.customer_email || '').trim()
+    if (!recipient) {
+      showToast('Imposta un’email cliente prima di inviare')
+      return
+    }
+
+    setSendingQuoteId(quote.id)
+    try {
+      const response = await apiFetch<{
+        success: boolean
+        sent_at: string
+        quote_acceptance_email: string
+      }>(`/api/quotes/${quote.id}/send-acceptance-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: recipient }),
+      })
+
+      setQuotes((previous) =>
+        previous.map((item) =>
+          item.id === quote.id
+            ? {
+                ...item,
+                status: item.status === 'draft' ? 'sent' : item.status,
+                sent_at: response.sent_at,
+                customer_email: response.quote_acceptance_email,
+                quote_acceptance_email: response.quote_acceptance_email,
+                quote_acceptance_sent_at: response.sent_at,
+              }
+            : item
+        )
+      )
+      showToast(`Email preventivo inviata a ${response.quote_acceptance_email}`)
+    } catch (sendError) {
+      showToast(sendError instanceof Error ? sendError.message : 'Errore invio preventivo')
+    } finally {
+      setSendingQuoteId(null)
+    }
   }
 
   return (
@@ -909,6 +951,15 @@ export default function PreventiviPage() {
                   </div>
 
                   <div className="quote-card-url">{url}</div>
+                  <div className="quote-card-email-state">
+                    {quote.contract_signer_email ? (
+                      <span className="quote-card-email-state-ok">Accettato da {quote.contract_signer_email}</span>
+                    ) : quote.quote_acceptance_sent_at && quote.quote_acceptance_email ? (
+                      <span>Link accettazione inviato a {quote.quote_acceptance_email}</span>
+                    ) : (
+                      <span>Non ancora inviato per accettazione</span>
+                    )}
+                  </div>
 
                   <div className="quote-card-actions">
                     <select
@@ -926,7 +977,15 @@ export default function PreventiviPage() {
                       Modifica
                     </button>
                     <button type="button" className="btn btn-ghost btn-sm" onClick={() => copyLink(quote)}>
-                      Copia link
+                      Copia visione
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => sendAcceptanceEmail(quote)}
+                      disabled={sendingQuoteId === quote.id || Boolean(quote.contract_signer_email)}
+                    >
+                      {sendingQuoteId === quote.id ? 'Invio…' : 'Invia email'}
                     </button>
                     <Link className="btn btn-primary btn-sm" href={url} target="_blank">
                       Apri

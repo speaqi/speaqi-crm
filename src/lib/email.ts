@@ -93,6 +93,10 @@ type QuoteContractMailPayload = {
   publicUrl: string
 }
 
+type QuoteAcceptanceRequestMailPayload = QuoteContractMailPayload & {
+  acceptanceUrl: string
+}
+
 /** Opzionale: mittente verificato Resend (es. `CRM <notifiche@tuodominio.it>`). */
 const defaultQuoteContractFrom = () => (process.env.RESEND_FROM || 'CRM <crm@speaqi.it>').trim()
 
@@ -123,6 +127,44 @@ export async function sendQuoteContractAcceptanceEmail(
   assertResendEmailSent(
     result as { data: { id?: string } | null; error: { message: string } | null },
     'sendQuoteContractAcceptanceEmail'
+  )
+  return result
+}
+
+export async function sendQuoteAcceptanceRequestEmail(
+  to: string,
+  { quoteNumber, title, customerName, publicUrl, acceptanceUrl }: QuoteAcceptanceRequestMailPayload
+) {
+  const from = defaultQuoteContractFrom()
+  const result = await getResendClient().emails.send({
+    from: from.includes('<') ? from : `CRM <${from}>`,
+    to,
+    subject: `Preventivo ${quoteNumber} — link per accettazione`,
+    html: `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;margin:0 auto">
+        <div style="background:#0f172a;padding:20px;border-radius:8px 8px 0 0">
+          <h1 style="color:#f8fafc;margin:0;font-size:18px">Speaqi</h1>
+        </div>
+        <div style="background:#ffffff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px">
+          <p style="color:#374151">Ciao${customerName ? ` <strong>${customerName}</strong>` : ''},</p>
+          <p style="color:#374151">abbiamo preparato il preventivo <strong>${quoteNumber}</strong> per <strong>${title}</strong>.</p>
+          <p style="color:#374151">Puoi rivederlo da questo link:</p>
+          <p><a href="${publicUrl}" style="color:#2563eb">Apri il preventivo</a></p>
+          <p style="color:#374151;margin-top:20px">Quando vuoi confermare, usa il link personale di accettazione:</p>
+          <p>
+            <a href="${acceptanceUrl}" style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700">
+              Accetta il preventivo
+            </a>
+          </p>
+          <p style="color:#6b7280;font-size:13px;margin-top:24px">Il link di accettazione è personale e collegato a questa email.</p>
+          <p style="color:#6b7280;font-size:13px">TheBestItaly · Speaqi</p>
+        </div>
+      </div>
+    `,
+  })
+  assertResendEmailSent(
+    result as { data: { id?: string } | null; error: { message: string } | null },
+    'sendQuoteAcceptanceRequestEmail'
   )
   return result
 }

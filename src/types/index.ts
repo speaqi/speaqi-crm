@@ -227,6 +227,9 @@ export interface Quote {
   contract_terms?: string | null
   contract_accepted_at?: string | null
   contract_signer_email?: string | null
+  quote_acceptance_email?: string | null
+  quote_acceptance_token?: string | null
+  quote_acceptance_sent_at?: string | null
   valid_until?: string | null
   public_note?: string | null
   internal_note?: string | null

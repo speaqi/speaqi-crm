@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api'
-import { isClosedStatus, isHoldingContact, isPersonalContact } from '@/lib/data'
+import { contactActivityTimestamp, isClosedStatus, isHoldingContact, isPersonalContact } from '@/lib/data'
 import { buildScheduledCalls, dueAtLocalDateKey, isCallTaskType, localDayDateKey } from '@/lib/schedule'
 import { createClient } from '@/lib/supabase'
 import type {
@@ -30,8 +30,8 @@ function compareNullableDateAsc(left?: string | null, right?: string | null) {
 
 function sortContacts(contacts: CRMContact[]) {
   return [...contacts].sort((left, right) => {
-    const nextFollowupDiff = compareNullableDateAsc(left.next_followup_at, right.next_followup_at)
-    if (nextFollowupDiff !== 0) return nextFollowupDiff
+    const activityDiff = contactActivityTimestamp(right) - contactActivityTimestamp(left)
+    if (activityDiff !== 0) return activityDiff
 
     const createdAtDiff = new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
     if (createdAtDiff !== 0) return createdAtDiff

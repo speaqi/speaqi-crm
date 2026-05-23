@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
       .from('contacts')
       .select('*')
       .eq('user_id', auth.workspaceUserId)
-      .order('next_followup_at', { ascending: true, nullsFirst: false })
+      .order('updated_at', { ascending: false })
       .order('created_at', { ascending: false })
 
     if (scope === 'crm') query = query.eq('contact_scope', 'crm')

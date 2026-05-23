@@ -5,6 +5,7 @@ import { useMemo, useRef, useState } from 'react'
 import { ContactModal } from '@/components/crm/ContactModal'
 import {
   formatDateTime,
+  isPipelineVisible,
   isComuneContact,
   priorityBadgeClass,
   priorityLabel,
@@ -64,6 +65,8 @@ export default function KanbanPage() {
 
   const filtered = useMemo(() => {
     return contacts.filter((contact) => {
+      if (!isPipelineVisible(contact)) return false
+
       const query = search.trim().toLowerCase()
       if (
         query &&
