@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { BrandLockup } from '@/components/layout/BrandLockup'
 import { createClient } from '@/lib/supabase'
@@ -11,6 +11,19 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    const supabase = createClient()
+    let mounted = true
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (mounted && session?.user) router.replace('/dashboard')
+    })
+
+    return () => {
+      mounted = false
+    }
+  }, [router])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()

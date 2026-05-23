@@ -1,6 +1,8 @@
-import { createBrowserClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
 
-let browserClient: ReturnType<typeof createBrowserClient> | null = null
+const AUTH_STORAGE_KEY = 'speaqi-crm-auth'
+
+let browserClient: SupabaseClient | null = null
 
 function getSupabaseUrl() {
   return process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -12,7 +14,14 @@ function getSupabaseAnonKey() {
 
 export function createClient() {
   if (!browserClient) {
-    browserClient = createBrowserClient(getSupabaseUrl(), getSupabaseAnonKey())
+    browserClient = createSupabaseClient(getSupabaseUrl(), getSupabaseAnonKey(), {
+      auth: {
+        storageKey: AUTH_STORAGE_KEY,
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    })
   }
   return browserClient
 }
