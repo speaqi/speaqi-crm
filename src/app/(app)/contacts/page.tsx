@@ -1085,6 +1085,35 @@ function ContactsPageInner() {
                   </div>
                 </div>
                 <div className="contacts-row-side">
+                  <button
+                    type="button"
+                    className={`contacts-star-action ${contact.status === 'Supertop' ? 'active' : ''}`}
+                    title="Manda in pipeline Supertop"
+                    aria-label="Manda in pipeline Supertop"
+                    disabled={bulkSaving || contact.status === 'Supertop'}
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      setBulkSaving(true)
+                      try {
+                        await apiFetch('/api/contacts/bulk', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            contact_ids: [contact.id],
+                            patch: { status: 'Supertop' },
+                          }),
+                        })
+                        await refresh()
+                        showToast(`${contact.name} spostato in Supertop`)
+                      } catch (error) {
+                        window.alert(error instanceof Error ? error.message : 'Spostamento in Supertop non riuscito')
+                      } finally {
+                        setBulkSaving(false)
+                      }
+                    }}
+                  >
+                    ★
+                  </button>
                   <span className="ctag ctag-contattato">{statusLabel(contact.status)}</span>
                   {contact.priority > 0 && (
                     <span className={`ctag ${priorityBadgeClass(contact.priority)}`}>

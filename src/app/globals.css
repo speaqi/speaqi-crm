@@ -2544,6 +2544,27 @@ select.filter-select {
   flex-shrink: 0;
 }
 .contacts-row-followup { color: var(--text2); font-size: 12px; min-width: 110px; text-align: right; }
+.contacts-star-action {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface2);
+  color: var(--text3);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+.contacts-star-action:hover,
+.contacts-star-action.active {
+  border-color: #eab308;
+  background: #fef9c3;
+  color: #a16207;
+}
+.contacts-star-action:disabled {
+  cursor: default;
+  opacity: 0.8;
+}
 .contacts-row-action { font-size: 12px; opacity: 0; transition: opacity .15s; white-space: nowrap; }
 .contacts-row:hover .contacts-row-action { opacity: 1; }
 .btn-xs { padding: 2px 8px; font-size: 12px; border-radius: 4px; }
