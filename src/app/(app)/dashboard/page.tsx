@@ -18,8 +18,8 @@ import { buildScheduledCalls, dueAtLocalDateKey, localDayDateKey, type Scheduled
 import type { ContactInput, CRMContact } from '@/types'
 
 const DAY_MS = 24 * 60 * 60 * 1000
-const DAYS_BACK = 1
-/** Offset massimo nel loop (escluso): ieri … oggi … fino a oggi + (DAYS_AHEAD - 1) giorni (~2 settimane). */
+const DAYS_BACK = 7
+/** Offset massimo nel loop (escluso): oggi … fino a oggi + (DAYS_AHEAD - 1) giorni (~2 settimane). */
 const DAYS_AHEAD = 15
 
 function startOfDay(date: Date) {
@@ -44,7 +44,6 @@ function greetingForHour(hour: number) {
 }
 
 function dayLabelShort(date: Date, offset: number) {
-  if (offset === -1) return 'Ieri'
   if (offset === 0) return 'Oggi'
   if (offset === 1) return 'Domani'
   return date.toLocaleDateString('it-IT', { weekday: 'long' })
@@ -72,6 +71,16 @@ interface DragPayload {
 }
 
 const DRAG_MIME = 'application/x-call'
+
+type DayBucket = {
+  key: string
+  date: Date
+  calls: ScheduledCall[]
+  offset: number
+  label?: string
+  dateLabel?: string
+  isPastRange?: boolean
+}
 
 type AcumbamailSyncResponse = {
   campaign_id: string
@@ -178,12 +187,33 @@ export default function OggiPage() {
     [scopeContacts, scopeTasks]
   )
 
-  const days = useMemo(() => {
-    const buckets: Array<{ date: Date; calls: ScheduledCall[]; offset: number }> = []
-    for (let offset = -DAYS_BACK; offset < DAYS_AHEAD; offset += 1) {
+  const days = useMemo<DayBucket[]>(() => {
+    const buckets: DayBucket[] = []
+    const pastRangeStart = new Date(today.getTime() - DAYS_BACK * DAY_MS)
+    const todayKey = localDayDateKey(today)
+    const pastCalls = dashboardScheduledCalls
+      .filter((call) => {
+        const due = new Date(call.due_at)
+        if (Number.isNaN(due.getTime())) return false
+        return due >= pastRangeStart && due < today
+      })
+      .sort((left, right) => new Date(left.due_at).getTime() - new Date(right.due_at).getTime())
+
+    buckets.push({
+      key: 'last-7-days',
+      date: pastRangeStart,
+      offset: -DAYS_BACK,
+      label: 'Ultimi 7 giorni',
+      dateLabel: `${dayNumber(pastRangeStart)} - ${dayNumber(new Date(today.getTime() - DAY_MS))}`,
+      isPastRange: true,
+      calls: pastCalls,
+    })
+
+    for (let offset = 0; offset < DAYS_AHEAD; offset += 1) {
       const dayStart = new Date(today.getTime() + offset * DAY_MS)
       const bucketKey = localDayDateKey(dayStart)
       buckets.push({
+        key: bucketKey,
         date: dayStart,
         offset,
         calls: dashboardScheduledCalls
@@ -193,6 +223,8 @@ export default function OggiPage() {
     }
     return buckets
   }, [dashboardScheduledCalls, today])
+
+  const todayBucket = days.find((day) => day.offset === 0)
 
   const stagnantContacts = useMemo(
     () =>
@@ -270,7 +302,10 @@ export default function OggiPage() {
     })
   }, [dashboardScheduledCalls, statusAboveContacted, today])
 
-  const totalUpcoming = days.reduce((sum, day) => sum + day.calls.length, 0) + overdueCalls.length
+  const totalUpcoming =
+    days
+      .filter((day) => !day.isPastRange)
+      .reduce((sum, day) => sum + day.calls.length, 0) + overdueCalls.length
 
   const topPipelineContacts = useMemo(() => {
     return scopeContacts
@@ -455,7 +490,7 @@ export default function OggiPage() {
             <span>scaduti</span>
           </div>
           <div className="oggi-stat">
-            <strong>{days[0]?.calls.length || 0}</strong>
+            <strong>{todayBucket?.calls.length || 0}</strong>
             <span>oggi</span>
           </div>
           <div className="oggi-stat">
@@ -577,32 +612,32 @@ export default function OggiPage() {
       </div>
 
       <EmailDraftPanel
-        todayCalls={days[0]?.calls || []}
+        todayCalls={todayBucket?.calls || []}
         updateContact={updateContact}
         showToast={showToast}
       />
 
       <section className="oggi-week">
         <div className="oggi-week-head">
-          <h2>Ieri + circa 2 settimane</h2>
+          <h2>Ultimi 7 giorni + circa 2 settimane</h2>
           <span className="oggi-week-hint">Trascina un contatto per spostarlo di giorno</span>
           <Link href="/calendario" className="oggi-week-link">Vista calendario →</Link>
         </div>
         <div className="oggi-week-grid">
           {days.map((day) => {
-            const key = dayKey(day.date)
+            const key = day.key
             const isDropTarget = dragOverKey === key
             return (
               <div
                 key={key}
-                className={`oggi-day-col ${day.offset === 0 ? 'is-today' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
-                onDragOver={(event) => handleDragOver(event, key)}
-                onDragLeave={(event) => handleDragLeave(event, key)}
-                onDrop={(event) => handleDrop(event, day.date)}
+                className={`oggi-day-col ${day.offset === 0 ? 'is-today' : ''} ${day.isPastRange ? 'is-past-range' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
+                onDragOver={day.isPastRange ? undefined : (event) => handleDragOver(event, key)}
+                onDragLeave={day.isPastRange ? undefined : (event) => handleDragLeave(event, key)}
+                onDrop={day.isPastRange ? undefined : (event) => handleDrop(event, day.date)}
               >
                 <div className="oggi-day-head">
-                  <span className="oggi-day-label">{dayLabelShort(day.date, day.offset)}</span>
-                  <span className="oggi-day-date">{dayNumber(day.date)}</span>
+                  <span className="oggi-day-label">{day.label || dayLabelShort(day.date, day.offset)}</span>
+                  <span className="oggi-day-date">{day.dateLabel || dayNumber(day.date)}</span>
                   {day.calls.length > 0 && <span className="oggi-day-count">{day.calls.length}</span>}
                 </div>
                 <div className="oggi-day-body">

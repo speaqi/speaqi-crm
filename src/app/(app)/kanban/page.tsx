@@ -51,9 +51,14 @@ const BUCKET_LABELS: Record<string, string> = {
 
 const BUCKET_ORDER: Array<keyof typeof BUCKET_LABELS> = ['overdue', 'today', 'tomorrow', 'week', 'later', 'none']
 
+function initialViewMode(): ViewMode {
+  if (typeof window === 'undefined') return 'board'
+  return new URLSearchParams(window.location.search).get('view') === 'list' ? 'list' : 'board'
+}
+
 export default function KanbanPage() {
   const { stages, contacts, scheduledCalls, teamMembers, completeTask, createContact, updateContact, deleteContact, showToast } = useCRMContext()
-  const [view, setView] = useState<ViewMode>('board')
+  const [view, setView] = useState<ViewMode>(initialViewMode)
   const [search, setSearch] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
   const [sourceFilter, setSourceFilter] = useState('')
