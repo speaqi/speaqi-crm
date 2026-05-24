@@ -240,6 +240,19 @@ export interface Quote {
   updated_at?: string
 }
 
+export type OperatingQueueMode = 'calls' | 'overdue' | 'quotes' | 'all'
+
+export interface OperatingQueueItem {
+  contact: CRMContact
+  rank_score: number
+  rank_reasons: string[]
+  recommended_action: 'call' | 'send_email' | 'recover_quote' | 'schedule_followup' | 'review'
+  due_at?: string | null
+  task?: Task | null
+  quote?: Quote | null
+  last_activity?: Activity | null
+}
+
 export interface QuoteInput {
   contact_id?: string | null
   quote_number?: string

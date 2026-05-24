@@ -45,7 +45,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"email\":\"{{$env.REMINDER_EMAIL}}\"}"
+        "jsonBody": "={\"email\":\"{{$env.REMINDER_EMAIL}}\",\"sla_mode\":true,\"quote_recovery\":true}"
       }
     }
   ],

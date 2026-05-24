@@ -19,6 +19,7 @@ interface SidebarProps {
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Oggi', icon: '🏠', badgeKey: 'oggi' as const, badgeRed: true },
+  { href: '/operativo', label: 'Centro Operativo', icon: '◎', badgeKey: 'tasks' as const, badgeRed: true },
   { href: '/contacts', label: 'Contatti', icon: '👥', badgeKey: 'contacts' as const },
   { href: '/marketing', label: 'Marketing', icon: '✉️', badgeKey: 'marketing' as const },
   { href: '/personali', label: 'Personali', icon: '🗂️', badgeKey: 'personal' as const },

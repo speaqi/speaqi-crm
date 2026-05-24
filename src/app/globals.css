@@ -468,6 +468,222 @@ select.filter-select {
 }
 .section-header::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
+/* ── CENTRO OPERATIVO ───────────────────────────── */
+.operativo-page {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.operativo-header {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.operativo-kicker {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+.operativo-header h1 {
+  font-size: 23px;
+  line-height: 1.15;
+}
+.operativo-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(86px, 1fr));
+  gap: 8px;
+  min-width: min(520px, 52vw);
+}
+.operativo-stats div {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: grid;
+  gap: 3px;
+}
+.operativo-stats strong {
+  font-size: 18px;
+  line-height: 1;
+}
+.operativo-stats span {
+  color: var(--text2);
+  font-size: 11px;
+  font-weight: 600;
+}
+.operativo-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.operativo-tab {
+  min-height: 46px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text2);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  font-weight: 800;
+  transition: all var(--transition);
+}
+.operativo-tab:hover,
+.operativo-tab.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
+}
+.operativo-toolbar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 10px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.operativo-filter-input {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  padding: 7px 10px;
+  min-width: 160px;
+  font-size: 12px;
+}
+.operativo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.operativo-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 92px minmax(220px, 1.4fr) minmax(180px, .8fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+.operativo-rank {
+  display: grid;
+  gap: 5px;
+  color: var(--text2);
+  font-size: 11px;
+  font-weight: 700;
+}
+.oc-score {
+  width: 48px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.oc-score-warm { background: var(--yellow-light); color: #92400e; border-color: #fde68a; }
+.oc-score-hot { background: var(--red-light); color: #991b1b; border-color: #fecaca; }
+.operativo-main {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+.operativo-title-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.operativo-name {
+  color: var(--text);
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.operativo-name:hover { color: var(--accent); }
+.operativo-subline {
+  color: var(--text2);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.operativo-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.operativo-reasons span {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text2);
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 7px;
+}
+.operativo-meta {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text2);
+}
+.operativo-meta strong {
+  color: var(--text);
+  font-size: 12px;
+}
+.operativo-meta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.operativo-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.operativo-actions a {
+  text-decoration: none;
+}
+.operativo-empty {
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--text2);
+  text-align: center;
+  padding: 28px;
+  font-size: 13px;
+}
+
 /* ── MARKETING INBOX ─────────────────────────────── */
 .marketing-page {
   display: flex;
@@ -4243,3 +4459,51 @@ select.filter-select {
 .import-success-stats strong { font-size: 22px; font-weight: 700; color: var(--accent); }
 .import-success-stats span { font-size: 12px; color: var(--text2); }
 .import-success-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+@media (max-width: 980px) {
+  .operativo-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .operativo-stats {
+    min-width: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .operativo-row {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+  .operativo-meta,
+  .operativo-actions {
+    grid-column: 2;
+  }
+  .operativo-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  .operativo-page {
+    padding: 14px;
+  }
+  .operativo-tabs {
+    grid-template-columns: 1fr;
+  }
+  .operativo-stats {
+    grid-template-columns: 1fr;
+  }
+  .operativo-row {
+    grid-template-columns: 1fr;
+  }
+  .operativo-rank,
+  .operativo-meta,
+  .operativo-actions {
+    grid-column: auto;
+  }
+  .operativo-rank {
+    grid-template-columns: 52px 1fr;
+    align-items: center;
+  }
+  .operativo-title-row {
+    flex-wrap: wrap;
+  }
+}
