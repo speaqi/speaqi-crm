@@ -235,13 +235,11 @@ export async function buildOperatingQueue(
       .select('*')
       .eq('user_id', userId)
       .eq('status', 'pending')
-      .in('contact_id', contactIds)
       .order('due_date', { ascending: true, nullsFirst: false }),
     supabase
       .from('quotes')
       .select('*')
       .eq('user_id', userId)
-      .in('contact_id', contactIds)
       .eq('status', 'sent')
       .order('sent_at', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false }),
@@ -249,7 +247,6 @@ export async function buildOperatingQueue(
       .from('activities')
       .select('*')
       .eq('user_id', userId)
-      .in('contact_id', contactIds)
       .order('created_at', { ascending: false })
       .limit(1200),
   ])
@@ -258,9 +255,16 @@ export async function buildOperatingQueue(
   if (quotesResult.error) throw quotesResult.error
   if (activitiesResult.error) throw activitiesResult.error
 
-  const taskByContact = firstPendingTaskByContact((tasksResult.data || []) as Task[])
-  const quoteByContact = newestQuoteByContact((quotesResult.data || []) as Quote[])
-  const activityByContact = newestActivityByContact((activitiesResult.data || []) as Activity[])
+  const allowedContactIds = new Set(contactIds)
+  const taskByContact = firstPendingTaskByContact(
+    ((tasksResult.data || []) as Task[]).filter((task) => allowedContactIds.has(task.contact_id))
+  )
+  const quoteByContact = newestQuoteByContact(
+    ((quotesResult.data || []) as Quote[]).filter((quote) => quote.contact_id && allowedContactIds.has(quote.contact_id))
+  )
+  const activityByContact = newestActivityByContact(
+    ((activitiesResult.data || []) as Activity[]).filter((activity) => allowedContactIds.has(activity.contact_id))
+  )
 
   const ranked = contacts
     .map((contact) =>
