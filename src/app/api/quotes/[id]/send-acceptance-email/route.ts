@@ -23,8 +23,17 @@ function requestOrigin(request: NextRequest) {
   if (configured) return configured.replace(/\/$/, '')
 
   try {
-    const origin = new URL(request.url).origin
-    if (origin && origin !== 'null') return origin
+    const url = new URL(request.url)
+    const host = url.hostname.toLowerCase()
+    const isLocalHost =
+      host === '0.0.0.0' ||
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '::1' ||
+      host.startsWith('192.168.') ||
+      host.startsWith('10.')
+
+    if (url.origin && url.origin !== 'null' && !isLocalHost) return url.origin
   } catch {
     // fall through
   }
