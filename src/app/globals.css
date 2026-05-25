@@ -3952,6 +3952,22 @@ select.filter-select {
   margin-top: 4px;
   color: #94a3b8;
 }
+.public-quote-quantity-breakdown {
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+  border: 1px solid rgba(27,47,74,.12);
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #1b2f4a;
+}
+.public-quote-quantity-breakdown span {
+  color: #64748b;
+}
+.public-quote-quantity-breakdown strong {
+  font-size: 16px;
+  line-height: 1.25;
+}
 .public-quote-final-total {
   background: #1b2f4a;
   color: white;
