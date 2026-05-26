@@ -38,14 +38,28 @@ const STATUS_LABELS: Record<QuoteStatus, string> = {
 const DEFAULT_QUOTE_TITLE = 'Offerta Speaqi'
 const DEFAULT_PUBLIC_NOTE = 'Acconto 30%. Saldo alla consegna.'
 const PRO_PLAN_LINE_ID = 'speaqi-pro-plan-option'
+const QR_WASTE_LINE_ID = 'speaqi-qr-waste-sheets'
+const PRO_PLAN_DETAILS =
+  'Nella presente offerta: primo anno incluso a €0. Dal secondo anno il servizio è facoltativo: il Cliente può scegliere se rinnovare o meno il Piano PRO al prezzo di listino (€299/anno + IVA).'
 
 function makeProPlanLine(): QuoteLineItem {
   return {
     id: PRO_PLAN_LINE_ID,
     description: 'Piano PRO Speaqi',
-    details:
-      'Nella presente offerta: primo anno incluso a €0. Dal secondo anno il servizio si rinnova al prezzo di listino (€299/anno + IVA), salvo diversa comunicazione scritta del Fornitore.',
+    details: PRO_PLAN_DETAILS,
     quantity: 1,
+    unit_price: 0,
+  }
+}
+
+function makeQrWasteLine(bottleCount: number): QuoteLineItem {
+  const quantity = Math.max(1, Math.round(Number(bottleCount || 1)))
+  return {
+    id: QR_WASTE_LINE_ID,
+    description: 'Schede tecniche QR rifiuti per bottiglie',
+    details:
+      'Schede tecniche con QR code per informazioni ambientali e smaltimento rifiuti, da applicare sulle bottiglie. Incluse gratuitamente nel progetto.',
+    quantity,
     unit_price: 0,
   }
 }
@@ -56,10 +70,18 @@ function isProPlanLine(item: QuoteLineItem) {
   return d.includes('Piano PRO') && d.includes('Speaqi')
 }
 
+function isQrWasteLine(item: QuoteLineItem) {
+  if (item.id === QR_WASTE_LINE_ID) return true
+  const d = String(item.description || '').toLowerCase()
+  return d.includes('schede tecniche qr') && d.includes('rifiuti')
+}
+
 function normalizeItemsProIds(items: QuoteLineItem[]): QuoteLineItem[] {
-  return items.map((item) =>
-    isProPlanLine(item) && item.id !== PRO_PLAN_LINE_ID ? { ...item, id: PRO_PLAN_LINE_ID } : item
-  )
+  return items.map((item) => {
+    if (isProPlanLine(item)) return { ...item, id: PRO_PLAN_LINE_ID, details: PRO_PLAN_DETAILS }
+    if (isQrWasteLine(item)) return { ...item, id: QR_WASTE_LINE_ID }
+    return item
+  })
 }
 
 function makeLineId() {
@@ -171,6 +193,7 @@ export default function PreventiviPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [sendingQuoteId, setSendingQuoteId] = useState<string | null>(null)
+  const [qrBottleCount, setQrBottleCount] = useState(1)
   const [error, setError] = useState<string | null>(null)
   const [origin, setOrigin] = useState('https://crm.speaqi.com')
 
@@ -354,11 +377,36 @@ export default function PreventiviPage() {
     }
   }
 
+  function setQrWasteSheets(count: number) {
+    const quantity = Math.max(1, Math.round(Number(count || 1)))
+    setQrBottleCount(quantity)
+    setDraft((previous) => {
+      const has = previous.items.some(isQrWasteLine)
+      const nextLine = makeQrWasteLine(quantity)
+      return {
+        ...previous,
+        items: has
+          ? previous.items.map((item) => (isQrWasteLine(item) ? nextLine : item))
+          : [...previous.items, nextLine],
+      }
+    })
+  }
+
+  function removeQrWasteSheets() {
+    setDraft((previous) => ({
+      ...previous,
+      items: previous.items.filter((item) => !isQrWasteLine(item)),
+    }))
+  }
+
   function editQuote(quote: Quote) {
     setEditingId(quote.id)
     const linked = quote.contact_id ? contacts.find((item) => item.id === quote.contact_id) : null
+    const normalizedItems = quote.items?.length ? normalizeItemsProIds(quote.items) : blankDraft().items
+    const qrLine = normalizedItems.find(isQrWasteLine)
     setContactQuery(linked ? contactLabel(linked) : '')
     setContactMenuOpen(false)
+    setQrBottleCount(Math.max(1, Math.round(Number(qrLine?.quantity || 1))))
     setDraft({
       contact_id: quote.contact_id || '',
       status: quote.status,
@@ -372,7 +420,7 @@ export default function PreventiviPage() {
       customer_address: quote.customer_address || '',
       customer_zip: quote.customer_zip || '',
       customer_city: quote.customer_city || '',
-      items: quote.items?.length ? normalizeItemsProIds(quote.items) : blankDraft().items,
+      items: normalizedItems,
       discount_amount: quote.discount_amount,
       tax_rate: quote.tax_rate,
       payment_terms_mode: quote.payment_terms_mode || 'percent',
@@ -392,6 +440,7 @@ export default function PreventiviPage() {
     setEditingId(null)
     setContactQuery('')
     setContactMenuOpen(false)
+    setQrBottleCount(1)
     setDraft(blankDraft())
   }
 
@@ -793,9 +842,41 @@ export default function PreventiviPage() {
                 onChange={(event) => setIncludeProPlan(event.target.checked)}
               />
               <span>
-                Includi Piano PRO (1° anno a €0, listino €299/anno + IVA dal 2° anno)
+                Includi Piano PRO (1° anno a €0, secondo anno facoltativo a €299/anno + IVA)
               </span>
             </label>
+
+            <div className="quotes-extra-card">
+              <div>
+                <strong>Schede tecniche QR rifiuti</strong>
+                <span>QR code tecnici per le schede da applicare sulle bottiglie. Sempre gratis.</span>
+              </div>
+              <div className="quotes-extra-controls">
+                <label className="fg">
+                  <span className="fl">Bottiglie</span>
+                  <input
+                    className="fi"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={qrBottleCount}
+                    onChange={(event) => setQrBottleCount(Math.max(1, Math.round(Number(event.target.value || 1))))}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setQrWasteSheets(qrBottleCount)}
+                >
+                  {draft.items.some(isQrWasteLine) ? 'Aggiorna gratis' : 'Aggiungi gratis'}
+                </button>
+                {draft.items.some(isQrWasteLine) && (
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={removeQrWasteSheets}>
+                    Rimuovi
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="quotes-form-grid quotes-money-grid">

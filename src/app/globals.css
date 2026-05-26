@@ -3541,6 +3541,37 @@ select.filter-select {
   margin-top: 3px;
   flex-shrink: 0;
 }
+.quotes-extra-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin: 10px 0 4px;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.quotes-extra-card strong,
+.quotes-extra-card span {
+  display: block;
+}
+.quotes-extra-card strong {
+  font-size: 13px;
+  color: var(--text);
+}
+.quotes-extra-card span {
+  margin-top: 3px;
+  color: var(--text2);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.quotes-extra-controls {
+  display: grid;
+  grid-template-columns: 96px auto auto;
+  gap: 8px;
+  align-items: end;
+}
 .quotes-money-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -3890,6 +3921,12 @@ select.filter-select {
   color: #64748b;
   white-space: nowrap;
 }
+.public-quote-price-unit-breakdown {
+  color: #1b2f4a;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
 .public-quote-price-active {
   display: flex;
   flex-direction: column;
@@ -3951,22 +3988,6 @@ select.filter-select {
 .public-quote-list-total small {
   margin-top: 4px;
   color: #94a3b8;
-}
-.public-quote-quantity-breakdown {
-  display: grid;
-  gap: 5px;
-  padding: 12px 14px;
-  border: 1px solid rgba(27,47,74,.12);
-  border-radius: 12px;
-  background: #f8fafc;
-  color: #1b2f4a;
-}
-.public-quote-quantity-breakdown span {
-  color: #64748b;
-}
-.public-quote-quantity-breakdown strong {
-  font-size: 16px;
-  line-height: 1.25;
 }
 .public-quote-final-total {
   background: #1b2f4a;
@@ -4340,10 +4361,12 @@ select.filter-select {
   .quotes-form-grid,
   .quotes-money-grid,
   .quotes-preset-row,
+  .quotes-extra-card,
   .quote-line {
     grid-template-columns: 1fr;
   }
   .quote-line-numbers,
+  .quotes-extra-controls,
   .quotes-summary-strip {
     grid-template-columns: 1fr;
   }

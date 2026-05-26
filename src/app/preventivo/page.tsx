@@ -50,34 +50,30 @@ function formatQuantity(value: number) {
   return Number.isInteger(value) ? String(value) : new Intl.NumberFormat('it-IT', { maximumFractionDigits: 2 }).format(value)
 }
 
-function singularizeItalianLabel(value: string) {
-  const normalized = value.trim().toLowerCase()
-  if (normalized === 'vini') return 'vino'
-  if (normalized === 'video') return 'video'
-  if (normalized.endsWith('i') && normalized.length > 3) return normalized.slice(0, -1) + 'o'
-  return normalized
-}
-
-function quantityBreakdownLabel(item: QuoteLineItem, currency: string) {
+function lineUnitBreakdownLabel(item: QuoteLineItem, currency: string) {
   const lineNet = Number(item.line_total ?? Number(item.quantity || 0) * Number(item.unit_price || 0))
   if (!Number.isFinite(lineNet) || lineNet <= 0) return null
 
   const explicitQty = Number(item.quantity || 0)
   if (explicitQty > 1 && Number(item.unit_price || 0) > 0) {
-    const label = singularizeItalianLabel(String(item.description || 'unità').split(/\s+/).pop() || 'unità')
-    return `${formatQuantity(explicitQty)} ${label} a ${formatMoney(item.unit_price, currency)}`
+    return `${formatQuantity(explicitQty)} x ${formatMoney(item.unit_price, currency)}`
   }
 
   const text = `${item.description || ''}\n${item.details || ''}`
-  const match = text.match(/\b(\d+(?:[,.]\d+)?)\s+(video|vini|unit[aà]|licenze|contenuti|traduzioni)\b/i)
+  const match = text.match(/\b(\d+(?:[,.]\d+)?)\s+(?:video|vini|unit[aà]|licenze|contenuti|traduzioni)\b/i)
   if (!match) return null
 
   const qty = Number(match[1].replace(',', '.'))
   if (!Number.isFinite(qty) || qty <= 1) return null
 
-  const unitLabel = singularizeItalianLabel(match[2])
   const unitPrice = lineNet / qty
-  return `${formatQuantity(qty)} ${unitLabel} a ${formatMoney(unitPrice, currency)}`
+  return `${formatQuantity(qty)} x ${formatMoney(unitPrice, currency)}`
+}
+
+function isQrWasteLine(item: QuoteLineItem) {
+  if (item.id === 'speaqi-qr-waste-sheets') return true
+  const d = String(item.description || '').toLowerCase()
+  return d.includes('schede tecniche qr') && d.includes('rifiuti')
 }
 
 function publicLineHeading(description: string) {
@@ -123,9 +119,6 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
   const bankBody = resolvePublicBankInstructions(quote.bank_transfer_instructions)
   const initialNetTotal = initialListNetTotal(items)
   const hasInitialListTotal = initialNetTotal > Number(quote.subtotal_amount || 0) + 0.005
-  const quantityBreakdowns = items
-    .map((item) => quantityBreakdownLabel(item, quote.currency))
-    .filter((label): label is string => Boolean(label))
   const taxRate = Number(quote.tax_rate || 0)
   const totalNet = Number(quote.subtotal_amount || 0)
   const hasCustomPaymentTerms = Boolean(String(quote.payment_terms_note || '').trim())
@@ -188,6 +181,8 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
                 const lineList =
                   listUnit != null && Number.isFinite(listUnit) && listUnit > 0 ? qty * listUnit : null
                 const showListPrice = lineList != null && lineList > lineNet + 0.005
+                const unitBreakdownLabel = lineUnitBreakdownLabel(item, quote.currency)
+                const isFreeQrLine = isQrWasteLine(item) && lineNet <= 0
 
                 return (
                   <article className="public-quote-item" key={item.id || item.description}>
@@ -218,10 +213,19 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
                       {showListPrice && lineList != null && (
                         <span className="public-quote-price-was">{formatMoney(lineList, quote.currency)}</span>
                       )}
-                      <div className="public-quote-price-active">
-                        <strong>{formatMoney(lineNet, quote.currency)}</strong>
-                        <span className="public-quote-price-tax">+ IVA</span>
-                      </div>
+                      {unitBreakdownLabel && (
+                        <span className="public-quote-price-unit-breakdown">{unitBreakdownLabel}</span>
+                      )}
+                      {isFreeQrLine ? (
+                        <div className="public-quote-price-active">
+                          <strong>Gratis</strong>
+                        </div>
+                      ) : (
+                        <div className="public-quote-price-active">
+                          <strong>{formatMoney(lineNet, quote.currency)}</strong>
+                          <span className="public-quote-price-tax">+ IVA</span>
+                        </div>
+                      )}
                     </div>
                   </article>
                 )
@@ -239,12 +243,6 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
                     <strong>{formatMoney(initialNetTotal, quote.currency)}</strong>
                     <small>+ IVA</small>
                   </div>
-                </div>
-              )}
-              {quantityBreakdowns.length > 0 && (
-                <div className="public-quote-quantity-breakdown">
-                  <span>Prezzo scontato</span>
-                  <strong>{quantityBreakdowns.join(' + ')}</strong>
                 </div>
               )}
               <div className="public-quote-final-total">
