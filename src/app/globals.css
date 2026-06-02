@@ -1624,6 +1624,49 @@ select.filter-select {
   .detail-quick-actions {
     flex-wrap: wrap;
   }
+  .detail-lost-reason {
+    margin-left: 0;
+    width: 100%;
+  }
+  .detail-stage-chip {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+  .detail-header-new {
+    padding: 14px 16px;
+  }
+  .detail-title-new {
+    font-size: 20px;
+  }
+  .detail-subtitle-new {
+    gap: 4px;
+  }
+  .detail-info-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .detail-info-value {
+    text-align: left;
+  }
+  .detail-ai-box {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .detail-quick-phone,
+  .detail-quick-email {
+    display: none;
+  }
+}
+
+@media (max-width: 960px) {
+  .detail-stage-bar-stages {
+    gap: 3px;
+  }
+  .detail-stage-chip {
+    padding: 4px 10px;
+    font-size: 11.5px;
+  }
 }
 
 /* Quick actions row */
