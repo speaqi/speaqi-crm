@@ -1621,6 +1621,100 @@ select.filter-select {
     flex-direction: column;
     align-items: flex-start;
   }
+  .detail-quick-actions {
+    flex-wrap: wrap;
+  }
+}
+
+/* Quick actions row */
+.detail-quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.detail-quick-btn {
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text);
+  transition: all 0.12s;
+  font-family: inherit;
+}
+
+.detail-quick-btn:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.detail-quick-phone,
+.detail-quick-email {
+  font-size: 12px;
+  color: var(--text2);
+  margin-left: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-lost-reason {
+  margin-left: auto;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.06);
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* AI suggestion box */
+.detail-ai-box {
+  margin-top: 10px;
+  padding: 8px 14px;
+  background: linear-gradient(135deg, rgba(79, 110, 247, 0.05), rgba(139, 92, 246, 0.04));
+  border: 1px solid rgba(79, 110, 247, 0.15);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+}
+
+.detail-ai-text {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.detail-ai-btn {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent);
+  background: transparent;
+  border: 1px dashed rgba(79, 110, 247, 0.3);
+  border-radius: 8px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.12s;
+}
+
+.detail-ai-btn:hover:not(:disabled) {
+  background: rgba(79, 110, 247, 0.08);
+  border-style: solid;
+}
+
+.detail-ai-btn:disabled {
+  color: var(--text3);
+  cursor: default;
 }
 .detail-row {
   display: flex;

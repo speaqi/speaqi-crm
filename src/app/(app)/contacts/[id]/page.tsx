@@ -79,6 +79,8 @@ export default function ContactDetailPage() {
   const [gmailFollowup, setGmailFollowup] = useState('')
   const autoSyncedContactIdRef = useRef<string | null>(null)
   const [changingStage, setChangingStage] = useState(false)
+  const [aiSuggestion, setAiSuggestion] = useState<string | null>(null)
+  const [aiSuggestionLoading, setAiSuggestionLoading] = useState(false)
 
   async function loadDetail(showSpinner = true) {
     if (showSpinner || !detail) setLoading(true)
@@ -113,6 +115,40 @@ export default function ContactDetailPage() {
     } finally {
       setChangingStage(false)
     }
+  }
+
+  // ─── AI next action suggestion ───
+  async function fetchAiSuggestion() {
+    setAiSuggestionLoading(true)
+    try {
+      const result = await apiFetch<{ suggestion: { action: string; delay_hours: number; priority: string; reason?: string } }>(
+        '/api/ai/next-action',
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lead_id: contactId }) }
+      )
+      const s = result.suggestion
+      const actionLabel = s.action === 'call' ? '📞 Chiama' : s.action === 'send_email' ? '✉️ Invia email' : '⏳ Attendi'
+      const timing = s.delay_hours <= 0 ? 'subito' : s.delay_hours <= 24 ? `entro ${s.delay_hours}h` : `tra ${Math.round(s.delay_hours / 24)}gg`
+      setAiSuggestion(`${actionLabel} ${timing}${s.reason ? ` — ${s.reason}` : ''}`)
+    } catch {
+      setAiSuggestion(null)
+    } finally {
+      setAiSuggestionLoading(false)
+    }
+  }
+
+  // ─── Quick action: open call/email/whatsapp ───
+  function quickCall() {
+    if (contact.phone) window.open(`tel:${contact.phone}`)
+    else showToast('Nessun numero di telefono')
+  }
+  function quickEmail() {
+    if (contact.email) window.open(`mailto:${contact.email}`)
+    else showToast('Nessuna email')
+  }
+  function quickWhatsApp() {
+    const phone = contact.phone?.replace(/[^+\d]/g, '')
+    if (phone) window.open(`https://wa.me/${phone}`)
+    else showToast('Nessun numero di telefono')
   }
 
   // ─── Gmail sync ───
@@ -204,6 +240,46 @@ export default function ContactDetailPage() {
               </button>
             </div>
           </div>
+
+          {/* ─── QUICK ACTIONS + LOST REASON ─── */}
+          {!holdingContact && !personalContact && (
+            <div className="detail-quick-actions">
+              <button className="detail-quick-btn" onClick={quickCall} title="Chiama">
+                📞 Chiama
+              </button>
+              <button className="detail-quick-btn" onClick={quickEmail} title="Invia email">
+                ✉️ Email
+              </button>
+              <button className="detail-quick-btn" onClick={quickWhatsApp} title="WhatsApp">
+                💬 WhatsApp
+              </button>
+              {contact.phone && <span className="detail-quick-phone">{contact.phone}</span>}
+              {contact.email && <span className="detail-quick-email">{contact.email}</span>}
+
+              {contact.status.toLowerCase() === 'lost' && contact.lost_reason && (
+                <span className="detail-lost-reason" title="Motivo perdita">
+                  🚫 {contact.lost_reason}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* ─── AI SUGGESTION ─── */}
+          {!holdingContact && !personalContact && (
+            <div className="detail-ai-box">
+              {aiSuggestion ? (
+                <span className="detail-ai-text">💡 {aiSuggestion}</span>
+              ) : (
+                <button
+                  className="detail-ai-btn"
+                  disabled={aiSuggestionLoading}
+                  onClick={fetchAiSuggestion}
+                >
+                  {aiSuggestionLoading ? '🧠 Analisi in corso...' : '🧠 Suggerisci prossima azione'}
+                </button>
+              )}
+            </div>
+          )}
 
           {/* ─── PIPELINE STAGE BAR ─── */}
           {!holdingContact && !personalContact && (
