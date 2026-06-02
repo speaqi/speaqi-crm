@@ -1,32 +1,21 @@
 'use client'
 
 import Link from 'next/link'
-import { DragEvent, FormEvent, MouseEvent, KeyboardEvent, useMemo, useState } from 'react'
+import { DragEvent, MouseEvent, KeyboardEvent, useMemo, useState } from 'react'
 import { ContactDrawer } from '@/components/crm/ContactDrawer'
 import { ContactModal } from '@/components/crm/ContactModal'
-import { EmailDraftPanel } from '@/components/crm/EmailDraftPanel'
+import { DashboardHero } from '@/components/crm/DashboardHero'
+import { DashboardPriorityQueue, type QueueItem } from '@/components/crm/DashboardPriorityQueue'
+import { DashboardRiskPanel } from '@/components/crm/DashboardRiskPanel'
 import { useCRMContext } from '../layout'
-import { apiFetch } from '@/lib/api'
-import {
-  contactMatchesAssigneeName,
-  contactVisibleToAdminOnDashboard,
-  isClosedStatus,
-  priorityLabel,
-  statusLabel,
-} from '@/lib/data'
+import { isClosedStatus, statusLabel } from '@/lib/data'
 import { buildScheduledCalls, dueAtLocalDateKey, localDayDateKey, type ScheduledCall } from '@/lib/schedule'
+import { startOfDay, dayKey } from '@/lib/schedule'
 import type { ContactInput, CRMContact } from '@/types'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const DAYS_BACK = 7
-/** Offset massimo nel loop (escluso): oggi … fino a oggi + (DAYS_AHEAD - 1) giorni (~2 settimane). */
 const DAYS_AHEAD = 15
-
-function startOfDay(date: Date) {
-  const clone = new Date(date)
-  clone.setHours(0, 0, 0, 0)
-  return clone
-}
 
 function formatItalianDate(date: Date) {
   return date.toLocaleDateString('it-IT', {
@@ -34,13 +23,6 @@ function formatItalianDate(date: Date) {
     day: 'numeric',
     month: 'long',
   })
-}
-
-function greetingForHour(hour: number) {
-  if (hour < 6) return 'Buonanotte'
-  if (hour < 13) return 'Buongiorno'
-  if (hour < 19) return 'Buon pomeriggio'
-  return 'Buonasera'
 }
 
 function dayLabelShort(date: Date, offset: number) {
@@ -53,14 +35,12 @@ function dayNumber(date: Date) {
   return date.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
 }
 
-function dayKey(date: Date) {
-  return date.toISOString().slice(0, 10)
-}
-
-interface LatestImport {
-  listName: string
-  total: number
-  createdAt: string
+function followupLabel(value?: string | null) {
+  if (!value) return 'Senza data'
+  return new Date(value).toLocaleDateString('it-IT', {
+    day: '2-digit',
+    month: '2-digit',
+  })
 }
 
 interface DragPayload {
@@ -82,36 +62,8 @@ type DayBucket = {
   isPastRange?: boolean
 }
 
-type AcumbamailSyncResponse = {
-  campaign_id: string
-  openers: number
-  clickers: number
-  total_emails: number
-  created_contacts: number
-  updated_contacts: number
-  skipped_duplicates: number
-}
-
 function isInProgressStatus(status: string) {
   return status.toLowerCase() !== 'new' && !isClosedStatus(status)
-}
-
-function isContactedStatus(status: string) {
-  const normalized = status.trim().toLowerCase()
-  return normalized === 'contacted' || normalized === 'contattato'
-}
-
-function followupLabel(value?: string | null) {
-  if (!value) return 'Senza data'
-  return new Date(value).toLocaleDateString('it-IT', {
-    day: '2-digit',
-    month: '2-digit',
-  })
-}
-
-function quickShiftLabel(dayOffset: number) {
-  if (dayOffset === 0) return 'Oggi'
-  return `+${dayOffset}`
 }
 
 export default function OggiPage() {
@@ -133,64 +85,159 @@ export default function OggiPage() {
     refresh,
     showToast,
   } = useCRMContext()
+
   const [dragOverKey, setDragOverKey] = useState<string | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [drawerContactId, setDrawerContactId] = useState<string | null>(null)
   const [drawerAnchor, setDrawerAnchor] = useState<{ x: number; y: number } | null>(null)
   const [editingContact, setEditingContact] = useState<CRMContact | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
-  const [acumbaCampaignId, setAcumbaCampaignId] = useState('')
-  const [acumbaResponsible, setAcumbaResponsible] = useState('')
-  const [acumbaListName, setAcumbaListName] = useState('')
-  const [acumbaSyncing, setAcumbaSyncing] = useState(false)
+  const [weekExpanded, setWeekExpanded] = useState(false)
 
   const now = new Date()
   const today = startOfDay(now)
   const stagnantCutoff = new Date(today.getTime() - 14 * DAY_MS)
 
-  const adminScopeName = useMemo(() => {
-    const emailLc = (authEmail || '').trim().toLowerCase()
-    const currentAdmin = teamMembers.find((m) => m.is_current_admin)?.name?.trim()
-    const fromTeam = teamMembers.find((m) => (m.email || '').trim().toLowerCase() === emailLc)?.name?.trim()
-    if (viewerMemberName && viewerMemberName.trim()) return viewerMemberName.trim()
-    if (currentAdmin) return currentAdmin
-    if (fromTeam) return fromTeam
+  // ─── Scope contacts (admin filtering) ───
+  const scopeContactIds = useMemo(() => new Set(contacts.map((c) => c.id)), [contacts])
+  const scopeTasks = useMemo(() => crmTasks, [crmTasks])
 
-    const assignedUnlinkedMembers = teamMembers.filter(
-      (member) =>
-        member.name?.trim() &&
-        !String(member.email || '').trim() &&
-        !String(member.auth_user_id || '').trim() &&
-        contacts.some((contact) => contactMatchesAssigneeName(contact, member.name))
-    )
-
-    return assignedUnlinkedMembers.length === 1 ? assignedUnlinkedMembers[0].name.trim() : null
-  }, [authEmail, contacts, teamMembers, viewerMemberName])
-
-  const scopeContacts = useMemo(() => {
-    if (!isAdmin || adminDashboardShowAllContacts) return contacts
-    if (!teamMembers.length) return contacts
-    return contacts.filter((c) =>
-      contactVisibleToAdminOnDashboard(c, teamMembers, authEmail, adminScopeName)
-    )
-  }, [adminDashboardShowAllContacts, adminScopeName, authEmail, contacts, isAdmin, teamMembers])
-
-  const scopeContactIds = useMemo(() => new Set(scopeContacts.map((c) => c.id)), [scopeContacts])
-
-  const scopeTasks = useMemo(() => {
-    if (!isAdmin || adminDashboardShowAllContacts) return crmTasks
-    return crmTasks.filter((t) => scopeContactIds.has(t.contact_id))
-  }, [adminDashboardShowAllContacts, crmTasks, isAdmin, scopeContactIds])
-
+  // ─── Scheduled calls ───
   const dashboardScheduledCalls = useMemo(
-    () => buildScheduledCalls(scopeContacts, scopeTasks),
-    [scopeContacts, scopeTasks]
+    () => buildScheduledCalls(contacts, scopeTasks),
+    [contacts, scopeTasks]
   )
 
+  const scheduledByContactId = useMemo(
+    () => new Map(dashboardScheduledCalls.map((call) => [call.contact.id, call])),
+    [dashboardScheduledCalls]
+  )
+
+  const todayKey = localDayDateKey(today)
+
+  // ─── Priority Queue ───
+  const queueItems = useMemo<QueueItem[]>(() => {
+    const items: QueueItem[] = []
+    const seen = new Set<string>()
+
+    for (const call of dashboardScheduledCalls) {
+      if (seen.has(call.contact.id)) continue
+      const due = new Date(call.due_at)
+      const dueKey = dueAtLocalDateKey(call.due_at)
+
+      let priority: QueueItem['priority'] = 'medium'
+      let reason = 'followup_due'
+
+      if (dueKey && dueKey < todayKey) {
+        priority = 'critical'
+        reason = 'overdue'
+      } else if ((call.contact.score || 0) >= 70) {
+        priority = 'high'
+        reason = 'hot_lead'
+      } else if (dueKey === todayKey) {
+        priority = 'high'
+        reason = 'followup_due'
+      }
+
+      items.push({
+        contact: call.contact,
+        due_at: call.due_at,
+        task: call.task,
+        quote: null,
+        reason,
+        priority,
+        score: call.contact.score || 0,
+      })
+      seen.add(call.contact.id)
+    }
+
+    // Add contacts without follow-up that are in progress
+    for (const contact of contacts) {
+      if (seen.has(contact.id)) continue
+      if (isClosedStatus(contact.status)) continue
+
+      const lastContact = contact.last_contact_at ? new Date(contact.last_contact_at) : null
+      const daysStale = lastContact
+        ? Math.floor((now.getTime() - lastContact.getTime()) / DAY_MS)
+        : 999
+
+      items.push({
+        contact,
+        due_at: '',
+        task: null,
+        quote: null,
+        reason: daysStale > 14 ? 'stale' : contact.status === 'New' ? 'no_contact' : 'followup_due',
+        priority: daysStale > 7 ? 'high' : 'medium',
+        score: contact.score || 0,
+      })
+    }
+
+    // Sort: critical first, then high, then medium, then by score desc
+    const priorityOrder = { critical: 0, high: 1, medium: 2 }
+    return items.sort((a, b) => {
+      const pDiff = priorityOrder[a.priority] - priorityOrder[b.priority]
+      if (pDiff !== 0) return pDiff
+      return b.score - a.score
+    })
+  }, [dashboardScheduledCalls, contacts, todayKey, now])
+
+  // ─── Risk items ───
+  const riskItems = useMemo(() => {
+    const items: Array<{
+      contact: CRMContact
+      reason: string
+      severity: 'critical' | 'warning'
+      quote: null
+      daysStale: number
+    }> = []
+
+    for (const contact of contacts) {
+      if (isClosedStatus(contact.status)) continue
+      const lastContact = contact.last_contact_at ? new Date(contact.last_contact_at) : new Date(contact.created_at)
+      const daysStale = Math.floor((now.getTime() - lastContact.getTime()) / DAY_MS)
+
+      if (daysStale >= 14) {
+        items.push({
+          contact,
+          reason: `Fermo da ${daysStale} giorni`,
+          severity: 'critical',
+          quote: null,
+          daysStale,
+        })
+      } else if (daysStale >= 7 && (contact.status === 'Quote' || contact.status === 'Supertop')) {
+        items.push({
+          contact,
+          reason: 'In fase avanzata senza contatto',
+          severity: 'warning',
+          quote: null,
+          daysStale,
+        })
+      }
+    }
+
+    return items.sort((a, b) => b.daysStale - a.daysStale)
+  }, [contacts, now])
+
+  // ─── Top leads ───
+  const topLeads = useMemo(() => {
+    return contacts
+      .filter((c) => !isClosedStatus(c.status) && (c.score || 0) > 0)
+      .sort((a, b) => (b.score || 0) - (a.score || 0))
+      .slice(0, 6)
+      .map((c) => ({ contact: c, score: c.score || 0, value: c.value }))
+  }, [contacts])
+
+  // ─── Stats ───
+  const overdueCount = queueItems.filter((q) => q.priority === 'critical').length
+  const todayCount = dashboardScheduledCalls.filter(
+    (call) => dueAtLocalDateKey(call.due_at) === todayKey
+  ).length
+  const hotCount = contacts.filter((c) => (c.score || 0) >= 70 && !isClosedStatus(c.status)).length
+
+  // ─── Day buckets for week grid ───
   const days = useMemo<DayBucket[]>(() => {
     const buckets: DayBucket[] = []
     const pastRangeStart = new Date(today.getTime() - DAYS_BACK * DAY_MS)
-    const todayKey = localDayDateKey(today)
     const pastCalls = dashboardScheduledCalls
       .filter((call) => {
         const due = new Date(call.due_at)
@@ -224,125 +271,17 @@ export default function OggiPage() {
     return buckets
   }, [dashboardScheduledCalls, today])
 
-  const todayBucket = days.find((day) => day.offset === 0)
-
-  const stagnantContacts = useMemo(
-    () =>
-      scopeContacts
-        .filter((contact) => !isClosedStatus(contact.status))
-        .filter((contact) => !contact.next_followup_at)
-        .filter((contact) => {
-          const reference = contact.last_contact_at || contact.created_at
-          return reference && new Date(reference) < stagnantCutoff
-        })
-        .slice(0, 6),
-    [scopeContacts, stagnantCutoff]
-  )
-
-  const latestImport = useMemo<LatestImport | null>(() => {
-    const byList = new Map<string, { count: number; latest: string }>()
-    for (const contact of scopeContacts) {
-      const listName = contact.list_name?.trim()
-      if (!listName) continue
-      const existing = byList.get(listName) || { count: 0, latest: contact.created_at }
-      existing.count += 1
-      if (contact.created_at > existing.latest) existing.latest = contact.created_at
-      byList.set(listName, existing)
-    }
-    let best: LatestImport | null = null
-    for (const [listName, data] of byList.entries()) {
-      if (!best || data.latest > best.createdAt) {
-        best = { listName, total: data.count, createdAt: data.latest }
-      }
-    }
-    if (!best) return null
-    const age = now.getTime() - new Date(best.createdAt).getTime()
-    return age < 30 * DAY_MS ? best : null
-  }, [scopeContacts, now])
-
-  const hour = now.getHours()
-  const greeting = greetingForHour(hour)
-  const dayLabel = formatItalianDate(now)
-
-  const stageOrderMap = useMemo(() => {
-    const map = new Map<string, number>()
-    stages.forEach((stage, index) => {
-      map.set(stage.name, Number.isFinite(stage.order) ? Number(stage.order) : index)
-    })
-    return map
-  }, [stages])
-
-  const contactedOrder = useMemo(() => {
-    const contactedStage = stages.find((stage) => stage.system_key === 'contacted' || isContactedStatus(stage.name))
-    if (contactedStage && Number.isFinite(contactedStage.order)) return Number(contactedStage.order)
-    return stageOrderMap.get('Contacted') ?? stageOrderMap.get('contattato') ?? 1
-  }, [stages, stageOrderMap])
-
-  const statusAboveContacted = useMemo(() => {
-    const allowed = new Set<string>()
-    for (const [status, order] of stageOrderMap.entries()) {
-      if (order > contactedOrder) {
-        allowed.add(status)
-      }
-    }
-    return allowed
-  }, [contactedOrder, stageOrderMap])
-
-  const scheduledByContactId = useMemo(
-    () => new Map(dashboardScheduledCalls.map((call) => [call.contact.id, call])),
-    [dashboardScheduledCalls]
-  )
-
-  const overdueCalls = useMemo<ScheduledCall[]>(() => {
-    const todayKey = localDayDateKey(today)
-    return dashboardScheduledCalls.filter((call) => {
-      const key = dueAtLocalDateKey(call.due_at)
-      if (!key || key >= todayKey) return false
-      return statusAboveContacted.has(call.contact.status)
-    })
-  }, [dashboardScheduledCalls, statusAboveContacted, today])
-
-  const totalUpcoming =
-    days
-      .filter((day) => !day.isPastRange)
-      .reduce((sum, day) => sum + day.calls.length, 0) + overdueCalls.length
-
-  const topPipelineContacts = useMemo(() => {
-    return scopeContacts
-      .filter((contact) => isInProgressStatus(contact.status))
-      .sort((left, right) => {
-        const rightPriority = Number(right.priority || 0)
-        const leftPriority = Number(left.priority || 0)
-        if (rightPriority !== leftPriority) return rightPriority - leftPriority
-
-        const rightStage = stageOrderMap.get(right.status) ?? 0
-        const leftStage = stageOrderMap.get(left.status) ?? 0
-        if (rightStage !== leftStage) return rightStage - leftStage
-
-        const leftDue = new Date(
-          scheduledByContactId.get(left.id)?.due_at || left.next_followup_at || '2999-12-31'
-        ).getTime()
-        const rightDue = new Date(
-          scheduledByContactId.get(right.id)?.due_at || right.next_followup_at || '2999-12-31'
-        ).getTime()
-        if (leftDue !== rightDue) return leftDue - rightDue
-
-        return left.name.localeCompare(right.name)
-      })
-      .slice(0, 8)
-  }, [scopeContacts, scheduledByContactId, stageOrderMap])
-
+  // ─── Handlers ───
   async function handleComplete(taskId: string | null) {
     if (!taskId) return
     try {
       await completeTask(taskId)
-    } catch {
-      // handled by layout
-    }
+    } catch { /* handled by layout */ }
   }
 
-  async function handleQuickSchedule(call: ScheduledCall, dayOffset: number) {
-    const originalDue = new Date(call.due_at)
+  async function handleReschedule(contactId: string, taskId: string | null, dayOffset: number) {
+    const call = scheduledByContactId.get(contactId)
+    const originalDue = call ? new Date(call.due_at) : new Date()
     const targetDate = new Date(today.getTime() + dayOffset * DAY_MS)
     targetDate.setHours(originalDue.getHours(), originalDue.getMinutes(), 0, 0)
 
@@ -352,14 +291,14 @@ export default function OggiPage() {
     }
 
     try {
-      if (call.task?.id) {
-        await updateTask(call.task.id, { due_date: targetDate.toISOString() })
+      if (taskId) {
+        await updateTask(taskId, { due_date: targetDate.toISOString() })
       } else {
-        await updateContact(call.contact.id, { next_followup_at: targetDate.toISOString() })
+        await updateContact(contactId, { next_followup_at: targetDate.toISOString() })
       }
-      showToast(`${call.contact.name} spostato a ${quickShiftLabel(dayOffset)}`)
+      showToast(`Spostato a ${dayOffset === 0 ? 'oggi' : `+${dayOffset} giorni`}`)
     } catch (error) {
-      showToast(`Errore: ${error instanceof Error ? error.message : 'spostamento rapido'}`)
+      showToast(`Errore: ${error instanceof Error ? error.message : 'spostamento'}`)
     }
   }
 
@@ -445,89 +384,11 @@ export default function OggiPage() {
     }
   }
 
-  async function handleAcumbamailSync(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const campaignId = acumbaCampaignId.trim()
-    if (!campaignId) {
-      showToast('Inserisci ID campagna Acumbamail')
-      return
-    }
-
-    setAcumbaSyncing(true)
-    try {
-      const result = await apiFetch<AcumbamailSyncResponse>('/api/integrations/acumbamail/sync-campaign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          campaign_id: campaignId,
-          responsible: acumbaResponsible || null,
-          list_name: acumbaListName || `Acumbamail ${campaignId}`,
-          contact_scope: 'crm',
-          create_missing: true,
-        }),
-      })
-      showToast(
-        `Acumbamail: ${result.openers} aperture, ${result.clickers} click, ${result.created_contacts} nuovi`
-      )
-      refresh()
-    } catch (error) {
-      showToast(`Errore Acumbamail: ${error instanceof Error ? error.message : 'sync non riuscita'}`)
-    } finally {
-      setAcumbaSyncing(false)
-    }
-  }
-
-  return (
-    <div className="oggi-page oggi-v2">
-      <header className="oggi-hero">
-        <div>
-          <h1>{greeting}.</h1>
-          <p className="oggi-date">{dayLabel}</p>
-        </div>
-        <div className="oggi-hero-stats">
-          <div className="oggi-stat">
-            <strong>{overdueCalls.length}</strong>
-            <span>scaduti</span>
-          </div>
-          <div className="oggi-stat">
-            <strong>{todayBucket?.calls.length || 0}</strong>
-            <span>oggi</span>
-          </div>
-          <div className="oggi-stat">
-            <strong>{totalUpcoming}</strong>
-            <span>prossimi ~2 sett.</span>
-          </div>
-        </div>
-        <div className="oggi-hero-actions">
-          {isAdmin && teamMembers.length > 0 && (
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={() => setAdminDashboardShowAllContacts((v) => !v)}
-              aria-pressed={adminDashboardShowAllContacts}
-              title={
-                adminDashboardShowAllContacts
-                  ? 'Torna alla vista solo miei / non assegnati agli altri nel team'
-                  : 'Mostra tutti i contatti del workspace (anche assegnati ai colleghi)'
-              }
-            >
-              {adminDashboardShowAllContacts
-                ? adminScopeName
-                  ? `Solo ${adminScopeName}`
-                  : 'Solo i miei'
-                : 'Vedi tutti'}
-            </button>
-          )}
-          <Link href="/contacts?new=1" className="btn btn-primary">
-            + Nuovo contatto
-          </Link>
-          <Link href="/import" className="btn btn-ghost">
-            📥 Importa CSV
-          </Link>
-        </div>
-      </header>
-
-      {allContacts.length === 0 && (
+  // ─── Onboarding per workspace vuoto ───
+  if (allContacts.length === 0) {
+    return (
+      <div className="oggi-page oggi-v2">
+        <DashboardHero overdueCount={0} todayCount={0} hotCount={0} />
         <section className="oggi-onboarding">
           <div className="oggi-onboarding-icon">👋</div>
           <h2>Benvenuto in Speaqi!</h2>
@@ -541,218 +402,139 @@ export default function OggiPage() {
             <Link href="/voice" className="btn btn-ghost">🎤 Prova nota vocale</Link>
           </div>
         </section>
-      )}
+        <Link href="/voice" className="voice-fab" title="Nota vocale rapida">🎤</Link>
+      </div>
+    )
+  }
 
-      <div className={`oggi-focus-grid ${overdueCalls.length === 0 ? 'is-single' : ''}`}>
-        {overdueCalls.length > 0 && (
-          <section
-            className={`oggi-overdue ${dragOverKey === 'overdue' ? 'is-drop-target' : ''}`}
-            onDragOver={(event) => handleDragOver(event, 'overdue')}
-            onDragLeave={(event) => handleDragLeave(event, 'overdue')}
-            onDrop={(event) => handleDrop(event, today)}
+  return (
+    <div className="oggi-page oggi-v2">
+      <DashboardHero
+        overdueCount={overdueCount}
+        todayCount={todayCount}
+        hotCount={hotCount}
+      />
+
+      {/* Main 2-column layout */}
+      <div className="oggi-main-grid">
+        {/* Left: Priority Queue */}
+        <div className="oggi-main-left">
+          <DashboardPriorityQueue
+            items={queueItems}
+            onOpenContact={openDrawerFromMouse}
+            onComplete={handleComplete}
+            onReschedule={handleReschedule}
+          />
+        </div>
+
+        {/* Right: Risk + Top Leads */}
+        <div className="oggi-main-right">
+          {isAdmin && teamMembers.length > 0 && (
+            <div className="oggi-admin-bar">
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setAdminDashboardShowAllContacts((v) => !v)}
+                aria-pressed={adminDashboardShowAllContacts}
+              >
+                {adminDashboardShowAllContacts ? 'Solo i miei' : 'Vedi tutti'}
+              </button>
+            </div>
+          )}
+          <DashboardRiskPanel
+            riskItems={riskItems}
+            topLeads={topLeads}
+            onOpenContact={openDrawerFromMouse}
+          />
+        </div>
+      </div>
+
+      {/* Collapsible week grid */}
+      <section className="oggi-week">
+        <div className="oggi-week-head">
+          <h2>Pianificazione 2 settimane</h2>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setWeekExpanded(!weekExpanded)}
           >
-            <div className="oggi-overdue-head">
-              <span className="oggi-overdue-icon">⏰</span>
-              <h2>Scaduti da recuperare</h2>
-              <span className="oggi-overdue-count">{overdueCalls.length}</span>
-            </div>
-            <div className="oggi-overdue-list">
-              {overdueCalls.slice(0, 6).map((call) => (
-                <CallCard
-                  key={`ovd-${call.contact.id}`}
-                  call={call}
-                  variant="overdue"
-                  dragging={draggingId === call.contact.id}
-                  onComplete={handleComplete}
-                  onQuickMove={handleQuickSchedule}
-                  onOpenContact={openDrawerFromMouse}
-                  onDragStart={handleDragStart}
-                  onDragEnd={handleDragEnd}
-                />
-              ))}
-              {overdueCalls.length > 6 && (
-                <Link href="/kanban?view=list" className="oggi-overdue-more">
-                  +{overdueCalls.length - 6} altri →
-                </Link>
-              )}
-            </div>
-          </section>
-        )}
-
-        <section className="oggi-card oggi-top-pipeline-card">
-          <div className="oggi-card-title">🔥 Top pipeline in corso</div>
-          {topPipelineContacts.length === 0 ? (
-            <p className="oggi-muted">Nessun contatto in corso da evidenziare.</p>
-          ) : (
-            <div className="oggi-pipeline-list">
-              {topPipelineContacts.map((contact) => {
-                const call = scheduledByContactId.get(contact.id) || null
-                return (
-                <button
-                  type="button"
-                  key={contact.id}
-                  className="oggi-pipeline-row"
-                  onClick={(event) => openDrawerFromMouse(contact.id, event)}
-                  onKeyDown={(event) => openDrawerFromKeyboard(contact.id, event)}
+            {weekExpanded ? 'Comprimi' : 'Espandi'}
+          </button>
+          <Link href="/calendario" className="oggi-week-link">Vista calendario →</Link>
+        </div>
+        {weekExpanded && (
+          <div className="oggi-week-grid">
+            {days.map((day) => {
+              const key = day.key
+              const isDropTarget = dragOverKey === key
+              return (
+                <div
+                  key={key}
+                  className={`oggi-day-col ${day.offset === 0 ? 'is-today' : ''} ${day.isPastRange ? 'is-past-range' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
+                  onDragOver={day.isPastRange ? undefined : (event) => handleDragOver(event, key)}
+                  onDragLeave={day.isPastRange ? undefined : (event) => handleDragLeave(event, key)}
+                  onDrop={day.isPastRange ? undefined : (event) => handleDrop(event, day.date)}
                 >
-                  <span className="oggi-pipeline-main">
-                    <strong>{contact.name}</strong>
-                    <span>{statusLabel(contact.status)}</span>
-                  </span>
-                  <span className="oggi-pipeline-meta">
-                    {contact.priority > 0 && <em>{priorityLabel(contact.priority)}</em>}
-                    <span>{followupLabel(call?.due_at || contact.next_followup_at)}</span>
-                  </span>
-                </button>
+                  <div className="oggi-day-head">
+                    <span className="oggi-day-label">{day.label || dayLabelShort(day.date, day.offset)}</span>
+                    <span className="oggi-day-date">{day.dateLabel || dayNumber(day.date)}</span>
+                    {day.calls.length > 0 && <span className="oggi-day-count">{day.calls.length}</span>}
+                  </div>
+                  <div className="oggi-day-body">
+                    {day.calls.length === 0 ? (
+                      <div className="oggi-day-empty">{isDropTarget ? '⤵ Rilascia qui' : '—'}</div>
+                    ) : (
+                      day.calls.map((call) => (
+                        <div
+                          key={`d-${key}-${call.contact.id}`}
+                          className={`oggi-call-card is-${day.offset === 0 ? 'today' : 'upcoming'} ${call.contact.priority >= 3 ? 'is-hot' : ''} ${draggingId === call.contact.id ? 'is-dragging' : ''}`}
+                          draggable
+                          onDragStart={(event) => handleDragStart(event, call)}
+                          onDragEnd={handleDragEnd}
+                        >
+                          <div className="oggi-call-grip" aria-hidden>⋮⋮</div>
+                          <div className="oggi-call-time">
+                            {new Date(call.due_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                          <button
+                            type="button"
+                            className="oggi-call-body"
+                            onClick={(event) => openDrawerFromMouse(call.contact.id, event)}
+                          >
+                            <strong className="oggi-call-name">{call.contact.name}</strong>
+                            {call.contact.company && <span className="oggi-call-company">{call.contact.company}</span>}
+                          </button>
+                          {call.task?.id ? (
+                            <button
+                              type="button"
+                              className="oggi-call-done"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                handleComplete(call.task!.id)
+                              }}
+                              title="Segna completato"
+                            >
+                              ✓
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="oggi-call-done"
+                              onClick={(event) => openDrawerFromMouse(call.contact.id, event)}
+                            >
+                              →
+                            </button>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               )
             })}
           </div>
-          )}
-        </section>
-      </div>
-
-      <EmailDraftPanel
-        todayCalls={todayBucket?.calls || []}
-        updateContact={updateContact}
-        showToast={showToast}
-      />
-
-      <section className="oggi-week">
-        <div className="oggi-week-head">
-          <h2>Ultimi 7 giorni + circa 2 settimane</h2>
-          <span className="oggi-week-hint">Trascina un contatto per spostarlo di giorno</span>
-          <Link href="/calendario" className="oggi-week-link">Vista calendario →</Link>
-        </div>
-        <div className="oggi-week-grid">
-          {days.map((day) => {
-            const key = day.key
-            const isDropTarget = dragOverKey === key
-            return (
-              <div
-                key={key}
-                className={`oggi-day-col ${day.offset === 0 ? 'is-today' : ''} ${day.isPastRange ? 'is-past-range' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
-                onDragOver={day.isPastRange ? undefined : (event) => handleDragOver(event, key)}
-                onDragLeave={day.isPastRange ? undefined : (event) => handleDragLeave(event, key)}
-                onDrop={day.isPastRange ? undefined : (event) => handleDrop(event, day.date)}
-              >
-                <div className="oggi-day-head">
-                  <span className="oggi-day-label">{day.label || dayLabelShort(day.date, day.offset)}</span>
-                  <span className="oggi-day-date">{day.dateLabel || dayNumber(day.date)}</span>
-                  {day.calls.length > 0 && <span className="oggi-day-count">{day.calls.length}</span>}
-                </div>
-                <div className="oggi-day-body">
-                  {day.calls.length === 0 ? (
-                    <div className="oggi-day-empty">{isDropTarget ? '⤵ Rilascia qui' : '—'}</div>
-                  ) : (
-                    day.calls.map((call) => (
-                      <CallCard
-                        key={`d-${key}-${call.contact.id}`}
-                        call={call}
-                        variant={day.offset === 0 ? 'today' : 'upcoming'}
-                        dragging={draggingId === call.contact.id}
-                        onComplete={handleComplete}
-                        onOpenContact={openDrawerFromMouse}
-                        onDragStart={handleDragStart}
-                        onDragEnd={handleDragEnd}
-                      />
-                    ))
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
+        )}
       </section>
-
-      <div className="oggi-bottom-grid">
-        {isAdmin && (
-          <section className="oggi-card oggi-acumbamail-sync">
-            <div className="oggi-card-title">Acumbamail interessi</div>
-            <form className="oggi-acumbamail-form" onSubmit={handleAcumbamailSync}>
-              <label className="fl" htmlFor="acumba-campaign-id">
-                ID campagna
-                <input
-                  id="acumba-campaign-id"
-                  className="fi"
-                  value={acumbaCampaignId}
-                  onChange={(event) => setAcumbaCampaignId(event.target.value)}
-                  placeholder="Es. 123456"
-                  inputMode="numeric"
-                />
-              </label>
-              <label className="fl" htmlFor="acumba-responsible">
-                Responsabile
-                <select
-                  id="acumba-responsible"
-                  className="fi"
-                  value={acumbaResponsible}
-                  onChange={(event) => setAcumbaResponsible(event.target.value)}
-                >
-                  <option value="">Non assegnato</option>
-                  {teamMembers.map((member) => (
-                    <option key={member.id} value={member.name}>
-                      {member.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="fl" htmlFor="acumba-list-name">
-                Lista / tag
-                <input
-                  id="acumba-list-name"
-                  className="fi"
-                  value={acumbaListName}
-                  onChange={(event) => setAcumbaListName(event.target.value)}
-                  placeholder="Es. WMDEVENT"
-                />
-              </label>
-              <button className="btn btn-primary btn-sm" type="submit" disabled={acumbaSyncing}>
-                {acumbaSyncing ? 'Sincronizzo...' : 'Sincronizza interessi'}
-              </button>
-            </form>
-          </section>
-        )}
-
-        {latestImport && (
-          <section className="oggi-card oggi-card-accent">
-            <div className="oggi-card-title">📥 Ultimo import</div>
-            <div className="oggi-import-body">
-              <div className="oggi-import-meta">
-                <strong>{latestImport.listName}</strong>
-                <span>{latestImport.total} contatti</span>
-              </div>
-              <Link
-                href={`/contacts?list=${encodeURIComponent(latestImport.listName)}`}
-                className="btn btn-primary btn-sm"
-              >
-                Apri lista →
-              </Link>
-            </div>
-          </section>
-        )}
-
-        <section className="oggi-card">
-          <div className="oggi-card-title">💤 Fermi da 2 settimane</div>
-          {stagnantContacts.length === 0 ? (
-            <p className="oggi-muted">Tutti i contatti sono seguiti. 👏</p>
-          ) : (
-            <div className="oggi-stagnant-list">
-              {stagnantContacts.map((contact) => (
-                <button
-                  type="button"
-                  key={contact.id}
-                  className="oggi-stagnant-row"
-                  onClick={(event) => openDrawerFromMouse(contact.id, event)}
-                  onKeyDown={(event) => openDrawerFromKeyboard(contact.id, event)}
-                >
-                  <span className="oggi-stagnant-name">{contact.name}</span>
-                  <span className="oggi-stagnant-meta">{statusLabel(contact.status)}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
 
       <ContactDrawer
         contactId={drawerContactId}
@@ -796,91 +578,6 @@ export default function OggiPage() {
             : undefined
         }
       />
-    </div>
-  )
-}
-
-function CallCard({
-  call,
-  variant,
-  dragging,
-  onComplete,
-  onQuickMove,
-  onOpenContact,
-  onDragStart,
-  onDragEnd,
-}: {
-  call: ScheduledCall
-  variant: 'overdue' | 'today' | 'upcoming'
-  dragging: boolean
-  onComplete: (taskId: string | null) => void
-  onQuickMove?: (call: ScheduledCall, dayOffset: number) => void
-  onOpenContact: (contactId: string, event: MouseEvent<HTMLElement>) => void
-  onDragStart: (event: DragEvent<HTMLElement>, call: ScheduledCall) => void
-  onDragEnd: () => void
-}) {
-  const due = new Date(call.due_at)
-  const time = due.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
-  const priority = call.contact.priority
-
-  return (
-    <div
-      className={`oggi-call-card is-${variant} ${priority >= 3 ? 'is-hot' : ''} ${dragging ? 'is-dragging' : ''}`}
-      draggable
-      onDragStart={(event) => onDragStart(event, call)}
-      onDragEnd={onDragEnd}
-    >
-      <div className="oggi-call-grip" aria-hidden>⋮⋮</div>
-      <div className="oggi-call-time">
-        {variant === 'overdue' ? '⏰' : time}
-      </div>
-      <button
-        type="button"
-        className="oggi-call-body"
-        onClick={(event) => onOpenContact(call.contact.id, event)}
-      >
-        <strong className="oggi-call-name">{call.contact.name}</strong>
-        {call.contact.company && <span className="oggi-call-company">{call.contact.company}</span>}
-        {priority > 0 && <span className={`oggi-call-pri pri-${priority}`}>{priorityLabel(priority)}</span>}
-      </button>
-      {variant === 'overdue' ? (
-        <div className="oggi-call-actions">
-          {[0, 1, 3, 7].map((dayOffset) => (
-            <button
-              key={dayOffset}
-              type="button"
-              className="oggi-call-shift"
-              onClick={() => onQuickMove?.(call, dayOffset)}
-              onMouseDown={(event) => event.stopPropagation()}
-              title={`Sposta a ${quickShiftLabel(dayOffset)}`}
-            >
-              {quickShiftLabel(dayOffset)}
-            </button>
-          ))}
-        </div>
-      ) : call.task?.id ? (
-        <button
-          type="button"
-          className="oggi-call-done"
-          onClick={(event) => {
-            event.stopPropagation()
-            onComplete(call.task!.id)
-          }}
-          title="Segna completato"
-          aria-label="Segna completato"
-        >
-          ✓
-        </button>
-      ) : (
-        <button
-          type="button"
-          className="oggi-call-done"
-          onClick={(event) => onOpenContact(call.contact.id, event)}
-          aria-label="Apri"
-        >
-          →
-        </button>
-      )}
     </div>
   )
 }

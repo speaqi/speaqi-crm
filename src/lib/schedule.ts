@@ -96,3 +96,22 @@ export function dueAtLocalDateKey(iso: string | null | undefined): string | null
   if (Number.isNaN(d.getTime())) return null
   return localDayDateKey(d)
 }
+
+/** Inizio giornata nel fuso locale (00:00:00.000). */
+export function startOfDay(date: Date): Date {
+  const clone = new Date(date)
+  clone.setHours(0, 0, 0, 0)
+  return clone
+}
+
+/** Chiave giorno ISO (YYYY-MM-DD) — alias di localDayDateKey per uso generico. */
+export function dayKey(date: Date): string {
+  return localDayDateKey(date)
+}
+
+/** Sposta una data di N giorni (positivi = futuro). */
+export function shiftDays(date: Date, days: number): Date {
+  const result = new Date(date)
+  result.setDate(result.getDate() + days)
+  return result
+}

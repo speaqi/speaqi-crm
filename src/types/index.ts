@@ -50,6 +50,10 @@ export interface CRMContact {
   contact_scope?: ContactScope | null
   personal_section?: string | null
   promoted_at?: string | null
+  win_probability?: number | null
+  lost_reason?: string | null
+  company_size?: string | null
+  industry?: string | null
   last_activity_summary?: string | null
   last_contact_at?: string | null
   next_followup_at?: string | null
@@ -323,6 +327,10 @@ export interface ContactInput {
   next_followup_at?: string | null
   next_action_at?: string | null
   initial_task_note?: string
+  win_probability?: number | null
+  lost_reason?: string | null
+  company_size?: string | null
+  industry?: string | null
 }
 
 export interface ActivityInput {

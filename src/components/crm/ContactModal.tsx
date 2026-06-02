@@ -58,6 +58,8 @@ function buildInitialState(contact?: CRMContact | null, defaultSource?: string):
     value: contact.value ?? null,
     note: contact.note || '',
     next_followup_at: toDatetimeLocalValue(contact.next_followup_at),
+    lost_reason: contact.lost_reason || '',
+    win_probability: contact.win_probability ?? null,
   }
 }
 
@@ -93,6 +95,11 @@ export function ContactModal({
       return
     }
 
+    if (isClosedStatus(form.status) && form.status.toLowerCase() === 'lost' && !(form.lost_reason || '').trim()) {
+      window.alert('Indica il motivo della perdita (lost_reason)')
+      return
+    }
+
     setSaving(true)
     try {
       await onSave({
@@ -114,6 +121,8 @@ export function ContactModal({
         responsible: form.responsible?.trim(),
         note: form.note?.trim(),
         next_followup_at: fromDatetimeLocalValue(form.next_followup_at),
+        lost_reason: isClosedStatus(form.status) && form.status.toLowerCase() === 'lost' ? form.lost_reason?.trim() : null,
+        win_probability: form.win_probability ?? null,
       })
       onClose()
     } finally {
@@ -442,6 +451,22 @@ export function ContactModal({
           }
         />
       </div>
+
+      {form.status.toLowerCase() === 'lost' && (
+        <div className="fg">
+          <label className="fl" style={{ color: '#ef4444' }}>
+            Motivo perdita <span style={{ color: '#ef4444' }}>*</span>
+          </label>
+          <textarea
+            className="fi"
+            rows={2}
+            value={form.lost_reason || ''}
+            onChange={(event) => setForm((previous) => ({ ...previous, lost_reason: event.target.value }))}
+            style={{ resize: 'vertical', borderColor: !form.lost_reason?.trim() ? '#fca5a5' : undefined }}
+            placeholder="Es. Budget insufficiente, scelta concorrente, non più interessato..."
+          />
+        </div>
+      )}
     </Modal>
   )
 }

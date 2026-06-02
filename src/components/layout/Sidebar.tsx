@@ -19,15 +19,11 @@ interface SidebarProps {
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Oggi', icon: '🏠', badgeKey: 'oggi' as const, badgeRed: true },
-  { href: '/operativo', label: 'Centro Operativo', icon: '◎', badgeKey: 'tasks' as const, badgeRed: true },
-  { href: '/contacts', label: 'Contatti', icon: '👥', badgeKey: 'contacts' as const },
-  { href: '/marketing', label: 'Marketing', icon: '✉️', badgeKey: 'marketing' as const },
-  { href: '/personali', label: 'Personali', icon: '🗂️', badgeKey: 'personal' as const },
   { href: '/kanban', label: 'Pipeline', icon: '🔀', badgeKey: 'kanban' as const },
+  { href: '/contacts', label: 'Contatti', icon: '👥', badgeKey: 'contacts' as const },
   { href: '/preventivi', label: 'Preventivi', icon: '💶' },
-  { href: '/calendario', label: 'Calendario', icon: '📅' },
-  { href: '/attivita', label: 'Attività', icon: '📊' },
-  { href: '/import', label: 'Importa', icon: '📥' },
+  { href: '/calendario', label: 'Follow-up', icon: '📅', badgeKey: 'tasks' as const, badgeRed: true },
+  { href: '/attivita', label: 'Analytics', icon: '📊' },
   { href: '/impostazioni', label: 'Impostazioni', icon: '⚙️' },
 ]
 
@@ -65,6 +61,17 @@ export function Sidebar({ counts }: SidebarProps) {
           )
         })}
       </nav>
+
+      <div className="sidebar-footer">
+        <Link href="/personali" className="nav-item sidebar-footer-item">
+          <span className="icon">🗂️</span>
+          Personali
+        </Link>
+        <Link href="/import" className="nav-item sidebar-footer-item">
+          <span className="icon">📥</span>
+          Importa
+        </Link>
+      </div>
     </aside>
   )
 }

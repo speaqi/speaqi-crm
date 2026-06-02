@@ -44,6 +44,10 @@ type OptionalContactColumn =
   | 'billing_address'
   | 'billing_zip'
   | 'billing_city'
+  | 'lost_reason'
+  | 'win_probability'
+  | 'company_size'
+  | 'industry'
 
 const BILLING_CONTACT_COLUMNS: OptionalContactColumn[] = [
   'billing_tax_id',
@@ -196,6 +200,18 @@ function buildContactUpdateSummary(current: any, next: any) {
   }
   if ((current.email_draft_note || null) !== (next.email_draft_note || null)) {
     changes.push('nota bozza email aggiornata')
+  }
+  if ((current.lost_reason || null) !== (next.lost_reason || null)) {
+    changes.push('motivo perdita aggiornato')
+  }
+  if (Number(current.win_probability || 0) !== Number(next.win_probability || 0)) {
+    changes.push(`probabilità chiusura ${current.win_probability || 0}% -> ${next.win_probability || 0}%`)
+  }
+  if ((current.company_size || null) !== (next.company_size || null)) {
+    changes.push('dimensione azienda aggiornata')
+  }
+  if ((current.industry || null) !== (next.industry || null)) {
+    changes.push(`settore ${displayValue(current.industry)} -> ${displayValue(next.industry)}`)
   }
   if ((current.next_followup_at || null) !== (next.next_followup_at || null)) {
     changes.push(`follow-up ${formatActivityDate(current.next_followup_at)} -> ${formatActivityDate(next.next_followup_at)}`)
@@ -373,6 +389,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       note: body.note !== undefined ? normalizeText(body.note) : current.note,
       email_draft_note:
         body.email_draft_note !== undefined ? normalizeText(body.email_draft_note) : current.email_draft_note,
+      lost_reason:
+        body.lost_reason !== undefined ? normalizeText(body.lost_reason) : current.lost_reason,
+      win_probability:
+        body.win_probability !== undefined ? normalizeNumber(body.win_probability) : current.win_probability,
+      company_size:
+        body.company_size !== undefined ? normalizeText(body.company_size) : current.company_size,
+      industry:
+        body.industry !== undefined ? normalizeText(body.industry) : current.industry,
       next_action_at: nextFollowupAt,
       next_followup_at: nextFollowupAt,
     }

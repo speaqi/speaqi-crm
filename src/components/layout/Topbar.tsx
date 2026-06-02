@@ -17,10 +17,10 @@ const PAGE_TITLES: Record<string, string> = {
   '/impostazioni/team': '👥 Team',
   '/quick-capture': '⚡ Cattura rapida',
   '/gmail': '✉️ Gmail',
-  '/attivita': '⚙️ Attività & Follow-up',
-  '/calendario': '📅 Calendario',
-  '/vinitaly': '🗃️ Vinitaly (legacy)',
-  '/speaqi': '⚡ Lead inbound (legacy)',
+  '/attivita': '📊 Analytics',
+  '/calendario': '📅 Follow-up',
+  '/vinitaly': '🗃️ Liste separate',
+  '/speaqi': '⚡ Lead inbound',
   '/voice': '🎤 Note vocali',
 }
 

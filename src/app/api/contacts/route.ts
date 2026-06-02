@@ -44,6 +44,10 @@ type OptionalContactColumn =
   | 'billing_address'
   | 'billing_zip'
   | 'billing_city'
+  | 'lost_reason'
+  | 'win_probability'
+  | 'company_size'
+  | 'industry'
 
 const BILLING_CONTACT_COLUMNS: OptionalContactColumn[] = [
   'billing_tax_id',
@@ -199,6 +203,10 @@ export async function POST(request: NextRequest) {
       next_action_at: contactScope === 'holding' ? null : nextFollowupAt,
       next_followup_at: contactScope === 'holding' ? null : nextFollowupAt,
       last_activity_summary: rawNote,
+      lost_reason: normalizeText(body.lost_reason),
+      win_probability: normalizeNumber(body.win_probability),
+      company_size: normalizeText(body.company_size),
+      industry: normalizeText(body.industry),
     }
 
     if (!auth.isAdmin) {

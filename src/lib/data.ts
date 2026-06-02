@@ -56,6 +56,8 @@ export const EMPTY_CONTACT_INPUT: ContactInput = {
   value: null,
   note: '',
   next_followup_at: '',
+  lost_reason: '',
+  win_probability: null,
 }
 
 export function priorityLabel(priority?: number | null) {
