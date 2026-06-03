@@ -12,6 +12,8 @@ import type {
   CRMContact,
   CRMState,
   PipelineStage,
+  StandaloneTaskInput,
+  Task,
   TaskInput,
   TaskWithContact,
   TeamMember,
@@ -103,6 +105,7 @@ export function useCRM(pathname = '') {
     tasks: [],
   })
   const [vNotes, setVNotes] = useState<VoiceNote[]>([])
+  const [standaloneTasks, setStandaloneTasks] = useState<Task[]>([])
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
   const [isAdmin, setIsAdmin] = useState(true)
   /** Nome nel team per il collaboratore loggato (dal server); null per admin o non risolto. */
@@ -155,6 +158,7 @@ export function useCRM(pathname = '') {
     () =>
       state.tasks.filter(
         (task) =>
+          task.contact_id &&
           !holdingContactIds.has(task.contact_id) &&
           !personalContactIds.has(task.contact_id) &&
           !partnerContactIds.has(task.contact_id) &&
@@ -169,7 +173,7 @@ export function useCRM(pathname = '') {
     () =>
       state.tasks.filter(
         (task) =>
-          personalContactIds.has(task.contact_id) ||
+          (task.contact_id && personalContactIds.has(task.contact_id)) ||
           isPersonalContact({ contact_scope: task.contact?.contact_scope || 'crm' })
       ),
     [personalContactIds, state.tasks]
@@ -179,7 +183,7 @@ export function useCRM(pathname = '') {
     () =>
       state.tasks.filter(
         (task) =>
-          partnerContactIds.has(task.contact_id) ||
+          (task.contact_id && partnerContactIds.has(task.contact_id)) ||
           isPartnerContact({ contact_scope: task.contact?.contact_scope || 'crm' })
       ),
     [partnerContactIds, state.tasks]
@@ -282,6 +286,14 @@ export function useCRM(pathname = '') {
         nextTasks = tasksResponse.tasks || []
       } catch (tasksError) {
         warnings.push(`Task: ${extractMessage(tasksError, 'Errore caricando i task')}`)
+      }
+
+      // Load standalone to-do tasks
+      try {
+        const standaloneResponse = await apiFetch<{ tasks: Task[] }>('/api/tasks/standalone')
+        setStandaloneTasks(standaloneResponse.tasks || [])
+      } catch {
+        // standalone tasks are optional, don't block
       }
 
       setState((previous) => ({
@@ -611,7 +623,7 @@ export function useCRM(pathname = '') {
                           ...task,
                           ...response.task,
                           contact: buildTaskContactSnapshot(
-                            contactForTask(response.task.contact_id || task.contact_id)
+                            contactForTask((response.task.contact_id || task.contact_id) || '')
                           ),
                         }
                       : task
@@ -628,6 +640,34 @@ export function useCRM(pathname = '') {
     },
     [loadAll]
   )
+
+  const loadStandaloneTasks = useCallback(async () => {
+    try {
+      const response = await apiFetch<{ tasks: Task[] }>('/api/tasks/standalone')
+      setStandaloneTasks(response.tasks || [])
+    } catch {
+      // silently ignore
+    }
+  }, [])
+
+  const createStandaloneTask = useCallback(async (payload: StandaloneTaskInput) => {
+    const response = await apiFetch<{ task: Task }>('/api/tasks/standalone', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    setStandaloneTasks((previous) => [...previous, response.task])
+    return response.task
+  }, [])
+
+  const completeStandaloneTask = useCallback(async (taskId: string) => {
+    await apiFetch(`/api/tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'done' }),
+    })
+    setStandaloneTasks((previous) => previous.filter((t) => t.id !== taskId))
+  }, [])
 
   const loadContactDetail = useCallback(async (id: string) => {
     return apiFetch<ContactDetail>(`/api/contacts/${id}`)
@@ -712,6 +752,10 @@ export function useCRM(pathname = '') {
     loading,
     error,
     userId,
+    standaloneTasks,
+    loadStandaloneTasks,
+    createStandaloneTask,
+    completeStandaloneTask,
     refresh: () => loadAll({ background: true }),
     adminDashboardShowAllContacts,
     setAdminDashboardShowAllContacts,

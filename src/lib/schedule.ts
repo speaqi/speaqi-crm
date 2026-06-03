@@ -31,7 +31,7 @@ export function buildScheduledCalls(contacts: CRMContact[], tasks: TaskWithConta
   const pendingCallTasks = new Map<string, TaskWithContact[]>()
 
   for (const task of tasks) {
-    if (task.status !== 'pending' || !task.due_date || !isCallTaskType(task.type)) continue
+    if (task.status !== 'pending' || !task.due_date || !isCallTaskType(task.type) || !task.contact_id) continue
     const current = pendingCallTasks.get(task.contact_id) || []
     current.push(task)
     pendingCallTasks.set(task.contact_id, current)

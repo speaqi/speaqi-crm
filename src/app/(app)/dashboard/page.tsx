@@ -77,6 +77,9 @@ export default function OggiPage() {
     viewerMemberName,
     authEmail,
     partnerContacts,
+    standaloneTasks,
+    createStandaloneTask,
+    completeStandaloneTask,
     adminDashboardShowAllContacts,
     setAdminDashboardShowAllContacts,
     completeTask,
@@ -94,6 +97,8 @@ export default function OggiPage() {
   const [editingContact, setEditingContact] = useState<CRMContact | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [weekExpanded, setWeekExpanded] = useState(false)
+  const [todoInput, setTodoInput] = useState('')
+  const [todoAdding, setTodoAdding] = useState(false)
 
   const now = new Date()
   const today = startOfDay(now)
@@ -449,6 +454,63 @@ export default function OggiPage() {
           />
         </div>
       </div>
+
+      {/* ─── TO-DO LIST ─── */}
+      <section className="oggi-todo">
+        <div className="oggi-todo-head">
+          <h2>📋 Cose da fare oggi</h2>
+          <span className="oggi-todo-count">{standaloneTasks.length}</span>
+        </div>
+        <div className="oggi-todo-body">
+          {standaloneTasks.map((t) => (
+            <div key={t.id} className="oggi-todo-item">
+              <button
+                type="button"
+                className="oggi-todo-check"
+                onClick={async () => {
+                  try {
+                    await completeStandaloneTask(t.id)
+                    showToast('Fatto ✓')
+                  } catch (e) {
+                    showToast(`Errore: ${e instanceof Error ? e.message : 'completamento'}`)
+                  }
+                }}
+                title="Segna come fatto"
+              >
+                ○
+              </button>
+              <span className="oggi-todo-text">{t.title || t.note}</span>
+            </div>
+          ))}
+          <form
+            className="oggi-todo-add"
+            onSubmit={async (e) => {
+              e.preventDefault()
+              const text = todoInput.trim()
+              if (!text || todoAdding) return
+              setTodoAdding(true)
+              try {
+                await createStandaloneTask({ title: text })
+                setTodoInput('')
+                showToast('Aggiunto')
+              } catch (err) {
+                showToast(`Errore: ${err instanceof Error ? err.message : 'aggiunta task'}`)
+              } finally {
+                setTodoAdding(false)
+              }
+            }}
+          >
+            <input
+              className="oggi-todo-input"
+              type="text"
+              value={todoInput}
+              onChange={(e) => setTodoInput(e.target.value)}
+              placeholder="Scrivi cosa devi fare e premi Invio..."
+              disabled={todoAdding}
+            />
+          </form>
+        </div>
+      </section>
 
       {/* Collapsible week grid */}
       <section className="oggi-week">

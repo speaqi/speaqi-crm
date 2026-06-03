@@ -32,7 +32,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     if (currentTaskError) throw currentTaskError
 
-    if (!auth.isAdmin) {
+    const isStandalone = !currentTask.contact_id
+
+    if (!auth.isAdmin && !isStandalone) {
       let ownerQuery = auth.supabase
         .from('contacts')
         .select('id')
@@ -55,6 +57,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const updatePayload: Record<string, unknown> = {}
 
     if (body.note !== undefined) updatePayload.note = String(body.note || '')
+    if (body.title !== undefined) updatePayload.title = String(body.title || '') || null
     if (body.due_date !== undefined) updatePayload.due_date = body.due_date || null
     if (body.priority !== undefined) updatePayload.priority = body.priority || 'medium'
     if (body.action !== undefined) updatePayload.action = body.action || null
@@ -73,61 +76,65 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     if (error) throw error
 
-    let syncedNextFollowupAt: string | null | undefined
-    if (
-      (currentTask.due_date || null) !== (data.due_date || null) ||
-      currentTask.status !== data.status ||
-      (currentTask.action || null) !== (data.action || null)
-    ) {
-      const syncedDates = await syncLeadActionDates(auth.supabase, auth.workspaceUserId, data.contact_id)
-      syncedNextFollowupAt = syncedDates.nextFollowupAt
+    if (!isStandalone && data.contact_id) {
+      let syncedNextFollowupAt: string | null | undefined
+      if (
+        (currentTask.due_date || null) !== (data.due_date || null) ||
+        currentTask.status !== data.status ||
+        (currentTask.action || null) !== (data.action || null)
+      ) {
+        const syncedDates = await syncLeadActionDates(auth.supabase, auth.workspaceUserId, data.contact_id)
+        syncedNextFollowupAt = syncedDates.nextFollowupAt
+      }
+
+      const changes: string[] = []
+      if (currentTask.status !== data.status) {
+        if (data.status === 'done') changes.push('completato')
+        else changes.push(`stato ${currentTask.status} -> ${data.status}`)
+      }
+      if ((currentTask.due_date || null) !== (data.due_date || null)) {
+        changes.push(`scadenza ${formatActivityDate(currentTask.due_date)} -> ${formatActivityDate(data.due_date)}`)
+      }
+      if ((currentTask.note || null) !== (data.note || null)) {
+        changes.push(data.note ? 'nota aggiornata' : 'nota rimossa')
+      }
+      if ((currentTask.priority || null) !== (data.priority || null)) {
+        changes.push(`priorità ${currentTask.priority || 'vuota'} -> ${data.priority || 'vuota'}`)
+      }
+      if ((currentTask.action || null) !== (data.action || null)) {
+        changes.push(`azione ${(currentTask.action || 'vuota')} -> ${(data.action || 'vuota')}`)
+      }
+
+      if (changes.length) {
+        const activityContent =
+          changes.length === 1 && changes[0] === 'completato'
+            ? `Task ${data.type} completato.`
+            : `Task ${data.type} aggiornato: ${changes.join('; ')}.`
+
+        await createActivities(auth.supabase, [
+          {
+            user_id: auth.workspaceUserId,
+            contact_id: data.contact_id,
+            type: 'task',
+            content: activityContent,
+          },
+        ])
+        await updateContactSummary(auth.supabase, data.contact_id, activityContent, {
+          nextFollowupAt: isCallTaskType(data.type) ? syncedNextFollowupAt : undefined,
+        })
+      }
+
+      const { data: contactRefresh } = await auth.supabase
+        .from('contacts')
+        .select('*')
+        .eq('user_id', auth.workspaceUserId)
+        .eq('id', data.contact_id)
+        .maybeSingle()
+
+      return Response.json({ task: data, contact: contactRefresh ?? null })
     }
 
-    const changes: string[] = []
-    if (currentTask.status !== data.status) {
-      if (data.status === 'done') changes.push('completato')
-      else changes.push(`stato ${currentTask.status} -> ${data.status}`)
-    }
-    if ((currentTask.due_date || null) !== (data.due_date || null)) {
-      changes.push(`scadenza ${formatActivityDate(currentTask.due_date)} -> ${formatActivityDate(data.due_date)}`)
-    }
-    if ((currentTask.note || null) !== (data.note || null)) {
-      changes.push(data.note ? 'nota aggiornata' : 'nota rimossa')
-    }
-    if ((currentTask.priority || null) !== (data.priority || null)) {
-      changes.push(`priorità ${currentTask.priority || 'vuota'} -> ${data.priority || 'vuota'}`)
-    }
-    if ((currentTask.action || null) !== (data.action || null)) {
-      changes.push(`azione ${(currentTask.action || 'vuota')} -> ${(data.action || 'vuota')}`)
-    }
-
-    if (changes.length) {
-      const activityContent =
-        changes.length === 1 && changes[0] === 'completato'
-          ? `Task ${data.type} completato.`
-          : `Task ${data.type} aggiornato: ${changes.join('; ')}.`
-
-      await createActivities(auth.supabase, [
-        {
-          user_id: auth.workspaceUserId,
-          contact_id: data.contact_id,
-          type: 'task',
-          content: activityContent,
-        },
-      ])
-      await updateContactSummary(auth.supabase, data.contact_id, activityContent, {
-        nextFollowupAt: isCallTaskType(data.type) ? syncedNextFollowupAt : undefined,
-      })
-    }
-
-    const { data: contactRefresh } = await auth.supabase
-      .from('contacts')
-      .select('*')
-      .eq('user_id', auth.workspaceUserId)
-      .eq('id', data.contact_id)
-      .maybeSingle()
-
-    return Response.json({ task: data, contact: contactRefresh ?? null })
+    return Response.json({ task: data, contact: null })
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : 'Failed to update task' },

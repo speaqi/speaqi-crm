@@ -97,9 +97,10 @@ export interface ActivityWithContact extends Activity {
 
 export interface Task {
   id: string
-  contact_id: string
+  contact_id?: string | null
   user_id?: string
   type: string
+  title?: string | null
   action?: 'send_email' | 'call' | 'wait' | null
   due_date?: string | null
   priority?: 'low' | 'medium' | 'high' | null
@@ -345,11 +346,19 @@ export interface ActivityInput {
 
 export interface TaskInput {
   type: string
+  title?: string | null
   action?: 'send_email' | 'call' | 'wait'
   due_date: string
   priority?: 'low' | 'medium' | 'high'
   note?: string
   idempotency_key?: string
+}
+
+export interface StandaloneTaskInput {
+  title: string
+  note?: string
+  due_date?: string
+  priority?: 'low' | 'medium' | 'high'
 }
 
 export interface GmailAccountStatus {

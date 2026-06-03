@@ -179,7 +179,7 @@ function firstPendingTaskByContact(tasks: Task[]) {
   })
 
   for (const task of sorted) {
-    if (!byContact.has(task.contact_id)) byContact.set(task.contact_id, task)
+    if (task.contact_id && !byContact.has(task.contact_id)) byContact.set(task.contact_id, task)
   }
   return byContact
 }
@@ -257,7 +257,7 @@ export async function buildOperatingQueue(
 
   const allowedContactIds = new Set(contactIds)
   const taskByContact = firstPendingTaskByContact(
-    ((tasksResult.data || []) as Task[]).filter((task) => allowedContactIds.has(task.contact_id))
+    ((tasksResult.data || []) as Task[]).filter((task) => task.contact_id && allowedContactIds.has(task.contact_id))
   )
   const quoteByContact = newestQuoteByContact(
     ((quotesResult.data || []) as Quote[]).filter((quote) => quote.contact_id && allowedContactIds.has(quote.contact_id))
