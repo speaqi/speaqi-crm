@@ -117,6 +117,22 @@ export default function ContactDetailPage() {
     }
   }
 
+  // ─── Promote to partner ───
+  const [promotingToPartner, setPromotingToPartner] = useState(false)
+  async function handlePromoteToPartner() {
+    if (!detail) return
+    setPromotingToPartner(true)
+    try {
+      await updateContact(contactId, { contact_scope: 'partner' })
+      showToast('Spostato nei Partner')
+      await loadDetail(false)
+    } catch (error) {
+      showToast(`Errore: ${error instanceof Error ? error.message : 'spostamento partner'}`)
+    } finally {
+      setPromotingToPartner(false)
+    }
+  }
+
   // ─── AI next action suggestion ───
   async function fetchAiSuggestion() {
     setAiSuggestionLoading(true)
@@ -309,6 +325,22 @@ export default function ContactDetailPage() {
                     </button>
                   )
                 })}
+                <span className="detail-stage-sep">·</span>
+                <button
+                  type="button"
+                  className={`detail-stage-chip detail-stage-partner ${partnerContact ? 'active' : ''}`}
+                  style={{
+                    '--stage-color': '#f59e0b',
+                    borderColor: partnerContact ? '#f59e0b' : undefined,
+                    background: partnerContact ? '#f59e0b' : undefined,
+                    color: partnerContact ? '#fff' : undefined,
+                  } as React.CSSProperties}
+                  disabled={promotingToPartner || partnerContact}
+                  onClick={handlePromoteToPartner}
+                  title={partnerContact ? 'Già nei Partner' : 'Sposta nei Partner'}
+                >
+                  🤝 Partner
+                </button>
                 <span className="detail-stage-sep">·</span>
                 {closedStages.map((stage) => {
                   const isCurrent = stage.name === contact.status
