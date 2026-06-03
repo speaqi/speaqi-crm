@@ -9,6 +9,7 @@ interface SidebarProps {
     kanban: number
     contacts: number
     personal: number
+    partner: number
     vinitaly: number
     speaqi: number
     marketing: number
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   { href: '/dashboard', label: 'Oggi', icon: '🏠', badgeKey: 'oggi' as const, badgeRed: true },
   { href: '/kanban', label: 'Pipeline', icon: '🔀', badgeKey: 'kanban' as const },
   { href: '/contacts', label: 'Contatti', icon: '👥', badgeKey: 'contacts' as const },
+  { href: '/partner', label: 'Partner', icon: '🤝', badgeKey: 'partner' as const },
   { href: '/preventivi', label: 'Preventivi', icon: '💶' },
   { href: '/calendario', label: 'Follow-up', icon: '📅', badgeKey: 'tasks' as const, badgeRed: true },
   { href: '/attivita', label: 'Analytics', icon: '📊' },

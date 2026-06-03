@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
 import { ContactModal } from '@/components/crm/ContactModal'
 import { APIError, apiFetch } from '@/lib/api'
-import { ACTIVITY_TYPES, TASK_TYPES, activityTypeLabel, contactScopeLabel, formatDateTime, fromDatetimeLocalValue, holdingListLabel, isClosedStatus, isHoldingContact, isPersonalContact, personalSectionLabel, priorityLabel, sourceLabel, stageColor, statusLabel, toDatetimeLocalValue } from '@/lib/data'
+import { ACTIVITY_TYPES, TASK_TYPES, activityTypeLabel, contactScopeLabel, formatDateTime, fromDatetimeLocalValue, holdingListLabel, isClosedStatus, isHoldingContact, isPartnerContact, isPersonalContact, personalSectionLabel, priorityLabel, sourceLabel, stageColor, statusLabel, toDatetimeLocalValue } from '@/lib/data'
 import { useCRMContext } from '../../layout'
 import type { Activity, ContactDetail, GmailAccountStatus, GmailMessage } from '@/types'
 
@@ -192,6 +192,7 @@ export default function ContactDetailPage() {
   const { contact, activities, tasks } = detail
   const holdingContact = isHoldingContact(contact)
   const personalContact = isPersonalContact(contact)
+  const partnerContact = isPartnerContact(contact)
   const pinnedNotes = activities.filter((activity) => isPinnedNote(activity) || isActionRequiredNote(activity))
   const activeStages = stages.filter((s) => {
     const key = (s.system_key || s.name).toLowerCase()
@@ -202,8 +203,8 @@ export default function ContactDetailPage() {
     return ['lost', 'closed', 'paid'].includes(key)
   })
 
-  const backLabel = holdingContact ? 'alle liste separate' : personalContact ? 'ai personali' : 'ai contatti'
-  const backHref = holdingContact ? '/vinitaly' : personalContact ? '/personali' : '/contacts'
+  const backLabel = holdingContact ? 'alle liste separate' : personalContact ? 'ai personali' : partnerContact ? 'ai partner' : 'ai contatti'
+  const backHref = holdingContact ? '/vinitaly' : personalContact ? '/personali' : partnerContact ? '/partner' : '/contacts'
 
   return (
     <>

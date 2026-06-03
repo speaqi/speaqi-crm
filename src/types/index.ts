@@ -1,4 +1,4 @@
-export type ContactScope = 'crm' | 'holding' | 'personal'
+export type ContactScope = 'crm' | 'holding' | 'personal' | 'partner'
 export type MarketingStatus =
   | 'not_ready'
   | 'ready_to_draft'

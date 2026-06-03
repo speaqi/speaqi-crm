@@ -298,6 +298,7 @@ export function ContactModal({
           }
         >
           <option value="crm">CRM</option>
+          <option value="partner">Partner</option>
           <option value="personal">Area personale</option>
           <option value="holding">Lista separata</option>
         </select>

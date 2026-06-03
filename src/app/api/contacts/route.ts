@@ -114,6 +114,7 @@ export async function GET(request: NextRequest) {
     if (scope === 'crm') query = query.eq('contact_scope', 'crm')
     if (scope === 'holding') query = query.eq('contact_scope', 'holding')
     if (scope === 'personal') query = query.eq('contact_scope', 'personal')
+    if (scope === 'partner') query = query.eq('contact_scope', 'partner')
 
     const workspaceAll = workspaceContactsAllFromRequest(request, auth.isAdmin)
     // Filtro assegnatario per tutti (admin incluso) quando non è richiesto workspace completo.
@@ -278,6 +279,8 @@ export async function POST(request: NextRequest) {
         ? 'Contatto creato in lista separata.'
         : contact.contact_scope === 'personal'
           ? 'Contatto creato in area personale.'
+        : contact.contact_scope === 'partner'
+          ? 'Partner aggiunto.'
         : 'Contatto creato nel CRM.',
       `Stato iniziale: ${contact.status}.`,
       contact.company ? `Azienda: ${contact.company}.` : null,
@@ -292,6 +295,8 @@ export async function POST(request: NextRequest) {
         ? 'Resterà fuori da pipeline e follow-up fino a una risposta email.'
         : contact.contact_scope === 'personal'
           ? 'Resta fuori dalla pipeline CRM ma può avere note e promemoria dedicati.'
+        : contact.contact_scope === 'partner'
+          ? 'Partner tracciato fuori dalla pipeline CRM.'
         : null,
       contact.next_followup_at ? `Follow-up iniziale: ${formatActivityDate(contact.next_followup_at)}.` : null,
       task ? 'Task di follow-up creato automaticamente.' : null,

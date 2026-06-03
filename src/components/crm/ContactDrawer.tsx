@@ -8,6 +8,7 @@ import {
   formatDateTime,
   holdingListLabel,
   isHoldingContact,
+  isPartnerContact,
   isPersonalContact,
   personalSectionLabel,
   priorityBadgeClass,
@@ -204,12 +205,15 @@ export function ContactDrawer({ contactId, onClose, onEdit, anchorPoint = null }
               {isPersonalContact(contact) && (
                 <span className="ctag ctag-event">🗂️ {personalSectionLabel(contact)}</span>
               )}
+              {isPartnerContact(contact) && (
+                <span className="ctag ctag-event">🤝 Partner</span>
+              )}
               {contact.source && <span className="ctag ctag-referenziato">{sourceLabel(contact.source)}</span>}
               {contact.event_tag && <span className="ctag ctag-event">#{contact.event_tag}</span>}
             </div>
 
             <div className="drawer-section">
-              {(isHoldingContact(contact) || isPersonalContact(contact)) && (
+              {(isHoldingContact(contact) || isPersonalContact(contact) || isPartnerContact(contact)) && (
                 <div className="drawer-actions-row" style={{ marginBottom: 10 }}>
                   <button
                     type="button"

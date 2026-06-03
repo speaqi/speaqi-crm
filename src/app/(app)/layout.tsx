@@ -68,6 +68,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     kanban: crm.contacts.filter(isPipelineVisible).length,
     contacts: crm.contacts.length,
     personal: crm.personalContacts.length,
+    partner: crm.partnerContacts.length,
     vinitaly: crm.holdingContacts.length,
     speaqi: crm.speaqiContacts.length,
     marketing: crm.allContacts.filter(

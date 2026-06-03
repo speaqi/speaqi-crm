@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api'
-import { contactActivityTimestamp, isClosedStatus, isHoldingContact, isPersonalContact } from '@/lib/data'
+import { contactActivityTimestamp, isClosedStatus, isHoldingContact, isPartnerContact, isPersonalContact } from '@/lib/data'
 import { buildScheduledCalls, dueAtLocalDateKey, isCallTaskType, localDayDateKey } from '@/lib/schedule'
 import { createClient } from '@/lib/supabase'
 import type {
@@ -117,7 +117,7 @@ export function useCRM(pathname = '') {
   const [adminDashboardShowAllContacts, setAdminDashboardShowAllContacts] = useState(false)
 
   const crmContacts = useMemo(
-    () => state.contacts.filter((contact) => !isHoldingContact(contact)),
+    () => state.contacts.filter((contact) => !isHoldingContact(contact) && !isPartnerContact(contact)),
     [state.contacts]
   )
 
@@ -131,6 +131,11 @@ export function useCRM(pathname = '') {
     [state.contacts]
   )
 
+  const partnerContacts = useMemo(
+    () => state.contacts.filter((contact) => isPartnerContact(contact)),
+    [state.contacts]
+  )
+
   const holdingContactIds = useMemo(
     () => new Set(holdingContacts.map((contact) => contact.id)),
     [holdingContacts]
@@ -141,16 +146,23 @@ export function useCRM(pathname = '') {
     [personalContacts]
   )
 
+  const partnerContactIds = useMemo(
+    () => new Set(partnerContacts.map((contact) => contact.id)),
+    [partnerContacts]
+  )
+
   const visibleTasks = useMemo(
     () =>
       state.tasks.filter(
         (task) =>
           !holdingContactIds.has(task.contact_id) &&
           !personalContactIds.has(task.contact_id) &&
+          !partnerContactIds.has(task.contact_id) &&
           !isHoldingContact({ contact_scope: task.contact?.contact_scope || 'crm' }) &&
-          !isPersonalContact({ contact_scope: task.contact?.contact_scope || 'crm' })
+          !isPersonalContact({ contact_scope: task.contact?.contact_scope || 'crm' }) &&
+          !isPartnerContact({ contact_scope: task.contact?.contact_scope || 'crm' })
       ),
-    [holdingContactIds, personalContactIds, state.tasks]
+    [holdingContactIds, personalContactIds, partnerContactIds, state.tasks]
   )
 
   const personalTasks = useMemo(
@@ -161,6 +173,16 @@ export function useCRM(pathname = '') {
           isPersonalContact({ contact_scope: task.contact?.contact_scope || 'crm' })
       ),
     [personalContactIds, state.tasks]
+  )
+
+  const partnerTasks = useMemo(
+    () =>
+      state.tasks.filter(
+        (task) =>
+          partnerContactIds.has(task.contact_id) ||
+          isPartnerContact({ contact_scope: task.contact?.contact_scope || 'crm' })
+      ),
+    [partnerContactIds, state.tasks]
   )
 
   const speaqiContacts = useMemo(
@@ -673,9 +695,11 @@ export function useCRM(pathname = '') {
     allContacts: state.contacts,
     holdingContacts,
     personalContacts,
+    partnerContacts,
     tasks: visibleTasks,
     allTasks: state.tasks,
     personalTasks,
+    partnerTasks,
     speaqiContacts,
     scheduledCalls,
     openContactsWithoutQueue,

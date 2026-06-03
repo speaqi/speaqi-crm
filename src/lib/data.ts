@@ -89,6 +89,8 @@ export function contactScopeLabel(scope?: string | null) {
       return 'Area personale'
     case 'holding':
       return 'Lista separata'
+    case 'partner':
+      return 'Partner'
     case 'crm':
     default:
       return 'CRM'
@@ -265,10 +267,15 @@ export function isHoldingContact(contact: Pick<CRMContact, 'contact_scope'>) {
   return (contact.contact_scope || 'crm') === 'holding'
 }
 
+export function isPartnerContact(contact: Pick<CRMContact, 'contact_scope'>) {
+  return (contact.contact_scope || 'crm') === 'partner'
+}
+
 export function normalizeContactScope(value?: string | null, fallback: ContactScope = 'crm'): ContactScope {
   const normalized = String(value ?? fallback).trim().toLowerCase()
   if (normalized === 'holding') return 'holding'
   if (normalized === 'personal') return 'personal'
+  if (normalized === 'partner') return 'partner'
   return 'crm'
 }
 
