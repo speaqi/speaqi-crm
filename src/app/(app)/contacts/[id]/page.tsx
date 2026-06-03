@@ -243,7 +243,7 @@ export default function ContactDetailPage() {
           </div>
 
           {/* ─── QUICK ACTIONS + LOST REASON ─── */}
-          {!holdingContact && !personalContact && (
+          {!holdingContact && !personalContact && !partnerContact && (
             <div className="detail-quick-actions">
               <button className="detail-quick-btn" onClick={quickCall} title="Chiama">
                 📞 Chiama
@@ -266,7 +266,7 @@ export default function ContactDetailPage() {
           )}
 
           {/* ─── AI SUGGESTION ─── */}
-          {!holdingContact && !personalContact && (
+          {!holdingContact && !personalContact && !partnerContact && (
             <div className="detail-ai-box">
               {aiSuggestion ? (
                 <span className="detail-ai-text">💡 {aiSuggestion}</span>
@@ -283,7 +283,7 @@ export default function ContactDetailPage() {
           )}
 
           {/* ─── PIPELINE STAGE BAR ─── */}
-          {!holdingContact && !personalContact && (
+          {!holdingContact && !personalContact && !partnerContact && (
             <div className="detail-stage-bar">
               <div className="detail-stage-bar-label">Pipeline</div>
               <div className="detail-stage-bar-stages">
@@ -350,6 +350,12 @@ export default function ContactDetailPage() {
             <span>Questo contatto resta fuori dalla pipeline commerciale ma vive nello stesso CRM.</span>
           </div>
         )}
+        {partnerContact && (
+          <div className="meta-card" style={{ marginBottom: 20 }}>
+            <strong>🤝 Partner</strong>
+            <span>Partner tracciato fuori dalla pipeline CRM. Puoi gestire note, promemoria e follow-up dedicati.</span>
+          </div>
+        )}
 
         {/* ─── INFO + ACTIVITY GRID ─── */}
         <div className="detail-grid">
@@ -378,6 +384,10 @@ export default function ContactDetailPage() {
                 <div className="detail-info-item">
                   <span className="detail-info-label">Origine</span>
                   <span className="detail-info-value">{sourceLabel(contact.source)}</span>
+                </div>
+                <div className="detail-info-item">
+                  <span className="detail-info-label">Area</span>
+                  <span className="detail-info-value">{contactScopeLabel(contact.contact_scope)}</span>
                 </div>
                 <div className="detail-info-item">
                   <span className="detail-info-label">Responsabile</span>

@@ -76,6 +76,7 @@ export default function OggiPage() {
     isAdmin,
     viewerMemberName,
     authEmail,
+    partnerContacts,
     adminDashboardShowAllContacts,
     setAdminDashboardShowAllContacts,
     completeTask,
@@ -535,6 +536,30 @@ export default function OggiPage() {
           </div>
         )}
       </section>
+
+      {/* ─── PARTNER ─── */}
+      {partnerContacts.length > 0 && (
+        <section className="oggi-partner">
+          <div className="oggi-partner-head">
+            <h2>🤝 Partner</h2>
+            <Link href="/partner" className="oggi-week-link">Vedi tutti ({partnerContacts.length}) →</Link>
+          </div>
+          <div className="oggi-partner-grid">
+            {partnerContacts.slice(0, 6).map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className="oggi-partner-card"
+                onClick={(event) => openDrawerFromMouse(p.id, event)}
+              >
+                <strong>{p.name}</strong>
+                {p.company && <span className="oggi-partner-company">{p.company}</span>}
+                {p.note && <span className="oggi-partner-note">{p.note.slice(0, 80)}{p.note.length > 80 ? '…' : ''}</span>}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <ContactDrawer
         contactId={drawerContactId}
