@@ -6,12 +6,14 @@ export async function GET(request: NextRequest) {
   if ('error' in auth) return auth.error
 
   try {
+    const status = request.nextUrl.searchParams.get('status') || 'pending'
+
     const { data, error } = await auth.supabase
       .from('tasks')
       .select('*')
       .eq('user_id', auth.workspaceUserId)
       .is('contact_id', null)
-      .eq('status', 'pending')
+      .eq('status', status)
       .order('created_at', { ascending: true })
 
     if (error) throw error
@@ -58,6 +60,48 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : 'Failed to create standalone task' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  const auth = await requireRouteUser(request)
+  if ('error' in auth) return auth.error
+
+  try {
+    const body = await request.json()
+    const id = String(body.id || '').trim()
+
+    if (!id) {
+      return Response.json({ error: 'ID task mancante' }, { status: 400 })
+    }
+
+    const updatePayload: Record<string, unknown> = {}
+    if (body.title !== undefined) updatePayload.title = String(body.title || '').trim() || null
+    if (body.note !== undefined) updatePayload.note = body.note ? String(body.note).trim() : null
+    if (body.priority !== undefined) updatePayload.priority = String(body.priority)
+    if (body.status !== undefined) updatePayload.status = String(body.status)
+
+    if (Object.keys(updatePayload).length === 0) {
+      return Response.json({ error: 'Nessun campo da aggiornare' }, { status: 400 })
+    }
+
+    const { data, error } = await auth.supabase
+      .from('tasks')
+      .update(updatePayload)
+      .eq('user_id', auth.workspaceUserId)
+      .eq('id', id)
+      .is('contact_id', null)
+      .select('*')
+      .single()
+
+    if (error) throw error
+
+    return Response.json({ task: data })
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : 'Failed to update standalone task' },
       { status: 500 }
     )
   }

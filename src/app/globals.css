@@ -2722,6 +2722,147 @@ select.filter-select {
 .oggi-todo-input::placeholder { color: var(--text4); }
 .oggi-todo-input:focus { color: var(--text); }
 
+/* === To-Do list on attivita page === */
+.attivita-todo { margin-bottom: 22px; }
+.attivita-todo-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.attivita-todo-head h2 { font-size: 16px; font-weight: 600; margin: 0; }
+.attivita-todo-count {
+  font-size: 11.5px;
+  color: var(--text3);
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 2px 8px;
+  min-width: 22px;
+  text-align: center;
+}
+.attivita-todo-body {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+.attivita-todo-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--divider);
+  flex-wrap: wrap;
+}
+.attivita-todo-item:last-child { border-bottom: none; }
+.attivita-todo-item.done { opacity: 0.65; }
+.attivita-todo-check {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border: 1.5px solid var(--border);
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--text3);
+  transition: all 0.15s;
+}
+.attivita-todo-check:hover { border-color: var(--accent); color: var(--accent); }
+.attivita-todo-check.done { border-color: var(--text4); color: var(--text4); font-size: 11px; }
+.attivita-todo-text { font-size: 13.5px; line-height: 1.4; flex: 1; }
+.attivita-todo-text.done { text-decoration: line-through; color: var(--text3); }
+.attivita-todo-priority {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  cursor: pointer;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.15s;
+}
+.attivita-todo-priority:hover { border-color: var(--accent); }
+.attivita-todo-priority.prio-high { background: #fef2f2; border-color: #fecaca; }
+.attivita-todo-priority.prio-low { background: #f0fdf4; border-color: #bbf7d0; }
+.attivita-todo-note-icon {
+  flex-shrink: 0;
+  cursor: pointer;
+  font-size: 13px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.attivita-todo-note-icon:hover { opacity: 1; }
+.attivita-todo-editor {
+  width: 100%;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0 6px 34px;
+}
+.attivita-todo-editor select {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+}
+.attivita-todo-note-input {
+  flex: 1;
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+}
+.attivita-todo-note-input:focus { border-color: var(--accent); }
+.attivita-todo-add { margin-top: 8px; }
+.attivita-todo-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text2);
+  padding: 6px 0;
+  outline: none;
+}
+.attivita-todo-input::placeholder { color: var(--text4); }
+.attivita-todo-input:focus { color: var(--text); }
+.attivita-todo-done { margin-top: 10px; }
+.attivita-todo-done-toggle {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text3);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+  transition: color 0.15s;
+}
+.attivita-todo-done-toggle:hover { color: var(--text); }
+.attivita-todo-done-list {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 14px;
+  margin-top: 6px;
+}
+.attivita-todo-done-date {
+  font-size: 11px;
+  color: var(--text4);
+  margin-left: auto;
+}
+
 /* === Partner section on dashboard === */
 .oggi-partner { margin-top: 22px; }
 .oggi-partner-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }

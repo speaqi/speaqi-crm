@@ -106,6 +106,7 @@ export function useCRM(pathname = '') {
   })
   const [vNotes, setVNotes] = useState<VoiceNote[]>([])
   const [standaloneTasks, setStandaloneTasks] = useState<Task[]>([])
+  const [completedStandaloneTasks, setCompletedStandaloneTasks] = useState<Task[]>([])
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
   const [isAdmin, setIsAdmin] = useState(true)
   /** Nome nel team per il collaboratore loggato (dal server); null per admin o non risolto. */
@@ -288,10 +289,14 @@ export function useCRM(pathname = '') {
         warnings.push(`Task: ${extractMessage(tasksError, 'Errore caricando i task')}`)
       }
 
-      // Load standalone to-do tasks
+      // Load standalone to-do tasks (pending + done)
       try {
-        const standaloneResponse = await apiFetch<{ tasks: Task[] }>('/api/tasks/standalone')
-        setStandaloneTasks(standaloneResponse.tasks || [])
+        const [pendingRes, doneRes] = await Promise.all([
+          apiFetch<{ tasks: Task[] }>('/api/tasks/standalone?status=pending'),
+          apiFetch<{ tasks: Task[] }>('/api/tasks/standalone?status=done'),
+        ])
+        setStandaloneTasks(pendingRes.tasks || [])
+        setCompletedStandaloneTasks(doneRes.tasks || [])
       } catch {
         // standalone tasks are optional, don't block
       }
@@ -643,8 +648,12 @@ export function useCRM(pathname = '') {
 
   const loadStandaloneTasks = useCallback(async () => {
     try {
-      const response = await apiFetch<{ tasks: Task[] }>('/api/tasks/standalone')
-      setStandaloneTasks(response.tasks || [])
+      const [pendingRes, doneRes] = await Promise.all([
+        apiFetch<{ tasks: Task[] }>('/api/tasks/standalone?status=pending'),
+        apiFetch<{ tasks: Task[] }>('/api/tasks/standalone?status=done'),
+      ])
+      setStandaloneTasks(pendingRes.tasks || [])
+      setCompletedStandaloneTasks(doneRes.tasks || [])
     } catch {
       // silently ignore
     }
@@ -661,12 +670,41 @@ export function useCRM(pathname = '') {
   }, [])
 
   const completeStandaloneTask = useCallback(async (taskId: string) => {
-    await apiFetch(`/api/tasks/${taskId}`, {
+    const doneTask = standaloneTasks.find((t) => t.id === taskId)
+    if (!doneTask) return
+    const completed = { ...doneTask, status: 'done' as const }
+    await apiFetch('/api/tasks/standalone', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'done' }),
+      body: JSON.stringify({ id: taskId, status: 'done' }),
     })
     setStandaloneTasks((previous) => previous.filter((t) => t.id !== taskId))
+    setCompletedStandaloneTasks((previous) => [completed, ...previous])
+  }, [standaloneTasks])
+
+  const reopenStandaloneTask = useCallback(async (taskId: string) => {
+    const task = completedStandaloneTasks.find((t) => t.id === taskId)
+    if (!task) return
+    const reopened = { ...task, status: 'pending' as const }
+    await apiFetch('/api/tasks/standalone', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: taskId, status: 'pending' }),
+    })
+    setCompletedStandaloneTasks((previous) => previous.filter((t) => t.id !== taskId))
+    setStandaloneTasks((previous) => [...previous, reopened])
+  }, [completedStandaloneTasks])
+
+  const updateStandaloneTask = useCallback(async (taskId: string, payload: { title?: string; note?: string | null; priority?: string }) => {
+    const response = await apiFetch<{ task: Task }>('/api/tasks/standalone', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: taskId, ...payload }),
+    })
+    setStandaloneTasks((previous) =>
+      previous.map((t) => (t.id === taskId ? { ...t, ...response.task } : t))
+    )
+    return response.task
   }, [])
 
   const loadContactDetail = useCallback(async (id: string) => {
@@ -753,9 +791,12 @@ export function useCRM(pathname = '') {
     error,
     userId,
     standaloneTasks,
+    completedStandaloneTasks,
     loadStandaloneTasks,
     createStandaloneTask,
     completeStandaloneTask,
+    reopenStandaloneTask,
+    updateStandaloneTask,
     refresh: () => loadAll({ background: true }),
     adminDashboardShowAllContacts,
     setAdminDashboardShowAllContacts,

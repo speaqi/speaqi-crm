@@ -180,6 +180,8 @@ export default function AttivitaPage() {
   const {
     tasks, scheduledCalls, openContactsWithoutQueue, contacts, stages,
     addActivity, completeTask, updateTask, refresh, showToast, updateContact,
+    standaloneTasks, completedStandaloneTasks, createStandaloneTask,
+    completeStandaloneTask, reopenStandaloneTask, updateStandaloneTask,
   } = useCRMContext()
 
   const today = new Date()
@@ -204,6 +206,12 @@ export default function AttivitaPage() {
   const [inboxFilter, setInboxFilter] = useState<'all' | 'overdue' | 'today' | 'high'>('all')
   const [outcomeContact, setOutcomeContact] = useState<CRMContact | null>(null)
   const [outcomeTask, setOutcomeTask] = useState<TaskWithContact | null>(null)
+
+  // ── Standalone to-do state ──
+  const [todoInput, setTodoInput] = useState('')
+  const [todoAdding, setTodoAdding] = useState(false)
+  const [editingTodoId, setEditingTodoId] = useState<string | null>(null)
+  const [showDone, setShowDone] = useState(false)
 
   // ── Computed ──
   const overdueTasks = tasks.filter(t => t.due_date && isOverdue(t.due_date))
@@ -323,6 +331,175 @@ export default function AttivitaPage() {
 
   return (
     <div className="dash-content">
+
+      {/* ── TO-DO LIST ─────────────────────────────────────────────────────── */}
+      <section className="attivita-todo">
+        <div className="attivita-todo-head">
+          <h2>📋 Cose da fare</h2>
+          <span className="attivita-todo-count">{standaloneTasks.length}</span>
+        </div>
+
+        <div className="attivita-todo-body">
+          {standaloneTasks.map((t) => (
+            <div key={t.id} className="attivita-todo-item">
+              <button
+                type="button"
+                className="attivita-todo-check"
+                title="Segna come fatto"
+                onClick={async () => {
+                  try {
+                    await completeStandaloneTask(t.id)
+                    showToast('Fatto ✓')
+                  } catch (e) {
+                    showToast(`Errore: ${e instanceof Error ? e.message : 'completamento'}`)
+                  }
+                }}
+              >
+                ○
+              </button>
+
+              <span className="attivita-todo-text">{t.title}</span>
+
+              {/* Priority badge */}
+              <button
+                type="button"
+                className={`attivita-todo-priority prio-${t.priority || 'medium'}`}
+                title="Clicca per cambiare priorità"
+                onClick={() => setEditingTodoId(editingTodoId === t.id ? null : t.id)}
+              >
+                {t.priority === 'high' ? '🔴' : t.priority === 'low' ? '🟢' : '🟡'}
+              </button>
+
+              {/* Note indicator */}
+              {t.note && (
+                <span
+                  className="attivita-todo-note-icon"
+                  title={t.note}
+                  onClick={() => setEditingTodoId(editingTodoId === t.id ? null : t.id)}
+                >
+                  📝
+                </span>
+              )}
+
+              {/* Inline editor */}
+              {editingTodoId === t.id && (
+                <div className="attivita-todo-editor">
+                  <select
+                    value={t.priority || 'medium'}
+                    onChange={async (e) => {
+                      const newPriority = e.target.value
+                      try {
+                        await updateStandaloneTask(t.id, { priority: newPriority })
+                        showToast('Priorità aggiornata')
+                      } catch (err) {
+                        showToast(`Errore: ${err instanceof Error ? err.message : 'aggiornamento'}`)
+                      }
+                    }}
+                  >
+                    <option value="low">🟢 Bassa</option>
+                    <option value="medium">🟡 Media</option>
+                    <option value="high">🔴 Alta</option>
+                  </select>
+                  <input
+                    type="text"
+                    className="attivita-todo-note-input"
+                    placeholder="Nota..."
+                    defaultValue={t.note || ''}
+                    onBlur={async (e) => {
+                      const note = e.target.value.trim()
+                      try {
+                        await updateStandaloneTask(t.id, { note: note || null })
+                        if (note) showToast('Nota salvata')
+                      } catch (err) {
+                        showToast(`Errore: ${err instanceof Error ? err.message : 'nota'}`)
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-xs"
+                    onClick={() => setEditingTodoId(null)}
+                  >
+                    Chiudi
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Add new task form */}
+          <form
+            className="attivita-todo-add"
+            onSubmit={async (e) => {
+              e.preventDefault()
+              const text = todoInput.trim()
+              if (!text || todoAdding) return
+              setTodoAdding(true)
+              try {
+                await createStandaloneTask({ title: text })
+                setTodoInput('')
+                showToast('Aggiunto')
+              } catch (err) {
+                showToast(`Errore: ${err instanceof Error ? err.message : 'aggiunta task'}`)
+              } finally {
+                setTodoAdding(false)
+              }
+            }}
+          >
+            <input
+              className="attivita-todo-input"
+              type="text"
+              value={todoInput}
+              onChange={(e) => setTodoInput(e.target.value)}
+              placeholder="Scrivi cosa devi fare e premi Invio..."
+              disabled={todoAdding}
+            />
+          </form>
+        </div>
+
+        {/* Completed tasks */}
+        {completedStandaloneTasks.length > 0 && (
+          <div className="attivita-todo-done">
+            <button
+              type="button"
+              className="attivita-todo-done-toggle"
+              onClick={() => setShowDone(!showDone)}
+            >
+              {showDone ? '▲' : '▼'} Fatto ({completedStandaloneTasks.length})
+            </button>
+            {showDone && (
+              <div className="attivita-todo-done-list">
+                {completedStandaloneTasks.map((t) => (
+                  <div key={t.id} className="attivita-todo-item done">
+                    <button
+                      type="button"
+                      className="attivita-todo-check done"
+                      title="Riapri"
+                      onClick={async () => {
+                        try {
+                          await reopenStandaloneTask(t.id)
+                          showToast('Riaperto')
+                        } catch (e) {
+                          showToast(`Errore: ${e instanceof Error ? e.message : 'riapertura'}`)
+                        }
+                      }}
+                    >
+                      ↩
+                    </button>
+                    <span className="attivita-todo-text done">{t.title}</span>
+                    <span className="attivita-todo-done-date">
+                      {t.updated_at ? new Date(t.updated_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
 
       {/* ── Analytics Team ──────────────────────────────────────────────────── */}
       <div className="dash-card" style={{ marginBottom: 20 }}>
