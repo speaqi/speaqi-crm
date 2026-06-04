@@ -13,6 +13,7 @@ import {
   holdingListLabel,
   isClosedStatus,
   isHoldingContact,
+  isPartnerContact,
   isNeverContacted,
   priorityBadgeClass,
   priorityLabel,
@@ -1113,6 +1114,35 @@ function ContactsPageInner() {
                     }}
                   >
                     ★
+                  </button>
+                  <button
+                    type="button"
+                    className={`contacts-star-action contacts-partner-action ${isPartnerContact(contact) ? 'active' : ''}`}
+                    title="Sposta nei Partner"
+                    aria-label="Sposta nei Partner"
+                    disabled={bulkSaving || isPartnerContact(contact)}
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      setBulkSaving(true)
+                      try {
+                        await apiFetch('/api/contacts/bulk', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            contact_ids: [contact.id],
+                            patch: { contact_scope: 'partner' },
+                          }),
+                        })
+                        await refresh()
+                        showToast(`${contact.name} spostato nei Partner`)
+                      } catch (error) {
+                        window.alert(error instanceof Error ? error.message : 'Spostamento nei Partner non riuscito')
+                      } finally {
+                        setBulkSaving(false)
+                      }
+                    }}
+                  >
+                    🤝
                   </button>
                   <span className="ctag ctag-contattato">{statusLabel(contact.status)}</span>
                   {contact.priority > 0 && (

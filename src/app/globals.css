@@ -3232,6 +3232,12 @@ select.filter-select {
   cursor: default;
   opacity: 0.8;
 }
+.contacts-partner-action:hover,
+.contacts-partner-action.active {
+  border-color: #f59e0b;
+  background: #fffbeb;
+  color: #b45309;
+}
 .contacts-row-action { font-size: 12px; opacity: 0; transition: opacity .15s; white-space: nowrap; }
 .contacts-row:hover .contacts-row-action { opacity: 1; }
 .btn-xs { padding: 2px 8px; font-size: 12px; border-radius: 4px; }
