@@ -96,7 +96,7 @@ function extractMessage(error: unknown, fallback: string) {
 }
 
 const ROUTES_WORKSPACE_ALL =
-  /^\/(contacts|kanban|preventivi|calendario|attivita|import|vinitaly|speaqi)(\/|$)/
+  /^\/(contacts|kanban|preventivi|calendario|attivita|import|vinitaly|speaqi|partner|personali)(\/|$)/
 
 export function useCRM(pathname = '') {
   const [state, setState] = useState<CRMState>({
