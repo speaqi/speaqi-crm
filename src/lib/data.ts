@@ -4,12 +4,13 @@ export const DEFAULT_PIPELINE_STAGES: Array<Omit<PipelineStage, 'id'>> = [
   { name: 'New', order: 0, color: '#3b82f6', system_key: 'new' },
   { name: 'Contacted', order: 1, color: '#f59e0b', system_key: 'contacted' },
   { name: 'Interested', order: 2, color: '#10b981', system_key: 'interested' },
-  { name: 'Supertop', order: 3, color: '#e11d48', system_key: 'supertop' },
-  { name: 'Call booked', order: 4, color: '#7c3aed', system_key: 'call_booked' },
-  { name: 'Quote', order: 5, color: '#f97316', system_key: 'quote' },
-  { name: 'Lost', order: 6, color: '#ef4444', system_key: 'lost' },
-  { name: 'Closed', order: 7, color: '#059669', system_key: 'closed' },
-  { name: 'Paid', order: 8, color: '#0d9488', system_key: 'paid' },
+  { name: 'Waiting', order: 3, color: '#8b5cf6', system_key: 'waiting' },
+  { name: 'Supertop', order: 4, color: '#e11d48', system_key: 'supertop' },
+  { name: 'Call booked', order: 5, color: '#7c3aed', system_key: 'call_booked' },
+  { name: 'Quote', order: 6, color: '#f97316', system_key: 'quote' },
+  { name: 'Lost', order: 7, color: '#ef4444', system_key: 'lost' },
+  { name: 'Closed', order: 8, color: '#059669', system_key: 'closed' },
+  { name: 'Paid', order: 9, color: '#0d9488', system_key: 'paid' },
 ]
 
 export const SOURCE_OPTIONS = ['manual', 'speaqi', 'vinitaly', 'evento', 'import', 'legacy-kanban']
@@ -132,6 +133,9 @@ export function statusLabel(status?: string | null) {
       return 'Call fissata'
     case 'Quote':
       return 'Preventivo'
+    case 'Waiting':
+    case 'waiting':
+      return 'In attesa'
     case 'Lost':
     case 'not_interested':
       return 'Perso'
@@ -261,6 +265,11 @@ export function isClosedStatus(status: string) {
     normalized === 'lost' ||
     normalized === 'not_interested'
   )
+}
+
+/** Status che escludono il contatto da code priorità e griglia settimanale (Waiting + closed). */
+export function isInactiveStatus(status: string) {
+  return isClosedStatus(status) || status.toLowerCase() === 'waiting'
 }
 
 export function isHoldingContact(contact: Pick<CRMContact, 'contact_scope'>) {

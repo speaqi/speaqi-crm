@@ -48,6 +48,7 @@ type OptionalContactColumn =
   | 'win_probability'
   | 'company_size'
   | 'industry'
+  | 'hidden'
 
 const BILLING_CONTACT_COLUMNS: OptionalContactColumn[] = [
   'billing_tax_id',
@@ -441,7 +442,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     if (updateError) throw updateError
 
-    if (isClosedStatus(nextStatus)) {
+    if (isClosedStatus(nextStatus) || nextStatus === 'Waiting') {
       await completePendingCallTasks(auth.supabase, auth.workspaceUserId, id)
     } else if (nextContactScope === 'holding') {
       await completePendingCallTasks(auth.supabase, auth.workspaceUserId, id)

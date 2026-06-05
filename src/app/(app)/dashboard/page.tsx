@@ -6,9 +6,10 @@ import { ContactDrawer } from '@/components/crm/ContactDrawer'
 import { ContactModal } from '@/components/crm/ContactModal'
 import { DashboardHero } from '@/components/crm/DashboardHero'
 import { DashboardPriorityQueue, type QueueItem } from '@/components/crm/DashboardPriorityQueue'
+import { QuickDismissMenu } from '@/components/crm/QuickDismissMenu'
 import { DashboardRiskPanel } from '@/components/crm/DashboardRiskPanel'
 import { useCRMContext } from '../layout'
-import { isClosedStatus, statusLabel } from '@/lib/data'
+import { isClosedStatus, isInactiveStatus, statusLabel } from '@/lib/data'
 import { buildScheduledCalls, dueAtLocalDateKey, localDayDateKey, type ScheduledCall } from '@/lib/schedule'
 import { startOfDay, dayKey } from '@/lib/schedule'
 import type { ContactInput, CRMContact } from '@/types'
@@ -160,7 +161,7 @@ export default function OggiPage() {
     // Add contacts without follow-up that are in progress
     for (const contact of contacts) {
       if (seen.has(contact.id)) continue
-      if (isClosedStatus(contact.status)) continue
+      if (isInactiveStatus(contact.status)) continue
 
       const lastContact = contact.last_contact_at ? new Date(contact.last_contact_at) : null
       const daysStale = lastContact
@@ -198,7 +199,7 @@ export default function OggiPage() {
     }> = []
 
     for (const contact of contacts) {
-      if (isClosedStatus(contact.status)) continue
+      if (isInactiveStatus(contact.status)) continue
       const lastContact = contact.last_contact_at ? new Date(contact.last_contact_at) : new Date(contact.created_at)
       const daysStale = Math.floor((now.getTime() - lastContact.getTime()) / DAY_MS)
 
@@ -305,6 +306,19 @@ export default function OggiPage() {
       showToast(`Spostato a ${dayOffset === 0 ? 'oggi' : `+${dayOffset} giorni`}`)
     } catch (error) {
       showToast(`Errore: ${error instanceof Error ? error.message : 'spostamento'}`)
+    }
+  }
+
+  async function handleDismiss(contactId: string, status: string, nextFollowupAt: string | null) {
+    try {
+      await updateContact(contactId, {
+        status,
+        next_followup_at: nextFollowupAt,
+      })
+      const label = status === 'Lost' ? 'Perso' : 'In attesa'
+      showToast(`${label} ✓`)
+    } catch (error) {
+      showToast(`Errore: ${error instanceof Error ? error.message : 'operazione'}`)
     }
   }
 
@@ -430,6 +444,7 @@ export default function OggiPage() {
             onOpenContact={openDrawerFromMouse}
             onComplete={handleComplete}
             onReschedule={handleReschedule}
+            onDismiss={handleDismiss}
           />
         </div>
 
@@ -588,6 +603,11 @@ export default function OggiPage() {
                               →
                             </button>
                           )}
+                          <QuickDismissMenu
+                            contactId={call.contact.id}
+                            contactName={call.contact.name}
+                            onDismiss={handleDismiss}
+                          />
                         </div>
                       ))
                     )}

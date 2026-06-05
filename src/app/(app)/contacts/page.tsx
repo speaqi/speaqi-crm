@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { MouseEvent, Suspense, useEffect, useMemo, useState } from 'react'
 import { ContactDrawer } from '@/components/crm/ContactDrawer'
 import { ContactModal } from '@/components/crm/ContactModal'
+import { QuickDismissMenu } from '@/components/crm/QuickDismissMenu'
 import {
   contactIsUnassigned,
   contactMatchesAssigneeName,
@@ -93,6 +94,7 @@ function ContactsPageInner() {
   const [sourceFilter, setSourceFilter] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
   const [dataCompletenessFilter, setDataCompletenessFilter] = useState('')
+  const [showHidden, setShowHidden] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null)
   const [rangeStart, setRangeStart] = useState('')
@@ -149,6 +151,19 @@ function ContactsPageInner() {
     params.delete('id')
     const query = params.toString()
     router.replace(query ? `/contacts?${query}` : '/contacts', { scroll: false })
+  }
+
+  async function handleDismiss(contactId: string, status: string, nextFollowupAt: string | null) {
+    try {
+      await updateContact(contactId, {
+        status,
+        next_followup_at: nextFollowupAt,
+      })
+      const label = status === 'Lost' ? 'Perso' : 'In attesa'
+      showToast(`${label} ✓`)
+    } catch (error) {
+      showToast(`Errore: ${error instanceof Error ? error.message : 'operazione'}`)
+    }
   }
 
   const scheduledCallsByContactId = useMemo(
@@ -246,6 +261,7 @@ function ContactsPageInner() {
       if (focusFilter === 'today' && toLocalDateKey(call?.due_at) !== todayKey) return false
       if (focusFilter === 'tomorrow' && toLocalDateKey(call?.due_at) !== tomorrowKey) return false
       if (focusFilter === 'missing' && (isClosedStatus(contact.status) || !!call)) return false
+      if (!showHidden && contact.hidden) return false
       return true
     })
   }, [
@@ -262,6 +278,7 @@ function ContactsPageInner() {
     todayKey,
     tomorrowKey,
     urlTag,
+    showHidden,
   ])
 
   const activeFilterCount =
@@ -272,6 +289,7 @@ function ContactsPageInner() {
     (priorityFilter ? 1 : 0) +
     (dataCompletenessFilter ? 1 : 0) +
     (focusFilter ? 1 : 0) +
+    (showHidden ? 1 : 0) +
     (urlTag ? 1 : 0)
 
   const filteredIds = useMemo(() => filtered.map((contact) => contact.id), [filtered])
@@ -283,6 +301,7 @@ function ContactsPageInner() {
   )
   const selectedWithEmailCount = selectedContacts.filter((contact) => Boolean(contact.email?.trim())).length
   const canRemoveSelectedFromList = selectedContacts.some((contact) => Boolean(contact.list_name?.trim()))
+  const canShowSelectedInPipeline = selectedContacts.some((contact) => Boolean(contact.hidden))
 
   useEffect(() => {
     setSelectedIds((previous) => previous.filter((id) => filteredIds.includes(id)))
@@ -504,6 +523,14 @@ function ContactsPageInner() {
           ))}
           <option value="__unassigned__">— Non assegnato a nessuno —</option>
         </select>
+        <button
+          type="button"
+          className={`filter-chip ${showHidden ? 'active' : ''}`}
+          onClick={() => setShowHidden((v) => !v)}
+          style={showHidden ? { background: '#fef2f2', borderColor: '#fca5a5', color: '#b91c1c' } : undefined}
+        >
+          👁️ Nascosti
+        </button>
         <button
           type="button"
           className={`filter-chip ${dataCompletenessFilter === 'missing_phone' ? 'active' : ''}`}
@@ -809,15 +836,31 @@ function ContactsPageInner() {
               className="btn btn-ghost btn-sm"
               disabled={bulkSaving}
               onClick={async () => {
-                if (!window.confirm(`Nascondere ${selectedIds.length} contatti dalla pagina Contatti e dalla pipeline?`)) return
+                if (!window.confirm(`Nascondere ${selectedIds.length} contatti dalla pipeline? Resteranno visibili con il toggle "Mostra nascosti".`)) return
                 await runBulkUpdate(
-                  { contact_scope: 'holding', list_name: 'Nascosti' },
-                  'Contatti nascosti da Contatti e pipeline'
+                  { hidden: true },
+                  'Contatti nascosti dalla pipeline'
                 )
               }}
             >
-              Nascondi
+              👁️ Nascondi
             </button>
+            {canShowSelectedInPipeline && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                disabled={bulkSaving}
+                onClick={async () => {
+                  if (!window.confirm(`Riportare ${selectedIds.length} contatti nella pipeline?`)) return
+                  await runBulkUpdate(
+                    { hidden: false },
+                    'Contatti riportati in pipeline'
+                  )
+                }}
+              >
+                📋 In pipeline
+              </button>
+            )}
             <input
               className="form-input contacts-folder-input"
               list="folder-options"
@@ -1050,6 +1093,7 @@ function ContactsPageInner() {
                 <div className="contacts-row-main">
                   <div className="contacts-row-name">
                     <strong>{contact.name}</strong>
+                    {contact.hidden && <span title="Nascosto dalla pipeline"> 👁️‍🗨️</span>}
                     {contact.company && <span className="contacts-row-company">· {contact.company}</span>}
                   </div>
                   <div className="contacts-row-meta">
@@ -1178,6 +1222,13 @@ function ContactsPageInner() {
                         📞 Oggi
                       </button>
                     )
+                  )}
+                  {!isClosed && (
+                    <QuickDismissMenu
+                      contactId={contact.id}
+                      contactName={contact.name}
+                      onDismiss={handleDismiss}
+                    />
                   )}
                 </div>
               </div>

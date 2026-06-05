@@ -4,6 +4,7 @@ import { type MouseEvent, type DragEvent } from 'react'
 import { priorityLabel, statusLabel } from '@/lib/data'
 import type { ScheduledCall } from '@/lib/schedule'
 import type { CRMContact, Quote, Task } from '@/types'
+import { QuickDismissMenu } from '@/components/crm/QuickDismissMenu'
 
 export interface QueueItem {
   contact: CRMContact
@@ -20,6 +21,7 @@ interface Props {
   onOpenContact: (contactId: string, event: MouseEvent<HTMLElement>) => void
   onComplete: (taskId: string | null) => void
   onReschedule: (contactId: string, taskId: string | null, days: number) => void
+  onDismiss: (contactId: string, status: string, nextFollowupAt: string | null) => void
 }
 
 const REASON_ICONS: Record<string, string> = {
@@ -40,7 +42,7 @@ function scoreBadge(score: number) {
   return ''
 }
 
-export function DashboardPriorityQueue({ items, onOpenContact, onComplete, onReschedule }: Props) {
+export function DashboardPriorityQueue({ items, onOpenContact, onComplete, onReschedule, onDismiss }: Props) {
   if (items.length === 0) {
     return (
       <section className="oggi-card">
@@ -141,6 +143,11 @@ export function DashboardPriorityQueue({ items, onOpenContact, onComplete, onRes
                     →
                   </button>
                 )}
+                <QuickDismissMenu
+                  contactId={item.contact.id}
+                  contactName={item.contact.name}
+                  onDismiss={onDismiss}
+                />
               </div>
             </div>
           )

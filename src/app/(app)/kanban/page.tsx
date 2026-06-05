@@ -51,6 +51,8 @@ const BUCKET_LABELS: Record<string, string> = {
 
 const BUCKET_ORDER: Array<keyof typeof BUCKET_LABELS> = ['overdue', 'today', 'tomorrow', 'week', 'later', 'none']
 
+const COLD_STAGES = new Set(['New', 'Waiting', 'Lost'])
+
 function initialViewMode(): ViewMode {
   if (typeof window === 'undefined') return 'board'
   return new URLSearchParams(window.location.search).get('view') === 'list' ? 'list' : 'board'
@@ -64,6 +66,7 @@ export default function KanbanPage() {
   const [sourceFilter, setSourceFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [comuneFilter, setComuneFilter] = useState('')
+  const [collapsedColumns, setCollapsedColumns] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingContact, setEditingContact] = useState<CRMContact | null>(null)
   const dragId = useRef<string | null>(null)
@@ -224,6 +227,14 @@ export default function KanbanPage() {
         <button className="btn btn-primary btn-sm" onClick={openCreate}>
           ＋ Nuovo contatto
         </button>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          onClick={() => setCollapsedColumns((v) => !v)}
+          style={collapsedColumns ? { background: '#f5f3ff', borderColor: '#c4b5fd', color: '#6d28d9' } : undefined}
+        >
+          {collapsedColumns ? '👁️ Mostra tutte le colonne' : '⚙️ Comprimi colonne'}
+        </button>
       </div>
 
       {view === 'list' ? (
@@ -287,7 +298,9 @@ export default function KanbanPage() {
       <div className="board-outer">
         <div className="board-scroll">
           <div className="board">
-            {stages.map((stage) => {
+            {stages
+              .filter((stage) => !collapsedColumns || !COLD_STAGES.has(stage.name))
+              .map((stage) => {
               const stageContacts = filtered.filter((contact) => contact.status === stage.name)
               return (
                 <div key={stage.id} className="col">

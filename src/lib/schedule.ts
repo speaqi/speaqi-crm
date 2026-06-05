@@ -1,4 +1,4 @@
-import { isClosedStatus } from '@/lib/data'
+import { isInactiveStatus } from '@/lib/data'
 import type { CRMContact, TaskWithContact } from '@/types'
 
 export type ScheduledCall = {
@@ -44,7 +44,7 @@ export function buildScheduledCalls(contacts: CRMContact[], tasks: TaskWithConta
   const scheduledCalls: ScheduledCall[] = []
 
   for (const contact of contacts) {
-    if (isClosedStatus(contact.status)) continue
+    if (isInactiveStatus(contact.status)) continue
 
     const contactDueAt = contact.next_followup_at || null
     const earliestTask = (pendingCallTasks.get(contact.id) || [])[0] || null

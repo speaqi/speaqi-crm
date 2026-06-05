@@ -66,6 +66,7 @@ export interface CRMContact {
   email_unsubscribe_source?: string | null
   marketing_status?: MarketingStatus | null
   marketing_paused_until?: string | null
+  hidden?: boolean | null
   created_at: string
   updated_at: string
 }
@@ -332,6 +333,7 @@ export interface ContactInput {
   lost_reason?: string | null
   company_size?: string | null
   industry?: string | null
+  hidden?: boolean | null
 }
 
 export interface ActivityInput {
