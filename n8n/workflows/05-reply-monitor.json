@@ -1,0 +1,63 @@
+{
+  "name": "SPEAQI Reply Monitor",
+  "nodes": [
+    {
+      "id": "cron_every_30min",
+      "name": "Ogni 30 minuti",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 2,
+      "position": [260, 260],
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 30,
+              "unit": "minutes"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "call_reply_monitor",
+      "name": "Check Replies",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [520, 260],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SPEAQI_CRM_URL + '/api/automation/reply-monitor' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-automation-secret",
+              "value": "={{ $env.AUTOMATION_SECRET }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"since_minutes\":60}"
+      }
+    }
+  ],
+  "connections": {
+    "Ogni 30 minuti": {
+      "main": [
+        [
+          {
+            "node": "Check Replies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  ]
+}

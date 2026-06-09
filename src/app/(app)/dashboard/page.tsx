@@ -8,6 +8,7 @@ import { DashboardHero } from '@/components/crm/DashboardHero'
 import { DashboardPriorityQueue, type QueueItem } from '@/components/crm/DashboardPriorityQueue'
 import { QuickDismissMenu } from '@/components/crm/QuickDismissMenu'
 import { DashboardRiskPanel } from '@/components/crm/DashboardRiskPanel'
+import { DashboardEmailInbox } from '@/components/crm/DashboardEmailInbox'
 import { useCRMContext } from '../layout'
 import { isClosedStatus, isInactiveStatus, statusLabel } from '@/lib/data'
 import { buildScheduledCalls, dueAtLocalDateKey, localDayDateKey, type ScheduledCall } from '@/lib/schedule'
@@ -469,6 +470,9 @@ export default function OggiPage() {
           />
         </div>
       </div>
+
+      {/* ─── EMAIL INBOX ─── */}
+      <DashboardEmailInbox showToast={showToast} refresh={refresh} />
 
       {/* ─── TO-DO LIST ─── */}
       <section className="oggi-todo">
