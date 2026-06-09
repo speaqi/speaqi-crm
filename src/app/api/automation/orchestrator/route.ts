@@ -317,6 +317,7 @@ export async function POST(request: NextRequest) {
       dry_run: dryRun,
       message: `${generated} bozze generate, ${failed} errori${dryRunNote}`,
       drafts: draftResults,
+      debug: { first_draft: draftResults[0] || null, len: draftResults.length },
     })
   } catch (error) {
     console.error('orchestrator failed', error)
