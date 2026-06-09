@@ -237,7 +237,6 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── Step 2: For each contact, analyze & draft ───
-    const results: Array<{ contact_id: string; contact_name: string; email: string; draft_id?: string; subject?: string; error?: string }> = []
 
     // Process with concurrency limit of 3
     async function runWithConcurrency<T, R>(items: T[], limit: number, worker: (item: T) => Promise<R>) {
@@ -317,7 +316,6 @@ export async function POST(request: NextRequest) {
       dry_run: dryRun,
       message: `${generated} bozze generate, ${failed} errori${dryRunNote}`,
       drafts: draftResults,
-      debug: { first_draft: draftResults[0] || null, len: draftResults.length },
     })
   } catch (error) {
     console.error('orchestrator failed', error)
