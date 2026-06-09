@@ -253,7 +253,7 @@ export async function POST(request: NextRequest) {
       return out
     }
 
-    await runWithConcurrency(limited, 3, async (contact: CRMContact) => {
+    const draftResults = await runWithConcurrency(limited, 3, async (contact: CRMContact) => {
       try {
         const context = await loadContactContext(supabase, contact.id)
 
@@ -305,8 +305,8 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    const generated = results.filter((r) => r.draft_id).length
-    const failed = results.filter((r) => r.error).length
+    const generated = draftResults.filter((r) => r.draft_id).length
+    const failed = draftResults.filter((r) => r.error).length
     const dryRunNote = dryRun ? ' [DRY RUN — nessun salvataggio]' : ''
 
     return Response.json({
@@ -316,7 +316,7 @@ export async function POST(request: NextRequest) {
       failed,
       dry_run: dryRun,
       message: `${generated} bozze generate, ${failed} errori${dryRunNote}`,
-      drafts: results,
+      drafts: draftResults,
     })
   } catch (error) {
     console.error('orchestrator failed', error)
