@@ -14,6 +14,7 @@ import { isClosedStatus, isInactiveStatus, statusLabel } from '@/lib/data'
 import { buildScheduledCalls, dueAtLocalDateKey, localDayDateKey, type ScheduledCall } from '@/lib/schedule'
 import { startOfDay, dayKey } from '@/lib/schedule'
 import type { ContactInput, CRMContact } from '@/types'
+import { apiFetch } from '@/lib/api'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const DAYS_BACK = 7
@@ -101,6 +102,7 @@ export default function OggiPage() {
   const [weekExpanded, setWeekExpanded] = useState(false)
   const [todoInput, setTodoInput] = useState('')
   const [todoAdding, setTodoAdding] = useState(false)
+  const [generatingDraftId, setGeneratingDraftId] = useState<string | null>(null)
 
   const now = new Date()
   const today = startOfDay(now)
@@ -323,6 +325,26 @@ export default function OggiPage() {
     }
   }
 
+  async function handleGenerateDraft(contactId: string) {
+    if (generatingDraftId) return
+    setGeneratingDraftId(contactId)
+    try {
+      const result = await apiFetch<{ results: Array<{ error?: string; draft_id?: string }> }>('/api/ai/generate-drafts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ drafts: [{ contact_id: contactId }] }),
+      })
+      const first = result.results?.[0]
+      if (first?.error) throw new Error(first.error)
+      showToast('Bozza email generata ✓')
+      refresh()
+    } catch (error) {
+      showToast(`Errore: ${error instanceof Error ? error.message : 'generazione bozza'}`)
+    } finally {
+      setGeneratingDraftId(null)
+    }
+  }
+
   function openDrawer(contactId: string, anchor?: { x: number; y: number } | null) {
     setDrawerContactId(contactId)
     setDrawerAnchor(anchor || null)
@@ -446,6 +468,8 @@ export default function OggiPage() {
             onComplete={handleComplete}
             onReschedule={handleReschedule}
             onDismiss={handleDismiss}
+            onGenerateDraft={handleGenerateDraft}
+            generatingDraftId={generatingDraftId}
           />
         </div>
 

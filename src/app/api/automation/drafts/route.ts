@@ -7,7 +7,10 @@ export async function GET(request: NextRequest) {
   if ('error' in auth) return auth.error
 
   try {
-    const { data: drafts, error } = await auth.supabase
+    const url = new URL(request.url)
+    const statusFilter = url.searchParams.get('status') || 'pending'
+
+    let query = auth.supabase
       .from('email_drafts')
       .select(`
         *,
@@ -16,9 +19,17 @@ export async function GET(request: NextRequest) {
         )
       `)
       .eq('user_id', auth.workspaceUserId)
-      .eq('status', 'pending')
       .order('created_at', { ascending: false })
-      .limit(30)
+      .limit(50)
+
+    // Allow filtering by status (pending, sent, dismissed)
+    if (statusFilter === 'all') {
+      // no status filter
+    } else {
+      query = query.eq('status', statusFilter)
+    }
+
+    const { data: drafts, error } = await query
 
     if (error) throw error
 

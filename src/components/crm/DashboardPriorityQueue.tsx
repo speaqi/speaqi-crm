@@ -22,6 +22,8 @@ interface Props {
   onComplete: (taskId: string | null) => void
   onReschedule: (contactId: string, taskId: string | null, days: number) => void
   onDismiss: (contactId: string, status: string, nextFollowupAt: string | null) => void
+  onGenerateDraft?: (contactId: string) => void
+  generatingDraftId?: string | null
 }
 
 const REASON_ICONS: Record<string, string> = {
@@ -42,7 +44,7 @@ function scoreBadge(score: number) {
   return ''
 }
 
-export function DashboardPriorityQueue({ items, onOpenContact, onComplete, onReschedule, onDismiss }: Props) {
+export function DashboardPriorityQueue({ items, onOpenContact, onComplete, onReschedule, onDismiss, onGenerateDraft, generatingDraftId }: Props) {
   if (items.length === 0) {
     return (
       <section className="oggi-card">
@@ -141,6 +143,21 @@ export function DashboardPriorityQueue({ items, onOpenContact, onComplete, onRes
                     title="Apri"
                   >
                     →
+                  </button>
+                )}
+                {item.contact.email && onGenerateDraft && (
+                  <button
+                    type="button"
+                    className="oggi-call-done"
+                    disabled={generatingDraftId === item.contact.id}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onGenerateDraft(item.contact.id)
+                    }}
+                    title={generatingDraftId === item.contact.id ? 'Generazione...' : 'Genera bozza email'}
+                    style={{ background: generatingDraftId === item.contact.id ? 'var(--accent)' : 'var(--surface)', color: generatingDraftId === item.contact.id ? '#fff' : 'var(--accent)' }}
+                  >
+                    {generatingDraftId === item.contact.id ? '⏳' : '✉️'}
                   </button>
                 )}
                 <QuickDismissMenu
