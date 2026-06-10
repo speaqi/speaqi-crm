@@ -42,7 +42,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"days_ahead\":3,\"max_contacts\":25}"
+        "jsonBody": "={\"days_ahead\":3,\"max_contacts\":50}"
       }
     }
   ],

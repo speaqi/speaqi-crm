@@ -14,6 +14,7 @@ type EmailDraft = {
   source: string
   created_at: string
   sent_at: string | null
+  note?: string | null
   contact?: {
     id: string
     name: string
@@ -36,6 +37,8 @@ export function DashboardEmailInbox({ showToast, refresh }: Props) {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState<Record<string, boolean>>({})
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [regenerating, setRegenerating] = useState<Record<string, boolean>>({})
+  const [regenerateNotes, setRegenerateNotes] = useState<Record<string, string>>({})
 
   const loadDrafts = useCallback(async () => {
     try {
@@ -88,6 +91,43 @@ export function DashboardEmailInbox({ showToast, refresh }: Props) {
       showToast(err instanceof Error ? err.message : 'Errore')
     } finally {
       setSending((prev) => ({ ...prev, [draft.id]: false }))
+    }
+  }
+
+  async function handleRegenerate(draft: EmailDraft) {
+    if (regenerating[draft.id]) return
+    setRegenerating((prev) => ({ ...prev, [draft.id]: true }))
+
+    try {
+      const note = regenerateNotes[draft.id]?.trim() || undefined
+
+      const result = await apiFetch<{
+        draft: EmailDraft
+        regenerated: boolean
+      }>('/api/automation/regenerate-draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          draft_id: draft.id,
+          note,
+        }),
+      })
+
+      // Replace the draft with the regenerated one
+      setDrafts((prev) =>
+        prev.map((d) => (d.id === draft.id ? { ...d, ...result.draft } : d))
+      )
+      // Clear the note for this draft
+      setRegenerateNotes((prev) => {
+        const next = { ...prev }
+        delete next[draft.id]
+        return next
+      })
+      showToast(`Bozza rigenerata per ${draft.contact?.name || 'contatto'}`)
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Rigenerazione fallita')
+    } finally {
+      setRegenerating((prev) => ({ ...prev, [draft.id]: false }))
     }
   }
 
@@ -145,7 +185,8 @@ export function DashboardEmailInbox({ showToast, refresh }: Props) {
           const urgencyInfo = urgency(draft)
           const badge = scoreBadge(draft.contact?.score)
           const isExpanded = expandedId === draft.id
-          const isBusy = sending[draft.id]
+          const isBusy = sending[draft.id] || regenerating[draft.id]
+          const isRegenerating = regenerating[draft.id]
 
           return (
             <div
@@ -184,6 +225,15 @@ export function DashboardEmailInbox({ showToast, refresh }: Props) {
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm"
+                    onClick={() => handleRegenerate(draft)}
+                    disabled={isBusy}
+                    title="Rigenera email con AI"
+                  >
+                    {isRegenerating ? '⏳' : '🔄'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
                     onClick={() => handleDismiss(draft)}
                     disabled={isBusy}
                     title="Ignora"
@@ -209,6 +259,28 @@ export function DashboardEmailInbox({ showToast, refresh }: Props) {
                       __html: draft.body_html || draft.body_text?.replace(/\n/g, '<br>') || '',
                     }}
                   />
+                  <div className="oggi-email-inbox-regenerate" style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                    <textarea
+                      className="oggi-email-draft-common-input"
+                      placeholder="Contesto aggiuntivo per rigenerare questa email (es. proposta specifica, materiali da citare, obiezioni da gestire)..."
+                      value={regenerateNotes[draft.id] || ''}
+                      onChange={(e) =>
+                        setRegenerateNotes((prev) => ({ ...prev, [draft.id]: e.target.value }))
+                      }
+                      rows={2}
+                      style={{ width: '100%', boxSizing: 'border-box', fontSize: 13 }}
+                      disabled={isRegenerating}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => handleRegenerate(draft)}
+                      disabled={isRegenerating}
+                      style={{ marginTop: 8 }}
+                    >
+                      {isRegenerating ? '⏳ Rigenerazione in corso...' : '🔄 Rigenera email'}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
