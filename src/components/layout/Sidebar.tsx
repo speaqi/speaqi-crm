@@ -27,6 +27,7 @@ const NAV_ITEMS = [
   { href: '/calendario', label: 'Follow-up', icon: '📅', badgeKey: 'tasks' as const, badgeRed: true },
   { href: '/email', label: 'Email', icon: '✉️' },
   { href: '/attivita', label: 'Analytics', icon: '📊' },
+  { href: '/finanza', label: 'Finanza', icon: '📈' },
   { href: '/impostazioni', label: 'Impostazioni', icon: '⚙️' },
 ]
 
