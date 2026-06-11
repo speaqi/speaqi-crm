@@ -3,6 +3,7 @@ import { createServiceRoleClient } from '@/lib/server/supabase'
 import { errorMessage } from '@/lib/server/http'
 import type { CRMContact, GmailMessage } from '@/types'
 import { EMPTY_USER_SETTINGS, loadUserSettings, type UserSettings } from '@/lib/server/user-settings'
+import { buildEmailSegmentGuidance } from '@/lib/server/email-draft-context'
 
 function validateSecret(request: NextRequest) {
   const secret = process.env.AUTOMATION_SECRET
@@ -101,6 +102,15 @@ async function loadContactContext(supabase: any, contactId: string) {
 type DraftError = {
   reason: 'rate_limited' | 'api_error' | 'bad_response' | 'invalid_json' | 'network_error' | 'unknown'
   detail: string
+}
+
+function isMissingColumn(error: unknown, column: string) {
+  if (!error || typeof error !== 'object') return false
+  const message = String((error as { message?: unknown }).message || '').toLowerCase()
+  return (
+    message.includes(column.toLowerCase()) &&
+    (message.includes('column') || message.includes('schema cache') || message.includes('could not find'))
+  )
 }
 
 async function callOpenAI(
@@ -259,16 +269,23 @@ async function generateDraft(
   }
 
   const hasSettings = !!(settings?.speaqi_context || settings?.email_target_audience || settings?.email_value_proposition)
+  const segmentGuidance = buildEmailSegmentGuidance(contact)
 
   const system = [
-    'Sei un assistente commerciale che scrive email per conto di Speaqi, agenzia di comunicazione e marketing digitale.',
-    'Speaqi aiuta aziende a crescere con strategie digitali, siti web, advertising, e automazione.',
-    'Scrivi email professionali, concrete, in italiano, in prima persona.',
+    'Sei un senior sales copywriter che prepara bozze email commerciali per conto del venditore.',
+    'Usa come fonte di verita esclusivamente il contesto aziendale, i dati del contatto e la cronologia forniti sotto.',
+    'Scrivi nella lingua del contatto quando il campo lingua e valorizzato; altrimenti scrivi in italiano.',
+    'Scrivi in prima persona, con tono umano, professionale e concreto.',
     'NON usare frasi generiche come "spero che tu stia bene", "come stai", "buongiorno/buonasera" vuoti. Vai dritto al punto con un aggancio personale o contestuale.',
     'Non inventare dati, prezzi, disponibilità, meeting o promesse non presenti nel contesto.',
+    'Non inventare una personalizzazione: se i dati non bastano, usa un motivo del contatto onesto e specifico per il segmento.',
+    'Non descrivere servizi o capacita che non compaiono nel contesto aziendale.',
     'Non inserire la firma: il CRM la aggiungerà dopo, usando la firma Gmail reale.',
-    'Struttura richiesta: saluto naturale, motivo del contatto, valore specifico, eventuali 2-3 bullet se aiutano, CTA chiara con una sola prossima azione.',
-    'Il corpo deve essere leggibile anche in plain text: paragrafi brevi, niente blocchi lunghi.',
+    'Struttura: apertura rilevante, problema o opportunita osservabile, valore specifico, una sola CTA semplice.',
+    'Mantieni il corpo tra 70 e 140 parole, salvo che la cronologia richieda una risposta piu articolata.',
+    'Evita autocelebrazioni, buzzword, elenchi di servizi e frasi come "potrebbe interessarti" senza spiegare perche.',
+    'L oggetto deve essere breve, specifico e collegato al caso del destinatario; evita oggetti generici riutilizzabili per chiunque.',
+    'Prima di rispondere verifica mentalmente: coerenza con il destinatario, coerenza con il prodotto, nessun fatto inventato, CTA unica.',
     threadState,
     settings?.speaqi_context ? `\n## Contesto Speaqi / prodotto\n${settings.speaqi_context}` : '',
     settings?.email_tone ? `\n## Tono richiesto\n${settings.email_tone}` : '',
@@ -278,6 +295,7 @@ async function generateDraft(
     settings?.email_proof_points ? `\n## Prove, esempi, credibilità\n${settings.email_proof_points}` : '',
     settings?.email_objection_notes ? `\n## Obiezioni e cose da evitare\n${settings.email_objection_notes}` : '',
     settings?.email_call_to_action ? `\n## CTA preferita\n${settings.email_call_to_action}` : '',
+    segmentGuidance ? `\n## Indicazioni specifiche per questo segmento\n${segmentGuidance}` : '',
     // When settings are missing, nudge the AI to be more generic but still useful
     !hasSettings ? '\n## Nota importante\nNon hai contesto aziendale specifico nelle impostazioni. Basati ESCLUSIVAMENTE sui dati del contatto e sulla cronologia disponibile. Sii concreto ma non inventare dettagli su Speaqi che non conosci.' : '',
   ]
@@ -292,7 +310,9 @@ async function generateDraft(
     `Stato CRM: ${contact.status}`,
     contact.source ? `Origine: ${contact.source}` : '',
     contact.event_tag ? `Evento/tag: ${contact.event_tag}` : '',
+    contact.list_name ? `Lista: ${contact.list_name}` : '',
     contact.country ? `Paese: ${contact.country}` : '',
+    contact.language ? `Lingua: ${contact.language}` : '',
     contact.responsible ? `Responsabile: ${contact.responsible}` : '',
     `Email: ${contact.email}`,
     contact.note ? `\n## Note scheda contatto\n${contact.note}` : '',
@@ -406,18 +426,42 @@ export async function POST(request: NextRequest) {
         const context = await loadContactContext(supabase, contact.id)
         const settings = settingsMap.get(contact.user_id || '') || globalFallbackSettings
 
-        // Skip contacts that already have a pending draft created in the last 8 hours
-        // (prevents duplicates if orchestrator runs multiple times, but allows next-day regeneration)
-        const recentWindow = new Date(Date.now() - 8 * 60 * 60 * 1000)
-        const { count } = await supabase
+        // A follow-up date identifies one drafting event. Do not recreate it after
+        // retries, restarts, dismissals, or repeated morning runs.
+        const scheduledFor = contact.next_followup_at || null
+        let duplicateQuery = supabase
           .from('email_drafts')
           .select('id', { count: 'exact', head: true })
           .eq('contact_id', contact.id)
-          .eq('status', 'pending')
-          .gte('created_at', recentWindow.toISOString())
+          .eq('source', 'auto')
+
+        duplicateQuery = scheduledFor
+          ? duplicateQuery.eq('scheduled_for', scheduledFor)
+          : duplicateQuery.eq('status', 'pending')
+
+        let { count, error: duplicateError } = await duplicateQuery
+
+        if (duplicateError && scheduledFor && isMissingColumn(duplicateError, 'scheduled_for')) {
+          const fallback = await supabase
+            .from('email_drafts')
+            .select('id', { count: 'exact', head: true })
+            .eq('contact_id', contact.id)
+            .eq('source', 'auto')
+            .eq('status', 'pending')
+          count = fallback.count
+          duplicateError = fallback.error
+        }
+
+        if (duplicateError) throw duplicateError
 
         if (count && count > 0) {
-          return { contact_id: contact.id, contact_name: contact.name, email: contact.email || '', error: 'Draft già esistente (ultime 8 ore)' }
+          return {
+            contact_id: contact.id,
+            contact_name: contact.name,
+            email: contact.email || '',
+            skipped: true,
+            reason: 'Bozza gia generata per questa scadenza',
+          }
         }
 
         const generated = await generateDraft(contact, context, apiKey, model, settings)
@@ -430,22 +474,40 @@ export async function POST(request: NextRequest) {
         }
 
         // Save to email_drafts table
-        const { data: draft, error: insertError } = await supabase
+        const insertPayload = {
+          user_id: contact.user_id,
+          contact_id: contact.id,
+          subject: generated.subject,
+          body_text: generated.body_text,
+          body_html: generated.body_html,
+          source: 'auto',
+          status: 'pending',
+          scheduled_for: scheduledFor,
+        }
+
+        let { data: draft, error: insertError } = await supabase
           .from('email_drafts')
-          .insert({
-            user_id: contact.user_id,
-            contact_id: contact.id,
-            subject: generated.subject,
-            body_text: generated.body_text,
-            body_html: generated.body_html,
-            source: 'auto',
-            status: 'pending',
-          })
+          .insert(insertPayload)
           .select('id')
           .single()
 
+        if (insertError && isMissingColumn(insertError, 'scheduled_for')) {
+          const fallbackPayload = { ...insertPayload }
+          delete (fallbackPayload as Partial<typeof insertPayload>).scheduled_for
+          const fallback = await supabase
+            .from('email_drafts')
+            .insert(fallbackPayload)
+            .select('id')
+            .single()
+          draft = fallback.data
+          insertError = fallback.error
+        }
+
         if (insertError) {
           return { contact_id: contact.id, contact_name: contact.name, email: contact.email || '', error: `DB insert: ${insertError.message}` }
+        }
+        if (!draft) {
+          return { contact_id: contact.id, contact_name: contact.name, email: contact.email || '', error: 'DB insert: bozza non restituita' }
         }
 
         return { contact_id: contact.id, contact_name: contact.name, email: contact.email || '', draft_id: draft.id, subject: generated.subject }
@@ -454,8 +516,9 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    const generated = draftResults.filter((r) => r.draft_id).length
+    const generated = draftResults.filter((r) => r.draft_id || (dryRun && r.subject)).length
     const failed = draftResults.filter((r) => r.error).length
+    const skipped = draftResults.filter((r) => r.skipped).length
     const dryRunNote = dryRun ? ' [DRY RUN — nessun salvataggio]' : ''
 
     return Response.json({
@@ -463,6 +526,7 @@ export async function POST(request: NextRequest) {
       processed: limited.length,
       generated,
       failed,
+      skipped,
       dry_run: dryRun,
       message: `${generated} bozze generate, ${failed} errori${dryRunNote}`,
       drafts: draftResults,

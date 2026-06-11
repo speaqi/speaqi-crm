@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { requireRouteUser } from '@/lib/server/supabase'
-import { sendContactEmail } from '@/lib/server/gmail'
+import { sendContactEmail, simpleTextToHtml } from '@/lib/server/gmail'
 import { errorMessage } from '@/lib/server/http'
 import type { CRMContact } from '@/types'
 
@@ -12,6 +12,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const draftId = String(body.draft_id || '').trim()
     const mode = String(body.mode || 'send').trim() // 'send' | 'dismiss'
+    const editedSubject = body.subject === undefined ? null : String(body.subject).trim()
+    const editedBodyText = body.body_text === undefined ? null : String(body.body_text).trim()
 
     if (!draftId) {
       return Response.json({ error: 'draft_id obbligatorio' }, { status: 400 })
@@ -59,6 +61,29 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Contatto senza email' }, { status: 400 })
     }
 
+    const subject = editedSubject || draft.subject || '(nessun oggetto)'
+    const bodyText = editedBodyText === null ? (draft.body_text || '') : editedBodyText
+    const bodyHtml = editedBodyText === null
+      ? (draft.body_html || simpleTextToHtml(bodyText))
+      : simpleTextToHtml(bodyText)
+
+    if (!bodyText) {
+      return Response.json({ error: 'Il corpo email non puo essere vuoto' }, { status: 400 })
+    }
+
+    if (editedSubject !== null || editedBodyText !== null) {
+      const { error: editError } = await auth.supabase
+        .from('email_drafts')
+        .update({
+          subject,
+          body_text: bodyText,
+          body_html: bodyHtml,
+        })
+        .eq('id', draftId)
+
+      if (editError) throw editError
+    }
+
     // Calculate smart follow-up time based on contact status (SLA)
     function followupHours(status: string): number {
       const s = status.toLowerCase()
@@ -83,9 +108,9 @@ export async function POST(request: NextRequest) {
       auth.workspaceUserId,
       contact as CRMContact,
       {
-        subject: draft.subject || '(nessun oggetto)',
-        html: draft.body_html || '',
-        text: draft.body_text || '',
+        subject,
+        html: bodyHtml,
+        text: bodyText,
         followupAt: followupAt.toISOString(),
         appendSignature: true,
       }

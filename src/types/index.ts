@@ -369,6 +369,7 @@ export interface GmailAccountStatus {
   last_sync_at?: string | null
   signature_readable?: boolean
   needs_reconnect_for_signature?: boolean
+  needs_reconnect?: boolean
 }
 
 export interface GmailMessage {

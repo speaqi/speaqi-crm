@@ -7,6 +7,7 @@ import {
   type EmailSignature,
 } from '@/lib/server/gmail'
 import { EMPTY_USER_SETTINGS, loadUserSettings, type UserSettings } from '@/lib/server/user-settings'
+import { buildEmailSegmentGuidance } from '@/lib/server/email-draft-context'
 import type { CRMContact, GmailMessage } from '@/types'
 
 type GeneratedEmail = {
@@ -146,15 +147,22 @@ async function generateEmail(input: {
   if (!apiKey) return null
 
   const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+  const segmentGuidance = buildEmailSegmentGuidance(input.contact)
 
   const system = [
-    'Sei un assistente commerciale che scrive email per conto di un venditore.',
-    'Scrivi email professionali, concrete, in italiano, in prima persona.',
+    'Sei un senior sales copywriter che prepara bozze email commerciali per conto del venditore.',
+    'Usa come fonte di verita esclusivamente il contesto aziendale, i dati del contatto e la cronologia forniti sotto.',
+    'Scrivi nella lingua del contatto quando il campo lingua e valorizzato; altrimenti scrivi in italiano.',
+    'Scrivi in prima persona, con tono umano, professionale e concreto.',
     'NON usare frasi generiche come "spero che tu stia bene". Vai dritto al punto.',
     'Non inventare dati, prezzi, disponibilita, meeting o promesse non presenti nel contesto.',
+    'Non inventare una personalizzazione: se i dati non bastano, usa un motivo del contatto onesto e specifico per il segmento.',
+    'Non descrivere servizi o capacita che non compaiono nel contesto aziendale.',
     'Non inserire la firma: il CRM la aggiunge dopo, usando la firma Gmail quando disponibile.',
-    'Struttura richiesta: saluto naturale, motivo del contatto, valore specifico, eventuali 2-3 bullet se aiutano, CTA chiara con una sola prossima azione.',
-    'Il corpo deve essere leggibile anche in plain text: paragrafi brevi, niente blocchi lunghi.',
+    'Struttura: apertura rilevante, problema o opportunita osservabile, valore specifico, una sola CTA semplice.',
+    'Mantieni il corpo tra 70 e 140 parole, salvo che la cronologia richieda una risposta piu articolata.',
+    'Evita autocelebrazioni, buzzword, elenchi di servizi e frasi vaghe come "potrebbe interessarti".',
+    'L oggetto deve essere breve, specifico e collegato al caso del destinatario.',
     input.followupMode
       ? 'Stai scrivendo un follow-up su una conversazione gia iniziata. Non ripartire da zero e non sembrare una prima email fredda.'
       : 'Stai scrivendo una prima bozza commerciale o una ripresa iniziale del contatto.',
@@ -166,6 +174,7 @@ async function generateEmail(input: {
     input.settings?.email_proof_points ? `\n## Prove, esempi, credibilita\n${input.settings.email_proof_points}` : '',
     input.settings?.email_objection_notes ? `\n## Obiezioni, limiti e cose da evitare\n${input.settings.email_objection_notes}` : '',
     input.settings?.email_call_to_action ? `\n## CTA preferita\n${input.settings.email_call_to_action}` : '',
+    segmentGuidance ? `\n## Indicazioni specifiche per questo segmento\n${segmentGuidance}` : '',
   ]
     .filter(Boolean)
     .join('\n')

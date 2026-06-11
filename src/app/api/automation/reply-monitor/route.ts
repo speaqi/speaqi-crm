@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 import { errorMessage } from '@/lib/server/http'
-import { applyReplyOutcome, classifyReplyWithAI } from '@/lib/server/ai-ready'
+import { classifyReplyWithAI } from '@/lib/server/ai-ready'
+import { syncContactGmailMessages } from '@/lib/server/gmail'
 
 function validateSecret(request: NextRequest) {
   const secret = process.env.AUTOMATION_SECRET
@@ -71,8 +72,22 @@ export async function POST(request: NextRequest) {
 
     const entries = [...latestPerContact.entries()].map(([contactId, latestSentAt]) => ({ contactId, latestSentAt }))
 
-    await runWithConcurrency(entries, 2, async ({ contactId, latestSentAt }) => {
+    const processed = await runWithConcurrency(entries, 2, async ({ contactId, latestSentAt }) => {
       try {
+        const { data: contact, error: contactError } = await supabase
+          .from('contacts')
+          .select('*')
+          .eq('id', contactId)
+          .single()
+
+        if (contactError || !contact?.user_id) {
+          return { contact_id: contactId, reply_found: false }
+        }
+
+        if (!dryRun) {
+          await syncContactGmailMessages(supabase, contact.user_id, contact, 30)
+        }
+
         // Check for inbound messages after the latest outbound (already in DB from Gmail sync)
         const { data: inboundAfter, error: inError } = await supabase
           .from('gmail_messages')
@@ -84,17 +99,6 @@ export async function POST(request: NextRequest) {
           .limit(5)
 
         if (inError || !inboundAfter?.length) {
-          return { contact_id: contactId, reply_found: false }
-        }
-
-        // Get the user_id from the contact
-        const { data: contact } = await supabase
-          .from('contacts')
-          .select('user_id')
-          .eq('id', contactId)
-          .single()
-
-        if (!contact?.user_id) {
           return { contact_id: contactId, reply_found: false }
         }
 
@@ -112,18 +116,17 @@ export async function POST(request: NextRequest) {
           return { contact_id: contactId, reply_found: true, intent: classification.intent }
         }
 
-        const outcome = await applyReplyOutcome(supabase, contact.user_id, contactId, replyText)
-
         return {
           contact_id: contactId,
           reply_found: true,
-          intent: outcome.classification.intent,
-          action: outcome.next_action.action,
+          action: 'processed_by_gmail_sync',
         }
       } catch (err) {
         return { contact_id: contactId, reply_found: false, error: errorMessage(err, 'Errore') }
       }
     })
+
+    results.push(...processed)
 
     const replies = results.filter((r) => r.reply_found)
     const errors = results.filter((r) => r.error).length

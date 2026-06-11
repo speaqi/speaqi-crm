@@ -4,16 +4,15 @@
     {
       "id": "cron_every_30min",
       "name": "Ogni 30 minuti",
-      "type": "n8n-nodes-base.cron",
-      "typeVersion": 2,
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
       "position": [260, 260],
       "parameters": {
-        "triggerTimes": {
-          "item": [
+        "rule": {
+          "interval": [
             {
-              "mode": "everyX",
-              "value": 30,
-              "unit": "minutes"
+              "field": "cronExpression",
+              "expression": "*/30 * * * *"
             }
           ]
         }
@@ -59,5 +58,10 @@
         ]
       ]
     }
-  }
+  },
+  "settings": {
+    "timezone": "Europe/Rome",
+    "executionOrder": "v1"
+  },
+  "active": false
 }

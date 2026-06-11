@@ -63,6 +63,22 @@ export type EmailSignature = {
   source: 'gmail' | 'settings'
 }
 
+export class GmailReconnectRequiredError extends Error {
+  code = 'gmail_reconnect_required'
+
+  constructor() {
+    super('Autorizzazione Gmail scaduta o revocata. Apri la pagina Gmail e premi "Ricollega Gmail", poi riprova.')
+    this.name = 'GmailReconnectRequiredError'
+  }
+}
+
+export function isGmailReconnectRequired(error: unknown) {
+  return (
+    error instanceof GmailReconnectRequiredError ||
+    (error instanceof Error && error.message.toLowerCase().includes('invalid_grant'))
+  )
+}
+
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const GMAIL_API_BASE_URL = 'https://gmail.googleapis.com/gmail/v1'
@@ -470,7 +486,15 @@ export async function refreshAccessToken(account: GmailAccountRecord) {
     cache: 'no-store',
   })
 
-  const payload = await parseResponse<GoogleTokenResponse>(response, 'Failed to refresh Gmail access token')
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null)
+    if (payload?.error === 'invalid_grant') {
+      throw new GmailReconnectRequiredError()
+    }
+    throw new Error(payload?.error_description || payload?.error || 'Failed to refresh Gmail access token')
+  }
+
+  const payload = (await response.json()) as GoogleTokenResponse
   return payload.access_token
 }
 
@@ -501,7 +525,10 @@ export async function getGmailAccount(
   }
 }
 
-export function gmailStatus(account: GmailAccountRecord | null): GmailAccountStatus {
+export function gmailStatus(
+  account: GmailAccountRecord | null,
+  options: { needsReconnect?: boolean } = {}
+): GmailAccountStatus {
   if (!account) return { connected: false }
 
   return {
@@ -510,6 +537,7 @@ export function gmailStatus(account: GmailAccountRecord | null): GmailAccountSta
     last_sync_at: account.last_sync_at || null,
     signature_readable: gmailAccountHasSignatureScope(account),
     needs_reconnect_for_signature: !gmailAccountHasSignatureScope(account),
+    needs_reconnect: options.needsReconnect || false,
   }
 }
 

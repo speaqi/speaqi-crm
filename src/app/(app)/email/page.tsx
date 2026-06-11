@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { apiFetch } from '@/lib/api'
 import { useCRMContext } from '../layout'
 
@@ -66,6 +66,14 @@ export default function EmailPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set())
   const [regenerateNotes, setRegenerateNotes] = useState<Record<string, string>>({})
+  const [editedSubjects, setEditedSubjects] = useState<Record<string, string>>({})
+  const [editedBodies, setEditedBodies] = useState<Record<string, string>>({})
+  const [recordingDraftId, setRecordingDraftId] = useState<string | null>(null)
+  const [recordingSeconds, setRecordingSeconds] = useState(0)
+  const [transcribingDraftId, setTranscribingDraftId] = useState<string | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const loadData = useCallback(async () => {
     try {
@@ -86,6 +94,15 @@ export default function EmailPage() {
     loadData()
   }, [loadData])
 
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current)
+      const recorder = mediaRecorderRef.current
+      if (recorder?.state === 'recording') recorder.stop()
+      recorder?.stream.getTracks().forEach((track) => track.stop())
+    }
+  }, [])
+
   function setBusy(id: string) {
     setBusyIds((prev) => new Set(prev).add(id))
   }
@@ -103,7 +120,12 @@ export default function EmailPage() {
       await apiFetch('/api/automation/send-draft', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ draft_id: draft.id, mode: 'send' }),
+        body: JSON.stringify({
+          draft_id: draft.id,
+          mode: 'send',
+          subject: editedSubjects[draft.id] ?? draft.subject ?? '',
+          body_text: editedBodies[draft.id] ?? draft.body_text ?? '',
+        }),
       })
       showToast(`Email inviata a ${draft.contact?.name || 'contatto'}`)
       setDrafts((prev) => prev.filter((d) => d.id !== draft.id))
@@ -132,10 +154,11 @@ export default function EmailPage() {
     }
   }
 
-  async function handleRegenerate(draft: EmailDraft) {
+  async function handleRegenerate(draft: EmailDraft, explicitNote?: string) {
     setBusy(draft.id)
     try {
-      const note = regenerateNotes[draft.id]?.trim() || undefined
+      const note = explicitNote?.trim() || regenerateNotes[draft.id]?.trim() ||
+        draft.note?.trim() || undefined
       const result = await apiFetch<{ draft: EmailDraft; regenerated: boolean }>(
         '/api/automation/regenerate-draft',
         {
@@ -147,17 +170,104 @@ export default function EmailPage() {
       setDrafts((prev) =>
         prev.map((d) => (d.id === draft.id ? { ...d, ...result.draft } : d))
       )
-      setRegenerateNotes((prev) => {
-        const next = { ...prev }
-        delete next[draft.id]
-        return next
-      })
+      setEditedSubjects((prev) => ({ ...prev, [draft.id]: result.draft.subject || '' }))
+      setEditedBodies((prev) => ({ ...prev, [draft.id]: result.draft.body_text || '' }))
+      if (note) {
+        setRegenerateNotes((prev) => ({ ...prev, [draft.id]: note }))
+      }
       showToast(`Bozza rigenerata per ${draft.contact?.name || 'contatto'}`)
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Rigenerazione fallita')
     } finally {
       clearBusy(draft.id)
     }
+  }
+
+  async function transcribeAndRegenerate(draft: EmailDraft, audio: Blob, fileName: string) {
+    if (!audio.size) {
+      showToast('Il vocale registrato è vuoto')
+      return
+    }
+
+    setTranscribingDraftId(draft.id)
+    try {
+      const formData = new FormData()
+      formData.append('audio', audio, fileName)
+      const result = await apiFetch<{ transcript: string }>('/api/ai/transcribe', {
+        method: 'POST',
+        body: formData,
+      })
+      const transcript = result.transcript.trim()
+      setRegenerateNotes((prev) => ({ ...prev, [draft.id]: transcript }))
+      await handleRegenerate(draft, transcript)
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Trascrizione fallita')
+    } finally {
+      setTranscribingDraftId(null)
+    }
+  }
+
+  async function startVoiceContext(draft: EmailDraft) {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      showToast('La registrazione audio non è supportata da questo browser')
+      return
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const preferredMimeType = [
+        'audio/webm;codecs=opus',
+        'audio/mp4',
+        'audio/webm',
+      ].find((type) => MediaRecorder.isTypeSupported(type))
+      const recorder = preferredMimeType
+        ? new MediaRecorder(stream, { mimeType: preferredMimeType })
+        : new MediaRecorder(stream)
+
+      audioChunksRef.current = []
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data)
+      }
+      recorder.onstop = () => {
+        if (recordingTimerRef.current) clearInterval(recordingTimerRef.current)
+        recordingTimerRef.current = null
+        stream.getTracks().forEach((track) => track.stop())
+        const mimeType = recorder.mimeType || preferredMimeType || 'audio/webm'
+        const blob = new Blob(audioChunksRef.current, { type: mimeType })
+        const extension = mimeType.includes('mp4') ? 'mp4' : 'webm'
+        setRecordingDraftId(null)
+        setRecordingSeconds(0)
+        void transcribeAndRegenerate(draft, blob, `contesto-vocale.${extension}`)
+      }
+
+      mediaRecorderRef.current = recorder
+      recorder.start(250)
+      setRecordingDraftId(draft.id)
+      setRecordingSeconds(0)
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((seconds) => {
+          if (seconds >= 179 && recorder.state === 'recording') recorder.stop()
+          return seconds + 1
+        })
+      }, 1000)
+    } catch (err) {
+      showToast(
+        err instanceof Error && err.name === 'NotAllowedError'
+          ? 'Consenti l’accesso al microfono per registrare il contesto'
+          : 'Impossibile avviare la registrazione'
+      )
+    }
+  }
+
+  function stopVoiceContext() {
+    const recorder = mediaRecorderRef.current
+    if (recorder?.state === 'recording') recorder.stop()
+  }
+
+  function formatRecordingTime(seconds: number) {
+    const minutes = Math.floor(seconds / 60)
+    const remaining = seconds % 60
+    return `${String(minutes).padStart(2, '0')}:${String(remaining).padStart(2, '0')}`
   }
 
   if (loading) {
@@ -240,6 +350,8 @@ export default function EmailPage() {
                 const badge = scoreBadge(draft.contact?.score)
                 const isExpanded = expandedId === draft.id
                 const isBusy = busyIds.has(draft.id)
+                const isRecording = recordingDraftId === draft.id
+                const isTranscribing = transcribingDraftId === draft.id
 
                 return (
                   <div
@@ -311,34 +423,101 @@ export default function EmailPage() {
 
                     {isExpanded && (
                       <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-                        <div
-                          className="oggi-email-inbox-body"
-                          style={{ marginBottom: 12, maxHeight: 400, overflowY: 'auto', padding: 12, background: 'var(--surface2)', borderRadius: 8, fontSize: 14, lineHeight: 1.6 }}
-                          dangerouslySetInnerHTML={{
-                            __html: draft.body_html || draft.body_text?.replace(/\n/g, '<br>') || '',
-                          }}
+                        <label className="form-label" style={{ display: 'block', marginBottom: 6 }}>
+                          Oggetto
+                        </label>
+                        <input
+                          className="form-input"
+                          value={editedSubjects[draft.id] ?? draft.subject ?? ''}
+                          onChange={(event) =>
+                            setEditedSubjects((prev) => ({ ...prev, [draft.id]: event.target.value }))
+                          }
+                          disabled={isBusy}
+                          style={{ width: '100%', marginBottom: 12 }}
                         />
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                        <label className="form-label" style={{ display: 'block', marginBottom: 6 }}>
+                          Testo email
+                        </label>
+                        <textarea
+                          className="form-input"
+                          value={editedBodies[draft.id] ?? draft.body_text ?? ''}
+                          onChange={(event) =>
+                            setEditedBodies((prev) => ({ ...prev, [draft.id]: event.target.value }))
+                          }
+                          disabled={isBusy}
+                          rows={12}
+                          style={{ width: '100%', marginBottom: 12, resize: 'vertical', lineHeight: 1.55 }}
+                        />
+                        <label className="form-label" style={{ display: 'block', marginBottom: 6 }}>
+                          Contesto per questa email
+                        </label>
+                        <p className="oggi-muted" style={{ fontSize: 12, margin: '0 0 8px' }}>
+                          Racconta dove hai conosciuto il contatto, cosa vi siete detti e quale
+                          proposta vuoi fare. Il vocale viene trascritto e usato per rigenerare la
+                          bozza, senza inviarla.
+                        </p>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                           <textarea
                             className="form-input"
-                            placeholder="Contesto aggiuntivo per rigenerare questa email..."
-                            value={regenerateNotes[draft.id] || ''}
+                            placeholder="Scrivi il contesto oppure registralo con il microfono..."
+                            value={regenerateNotes[draft.id] ?? draft.note ?? ''}
                             onChange={(e) =>
                               setRegenerateNotes((prev) => ({ ...prev, [draft.id]: e.target.value }))
                             }
-                            rows={2}
-                            style={{ flex: 1, fontSize: 13, resize: 'vertical' }}
-                            disabled={isBusy}
+                            rows={3}
+                            style={{ flex: '1 1 420px', fontSize: 13, resize: 'vertical' }}
+                            disabled={isBusy || isRecording || isTranscribing}
                           />
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-sm"
-                            onClick={() => handleRegenerate(draft)}
-                            disabled={isBusy}
-                            style={{ flexShrink: 0 }}
-                          >
-                            {isBusy ? '⏳' : '🔄 Rigenera'}
-                          </button>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              className={`btn ${isRecording ? 'btn-primary' : 'btn-ghost'} btn-sm`}
+                              onClick={() =>
+                                isRecording ? stopVoiceContext() : startVoiceContext(draft)
+                              }
+                              disabled={
+                                isBusy || isTranscribing ||
+                                (recordingDraftId !== null && !isRecording)
+                              }
+                            >
+                              {isRecording
+                                ? `■ Stop ${formatRecordingTime(recordingSeconds)}`
+                                : '🎙 Registra contesto'}
+                            </button>
+                            <label
+                              className="btn btn-ghost btn-sm"
+                              style={{
+                                cursor: isBusy || isTranscribing ? 'not-allowed' : 'pointer',
+                                opacity: isBusy || isTranscribing ? 0.55 : 1,
+                              }}
+                            >
+                              Carica vocale
+                              <input
+                                type="file"
+                                accept="audio/*"
+                                hidden
+                                disabled={isBusy || isTranscribing || recordingDraftId !== null}
+                                onChange={(event) => {
+                                  const file = event.target.files?.[0]
+                                  event.target.value = ''
+                                  if (file) void transcribeAndRegenerate(draft, file, file.name)
+                                }}
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => handleRegenerate(draft)}
+                              disabled={isBusy || isRecording || isTranscribing}
+                              style={{ flexShrink: 0 }}
+                            >
+                              {isTranscribing
+                                ? 'Trascrivo e rigenero...'
+                                : isBusy
+                                  ? '⏳'
+                                  : '🔄 Rigenera'}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )}

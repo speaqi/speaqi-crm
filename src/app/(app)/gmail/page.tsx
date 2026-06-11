@@ -77,8 +77,23 @@ export default function GmailPage() {
             </div>
           )}
 
+          {status?.gmail.connected && status.gmail.needs_reconnect && (
+            <div className="inline-error">
+              <strong>Autorizzazione Gmail scaduta:</strong> premi “Ricollega Gmail” e completa nuovamente il consenso Google.
+            </div>
+          )}
+
           <div className="detail-stack" style={{ gap: 10 }}>
-            <div><strong>Stato:</strong> {loading ? 'Verifica in corso...' : status?.gmail.connected ? 'Connesso' : 'Non connesso'}</div>
+            <div>
+              <strong>Stato:</strong>{' '}
+              {loading
+                ? 'Verifica in corso...'
+                : status?.gmail.needs_reconnect
+                  ? 'Da ricollegare'
+                  : status?.gmail.connected
+                    ? 'Connesso'
+                    : 'Non connesso'}
+            </div>
             <div><strong>Account:</strong> {status?.gmail.email || 'Nessun account collegato'}</div>
             <div><strong>Ultima sync:</strong> {formatDateTime(status?.gmail.last_sync_at)}</div>
             <div><strong>Firma Gmail:</strong> {status?.gmail.signature_readable ? 'Autorizzata' : status?.gmail.connected ? 'Richiede ricollegamento' : 'Non disponibile'}</div>

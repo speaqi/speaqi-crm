@@ -4,7 +4,9 @@ import {
   getGmailAccount,
   getGmailConfigStatus,
   gmailStatus,
+  isGmailReconnectRequired,
   isMissingRelation,
+  refreshAccessToken,
 } from '@/lib/server/gmail'
 import { requireRouteUser } from '@/lib/server/supabase'
 import type { SentMessageHistoryItem } from '@/types'
@@ -95,9 +97,23 @@ export async function GET(request: NextRequest) {
 
     const account = await getGmailAccount(auth.supabase, auth.workspaceUserId)
     const sentHistory = await loadSentHistory(auth.supabase, auth.workspaceUserId)
+    let needsReconnect = false
+
+    if (account) {
+      try {
+        await refreshAccessToken(account)
+      } catch (error) {
+        if (isGmailReconnectRequired(error)) {
+          needsReconnect = true
+        } else {
+          throw error
+        }
+      }
+    }
+
     return Response.json({
       ready: true,
-      gmail: gmailStatus(account),
+      gmail: gmailStatus(account, { needsReconnect }),
       sent_history: sentHistory,
       missing_env: [],
     })

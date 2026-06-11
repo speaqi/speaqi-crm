@@ -80,5 +80,10 @@
         ]
       ]
     }
-  }
+  },
+  "settings": {
+    "timezone": "Europe/Rome",
+    "executionOrder": "v1"
+  },
+  "active": false
 }

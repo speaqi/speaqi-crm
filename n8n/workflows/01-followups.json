@@ -4,19 +4,18 @@
     {
       "id": "cron_followups",
       "name": "Every 10 Minutes",
-      "type": "n8n-nodes-base.cron",
-      "typeVersion": 2,
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
       "position": [
         260,
         260
       ],
       "parameters": {
-        "triggerTimes": {
-          "item": [
+        "rule": {
+          "interval": [
             {
-              "mode": "everyX",
-              "value": 10,
-              "unit": "minutes"
+              "field": "cronExpression",
+              "expression": "*/10 * * * *"
             }
           ]
         }
@@ -61,5 +60,10 @@
         ]
       ]
     }
-  }
+  },
+  "settings": {
+    "timezone": "Europe/Rome",
+    "executionOrder": "v1"
+  },
+  "active": false
 }
