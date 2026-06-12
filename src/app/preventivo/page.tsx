@@ -388,7 +388,7 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
         <p className="public-quote-legal-footer">
           Speaqi di TheBestItaly · P.IVA: 10831191217 · C.F.: 95125440636
           <br />
-          <a href="mailto:speaqi@thebestitaly.it" className="public-quote-contact-link">
+          <a href="mailto:info@speaqi.com" className="public-quote-contact-link">
             Hai domande? Contatta il team Speaqi
           </a>
         </p>
