@@ -520,6 +520,16 @@ export async function logLeadActivity(
 
   if (contactError) throw contactError
 
+  // Auto-iscrizione alle cadenze con trigger "email inviata": avvia il follow-up multi-step appena parte la prima email.
+  if (normalizedType === 'email_sent') {
+    try {
+      const { enrollContactsForTrigger } = await import('./sequences')
+      await enrollContactsForTrigger(supabase, userId, input.leadId, 'email_sent')
+    } catch {
+      // L'iscrizione automatica non deve mai bloccare il log dell'attività.
+    }
+  }
+
   return data
 }
 
@@ -1073,6 +1083,14 @@ export async function applyReplyOutcome(supabase: any, userId: string, leadId: s
     .eq('id', leadId)
 
   if (statusError) throw statusError
+
+  // Il lead ha risposto: ferma le cadenze attive (rispettando stop_on_reply) per non continuare a contattarlo.
+  try {
+    const { stopEnrollmentsForContact } = await import('./sequences')
+    await stopEnrollmentsForContact(supabase, userId, leadId, 'replied')
+  } catch {
+    // Lo stop della cadenza non deve bloccare l'elaborazione della risposta.
+  }
 
   const memory = await upsertLeadMemory(supabase, userId, leadId, memoryUpdate)
   const suggestion = await suggestNextActionWithAI({

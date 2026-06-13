@@ -25,6 +25,7 @@ const NAV_ITEMS = [
   { href: '/partner', label: 'Partner', icon: '🤝', badgeKey: 'partner' as const },
   { href: '/preventivi', label: 'Preventivi', icon: '💶' },
   { href: '/calendario', label: 'Follow-up', icon: '📅', badgeKey: 'tasks' as const, badgeRed: true },
+  { href: '/sequenze', label: 'Cadenze', icon: '🔁' },
   { href: '/email', label: 'Email', icon: '✉️' },
   { href: '/attivita', label: 'Analytics', icon: '📊' },
   { href: '/finanza', label: 'Finanza', icon: '📈' },

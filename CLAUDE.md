@@ -240,6 +240,21 @@ Each stage has a `system_key` and `color`. Closed statuses: `closed`, `paid`, `l
 - User settings for email AI configuration at `/impostazioni/email-ai`
 - Model used: `OPENAI_MODEL` env var
 
+## Follow-up Sequences (Cadenze)
+
+Multi-step follow-up cadences so leads aren't lost after a single touch. A sequence is a list of steps (e.g. `day 0 email → day 3 call → day 7 email → day 14 WhatsApp`); each step materializes a real `tasks` row when due. Sequences **stop automatically** when the lead replies (reuses `applyReplyOutcome`/`classify-reply`) or the contact reaches a closed status.
+
+- **Management UI**: `/sequenze` — create/edit cadences, toggle active/paused, enroll contacts, seed the default 14-day cadence
+- **Tables** (migration `..._followup_sequences.sql`):
+  - `followup_sequences` — name, `status` (active/paused/archived), `trigger_event` (manual/email_sent), `stop_on_reply`
+  - `sequence_steps` — `step_index`, `action` (send_email/call/wait/whatsapp), `offset_hours` (cumulative from enrollment), `priority`
+  - `sequence_enrollments` — per-contact run state (`current_step`, `next_run_at`, `status`), unique on `(sequence_id, contact_id)`
+- **Engine**: `src/lib/server/sequences.ts` — enroll, stop-on-reply, and `processDueEnrollments()` (creates tasks via `createLeadTask`, idempotency key `sequence:{enrollmentId}:{stepIndex}`)
+- **Auto-enroll**: sequences with `trigger_event='email_sent'` enroll a contact (once) the first time an email is logged via `logLeadActivity`
+- **WhatsApp steps**: currently materialize as a manual `follow-up` task prefixed `WhatsApp:` — ready to wire to the Meta Cloud API later
+- **API**: `GET/POST /api/sequences`, `GET/PATCH/DELETE /api/sequences/[id]`, `POST/DELETE /api/sequences/enroll`, `GET /api/sequences/enrollments?contact_id=`, `POST /api/sequences/seed-defaults`
+- **Automation**: `POST /api/automation/sequences` (auth via `AUTOMATION_SECRET`) advances due enrollments; driven by n8n `n8n/workflows/07-sequences.json` (every 15 min)
+
 ## Voice Commands
 
 - Voice FAB on dashboard for quick access to `/voice`

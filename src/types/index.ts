@@ -441,3 +441,63 @@ export interface NextActionSuggestion {
   priority: 'low' | 'medium' | 'high'
   reason?: string | null
 }
+
+export type SequenceStatus = 'active' | 'paused' | 'archived'
+export type SequenceTriggerEvent = 'manual' | 'email_sent'
+export type SequenceStepAction = 'send_email' | 'call' | 'wait' | 'whatsapp'
+export type SequenceEnrollmentStatus = 'active' | 'completed' | 'stopped'
+
+export interface SequenceStep {
+  id: string
+  sequence_id?: string
+  step_index: number
+  action: SequenceStepAction
+  offset_hours: number
+  title?: string | null
+  priority: 'low' | 'medium' | 'high'
+  created_at?: string
+}
+
+export interface FollowupSequence {
+  id: string
+  user_id?: string
+  name: string
+  description?: string | null
+  status: SequenceStatus
+  trigger_event: SequenceTriggerEvent
+  stop_on_reply: boolean
+  steps: SequenceStep[]
+  active_enrollments?: number
+  created_at?: string
+  updated_at?: string
+}
+
+export interface SequenceStepInput {
+  action: SequenceStepAction
+  offset_hours: number
+  title?: string | null
+  priority?: 'low' | 'medium' | 'high'
+}
+
+export interface SequenceInput {
+  name: string
+  description?: string | null
+  status?: SequenceStatus
+  trigger_event?: SequenceTriggerEvent
+  stop_on_reply?: boolean
+  steps: SequenceStepInput[]
+}
+
+export interface SequenceEnrollment {
+  id: string
+  sequence_id: string
+  contact_id: string
+  status: SequenceEnrollmentStatus
+  current_step: number
+  next_run_at?: string | null
+  started_at: string
+  completed_at?: string | null
+  stopped_at?: string | null
+  stop_reason?: string | null
+  sequence_name?: string | null
+}
