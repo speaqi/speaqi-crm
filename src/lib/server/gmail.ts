@@ -354,6 +354,26 @@ export function appendEmailSignature(
   return { html, text }
 }
 
+export function getTrackingBaseUrl() {
+  const raw = String(process.env.NEXT_PUBLIC_APP_URL || '').trim()
+  if (!raw) return null
+  const base = raw.replace(/\/+$/, '')
+  // Local hosts are unreachable from the recipient's mail client, so skip tracking there.
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)/i.test(base)) return null
+  return base
+}
+
+export function buildTrackingPixel(baseUrl: string, token: string) {
+  const src = `${baseUrl}/api/email/track/${encodeURIComponent(token)}.png`
+  return `<img src="${src}" width="1" height="1" alt="" style="display:none !important;width:1px;height:1px;max-height:0;max-width:0;border:0;overflow:hidden;opacity:0;" />`
+}
+
+function appendTrackingPixel(html: string, token: string) {
+  const baseUrl = getTrackingBaseUrl()
+  if (!baseUrl) return { html, token: null as string | null }
+  return { html: `${html}\n${buildTrackingPixel(baseUrl, token)}`, token }
+}
+
 async function parseResponse<T>(response: Response, fallback: string) {
   const payload = await response.json().catch(() => null)
   if (!response.ok) {
@@ -839,7 +859,9 @@ export async function sendContactEmail(
     { html: input.html, text: input.text },
     signature
   )
-  const raw = encodeMessageBody(input.subject, contact.email, signedInput.html, signedInput.text)
+  const trackingToken = crypto.randomUUID()
+  const tracked = appendTrackingPixel(signedInput.html, trackingToken)
+  const raw = encodeMessageBody(input.subject, contact.email, tracked.html, signedInput.text)
   const effectiveFollowupAt = (contact.contact_scope || 'crm') === 'holding' ? null : (input.followupAt || null)
 
   const sendResult = await gmailApiRequest<{ id: string; threadId?: string }>(
@@ -853,10 +875,13 @@ export async function sendContactEmail(
 
   const fullMessage = await getMessage(accessToken, sendResult.id)
   const normalized = normalizeMessageRecord(account, fullMessage, userId, contact.id)
+  const messageRecord = tracked.token
+    ? { ...normalized, tracking_token: tracked.token }
+    : normalized
 
   const { data: storedMessage, error: messageError } = await supabase
     .from('gmail_messages')
-    .upsert(normalized, {
+    .upsert(messageRecord, {
       onConflict: 'gmail_account_id,gmail_message_id',
     })
     .select('*')

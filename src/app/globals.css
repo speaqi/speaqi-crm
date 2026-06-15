@@ -3750,6 +3750,28 @@ select.filter-select {
   overflow: hidden;
 }
 
+.drawer-email-open-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.drawer-email-open-badge.is-open {
+  color: #047857;
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.drawer-email-open-badge.is-pending {
+  color: var(--text2);
+  background: var(--surface2);
+}
+
 .pipeline-toggle {
   display: inline-flex;
   background: var(--surface2);

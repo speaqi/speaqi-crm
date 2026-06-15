@@ -515,6 +515,19 @@ export function ContactDrawer({ contactId, onClose, onEdit, anchorPoint = null }
                         <span>{email.direction === 'outbound' ? 'Inviata' : 'Ricevuta'}</span>
                       </div>
                       <div className="drawer-email-meta">{formatDateTime(email.sent_at)}</div>
+                      {email.direction === 'outbound' && (
+                        Number(email.open_count || 0) > 0 ? (
+                          <div
+                            className="drawer-email-open-badge is-open"
+                            title={email.last_opened_at ? `Ultima apertura: ${formatDateTime(email.last_opened_at)}` : undefined}
+                          >
+                            ✓ Aperta{Number(email.open_count || 0) > 1 ? ` ${email.open_count} volte` : ''}
+                            {email.last_opened_at ? ` · ${formatDateTime(email.last_opened_at)}` : ''}
+                          </div>
+                        ) : (
+                          <div className="drawer-email-open-badge is-pending">Non ancora aperta</div>
+                        )
+                      )}
                       <div className="drawer-email-preview">{email.snippet || email.body_text || 'Nessun contenuto'}</div>
                     </div>
                   ))}

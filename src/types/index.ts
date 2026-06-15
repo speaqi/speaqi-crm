@@ -390,6 +390,10 @@ export interface GmailMessage {
   sent_at?: string | null
   synced_at: string
   created_at: string
+  tracking_token?: string | null
+  opened_at?: string | null
+  last_opened_at?: string | null
+  open_count?: number | null
 }
 
 export interface SentMessageHistoryItem {
