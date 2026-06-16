@@ -8,6 +8,7 @@ import {
 } from '@/lib/server/crm'
 import {
   createLeadTask,
+  insertStageTransition,
   normalizeLeadRecord,
   normalizeTaskAction,
   normalizeTaskPriority,
@@ -127,6 +128,7 @@ export async function createLeadFromInput(supabase: any, userId: string, body: a
     next_action_at: nextActionAt,
     next_followup_at: nextFollowupAt,
     last_activity_summary: normalizeText(body.note),
+    stage_entered_at: new Date().toISOString(),
   }
 
   const { data: inserted, error } = await supabase
@@ -136,6 +138,14 @@ export async function createLeadFromInput(supabase: any, userId: string, body: a
     .single()
 
   if (error) throw error
+
+  await insertStageTransition(supabase, {
+    contactId: inserted.id,
+    userId,
+    fromStage: null,
+    toStage: inserted.status,
+    changedAt: inserted.created_at,
+  })
 
   let task = null
   if (nextActionAt) {

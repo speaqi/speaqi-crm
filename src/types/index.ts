@@ -67,6 +67,9 @@ export interface CRMContact {
   marketing_status?: MarketingStatus | null
   marketing_paused_until?: string | null
   hidden?: boolean | null
+  stage_entered_at?: string | null
+  first_closed_at?: string | null
+  won_at?: string | null
   created_at: string
   updated_at: string
 }
