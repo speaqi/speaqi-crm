@@ -9,6 +9,7 @@ import {
   updateContactSummary,
 } from '@/lib/server/crm'
 import { getGmailAccount, gmailStatus, isMissingRelation } from '@/lib/server/gmail'
+import { insertStageTransition } from '@/lib/server/ai-ready'
 import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { requireRouteUser } from '@/lib/server/supabase'
 
@@ -49,6 +50,11 @@ type OptionalContactColumn =
   | 'company_size'
   | 'industry'
   | 'hidden'
+  | 'stage_entered_at'
+  | 'first_closed_at'
+  | 'won_at'
+
+const STAGE_TIMING_COLUMNS: OptionalContactColumn[] = ['stage_entered_at', 'first_closed_at', 'won_at']
 
 const BILLING_CONTACT_COLUMNS: OptionalContactColumn[] = [
   'billing_tax_id',
@@ -94,6 +100,12 @@ function buildContactUpdateFallbackPayload(payload: Record<string, unknown>, err
   if (hasBillingColumnSchemaError(error)) {
     return stripBillingColumns(fallback)
   }
+  STAGE_TIMING_COLUMNS.forEach((column) => {
+    if (isMissingOptionalContactColumn(error, column) && column in fallback) {
+      delete fallback[column]
+      changed = true
+    }
+  })
 
   return changed ? fallback : null
 }
@@ -402,6 +414,16 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       next_followup_at: nextFollowupAt,
     }
 
+    const statusChanged = current.status !== nextStatus
+    const nowIso = new Date().toISOString()
+    if (statusChanged) {
+      updatePayload.stage_entered_at = nowIso
+      if (isClosedStatus(nextStatus)) {
+        if (!current.first_closed_at) updatePayload.first_closed_at = nowIso
+        if (['closed', 'paid'].includes(nextStatus.toLowerCase())) updatePayload.won_at = nowIso
+      }
+    }
+
     if (nextContactScope === 'personal') {
       updatePayload.personal_section =
         body.personal_section !== undefined
@@ -441,6 +463,16 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 
     if (updateError) throw updateError
+
+    if (statusChanged) {
+      await insertStageTransition(auth.supabase, {
+        contactId: id,
+        userId: auth.workspaceUserId,
+        fromStage: current.status,
+        toStage: nextStatus,
+        changedAt: nowIso,
+      })
+    }
 
     if (isClosedStatus(nextStatus) || nextStatus === 'Waiting') {
       await completePendingCallTasks(auth.supabase, auth.workspaceUserId, id)

@@ -368,6 +368,34 @@ export async function logAiDecision(
   }
 }
 
+/**
+ * Registra una transizione di fase nello storico `stage_transitions`.
+ * Internamente safe: un errore (es. RLS o tabella mancante) non deve mai
+ * rompere l'operazione chiamante (PATCH contatto / creazione lead).
+ */
+export async function insertStageTransition(
+  supabase: any,
+  input: {
+    contactId: string
+    userId: string
+    fromStage?: string | null
+    toStage: string
+    changedAt?: string | null
+  }
+) {
+  try {
+    await supabase.from('stage_transitions').insert({
+      contact_id: input.contactId,
+      user_id: input.userId,
+      from_stage: input.fromStage || null,
+      to_stage: input.toStage,
+      changed_at: input.changedAt || nowIso(),
+    })
+  } catch {
+    return
+  }
+}
+
 export async function syncLeadActionDates(supabase: any, userId: string, leadId: string) {
   const { data, error } = await supabase
     .from('tasks')

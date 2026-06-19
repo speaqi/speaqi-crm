@@ -21,6 +21,7 @@ interface SidebarProps {
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Oggi', icon: '🏠', badgeKey: 'oggi' as const, badgeRed: true },
   { href: '/kanban', label: 'Pipeline', icon: '🔀', badgeKey: 'kanban' as const },
+  { href: '/progetti', label: 'Progetti', icon: '🎯' },
   { href: '/contacts', label: 'Contatti', icon: '👥', badgeKey: 'contacts' as const },
   { href: '/partner', label: 'Partner', icon: '🤝', badgeKey: 'partner' as const },
   { href: '/preventivi', label: 'Preventivi', icon: '💶' },
