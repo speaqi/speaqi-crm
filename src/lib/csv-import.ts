@@ -77,6 +77,12 @@ const DETECTION_ORDER: CsvImportField[] = [
 export function parseCsvText(text: string) {
   const rows: string[][] = []
   const normalized = text.replace(/^\uFEFF/, '')
+  const firstLine = normalized.split(/\r?\n/, 1)[0] || ''
+  const delimiterCounts = [',', ';', '\t'].map((delimiter) => ({
+    delimiter,
+    count: firstLine.split(delimiter).length - 1,
+  }))
+  const delimiter = delimiterCounts.sort((left, right) => right.count - left.count)[0]?.delimiter || ','
   let currentRow: string[] = []
   let currentCell = ''
   let inQuotes = false
@@ -103,7 +109,7 @@ export function parseCsvText(text: string) {
       continue
     }
 
-    if (char === ',') {
+    if (char === delimiter) {
       currentRow.push(currentCell)
       currentCell = ''
       continue

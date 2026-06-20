@@ -13,6 +13,7 @@ const OPEN_HEADERS = new Set([
   'timesopened',
   'aperture',
   'aperturetotali',
+  'numdiaperture',
   'numeroaperture',
   'numerodiaperture',
   'aperturas',
