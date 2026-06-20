@@ -66,6 +66,7 @@ type AcumbamailContactDefaults = {
   assignedAgent: string | null
   listName: string | null
   eventTag: string | null
+  minOpens: number
 }
 
 const HANDLED_EVENTS = new Set<AcumbamailEventName>([
@@ -444,6 +445,7 @@ function readAcumbamailParams(request: NextRequest) {
 
 function readAcumbamailContactDefaults(request: NextRequest): AcumbamailContactDefaults {
   const params = readAcumbamailParams(request)
+  const parsedMinOpens = Number(firstQueryParam(params, ['min_opens', 'minimum_opens', 'm']) || 1)
 
   return {
     source: normalizeText(firstQueryParam(params, ['source', 'src'])) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_SOURCE) || 'vinitaly',
@@ -453,7 +455,26 @@ function readAcumbamailContactDefaults(request: NextRequest): AcumbamailContactD
     assignedAgent: normalizeText(firstQueryParam(params, ['assigned_agent', 'agent', 'a'])) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_ASSIGNED_AGENT),
     listName: normalizeText(firstQueryParam(params, ['list_name', 'list', 'l'])) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_LIST_NAME),
     eventTag: normalizeText(firstQueryParam(params, ['event_tag', 'tag'])) || normalizeText(process.env.ACUMBAMAIL_DEFAULT_EVENT_TAG),
+    minOpens: Number.isFinite(parsedMinOpens) ? Math.max(1, Math.round(parsedMinOpens)) : 1,
   }
+}
+
+async function recordCampaignOpen(
+  supabase: any,
+  userId: string,
+  event: NormalizedWebhookEvent,
+  defaults: AcumbamailContactDefaults
+) {
+  if (!defaults.eventTag || event.event !== 'opens') return null
+  const { data, error } = await supabase.rpc('record_acumbamail_campaign_open', {
+    p_user_id: userId,
+    p_campaign_key: defaults.eventTag,
+    p_email: event.email,
+    p_name: null,
+    p_occurred_at: event.occurredAt,
+  })
+  if (error) throw error
+  return data as { id: string; open_count: number; promoted_at?: string | null }
 }
 
 function readAcumbamailCreateEvents(request: NextRequest) {
@@ -769,7 +790,14 @@ export async function POST(request: NextRequest) {
     for (const event of events) {
       let contacts = await findContactsByEmail(supabase, event.email, scopedUserId)
       let createdContact = false
-      const canCreateFromEvent = createEvents.has(event.event)
+      const campaignEngagement = scopedUserId
+        ? await recordCampaignOpen(supabase, scopedUserId, event, contactDefaults)
+        : null
+      const reachedOpenThreshold =
+        event.event !== 'opens' ||
+        !contactDefaults.eventTag ||
+        Number(campaignEngagement?.open_count || 0) >= contactDefaults.minOpens
+      const canCreateFromEvent = createEvents.has(event.event) && reachedOpenThreshold
 
       if (!contacts.length && scopedUserId && canCreateFromEvent) {
         contacts = [await createContactFromWebhook(supabase, scopedUserId, event, contactDefaults)]
@@ -793,8 +821,28 @@ export async function POST(request: NextRequest) {
 
       const contactIds: string[] = []
       for (const contact of contacts) {
-        const result = await applyEventToContact(supabase, contact, event, contactDefaults)
+        const effectiveDefaults = reachedOpenThreshold ? contactDefaults : undefined
+        const result = await applyEventToContact(supabase, contact, event, effectiveDefaults)
+        if (campaignEngagement && reachedOpenThreshold) {
+          await supabase
+            .from('contacts')
+            .update({
+              email_open_count: Math.max(
+                Number(contact.email_open_count || 0) + 1,
+                campaignEngagement.open_count
+              ),
+            })
+            .eq('id', result.contact.id)
+            .eq('user_id', contact.user_id)
+        }
         contactIds.push(result.contact.id)
+      }
+
+      if (campaignEngagement && reachedOpenThreshold && !campaignEngagement.promoted_at) {
+        await supabase
+          .from('acumbamail_campaign_engagements')
+          .update({ promoted_at: new Date().toISOString() })
+          .eq('id', campaignEngagement.id)
       }
 
       processed.push({

@@ -5949,3 +5949,88 @@ select.filter-select {
   transition: opacity var(--transition);
 }
 .finance-goal-form button:disabled { opacity: .6; cursor: default; }
+
+/* Acumbamail campaign qualification */
+.acumbamail-page { max-width: 1120px; margin: 0 auto; }
+.acumbamail-page .page-header p { color: var(--text2); margin-top: 4px; }
+.acumbamail-card,
+.acumbamail-campaigns {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  margin-bottom: 20px;
+}
+.acumbamail-card-head,
+.acumbamail-campaign-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.acumbamail-card h2,
+.acumbamail-campaigns h2,
+.acumbamail-campaign-row h3 { margin: 0; }
+.acumbamail-card-head p,
+.acumbamail-campaign-row p { color: var(--text2); margin: 5px 0 0; font-size: 13px; }
+.acumbamail-threshold {
+  flex: 0 0 auto;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: var(--green-light);
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 700;
+}
+.acumbamail-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0 14px;
+}
+.acumbamail-form-grid label { display: flex; flex-direction: column; gap: 6px; }
+.acumbamail-form-grid label > span { color: var(--text2); font-size: 12px; font-weight: 600; }
+.acumbamail-form-grid input,
+.acumbamail-form-grid select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  padding: 10px 11px;
+  font: inherit;
+}
+.acumbamail-upload {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 18px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+.acumbamail-upload span { color: var(--text2); font-size: 12px; }
+.acumbamail-actions { display: flex; justify-content: flex-end; margin-top: 14px; }
+.acumbamail-campaigns > h2 { margin-bottom: 14px; }
+.acumbamail-campaign-row { border-top: 1px solid var(--border); padding: 15px 0; }
+.acumbamail-campaign-row:first-of-type { border-top: 0; }
+.acumbamail-campaign-main { flex: 1; min-width: 0; }
+.acumbamail-stats { min-width: 140px; display: flex; flex-direction: column; }
+.acumbamail-stats strong { font-size: 20px; }
+.acumbamail-stats span { color: var(--text2); font-size: 11px; }
+.acumbamail-webhook { min-width: 130px; text-align: right; }
+
+@media (max-width: 900px) {
+  .acumbamail-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .acumbamail-card-head,
+  .acumbamail-campaign-row { align-items: flex-start; flex-direction: column; }
+  .acumbamail-form-grid { grid-template-columns: 1fr; }
+  .acumbamail-webhook { text-align: left; }
+}
