@@ -18,14 +18,20 @@ type Campaign = {
 
 export default function AcumbamailPage() {
   const { isAdmin, teamMembers, refresh, showToast } = useCRMContext()
-  const fileRef = useRef<HTMLInputElement>(null)
+  const opensFileRef = useRef<HTMLInputElement>(null)
+  const clicksFileRef = useRef<HTMLInputElement>(null)
+  const unsubscribesFileRef = useRef<HTMLInputElement>(null)
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [name, setName] = useState('')
   const [listName, setListName] = useState('Comuni')
   const [minOpens, setMinOpens] = useState(5)
   const [responsible, setResponsible] = useState('')
-  const [csvText, setCsvText] = useState('')
-  const [fileName, setFileName] = useState('')
+  const [opensCsvText, setOpensCsvText] = useState('')
+  const [clicksCsvText, setClicksCsvText] = useState('')
+  const [unsubscribesCsvText, setUnsubscribesCsvText] = useState('')
+  const [opensFileName, setOpensFileName] = useState('')
+  const [clicksFileName, setClicksFileName] = useState('')
+  const [unsubscribesFileName, setUnsubscribesFileName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -42,23 +48,30 @@ export default function AcumbamailPage() {
     if (isAdmin) void loadCampaigns()
   }, [isAdmin])
 
-  function readFile(event: ChangeEvent<HTMLInputElement>) {
+  function readFile(event: ChangeEvent<HTMLInputElement>, kind: 'opens' | 'clicks' | 'unsubscribes') {
     const file = event.target.files?.[0]
     if (!file) return
-    setFileName(file.name)
+    if (kind === 'opens') setOpensFileName(file.name)
+    if (kind === 'clicks') setClicksFileName(file.name)
+    if (kind === 'unsubscribes') setUnsubscribesFileName(file.name)
     if (!name) setName(file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '))
     const reader = new FileReader()
-    reader.onload = () => setCsvText(String(reader.result || ''))
+    reader.onload = () => {
+      const text = String(reader.result || '')
+      if (kind === 'opens') setOpensCsvText(text)
+      if (kind === 'clicks') setClicksCsvText(text)
+      if (kind === 'unsubscribes') setUnsubscribesCsvText(text)
+    }
     reader.onerror = () => setError('Impossibile leggere il CSV')
     reader.readAsText(file)
   }
 
   async function importCampaign() {
-    if (!name.trim() || !csvText.trim()) return
+    if (!name.trim() || (!opensCsvText.trim() && !clicksCsvText.trim())) return
     setLoading(true)
     setError('')
     try {
-      const result = await apiFetch<{ parsed: number; qualified: number }>('/api/integrations/acumbamail/campaigns', {
+      const result = await apiFetch<{ parsed: number; qualified: number; clickers: number; excluded_unsubscribed: number }>('/api/integrations/acumbamail/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -66,14 +79,22 @@ export default function AcumbamailPage() {
           list_name: listName,
           min_opens: minOpens,
           responsible: responsible || null,
-          csv_text: csvText,
+          opens_csv_text: opensCsvText,
+          clicks_csv_text: clicksCsvText,
+          unsubscribes_csv_text: unsubscribesCsvText,
         }),
       })
-      showToast(`${result.qualified} contatti con almeno ${minOpens} aperture inseriti in “${listName}”`)
-      setCsvText('')
-      setFileName('')
+      showToast(`${result.qualified} qualificati · ${result.clickers} clicker · ${result.excluded_unsubscribed} cancellati esclusi`)
+      setOpensCsvText('')
+      setClicksCsvText('')
+      setUnsubscribesCsvText('')
+      setOpensFileName('')
+      setClicksFileName('')
+      setUnsubscribesFileName('')
       setName('')
-      if (fileRef.current) fileRef.current.value = ''
+      if (opensFileRef.current) opensFileRef.current.value = ''
+      if (clicksFileRef.current) clicksFileRef.current.value = ''
+      if (unsubscribesFileRef.current) unsubscribesFileRef.current.value = ''
       await Promise.all([loadCampaigns(), refresh()])
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : 'Import non riuscito')
@@ -88,14 +109,14 @@ export default function AcumbamailPage() {
     <div className="acumbamail-page">
       <header className="page-header">
         <h1>Acumbamail</h1>
-        <p>Una campagna, un CSV storico e un webhook. Entrano nella lista solo i contatti che raggiungono la soglia.</p>
+        <p>Unisce aperture e click per email. I click qualificano subito; i cancellati vengono sempre esclusi.</p>
       </header>
 
       <section className="acumbamail-card">
         <div className="acumbamail-card-head">
           <div>
             <h2>Nuova campagna</h2>
-            <p>Il CSV deve contenere almeno la colonna email. Se è presente una colonna aperture/open count, viene usata come storico.</p>
+            <p>Carica i due report separati di Acumbamail. Lo stesso contatto presente in entrambi viene contato una sola volta.</p>
           </div>
           <span className="acumbamail-threshold">≥ {minOpens} aperture</span>
         </div>
@@ -113,14 +134,26 @@ export default function AcumbamailPage() {
           </label>
         </div>
 
-        <button type="button" className="acumbamail-upload" onClick={() => fileRef.current?.click()}>
-          <strong>{fileName || 'Carica il CSV Acumbamail'}</strong>
-          <span>{fileName ? 'File pronto per l’import' : 'Seleziona il report esportato dalla campagna'}</span>
-        </button>
-        <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={readFile} hidden />
+        <div className="acumbamail-upload-grid">
+          <button type="button" className="acumbamail-upload" onClick={() => opensFileRef.current?.click()}>
+            <strong>{opensFileName || 'CSV aperture'}</strong>
+            <span>{opensFileName ? 'File pronto' : `Qualifica da ${minOpens} aperture`}</span>
+          </button>
+          <button type="button" className="acumbamail-upload acumbamail-upload-clicks" onClick={() => clicksFileRef.current?.click()}>
+            <strong>{clicksFileName || 'CSV click'}</strong>
+            <span>{clicksFileName ? 'File pronto' : 'Un click qualifica immediatamente'}</span>
+          </button>
+          <button type="button" className="acumbamail-upload acumbamail-upload-unsubscribes" onClick={() => unsubscribesFileRef.current?.click()}>
+            <strong>{unsubscribesFileName || 'CSV cancellati (opzionale)'}</strong>
+            <span>{unsubscribesFileName ? 'File pronto' : 'Ha precedenza ed esclude i contatti'}</span>
+          </button>
+        </div>
+        <input ref={opensFileRef} type="file" accept=".csv,text/csv" onChange={(event) => readFile(event, 'opens')} hidden />
+        <input ref={clicksFileRef} type="file" accept=".csv,text/csv" onChange={(event) => readFile(event, 'clicks')} hidden />
+        <input ref={unsubscribesFileRef} type="file" accept=".csv,text/csv" onChange={(event) => readFile(event, 'unsubscribes')} hidden />
         {error && <div className="import-error">{error}</div>}
         <div className="acumbamail-actions">
-          <button type="button" className="btn btn-primary" disabled={loading || !name.trim() || !csvText.trim()} onClick={importCampaign}>
+          <button type="button" className="btn btn-primary" disabled={loading || !name.trim() || (!opensCsvText.trim() && !clicksCsvText.trim())} onClick={importCampaign}>
             {loading ? 'Importazione…' : 'Crea campagna e importa'}
           </button>
         </div>

@@ -459,22 +459,63 @@ function readAcumbamailContactDefaults(request: NextRequest): AcumbamailContactD
   }
 }
 
-async function recordCampaignOpen(
+async function recordCampaignEngagement(
   supabase: any,
   userId: string,
   event: NormalizedWebhookEvent,
   defaults: AcumbamailContactDefaults
 ) {
-  if (!defaults.eventTag || event.event !== 'opens') return null
-  const { data, error } = await supabase.rpc('record_acumbamail_campaign_open', {
-    p_user_id: userId,
-    p_campaign_key: defaults.eventTag,
-    p_email: event.email,
-    p_name: null,
-    p_occurred_at: event.occurredAt,
-  })
+  if (!defaults.eventTag) return null
+  if (event.event === 'opens') {
+    const { data, error } = await supabase.rpc('record_acumbamail_campaign_open', {
+      p_user_id: userId,
+      p_campaign_key: defaults.eventTag,
+      p_email: event.email,
+      p_name: null,
+      p_occurred_at: event.occurredAt,
+    })
+    if (error) throw error
+    return data as { id: string; open_count: number; click_count: number; promoted_at?: string | null }
+  }
+  if (event.event !== 'clicks') return null
+
+  const { data: current, error: readError } = await supabase
+    .from('acumbamail_campaign_engagements')
+    .select('id,open_count,click_count,promoted_at')
+    .eq('user_id', userId)
+    .eq('campaign_key', defaults.eventTag)
+    .eq('email', event.email)
+    .maybeSingle()
+  if (readError) throw readError
+
+  if (current) {
+    const { data, error } = await supabase
+      .from('acumbamail_campaign_engagements')
+      .update({
+        click_count: Number(current.click_count || 0) + 1,
+        promoted_at: current.promoted_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', current.id)
+      .select('id,open_count,click_count,promoted_at')
+      .single()
+    if (error) throw error
+    return data as { id: string; open_count: number; click_count: number; promoted_at?: string | null }
+  }
+
+  const { data, error } = await supabase
+    .from('acumbamail_campaign_engagements')
+    .insert({
+      user_id: userId,
+      campaign_key: defaults.eventTag,
+      email: event.email,
+      click_count: 1,
+      promoted_at: new Date().toISOString(),
+    })
+    .select('id,open_count,click_count,promoted_at')
+    .single()
   if (error) throw error
-  return data as { id: string; open_count: number; promoted_at?: string | null }
+  return data as { id: string; open_count: number; click_count: number; promoted_at?: string | null }
 }
 
 function readAcumbamailCreateEvents(request: NextRequest) {
@@ -788,10 +829,19 @@ export async function POST(request: NextRequest) {
     }> = []
 
     for (const event of events) {
+      if (event.event === 'unsubscribes' && scopedUserId && contactDefaults.eventTag) {
+        const { error: engagementDeleteError } = await supabase
+          .from('acumbamail_campaign_engagements')
+          .delete()
+          .eq('user_id', scopedUserId)
+          .eq('campaign_key', contactDefaults.eventTag)
+          .eq('email', event.email)
+        if (engagementDeleteError) throw engagementDeleteError
+      }
       let contacts = await findContactsByEmail(supabase, event.email, scopedUserId)
       let createdContact = false
       const campaignEngagement = scopedUserId
-        ? await recordCampaignOpen(supabase, scopedUserId, event, contactDefaults)
+        ? await recordCampaignEngagement(supabase, scopedUserId, event, contactDefaults)
         : null
       const reachedOpenThreshold =
         event.event !== 'opens' ||
@@ -823,7 +873,7 @@ export async function POST(request: NextRequest) {
       for (const contact of contacts) {
         const effectiveDefaults = reachedOpenThreshold ? contactDefaults : undefined
         const result = await applyEventToContact(supabase, contact, event, effectiveDefaults)
-        if (campaignEngagement && reachedOpenThreshold) {
+        if (campaignEngagement && reachedOpenThreshold && event.event === 'opens') {
           await supabase
             .from('contacts')
             .update({

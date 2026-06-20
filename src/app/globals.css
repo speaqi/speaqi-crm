@@ -6014,6 +6014,9 @@ select.filter-select {
   cursor: pointer;
   text-align: left;
 }
+.acumbamail-upload-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.acumbamail-upload-clicks { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.acumbamail-upload-unsubscribes { border-color: color-mix(in srgb, var(--red) 35%, var(--border)); }
 .acumbamail-upload span { color: var(--text2); font-size: 12px; }
 .acumbamail-actions { display: flex; justify-content: flex-end; margin-top: 14px; }
 .acumbamail-campaigns > h2 { margin-bottom: 14px; }
@@ -6027,6 +6030,7 @@ select.filter-select {
 
 @media (max-width: 900px) {
   .acumbamail-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .acumbamail-upload-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   .acumbamail-card-head,
