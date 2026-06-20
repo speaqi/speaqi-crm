@@ -1,6 +1,6 @@
 'use client'
 
-import { ChangeEvent, useEffect, useRef, useState } from 'react'
+import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import { useCRMContext } from '../layout'
 
@@ -14,6 +14,34 @@ type Campaign = {
   tracked: number
   qualified: number
   webhook_url: string | null
+}
+
+type CampaignDetailRow = {
+  email: string
+  name: string | null
+  open_count: number
+  click_count: number
+  last_open_at: string | null
+  qualified: boolean
+}
+
+type CampaignDetail = {
+  rows: CampaignDetailRow[]
+  summary: {
+    tracked: number
+    openers: number
+    clickers: number
+    clickers_under_threshold: number
+    qualified: number
+  }
+  fetched_at: string
+}
+
+type DetailFilter = 'all' | 'qualified' | 'clickers' | 'openers'
+const DETAIL_PAGE_SIZE = 100
+
+function formatUpdateTime(value: string) {
+  return new Date(value).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 export default function AcumbamailPage() {
@@ -34,6 +62,12 @@ export default function AcumbamailPage() {
   const [unsubscribesFileName, setUnsubscribesFileName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [expandedCampaignKey, setExpandedCampaignKey] = useState<string | null>(null)
+  const [detailsByCampaign, setDetailsByCampaign] = useState<Record<string, CampaignDetail>>({})
+  const [detailLoadingKey, setDetailLoadingKey] = useState<string | null>(null)
+  const [detailFilter, setDetailFilter] = useState<DetailFilter>('all')
+  const [detailSearch, setDetailSearch] = useState('')
+  const [detailPage, setDetailPage] = useState(1)
 
   async function loadCampaigns() {
     try {
@@ -47,6 +81,41 @@ export default function AcumbamailPage() {
   useEffect(() => {
     if (isAdmin) void loadCampaigns()
   }, [isAdmin])
+
+  const loadCampaignDetails = useCallback(async (campaignKey: string, silent = false) => {
+    if (!silent) setDetailLoadingKey(campaignKey)
+    try {
+      const response = await apiFetch<CampaignDetail>(
+        `/api/integrations/acumbamail/campaigns/${encodeURIComponent(campaignKey)}`
+      )
+      setDetailsByCampaign((previous) => ({ ...previous, [campaignKey]: response }))
+    } catch (detailError) {
+      if (!silent) setError(detailError instanceof Error ? detailError.message : 'Dettaglio campagna non disponibile')
+    } finally {
+      if (!silent) setDetailLoadingKey(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!expandedCampaignKey) return
+    const intervalId = window.setInterval(() => {
+      void loadCampaignDetails(expandedCampaignKey, true)
+    }, 30_000)
+    return () => window.clearInterval(intervalId)
+  }, [expandedCampaignKey, loadCampaignDetails])
+
+  const visibleDetailRows = useMemo(() => {
+    if (!expandedCampaignKey) return []
+    const rows = detailsByCampaign[expandedCampaignKey]?.rows || []
+    const search = detailSearch.trim().toLowerCase()
+    return rows.filter((row) => {
+      if (detailFilter === 'qualified' && !row.qualified) return false
+      if (detailFilter === 'clickers' && row.click_count < 1) return false
+      if (detailFilter === 'openers' && row.open_count < 1) return false
+      if (search && !`${row.name || ''} ${row.email}`.toLowerCase().includes(search)) return false
+      return true
+    })
+  }, [detailsByCampaign, detailFilter, detailSearch, expandedCampaignKey])
 
   function readFile(event: ChangeEvent<HTMLInputElement>, kind: 'opens' | 'clicks' | 'unsubscribes') {
     const file = event.target.files?.[0]
@@ -161,23 +230,93 @@ export default function AcumbamailPage() {
 
       <section className="acumbamail-campaigns">
         <h2>Campagne configurate</h2>
-        {campaigns.length === 0 ? <p className="import-muted">Nessuna campagna configurata.</p> : campaigns.map((campaign) => (
-          <article key={campaign.id} className="acumbamail-campaign-row">
-            <div className="acumbamail-campaign-main">
-              <h3>{campaign.name}</h3>
-              <p>Lista “{campaign.list_name}” · soglia {campaign.min_opens} aperture{campaign.responsible ? ` · ${campaign.responsible}` : ''}</p>
-            </div>
-            <div className="acumbamail-stats"><strong>{campaign.qualified}</strong><span>qualificati / {campaign.tracked} monitorati</span></div>
-            <div className="acumbamail-webhook">
-              {campaign.webhook_url ? (
-                <button type="button" className="btn btn-ghost btn-sm" onClick={async () => {
-                  await navigator.clipboard.writeText(campaign.webhook_url || '')
-                  showToast('URL webhook copiato')
-                }}>Copia webhook</button>
-              ) : <span className="inline-hint inline-hint-warn">Configura ACUMBAMAIL_WEBHOOK_TOKEN</span>}
-            </div>
-          </article>
-        ))}
+        {campaigns.length === 0 ? <p className="import-muted">Nessuna campagna configurata.</p> : campaigns.map((campaign) => {
+          const isExpanded = expandedCampaignKey === campaign.campaign_key
+          const detail = detailsByCampaign[campaign.campaign_key]
+          const totalPages = Math.max(1, Math.ceil(visibleDetailRows.length / DETAIL_PAGE_SIZE))
+          const page = Math.min(detailPage, totalPages)
+          const pageRows = isExpanded
+            ? visibleDetailRows.slice((page - 1) * DETAIL_PAGE_SIZE, page * DETAIL_PAGE_SIZE)
+            : []
+          return (
+            <article key={campaign.id} className={`acumbamail-campaign-item ${isExpanded ? 'is-expanded' : ''}`}>
+              <div className="acumbamail-campaign-row">
+                <div className="acumbamail-campaign-main">
+                  <h3>{campaign.name}</h3>
+                  <p>Lista “{campaign.list_name}” · soglia {campaign.min_opens} aperture{campaign.responsible ? ` · ${campaign.responsible}` : ''}</p>
+                </div>
+                <div className="acumbamail-stats"><strong>{campaign.qualified}</strong><span>qualificati / {campaign.tracked} monitorati</span></div>
+                <div className="acumbamail-webhook">
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => {
+                    const nextKey = isExpanded ? null : campaign.campaign_key
+                    setExpandedCampaignKey(nextKey)
+                    setDetailFilter('all')
+                    setDetailSearch('')
+                    setDetailPage(1)
+                    if (nextKey) void loadCampaignDetails(nextKey)
+                  }}>{isExpanded ? 'Chiudi lista' : 'Vedi lista'}</button>
+                  {campaign.webhook_url ? (
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={async () => {
+                      await navigator.clipboard.writeText(campaign.webhook_url || '')
+                      showToast('URL webhook copiato')
+                    }}>Copia webhook</button>
+                  ) : <span className="inline-hint inline-hint-warn">Configura ACUMBAMAIL_WEBHOOK_TOKEN</span>}
+                </div>
+              </div>
+
+              {isExpanded && (
+                <div className="acumbamail-detail">
+                  {detailLoadingKey === campaign.campaign_key && !detail ? (
+                    <div className="import-muted">Caricamento lista…</div>
+                  ) : detail ? (
+                    <>
+                      <div className="acumbamail-detail-summary">
+                        <div><strong>{detail.summary.openers}</strong><span>hanno aperto</span></div>
+                        <div><strong>{detail.summary.clickers}</strong><span>hanno cliccato</span></div>
+                        <div><strong>{detail.summary.clickers_under_threshold}</strong><span>click con meno di {campaign.min_opens} aperture</span></div>
+                        <div><strong>{detail.summary.qualified}</strong><span>qualificati</span></div>
+                      </div>
+                      <div className="acumbamail-detail-toolbar">
+                        <input value={detailSearch} onChange={(event) => { setDetailSearch(event.target.value); setDetailPage(1) }} placeholder="Cerca nome o email" />
+                        <select value={detailFilter} onChange={(event) => { setDetailFilter(event.target.value as DetailFilter); setDetailPage(1) }}>
+                          <option value="all">Tutti monitorati</option>
+                          <option value="qualified">Solo qualificati</option>
+                          <option value="clickers">Solo click</option>
+                          <option value="openers">Solo aperture</option>
+                        </select>
+                        <span>Aggiornato alle {formatUpdateTime(detail.fetched_at)} · auto 30s</span>
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => void loadCampaignDetails(campaign.campaign_key)}>Aggiorna ora</button>
+                      </div>
+                      <div className="acumbamail-detail-table-wrap">
+                        <table className="acumbamail-detail-table">
+                          <thead><tr><th>Contatto</th><th>Email</th><th>Aperture</th><th>Click</th><th>Esito</th></tr></thead>
+                          <tbody>
+                            {pageRows.map((row) => (
+                              <tr key={row.email}>
+                                <td>{row.name || '—'}</td>
+                                <td>{row.email}</td>
+                                <td><strong>{row.open_count}</strong></td>
+                                <td>{row.click_count > 0 ? <span className="acumbamail-click-badge">✓ Ha cliccato</span> : '—'}</td>
+                                <td>{row.qualified ? <span className="acumbamail-qualified-badge">Qualificato</span> : <span className="import-muted">In monitoraggio</span>}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="acumbamail-detail-pagination">
+                        <span>{visibleDetailRows.length} risultati · pagina {page} di {totalPages}</span>
+                        <div>
+                          <button type="button" className="btn btn-ghost btn-sm" disabled={page <= 1} onClick={() => setDetailPage(page - 1)}>Precedente</button>
+                          <button type="button" className="btn btn-ghost btn-sm" disabled={page >= totalPages} onClick={() => setDetailPage(page + 1)}>Successiva</button>
+                        </div>
+                      </div>
+                    </>
+                  ) : <div className="import-error">Impossibile caricare la lista.</div>}
+                </div>
+              )}
+            </article>
+          )
+        })}
       </section>
     </div>
   )
