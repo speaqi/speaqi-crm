@@ -333,17 +333,38 @@ export async function POST(request: NextRequest) {
     const eligibleEmailSet = new Set(eligibleEmails)
 
     if (requestedCampaignKey) {
-      const engagementRows = allEmails.map((email) => ({
-        user_id: auth.workspaceUserId,
-        campaign_key: requestedCampaignKey,
-        email,
-        name: clickers.get(email)?.name || openers.get(email)?.name || null,
-        open_count: Number(openers.get(email)?.count || 0),
-        click_count: Number(clickers.get(email)?.count || 0),
-        last_open_at: openers.get(email)?.lastAt || null,
-        promoted_at: eligibleEmailSet.has(email) ? new Date().toISOString() : null,
-        updated_at: new Date().toISOString(),
-      }))
+      const existingByEmail = new Map<string, Record<string, any>>()
+      for (const emailBatch of chunk(allEmails, 200)) {
+        const { data: existingEngagements, error: existingEngagementsError } = await auth.supabase
+          .from('acumbamail_campaign_engagements')
+          .select('email,name,open_count,click_count,last_open_at,promoted_at')
+          .eq('user_id', auth.workspaceUserId)
+          .eq('campaign_key', requestedCampaignKey)
+          .in('email', emailBatch)
+        if (existingEngagementsError) throw existingEngagementsError
+        for (const row of existingEngagements || []) {
+          existingByEmail.set(String(row.email || '').toLowerCase(), row)
+        }
+      }
+      const engagementRows = allEmails.map((email) => {
+        const existing = existingByEmail.get(email)
+        const openCount = Math.max(Number(existing?.open_count || 0), Number(openers.get(email)?.count || 0))
+        const clickCount = Math.max(Number(existing?.click_count || 0), Number(clickers.get(email)?.count || 0))
+        return {
+          user_id: auth.workspaceUserId,
+          campaign_key: requestedCampaignKey,
+          email,
+          name: existing?.name || clickers.get(email)?.name || openers.get(email)?.name || null,
+          open_count: openCount,
+          click_count: clickCount,
+          last_open_at: laterTimestamp(existing?.last_open_at || null, openers.get(email)?.lastAt || null),
+          promoted_at:
+            existing?.promoted_at || eligibleEmailSet.has(email) || clickCount > 0 || openCount >= minOpens
+              ? existing?.promoted_at || new Date().toISOString()
+              : null,
+          updated_at: new Date().toISOString(),
+        }
+      })
       for (const batch of chunk(engagementRows, 200)) {
         const { error } = await auth.supabase
           .from('acumbamail_campaign_engagements')
