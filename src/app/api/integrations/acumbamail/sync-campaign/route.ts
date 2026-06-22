@@ -300,6 +300,7 @@ export async function POST(request: NextRequest) {
   if ('error' in auth) return auth.error
   if (!auth.isAdmin) return Response.json({ error: 'Solo admin puo sincronizzare campagne Acumbamail' }, { status: 403 })
 
+  let requestedCampaignKey: string | null = null
   try {
     const token = process.env.ACUMBAMAIL_AUTH_TOKEN
     if (!token) {
@@ -317,6 +318,8 @@ export async function POST(request: NextRequest) {
     const source = normalizeText(body.source) || 'acumbamail'
     const contactScope = normalizeContactScope(body.contact_scope)
     const createMissing = body.create_missing !== false
+    const minOpens = Math.max(1, Math.round(Number(body.min_opens) || 5))
+    requestedCampaignKey = normalizeText(body.campaign_key || body.event_tag)
 
     const [openersPayload, clicksPayload] = await Promise.all([
       fetchAcumbamailFunction('getCampaignOpeners', token, campaignId),
@@ -326,14 +329,36 @@ export async function POST(request: NextRequest) {
     const openers = collectEmailEvents(openersPayload)
     const clickers = collectEmailEvents(clicksPayload)
     const allEmails = Array.from(new Set([...openers.keys(), ...clickers.keys()])).sort()
+    const eligibleEmails = allEmails.filter((email) => clickers.has(email) || Number(openers.get(email)?.count || 0) >= minOpens)
+    const eligibleEmailSet = new Set(eligibleEmails)
+
+    if (requestedCampaignKey) {
+      const engagementRows = allEmails.map((email) => ({
+        user_id: auth.workspaceUserId,
+        campaign_key: requestedCampaignKey,
+        email,
+        name: clickers.get(email)?.name || openers.get(email)?.name || null,
+        open_count: Number(openers.get(email)?.count || 0),
+        click_count: Number(clickers.get(email)?.count || 0),
+        last_open_at: openers.get(email)?.lastAt || null,
+        promoted_at: eligibleEmailSet.has(email) ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      }))
+      for (const batch of chunk(engagementRows, 200)) {
+        const { error } = await auth.supabase
+          .from('acumbamail_campaign_engagements')
+          .upsert(batch, { onConflict: 'user_id,campaign_key,email' })
+        if (error) throw error
+      }
+    }
 
     await ensurePipelineStages(auth.supabase, auth.workspaceUserId)
 
-    const contactsByEmail = await findContactsByEmail(auth.supabase, auth.workspaceUserId, allEmails)
+    const contactsByEmail = await findContactsByEmail(auth.supabase, auth.workspaceUserId, eligibleEmails)
     let createdContacts = 0
 
     if (createMissing) {
-      const missingEmails = allEmails.filter((email) => !contactsByEmail.has(email))
+      const missingEmails = eligibleEmails.filter((email) => !contactsByEmail.has(email))
       for (const batch of chunk(missingEmails, 100)) {
         const payload = batch.map((email) => {
           const hasClick = clickers.has(email)
@@ -378,7 +403,7 @@ export async function POST(request: NextRequest) {
     let skippedDuplicates = 0
     const activities: Parameters<typeof createActivities>[1] = []
 
-    for (const email of allEmails) {
+    for (const email of eligibleEmails) {
       const targets = contactsByEmail.get(email) || []
       if (!targets.length) continue
 
@@ -428,6 +453,11 @@ export async function POST(request: NextRequest) {
           loggedActivities += 1
         } else if (open) {
           skippedDuplicates += 1
+          if (Number(contact.email_open_count || 0) < open.count) {
+            updates.email_open_count = open.count
+            updates.last_email_open_at = laterTimestamp(contact.last_email_open_at || null, open.lastAt)
+            changed = true
+          }
         }
 
         const clickKey = `${contact.id}:email_click`
@@ -453,6 +483,11 @@ export async function POST(request: NextRequest) {
           loggedActivities += 1
         } else if (click) {
           skippedDuplicates += 1
+          if (Number(contact.email_click_count || 0) < click.count) {
+            updates.email_click_count = click.count
+            updates.last_email_click_at = laterTimestamp(contact.last_email_click_at || null, click.lastAt)
+            changed = true
+          }
         }
 
         if (changed || responsible || listName || eventTag) {
@@ -470,6 +505,14 @@ export async function POST(request: NextRequest) {
 
     await createActivities(auth.supabase, activities)
 
+    if (requestedCampaignKey) {
+      await auth.supabase
+        .from('acumbamail_campaigns')
+        .update({ last_synced_at: new Date().toISOString(), last_sync_error: null })
+        .eq('user_id', auth.workspaceUserId)
+        .eq('campaign_key', requestedCampaignKey)
+    }
+
     return Response.json({
       ok: true,
       campaign_id: campaignId,
@@ -482,6 +525,13 @@ export async function POST(request: NextRequest) {
       skipped_duplicates: skippedDuplicates,
     })
   } catch (error) {
+    if (requestedCampaignKey) {
+      await auth.supabase
+        .from('acumbamail_campaigns')
+        .update({ last_sync_error: errorMessage(error, 'Sync fallita') })
+        .eq('user_id', auth.workspaceUserId)
+        .eq('campaign_key', requestedCampaignKey)
+    }
     return Response.json({ error: errorMessage(error, 'Sync Acumbamail non riuscita') }, { status: 500 })
   }
 }

@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await auth.supabase
     .from('acumbamail_campaigns')
-    .select('id,campaign_key,name,list_name,min_opens,responsible,created_at,updated_at')
+    .select('id,campaign_key,campaign_id,name,list_name,min_opens,responsible,last_synced_at,last_sync_error,created_at,updated_at')
     .eq('user_id', auth.workspaceUserId)
     .order('updated_at', { ascending: false })
   if (error) return Response.json({ error: error.message }, { status: 500 })
@@ -134,6 +134,7 @@ export async function POST(request: NextRequest) {
     const campaignKey = slugify(body.campaign_key || name)
     const listName = String(body.list_name || 'Comuni').trim()
     const responsible = String(body.responsible || '').trim() || null
+    const campaignId = String(body.campaign_id || '').trim() || null
     const minOpens = Math.max(1, Math.round(Number(body.min_opens) || 5))
     const opensCsvText = String(body.opens_csv_text || body.csv_text || '')
     const clicksCsvText = String(body.clicks_csv_text || '')
@@ -176,6 +177,7 @@ export async function POST(request: NextRequest) {
       list_name: listName,
       min_opens: minOpens,
       responsible,
+      campaign_id: campaignId,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,campaign_key' })
     if (campaignError) throw campaignError
@@ -300,4 +302,21 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Import campagna Acumbamail non riuscito') }, { status: 500 })
   }
+}
+
+export async function PATCH(request: NextRequest) {
+  const auth = await requireRouteUser(request)
+  if ('error' in auth) return auth.error
+  if (!auth.isAdmin) return Response.json({ error: 'Solo admin' }, { status: 403 })
+  const body = await request.json().catch(() => ({}))
+  const campaignKey = String(body.campaign_key || '').trim()
+  const campaignId = String(body.campaign_id || '').trim()
+  if (!campaignKey || !campaignId) return Response.json({ error: 'Campagna e ID obbligatori' }, { status: 400 })
+  const { error } = await auth.supabase
+    .from('acumbamail_campaigns')
+    .update({ campaign_id: campaignId, last_sync_error: null, updated_at: new Date().toISOString() })
+    .eq('user_id', auth.workspaceUserId)
+    .eq('campaign_key', campaignKey)
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+  return Response.json({ ok: true })
 }

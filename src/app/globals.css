@@ -5981,6 +5981,7 @@ select.filter-select {
 .acumbamail-campaign-row h3 { margin: 0; }
 .acumbamail-card-head p,
 .acumbamail-campaign-row p { color: var(--text2); margin: 5px 0 0; font-size: 13px; }
+.acumbamail-sync-error { color: var(--red) !important; font-weight: 600; }
 .acumbamail-threshold {
   flex: 0 0 auto;
   padding: 7px 12px;

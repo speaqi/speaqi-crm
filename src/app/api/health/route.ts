@@ -15,6 +15,10 @@ export async function GET() {
       supabase: {
         service_role_configured: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
       },
+      acumbamail: {
+        api_sync_configured: !!process.env.ACUMBAMAIL_AUTH_TOKEN,
+        webhook_configured: !!process.env.ACUMBAMAIL_WEBHOOK_TOKEN,
+      },
     },
   })
 }

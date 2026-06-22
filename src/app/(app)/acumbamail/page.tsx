@@ -7,6 +7,7 @@ import { useCRMContext } from '../layout'
 type Campaign = {
   id: string
   campaign_key: string
+  campaign_id: string | null
   name: string
   list_name: string
   min_opens: number
@@ -14,6 +15,8 @@ type Campaign = {
   tracked: number
   qualified: number
   webhook_url: string | null
+  last_synced_at: string | null
+  last_sync_error: string | null
 }
 
 type CampaignDetailRow = {
@@ -51,6 +54,7 @@ export default function AcumbamailPage() {
   const unsubscribesFileRef = useRef<HTMLInputElement>(null)
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [name, setName] = useState('')
+  const [campaignId, setCampaignId] = useState('')
   const [listName, setListName] = useState('Comuni')
   const [minOpens, setMinOpens] = useState(5)
   const [responsible, setResponsible] = useState('')
@@ -68,19 +72,20 @@ export default function AcumbamailPage() {
   const [detailFilter, setDetailFilter] = useState<DetailFilter>('all')
   const [detailSearch, setDetailSearch] = useState('')
   const [detailPage, setDetailPage] = useState(1)
+  const [syncingCampaignKey, setSyncingCampaignKey] = useState<string | null>(null)
 
-  async function loadCampaigns() {
+  const loadCampaigns = useCallback(async () => {
     try {
       const response = await apiFetch<{ campaigns: Campaign[] }>('/api/integrations/acumbamail/campaigns')
       setCampaigns(response.campaigns)
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Caricamento non riuscito')
     }
-  }
+  }, [])
 
   useEffect(() => {
     if (isAdmin) void loadCampaigns()
-  }, [isAdmin])
+  }, [isAdmin, loadCampaigns])
 
   const loadCampaignDetails = useCallback(async (campaignKey: string, silent = false) => {
     if (!silent) setDetailLoadingKey(campaignKey)
@@ -96,6 +101,34 @@ export default function AcumbamailPage() {
     }
   }, [])
 
+  const syncCampaign = useCallback(async (campaign: Campaign, silent = false) => {
+    if (!campaign.campaign_id) return
+    if (!silent) setSyncingCampaignKey(campaign.campaign_key)
+    try {
+      await apiFetch('/api/integrations/acumbamail/sync-campaign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaign_id: campaign.campaign_id,
+          campaign_key: campaign.campaign_key,
+          event_tag: campaign.campaign_key,
+          list_name: campaign.list_name,
+          min_opens: campaign.min_opens,
+          responsible: campaign.responsible,
+          contact_scope: 'holding',
+          source: 'acumbamail',
+          create_missing: true,
+        }),
+      })
+      await Promise.all([loadCampaigns(), loadCampaignDetails(campaign.campaign_key, true)])
+      if (!silent) showToast('Dati Acumbamail sincronizzati')
+    } catch (syncError) {
+      if (!silent) setError(syncError instanceof Error ? syncError.message : 'Sincronizzazione non riuscita')
+    } finally {
+      if (!silent) setSyncingCampaignKey(null)
+    }
+  }, [loadCampaignDetails, loadCampaigns, showToast])
+
   useEffect(() => {
     if (!expandedCampaignKey) return
     const intervalId = window.setInterval(() => {
@@ -103,6 +136,16 @@ export default function AcumbamailPage() {
     }, 30_000)
     return () => window.clearInterval(intervalId)
   }, [expandedCampaignKey, loadCampaignDetails])
+
+  useEffect(() => {
+    if (!expandedCampaignKey) return
+    const campaign = campaigns.find((item) => item.campaign_key === expandedCampaignKey)
+    if (!campaign?.campaign_id) return
+    const intervalId = window.setInterval(() => {
+      void syncCampaign(campaign, true)
+    }, 120_000)
+    return () => window.clearInterval(intervalId)
+  }, [campaigns, expandedCampaignKey, syncCampaign])
 
   const visibleDetailRows = useMemo(() => {
     if (!expandedCampaignKey) return []
@@ -123,6 +166,8 @@ export default function AcumbamailPage() {
     if (kind === 'opens') setOpensFileName(file.name)
     if (kind === 'clicks') setClicksFileName(file.name)
     if (kind === 'unsubscribes') setUnsubscribesFileName(file.name)
+    const detectedCampaignId = file.name.match(/(\d{5,})/)?.[1]
+    if (detectedCampaignId && !campaignId) setCampaignId(detectedCampaignId)
     if (!name) setName(file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '))
     const reader = new FileReader()
     reader.onload = () => {
@@ -145,6 +190,7 @@ export default function AcumbamailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
+          campaign_id: campaignId || null,
           list_name: listName,
           min_opens: minOpens,
           responsible: responsible || null,
@@ -161,6 +207,7 @@ export default function AcumbamailPage() {
       setClicksFileName('')
       setUnsubscribesFileName('')
       setName('')
+      setCampaignId('')
       if (opensFileRef.current) opensFileRef.current.value = ''
       if (clicksFileRef.current) clicksFileRef.current.value = ''
       if (unsubscribesFileRef.current) unsubscribesFileRef.current.value = ''
@@ -192,6 +239,7 @@ export default function AcumbamailPage() {
 
         <div className="acumbamail-form-grid">
           <label><span>Nome campagna</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Es. Comuni giugno 2026" /></label>
+          <label><span>ID campagna Acumbamail</span><input value={campaignId} onChange={(event) => setCampaignId(event.target.value.replace(/\D/g, ''))} placeholder="Es. 3796370" /></label>
           <label><span>Lista di destinazione</span><input value={listName} onChange={(event) => setListName(event.target.value)} /></label>
           <label><span>Aperture minime</span><input type="number" min="1" value={minOpens} onChange={(event) => setMinOpens(Math.max(1, Number(event.target.value) || 1))} /></label>
           <label>
@@ -243,10 +291,15 @@ export default function AcumbamailPage() {
               <div className="acumbamail-campaign-row">
                 <div className="acumbamail-campaign-main">
                   <h3>{campaign.name}</h3>
-                  <p>Lista “{campaign.list_name}” · soglia {campaign.min_opens} aperture{campaign.responsible ? ` · ${campaign.responsible}` : ''}</p>
+                  <p>Lista “{campaign.list_name}” · ID {campaign.campaign_id || 'non configurato'} · soglia {campaign.min_opens} aperture{campaign.responsible ? ` · ${campaign.responsible}` : ''}</p>
+                  {campaign.last_synced_at && <p>Ultima sync API: {new Date(campaign.last_synced_at).toLocaleString('it-IT')}</p>}
+                  {campaign.last_sync_error && <p className="acumbamail-sync-error">{campaign.last_sync_error}</p>}
                 </div>
                 <div className="acumbamail-stats"><strong>{campaign.qualified}</strong><span>qualificati / {campaign.tracked} monitorati</span></div>
                 <div className="acumbamail-webhook">
+                  <button type="button" className="btn btn-primary btn-sm" disabled={!campaign.campaign_id || syncingCampaignKey === campaign.campaign_key} onClick={() => void syncCampaign(campaign)}>
+                    {syncingCampaignKey === campaign.campaign_key ? 'Sincronizzo…' : 'Sincronizza ora'}
+                  </button>
                   <button type="button" className="btn btn-ghost btn-sm" onClick={() => {
                     const nextKey = isExpanded ? null : campaign.campaign_key
                     setExpandedCampaignKey(nextKey)
