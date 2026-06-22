@@ -1,6 +1,11 @@
 import { NextRequest } from 'next/server'
 import { requireRouteUser } from '@/lib/server/supabase'
-import { sendContactEmail, simpleTextToHtml } from '@/lib/server/gmail'
+import {
+  createContactDraft,
+  sendContactEmail,
+  simpleTextToHtml,
+  updateContactDraft,
+} from '@/lib/server/gmail'
 import { errorMessage } from '@/lib/server/http'
 import type { CRMContact } from '@/types'
 
@@ -11,7 +16,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const draftId = String(body.draft_id || '').trim()
-    const mode = String(body.mode || 'send').trim() // 'send' | 'dismiss'
+    const mode = String(body.mode || 'send').trim() // 'send' | 'save_draft' | 'dismiss'
     const editedSubject = body.subject === undefined ? null : String(body.subject).trim()
     const editedBodyText = body.body_text === undefined ? null : String(body.body_text).trim()
 
@@ -69,6 +74,46 @@ export async function POST(request: NextRequest) {
 
     if (!bodyText) {
       return Response.json({ error: 'Il corpo email non puo essere vuoto' }, { status: 400 })
+    }
+
+    if (mode === 'save_draft') {
+      const gmailDraft = draft.gmail_draft_id
+        ? await updateContactDraft(
+            auth.supabase,
+            auth.workspaceUserId,
+            draft.gmail_draft_id,
+            { email: contact.email, name: contact.name },
+            { subject, html: bodyHtml, text: bodyText, appendSignature: true }
+          )
+        : await createContactDraft(
+            auth.supabase,
+            auth.workspaceUserId,
+            { email: contact.email, name: contact.name },
+            { subject, html: bodyHtml, text: bodyText, appendSignature: true }
+          )
+
+      if (!gmailDraft) {
+        return Response.json({ error: 'Gmail non collegato' }, { status: 400 })
+      }
+
+      const { error: saveError } = await auth.supabase
+        .from('email_drafts')
+        .update({
+          subject,
+          body_text: bodyText,
+          body_html: bodyHtml,
+          gmail_draft_id: gmailDraft.draftId,
+        })
+        .eq('id', draftId)
+        .eq('user_id', auth.workspaceUserId)
+
+      if (saveError) throw saveError
+
+      return Response.json({
+        draft_id: draftId,
+        status: 'pending',
+        gmail_draft_id: gmailDraft.draftId,
+      })
     }
 
     if (editedSubject !== null || editedBodyText !== null) {

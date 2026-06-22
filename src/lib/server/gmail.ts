@@ -942,3 +942,30 @@ export async function createContactDraft(
 
   return { draftId: result.id }
 }
+
+export async function updateContactDraft(
+  supabase: any,
+  userId: string,
+  gmailDraftId: string,
+  contact: { email: string; name: string },
+  input: { subject: string; html: string; text: string; appendSignature?: boolean }
+): Promise<{ draftId: string }> {
+  const account = await getGmailAccount(supabase, userId)
+  if (!account) throw new Error('Gmail non collegato')
+
+  const accessToken = await refreshAccessToken(account)
+  const signature = input.appendSignature === false ? null : await loadGmailSignatureForAccount(account)
+  const signedInput = appendEmailSignature(
+    { html: input.html, text: input.text },
+    signature
+  )
+  const raw = encodeMessageBody(input.subject, contact.email, signedInput.html, signedInput.text)
+
+  const result = await gmailApiRequest<{ id: string; message: { id: string } }>(
+    accessToken,
+    `/users/me/drafts/${encodeURIComponent(gmailDraftId)}`,
+    { method: 'PUT', body: JSON.stringify({ message: { raw } }) }
+  )
+
+  return { draftId: result.id }
+}

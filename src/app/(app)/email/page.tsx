@@ -137,6 +137,46 @@ export default function EmailPage() {
     }
   }
 
+  async function handleSaveToGmail(draft: EmailDraft) {
+    setBusy(draft.id)
+    try {
+      const result = await apiFetch<{ gmail_draft_id: string }>(
+        '/api/automation/send-draft',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            draft_id: draft.id,
+            mode: 'save_draft',
+            subject: editedSubjects[draft.id] ?? draft.subject ?? '',
+            body_text: editedBodies[draft.id] ?? draft.body_text ?? '',
+          }),
+        }
+      )
+      setDrafts((prev) =>
+        prev.map((item) =>
+          item.id === draft.id
+            ? {
+                ...item,
+                subject: editedSubjects[draft.id] ?? draft.subject,
+                body_text: editedBodies[draft.id] ?? draft.body_text,
+                gmail_draft_id: result.gmail_draft_id,
+              }
+            : item
+        )
+      )
+      showToast(
+        draft.gmail_draft_id
+          ? `Bozza Gmail aggiornata per ${draft.contact?.name || 'contatto'}`
+          : `Bozza salvata in Gmail per ${draft.contact?.name || 'contatto'}`
+      )
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Salvataggio in Gmail fallito')
+    } finally {
+      clearBusy(draft.id)
+    }
+  }
+
   async function handleDismiss(draft: EmailDraft) {
     setBusy(draft.id)
     try {
@@ -409,6 +449,19 @@ export default function EmailPage() {
                           title="Archivia"
                         >
                           ✕
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => handleSaveToGmail(draft)}
+                          disabled={isBusy}
+                          title={draft.gmail_draft_id ? 'Aggiorna la bozza in Gmail' : 'Salva come bozza in Gmail'}
+                        >
+                          {isBusy
+                            ? '...'
+                            : draft.gmail_draft_id
+                              ? '✓ Bozza Gmail'
+                              : 'Salva in bozza'}
                         </button>
                         <button
                           type="button"
