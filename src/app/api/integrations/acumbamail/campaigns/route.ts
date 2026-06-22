@@ -93,16 +93,25 @@ export async function GET(request: NextRequest) {
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
   const campaigns = await Promise.all((data || []).map(async (campaign) => {
-    const { data: rows, error: engagementError } = await auth.supabase
-      .from('acumbamail_campaign_engagements')
-      .select('open_count,click_count,promoted_at')
-      .eq('user_id', auth.workspaceUserId)
-      .eq('campaign_key', campaign.campaign_key)
-    if (engagementError) throw engagementError
+    const [trackedResult, qualifiedResult] = await Promise.all([
+      auth.supabase
+        .from('acumbamail_campaign_engagements')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', auth.workspaceUserId)
+        .eq('campaign_key', campaign.campaign_key),
+      auth.supabase
+        .from('acumbamail_campaign_engagements')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', auth.workspaceUserId)
+        .eq('campaign_key', campaign.campaign_key)
+        .or(`open_count.gte.${campaign.min_opens},click_count.gt.0`),
+    ])
+    if (trackedResult.error) throw trackedResult.error
+    if (qualifiedResult.error) throw qualifiedResult.error
     return {
       ...campaign,
-      tracked: rows?.length || 0,
-      qualified: (rows || []).filter((row) => row.open_count >= campaign.min_opens || row.click_count > 0).length,
+      tracked: trackedResult.count || 0,
+      qualified: qualifiedResult.count || 0,
       webhook_url: (() => {
         const token = process.env.ACUMBAMAIL_WEBHOOK_TOKEN
         if (!token) return null
