@@ -66,6 +66,7 @@ function ContactsPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const {
+    allContacts,
     contacts,
     scheduledCalls,
     stages,
@@ -95,6 +96,7 @@ function ContactsPageInner() {
   const [priorityFilter, setPriorityFilter] = useState('')
   const [dataCompletenessFilter, setDataCompletenessFilter] = useState('')
   const [showHidden, setShowHidden] = useState(false)
+  const [showAllContactsSearch, setShowAllContactsSearch] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null)
   const [rangeStart, setRangeStart] = useState('')
@@ -177,16 +179,35 @@ function ContactsPageInner() {
     return toLocalDateKey(tomorrow)
   }, [])
 
+  const searchableContacts = useMemo(
+    () =>
+      showAllContactsSearch
+        ? allContacts.filter((contact) => (contact.contact_scope || 'crm') !== 'personal')
+        : contacts,
+    [allContacts, contacts, showAllContactsSearch]
+  )
+
+  const contactSearchStats = useMemo(() => {
+    const searchable = allContacts.filter((contact) => (contact.contact_scope || 'crm') !== 'personal')
+    return {
+      all: searchable.length,
+      crm: searchable.filter((contact) => (contact.contact_scope || 'crm') === 'crm').length,
+      holding: searchable.filter((contact) => (contact.contact_scope || 'crm') === 'holding').length,
+      partner: searchable.filter((contact) => (contact.contact_scope || 'crm') === 'partner').length,
+      hidden: searchable.filter((contact) => contact.hidden).length,
+    }
+  }, [allContacts])
+
   const lists = useMemo(
     () =>
       Array.from(
         new Set(
-          contacts
+          searchableContacts
             .map((contact) => contact.list_name?.trim())
             .filter((name): name is string => Boolean(name))
         )
       ).sort(),
-    [contacts]
+    [searchableContacts]
   )
 
   const folderOptions = useMemo(
@@ -208,9 +229,9 @@ function ContactsPageInner() {
   const sources = useMemo(
     () =>
       Array.from(
-        new Set(contacts.map((contact) => contact.source).filter((source): source is string => Boolean(source)))
+        new Set(searchableContacts.map((contact) => contact.source).filter((source): source is string => Boolean(source)))
       ).sort(),
-    [contacts]
+    [searchableContacts]
   )
 
   const assignees = useMemo(
@@ -220,7 +241,7 @@ function ContactsPageInner() {
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return contacts.filter((contact) => {
+    return searchableContacts.filter((contact) => {
           const call = scheduledCallsByContactId.get(contact.id) || null
           if (query) {
             const haystack = [
@@ -261,11 +282,10 @@ function ContactsPageInner() {
       if (focusFilter === 'today' && toLocalDateKey(call?.due_at) !== todayKey) return false
       if (focusFilter === 'tomorrow' && toLocalDateKey(call?.due_at) !== tomorrowKey) return false
       if (focusFilter === 'missing' && (isClosedStatus(contact.status) || !!call)) return false
-      if (!showHidden && contact.hidden) return false
+      if (!showAllContactsSearch && !showHidden && contact.hidden) return false
       return true
     })
   }, [
-    contacts,
     assigneeFilter,
     focusFilter,
     listFilter,
@@ -275,9 +295,11 @@ function ContactsPageInner() {
     search,
     sourceFilter,
     statusFilter,
+    searchableContacts,
     todayKey,
     tomorrowKey,
     urlTag,
+    showAllContactsSearch,
     showHidden,
   ])
 
@@ -289,15 +311,15 @@ function ContactsPageInner() {
     (priorityFilter ? 1 : 0) +
     (dataCompletenessFilter ? 1 : 0) +
     (focusFilter ? 1 : 0) +
-    (showHidden ? 1 : 0) +
+    (showHidden && !showAllContactsSearch ? 1 : 0) +
     (urlTag ? 1 : 0)
 
   const filteredIds = useMemo(() => filtered.map((contact) => contact.id), [filtered])
   const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.includes(id))
   const hasSelected = selectedIds.length > 0
   const selectedContacts = useMemo(
-    () => contacts.filter((contact) => selectedIds.includes(contact.id)),
-    [contacts, selectedIds]
+    () => searchableContacts.filter((contact) => selectedIds.includes(contact.id)),
+    [searchableContacts, selectedIds]
   )
   const selectedWithEmailCount = selectedContacts.filter((contact) => Boolean(contact.email?.trim())).length
   const canRemoveSelectedFromList = selectedContacts.some((contact) => Boolean(contact.list_name?.trim()))
@@ -322,6 +344,8 @@ function ContactsPageInner() {
     setPriorityFilter('')
     setDataCompletenessFilter('')
     setFocusFilter('')
+    setShowAllContactsSearch(false)
+    setShowHidden(false)
     const params = new URLSearchParams(searchParams.toString())
     params.delete('list')
     params.delete('tag')
@@ -449,16 +473,67 @@ function ContactsPageInner() {
 
   return (
     <div className="contacts-page">
-      <div className="contacts-toolbar">
-        <div className="contacts-search">
-          <span className="contacts-search-icon">🔍</span>
-          <input
-            type="text"
-            placeholder="Cerca nome, azienda, email…"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
+      <div className="contacts-command">
+        <div className="contacts-command-main">
+          <div>
+            <div className="contacts-command-kicker">Rubrica</div>
+            <h1>Trova contatti</h1>
+          </div>
+          <div className="contacts-view-switch" aria-label="Ambito ricerca contatti">
+            <button
+              type="button"
+              className={!showAllContactsSearch ? 'active' : ''}
+              onClick={() => setShowAllContactsSearch(false)}
+            >
+              Pipeline CRM
+            </button>
+            <button
+              type="button"
+              className={showAllContactsSearch ? 'active' : ''}
+              onClick={() => {
+                setShowAllContactsSearch(true)
+                setShowHidden(false)
+              }}
+            >
+              Tutti i contatti
+            </button>
+          </div>
         </div>
+        <div className="contacts-command-searchrow">
+          <div className="contacts-search contacts-search-large">
+            <span className="contacts-search-icon">🔍</span>
+            <input
+              type="text"
+              placeholder={
+                showAllContactsSearch
+                  ? 'Cerca ovunque: CRM, cartelle, partner, nascosti...'
+                  : 'Cerca nella pipeline CRM: nome, azienda, email...'
+              }
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm contacts-toolbar-cta"
+            onClick={() => {
+              setEditingContact(null)
+              setModalOpen(true)
+            }}
+          >
+            ＋ Nuovo contatto
+          </button>
+        </div>
+        <div className="contacts-command-stats">
+          <span><strong>{contactSearchStats.all}</strong> totali cercabili</span>
+          <span><strong>{contactSearchStats.crm}</strong> CRM</span>
+          <span><strong>{contactSearchStats.holding}</strong> cartelle</span>
+          <span><strong>{contactSearchStats.partner}</strong> partner</span>
+          {contactSearchStats.hidden > 0 && <span><strong>{contactSearchStats.hidden}</strong> nascosti</span>}
+        </div>
+      </div>
+
+      <div className="contacts-toolbar">
         <select
           className="filter-select"
           value={statusFilter}
@@ -527,9 +602,10 @@ function ContactsPageInner() {
           type="button"
           className={`filter-chip ${showHidden ? 'active' : ''}`}
           onClick={() => setShowHidden((v) => !v)}
+          disabled={showAllContactsSearch}
           style={showHidden ? { background: '#fef2f2', borderColor: '#fca5a5', color: '#b91c1c' } : undefined}
         >
-          👁️ Nascosti
+          {showAllContactsSearch ? '👁️ Nascosti inclusi' : '👁️ Nascosti'}
         </button>
         <button
           type="button"
@@ -552,16 +628,6 @@ function ContactsPageInner() {
             Azzera
           </button>
         )}
-        <button
-          type="button"
-          className="btn btn-primary btn-sm contacts-toolbar-cta"
-          onClick={() => {
-            setEditingContact(null)
-            setModalOpen(true)
-          }}
-        >
-          ＋ Nuovo contatto
-        </button>
       </div>
 
       {folderSummary.length > 0 && (
@@ -644,7 +710,20 @@ function ContactsPageInner() {
       <div className="contacts-summary">
         <span>
           <strong>{filtered.length}</strong> contatti
+          {showAllContactsSearch ? ' in tutti gli archivi' : ' in pipeline'}
         </span>
+        {showAllContactsSearch && (
+          <span className="contacts-summary-chip contacts-summary-chip-strong">
+            Tutti i contatti
+            <button
+              type="button"
+              onClick={() => setShowAllContactsSearch(false)}
+              aria-label="Torna alla pipeline CRM"
+            >
+              ×
+            </button>
+          </span>
+        )}
         <label className="contacts-summary-selectall">
           <input
             type="checkbox"
@@ -1034,9 +1113,9 @@ function ContactsPageInner() {
       <div className="contacts-table">
         {filtered.length === 0 ? (
           <div className="contacts-empty">
-            {search || activeFilterCount > 0 ? (
+            {search || activeFilterCount > 0 || showAllContactsSearch ? (
               <>
-                <p>Nessun contatto corrisponde ai filtri.</p>
+                <p>Nessun contatto corrisponde alla ricerca o ai filtri.</p>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={resetFilters}>
                   Azzera filtri
                 </button>
@@ -1242,7 +1321,7 @@ function ContactsPageInner() {
         anchorPoint={drawerAnchor}
         onClose={closeDrawer}
         onEdit={(id) => {
-          const target = contacts.find((contact) => contact.id === id) || null
+          const target = allContacts.find((contact) => contact.id === id) || null
           setEditingContact(target)
           setModalOpen(true)
         }}
