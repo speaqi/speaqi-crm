@@ -16,6 +16,7 @@ import {
   isHoldingContact,
   isPartnerContact,
   isNeverContacted,
+  personalSectionLabel,
   priorityBadgeClass,
   priorityLabel,
   sourceLabel,
@@ -38,12 +39,14 @@ const FOCUS_CHIPS: Array<{ key: string; label: string }> = [
   { key: 'missing', label: 'Senza next step' },
 ]
 
-type ScopeTab = 'crm' | 'holding' | 'inbound' | 'all'
+type ScopeTab = 'crm' | 'holding' | 'inbound' | 'personal' | 'partner' | 'all'
 
 const SCOPE_TABS: Array<{ key: ScopeTab; label: string }> = [
   { key: 'crm', label: 'CRM' },
   { key: 'holding', label: 'Liste separate' },
   { key: 'inbound', label: 'Inbound' },
+  { key: 'personal', label: 'Personali' },
+  { key: 'partner', label: 'Partner' },
   { key: 'all', label: 'Tutti' },
 ]
 
@@ -53,6 +56,10 @@ function parseScopeTab(value?: string | null): ScopeTab {
       return 'holding'
     case 'inbound':
       return 'inbound'
+    case 'personal':
+      return 'personal'
+    case 'partner':
+      return 'partner'
     case 'all':
       return 'all'
     default:
@@ -93,6 +100,8 @@ function ContactsPageInner() {
     scheduledCalls,
     stages,
     holdingContacts,
+    personalContacts,
+    partnerContacts,
     teamMembers,
     createContact,
     updateContact,
@@ -119,6 +128,7 @@ function ContactsPageInner() {
   const [dataCompletenessFilter, setDataCompletenessFilter] = useState('')
   const [showHidden, setShowHidden] = useState(false)
   const [scope, setScope] = useState<ScopeTab>(() => parseScopeTab(searchParams.get('scope')))
+  const [sectionFilter, setSectionFilter] = useState('')
   const [bulkHoldingStatus, setBulkHoldingStatus] = useState('')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null)
@@ -187,6 +197,7 @@ function ContactsPageInner() {
   function selectScope(next: ScopeTab) {
     setScope(next)
     setSelectedIds([])
+    if (next !== 'personal') setSectionFilter('')
     if (next !== 'holding') setListFilter('')
     const params = new URLSearchParams(searchParams.toString())
     if (next === 'crm') params.delete('scope')
@@ -227,36 +238,49 @@ function ContactsPageInner() {
         return holdingContacts
       case 'inbound':
         return contacts.filter((contact) => contact.source === 'speaqi')
+      case 'personal':
+        return personalContacts
+      case 'partner':
+        return partnerContacts
       case 'all':
         return allContacts.filter((contact) => (contact.contact_scope || 'crm') !== 'personal')
       case 'crm':
       default:
         return contacts
     }
-  }, [scope, holdingContacts, contacts, allContacts])
+  }, [scope, holdingContacts, contacts, personalContacts, partnerContacts, allContacts])
 
   const contactSearchStats = useMemo(() => {
-    const searchable = allContacts.filter((contact) => (contact.contact_scope || 'crm') !== 'personal')
+    const scopeOf = (contact: CRMContact) => contact.contact_scope || 'crm'
     return {
-      all: searchable.length,
-      crm: searchable.filter((contact) => (contact.contact_scope || 'crm') === 'crm').length,
-      holding: searchable.filter((contact) => (contact.contact_scope || 'crm') === 'holding').length,
-      inbound: searchable.filter(
-        (contact) => (contact.contact_scope || 'crm') === 'crm' && contact.source === 'speaqi'
+      all: allContacts.filter((contact) => scopeOf(contact) !== 'personal').length,
+      crm: allContacts.filter((contact) => scopeOf(contact) === 'crm').length,
+      holding: allContacts.filter((contact) => scopeOf(contact) === 'holding').length,
+      inbound: allContacts.filter(
+        (contact) => scopeOf(contact) === 'crm' && contact.source === 'speaqi'
       ).length,
-      partner: searchable.filter((contact) => (contact.contact_scope || 'crm') === 'partner').length,
-      hidden: searchable.filter((contact) => contact.hidden).length,
+      personal: allContacts.filter((contact) => scopeOf(contact) === 'personal').length,
+      partner: allContacts.filter((contact) => scopeOf(contact) === 'partner').length,
+      hidden: allContacts.filter((contact) => scopeOf(contact) !== 'personal' && contact.hidden).length,
     }
   }, [allContacts])
 
-  const scopeCount = (key: ScopeTab) =>
-    key === 'all'
-      ? contactSearchStats.all
-      : key === 'holding'
-        ? contactSearchStats.holding
-        : key === 'inbound'
-          ? contactSearchStats.inbound
-          : contactSearchStats.crm
+  const scopeCount = (key: ScopeTab) => {
+    switch (key) {
+      case 'all':
+        return contactSearchStats.all
+      case 'holding':
+        return contactSearchStats.holding
+      case 'inbound':
+        return contactSearchStats.inbound
+      case 'personal':
+        return contactSearchStats.personal
+      case 'partner':
+        return contactSearchStats.partner
+      default:
+        return contactSearchStats.crm
+    }
+  }
 
   const lists = useMemo(
     () =>
@@ -294,6 +318,12 @@ function ContactsPageInner() {
     [searchableContacts]
   )
 
+  const sectionOptions = useMemo(
+    () =>
+      Array.from(new Set(personalContacts.map((contact) => personalSectionLabel(contact)).filter(Boolean))).sort(),
+    [personalContacts]
+  )
+
   const assignees = useMemo(
     () => teamMembers.map((member) => member.name).sort(),
     [teamMembers]
@@ -326,6 +356,7 @@ function ContactsPageInner() {
       }
       if (statusFilter && contact.status !== statusFilter) return false
       if (listFilter && contact.list_name !== listFilter) return false
+      if (scope === 'personal' && sectionFilter && personalSectionLabel(contact) !== sectionFilter) return false
       if (assigneeFilter) {
         if (assigneeFilter === '__unassigned__') {
           if (!contactIsUnassigned(contact)) return false
@@ -356,6 +387,8 @@ function ContactsPageInner() {
     sourceFilter,
     statusFilter,
     searchableContacts,
+    scope,
+    sectionFilter,
     todayKey,
     tomorrowKey,
     urlTag,
@@ -404,6 +437,7 @@ function ContactsPageInner() {
     setPriorityFilter('')
     setDataCompletenessFilter('')
     setFocusFilter('')
+    setSectionFilter('')
     setShowHidden(false)
     const params = new URLSearchParams(searchParams.toString())
     params.delete('list')
@@ -613,6 +647,21 @@ function ContactsPageInner() {
             </option>
           ))}
         </select>
+        {scope === 'personal' && sectionOptions.length > 0 && (
+          <select
+            className="filter-select"
+            value={sectionFilter}
+            onChange={(event) => setSectionFilter(event.target.value)}
+            aria-label="Filtra per sezione"
+          >
+            <option value="">Sezione: tutte</option>
+            {sectionOptions.map((section) => (
+              <option key={section} value={section}>
+                🗂️ {section}
+              </option>
+            ))}
+          </select>
+        )}
         <button
           type="button"
           className="btn btn-ghost btn-sm"
@@ -1435,6 +1484,8 @@ function ContactsPageInner() {
           } else {
             const normalized = { ...payload }
             if (scope === 'holding') normalized.contact_scope = 'holding'
+            if (scope === 'personal') normalized.contact_scope = 'personal'
+            if (scope === 'partner') normalized.contact_scope = 'partner'
             if (scope === 'inbound') normalized.source = normalized.source || 'speaqi'
             await createContact(normalized)
             showToast('Contatto creato')

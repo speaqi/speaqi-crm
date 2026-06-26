@@ -220,7 +220,7 @@ export default function ContactDetailPage() {
   })
 
   const backLabel = holdingContact ? 'alle liste separate' : personalContact ? 'ai personali' : partnerContact ? 'ai partner' : 'ai contatti'
-  const backHref = holdingContact ? '/contacts?scope=holding' : personalContact ? '/personali' : partnerContact ? '/partner' : '/contacts'
+  const backHref = holdingContact ? '/contacts?scope=holding' : personalContact ? '/contacts?scope=personal' : partnerContact ? '/contacts?scope=partner' : '/contacts'
 
   return (
     <>
