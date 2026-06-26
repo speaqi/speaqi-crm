@@ -38,6 +38,28 @@ const FOCUS_CHIPS: Array<{ key: string; label: string }> = [
   { key: 'missing', label: 'Senza next step' },
 ]
 
+type ScopeTab = 'crm' | 'holding' | 'inbound' | 'all'
+
+const SCOPE_TABS: Array<{ key: ScopeTab; label: string }> = [
+  { key: 'crm', label: 'CRM' },
+  { key: 'holding', label: 'Liste separate' },
+  { key: 'inbound', label: 'Inbound' },
+  { key: 'all', label: 'Tutti' },
+]
+
+function parseScopeTab(value?: string | null): ScopeTab {
+  switch ((value || '').toLowerCase()) {
+    case 'holding':
+      return 'holding'
+    case 'inbound':
+      return 'inbound'
+    case 'all':
+      return 'all'
+    default:
+      return 'crm'
+  }
+}
+
 const FOLLOWUP_MONTH_OPTIONS = [
   { value: '1', label: 'Tra 1 mese' },
   { value: '2', label: 'Tra 2 mesi' },
@@ -96,7 +118,8 @@ function ContactsPageInner() {
   const [priorityFilter, setPriorityFilter] = useState('')
   const [dataCompletenessFilter, setDataCompletenessFilter] = useState('')
   const [showHidden, setShowHidden] = useState(false)
-  const [showAllContactsSearch, setShowAllContactsSearch] = useState(false)
+  const [scope, setScope] = useState<ScopeTab>(() => parseScopeTab(searchParams.get('scope')))
+  const [bulkHoldingStatus, setBulkHoldingStatus] = useState('')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null)
   const [rangeStart, setRangeStart] = useState('')
@@ -125,9 +148,15 @@ function ContactsPageInner() {
   const [editingContact, setEditingContact] = useState<CRMContact | null>(null)
   const [drawerAnchor, setDrawerAnchor] = useState<{ x: number; y: number } | null>(null)
 
+  const showAllContactsSearch = scope === 'all'
+
   useEffect(() => {
     setListFilter(urlList)
   }, [urlList])
+
+  useEffect(() => {
+    setScope(parseScopeTab(searchParams.get('scope')))
+  }, [searchParams])
 
   useEffect(() => {
     if (urlNew === '1') {
@@ -151,6 +180,19 @@ function ContactsPageInner() {
     setDrawerAnchor(null)
     const params = new URLSearchParams(searchParams.toString())
     params.delete('id')
+    const query = params.toString()
+    router.replace(query ? `/contacts?${query}` : '/contacts', { scroll: false })
+  }
+
+  function selectScope(next: ScopeTab) {
+    setScope(next)
+    setSelectedIds([])
+    if (next !== 'holding') setListFilter('')
+    const params = new URLSearchParams(searchParams.toString())
+    if (next === 'crm') params.delete('scope')
+    else params.set('scope', next)
+    params.delete('id')
+    if (next !== 'holding') params.delete('list')
     const query = params.toString()
     router.replace(query ? `/contacts?${query}` : '/contacts', { scroll: false })
   }
@@ -179,13 +221,19 @@ function ContactsPageInner() {
     return toLocalDateKey(tomorrow)
   }, [])
 
-  const searchableContacts = useMemo(
-    () =>
-      showAllContactsSearch
-        ? allContacts.filter((contact) => (contact.contact_scope || 'crm') !== 'personal')
-        : contacts,
-    [allContacts, contacts, showAllContactsSearch]
-  )
+  const searchableContacts = useMemo(() => {
+    switch (scope) {
+      case 'holding':
+        return holdingContacts
+      case 'inbound':
+        return contacts.filter((contact) => contact.source === 'speaqi')
+      case 'all':
+        return allContacts.filter((contact) => (contact.contact_scope || 'crm') !== 'personal')
+      case 'crm':
+      default:
+        return contacts
+    }
+  }, [scope, holdingContacts, contacts, allContacts])
 
   const contactSearchStats = useMemo(() => {
     const searchable = allContacts.filter((contact) => (contact.contact_scope || 'crm') !== 'personal')
@@ -193,10 +241,22 @@ function ContactsPageInner() {
       all: searchable.length,
       crm: searchable.filter((contact) => (contact.contact_scope || 'crm') === 'crm').length,
       holding: searchable.filter((contact) => (contact.contact_scope || 'crm') === 'holding').length,
+      inbound: searchable.filter(
+        (contact) => (contact.contact_scope || 'crm') === 'crm' && contact.source === 'speaqi'
+      ).length,
       partner: searchable.filter((contact) => (contact.contact_scope || 'crm') === 'partner').length,
       hidden: searchable.filter((contact) => contact.hidden).length,
     }
   }, [allContacts])
+
+  const scopeCount = (key: ScopeTab) =>
+    key === 'all'
+      ? contactSearchStats.all
+      : key === 'holding'
+        ? contactSearchStats.holding
+        : key === 'inbound'
+          ? contactSearchStats.inbound
+          : contactSearchStats.crm
 
   const lists = useMemo(
     () =>
@@ -344,7 +404,6 @@ function ContactsPageInner() {
     setPriorityFilter('')
     setDataCompletenessFilter('')
     setFocusFilter('')
-    setShowAllContactsSearch(false)
     setShowHidden(false)
     const params = new URLSearchParams(searchParams.toString())
     params.delete('list')
@@ -479,24 +538,20 @@ function ContactsPageInner() {
             <div className="contacts-command-kicker">Rubrica</div>
             <h1>Trova contatti</h1>
           </div>
-          <div className="contacts-view-switch" aria-label="Ambito ricerca contatti">
-            <button
-              type="button"
-              className={!showAllContactsSearch ? 'active' : ''}
-              onClick={() => setShowAllContactsSearch(false)}
-            >
-              Pipeline CRM
-            </button>
-            <button
-              type="button"
-              className={showAllContactsSearch ? 'active' : ''}
-              onClick={() => {
-                setShowAllContactsSearch(true)
-                setShowHidden(false)
-              }}
-            >
-              Tutti i contatti
-            </button>
+          <div className="contacts-view-switch" aria-label="Ambito contatti">
+            {SCOPE_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                className={scope === tab.key ? 'active' : ''}
+                onClick={() => {
+                  if (tab.key === 'all') setShowHidden(false)
+                  selectScope(tab.key)
+                }}
+              >
+                {tab.label} ({scopeCount(tab.key)})
+              </button>
+            ))}
           </div>
         </div>
         <div className="contacts-command-searchrow">
@@ -630,17 +685,17 @@ function ContactsPageInner() {
         )}
       </div>
 
-      {folderSummary.length > 0 && (
+      {scope !== 'holding' && folderSummary.length > 0 && (
         <div className="contacts-folders">
           <div className="contacts-folders-head">
-            <strong>📁 Cartelle</strong>
-            <span>I contatti dentro una cartella non compaiono nella lista Contatti.</span>
+            <strong>📁 Cartelle (liste separate)</strong>
+            <span>Apri una cartella nella vista Liste separate. Restano fuori dalla pipeline CRM.</span>
           </div>
           <div className="contacts-folders-list">
             {folderSummary.map((folder) => (
               <Link
                 key={folder.name}
-                href={`/vinitaly?list=${encodeURIComponent(folder.name)}`}
+                href={`/contacts?scope=holding&list=${encodeURIComponent(folder.name)}`}
                 className="contacts-folder-chip"
               >
                 <span>{folder.name}</span>
@@ -717,7 +772,7 @@ function ContactsPageInner() {
             Tutti i contatti
             <button
               type="button"
-              onClick={() => setShowAllContactsSearch(false)}
+              onClick={() => selectScope('crm')}
               aria-label="Torna alla pipeline CRM"
             >
               ×
@@ -798,6 +853,36 @@ function ContactsPageInner() {
             <span>Puoi assegnarli, aggiornare i dati o creare bozze Gmail in blocco.</span>
           </div>
           <div className="contacts-bulkbar-actions">
+            {scope === 'holding' && (
+              <>
+                <select
+                  className="filter-select"
+                  value={bulkHoldingStatus}
+                  onChange={(event) => setBulkHoldingStatus(event.target.value)}
+                >
+                  <option value="">Manda in CRM con stato…</option>
+                  {stages.map((stage) => (
+                    <option key={`holding-stage-${stage.id}`} value={stage.name}>
+                      {statusLabel(stage.name)}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  disabled={bulkSaving || !bulkHoldingStatus}
+                  onClick={async () => {
+                    await runBulkUpdate(
+                      { contact_scope: 'crm', status: bulkHoldingStatus },
+                      'Contatti spostati nel CRM'
+                    )
+                    setBulkHoldingStatus('')
+                  }}
+                >
+                  Manda in CRM
+                </button>
+              </>
+            )}
             <input
               className="form-input contacts-bulk-draft-note"
               value={bulkDraftNote}
@@ -1333,6 +1418,7 @@ function ContactsPageInner() {
         stages={stages}
         teamMembers={teamMembers}
         initialContact={editingContact}
+        defaultSource={scope === 'inbound' ? 'speaqi' : undefined}
         onClose={() => {
           setModalOpen(false)
           if (urlNew === '1') {
@@ -1347,7 +1433,10 @@ function ContactsPageInner() {
             await updateContact(editingContact.id, payload)
             showToast('Contatto aggiornato')
           } else {
-            await createContact(payload)
+            const normalized = { ...payload }
+            if (scope === 'holding') normalized.contact_scope = 'holding'
+            if (scope === 'inbound') normalized.source = normalized.source || 'speaqi'
+            await createContact(normalized)
             showToast('Contatto creato')
           }
         }}

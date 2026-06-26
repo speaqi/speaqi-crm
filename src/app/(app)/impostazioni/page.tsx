@@ -34,16 +34,16 @@ const SETTINGS_ITEMS = [
     description: 'Registra promemoria rapidi da trascrivere.',
   },
   {
-    href: '/vinitaly',
+    href: '/contacts?scope=holding',
     icon: '🗃️',
-    title: 'Vinitaly (legacy)',
-    description: 'Vecchia lista separata. In fase di migrazione a tag.',
+    title: 'Liste separate',
+    description: 'Contatti fuori dalla pipeline (ex Vinitaly), ora come tab dentro Contatti.',
   },
   {
-    href: '/speaqi',
+    href: '/contacts?scope=inbound',
     icon: '⚡',
-    title: 'Lead inbound (legacy)',
-    description: 'Vecchia lista inbound. In fase di migrazione a tag.',
+    title: 'Lead inbound',
+    description: 'Lead in ingresso (source Speaqi), ora come tab dentro Contatti.',
   },
   {
     href: '/quick-capture',
