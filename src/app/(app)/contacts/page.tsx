@@ -261,7 +261,6 @@ function ContactsPageInner() {
       ).length,
       personal: allContacts.filter((contact) => scopeOf(contact) === 'personal').length,
       partner: allContacts.filter((contact) => scopeOf(contact) === 'partner').length,
-      hidden: allContacts.filter((contact) => scopeOf(contact) !== 'personal' && contact.hidden).length,
     }
   }, [allContacts])
 
@@ -568,10 +567,6 @@ function ContactsPageInner() {
     <div className="contacts-page">
       <div className="contacts-command">
         <div className="contacts-command-main">
-          <div>
-            <div className="contacts-command-kicker">Rubrica</div>
-            <h1>Trova contatti</h1>
-          </div>
           <div className="contacts-view-switch" aria-label="Ambito contatti">
             {SCOPE_TABS.map((tab) => (
               <button
@@ -583,14 +578,28 @@ function ContactsPageInner() {
                   selectScope(tab.key)
                 }}
               >
-                {tab.label} ({scopeCount(tab.key)})
+                {tab.label}
+                <span className="contacts-view-count">{scopeCount(tab.key)}</span>
               </button>
             ))}
           </div>
         </div>
         <div className="contacts-command-searchrow">
           <div className="contacts-search contacts-search-large">
-            <span className="contacts-search-icon">🔍</span>
+            <svg
+              className="contacts-search-icon"
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.2" y2="16.2" />
+            </svg>
             <input
               type="text"
               placeholder={
@@ -610,137 +619,176 @@ function ContactsPageInner() {
               setModalOpen(true)
             }}
           >
-            ＋ Nuovo contatto
+            + Nuovo contatto
           </button>
         </div>
-        <div className="contacts-command-stats">
-          <span><strong>{contactSearchStats.all}</strong> totali cercabili</span>
-          <span><strong>{contactSearchStats.crm}</strong> CRM</span>
-          <span><strong>{contactSearchStats.holding}</strong> cartelle</span>
-          <span><strong>{contactSearchStats.partner}</strong> partner</span>
-          {contactSearchStats.hidden > 0 && <span><strong>{contactSearchStats.hidden}</strong> nascosti</span>}
-        </div>
-      </div>
 
-      <div className="contacts-toolbar">
-        <select
-          className="filter-select"
-          value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
-        >
-          <option value="">Stato: tutti</option>
-          {stages.map((stage) => (
-            <option key={stage.id} value={stage.name}>
-              {statusLabel(stage.name)}
-            </option>
-          ))}
-        </select>
-        <select
-          className="filter-select"
-          value={listFilter}
-          onChange={(event) => setListFilter(event.target.value)}
-        >
-          <option value="">Lista: tutte</option>
-          {lists.map((list) => (
-            <option key={list} value={list}>
-              📁 {list}
-            </option>
-          ))}
-        </select>
-        {scope === 'personal' && sectionOptions.length > 0 && (
+        <div className="contacts-toolbar">
           <select
             className="filter-select"
-            value={sectionFilter}
-            onChange={(event) => setSectionFilter(event.target.value)}
-            aria-label="Filtra per sezione"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
           >
-            <option value="">Sezione: tutte</option>
-            {sectionOptions.map((section) => (
-              <option key={section} value={section}>
-                🗂️ {section}
+            <option value="">Stato: tutti</option>
+            {stages.map((stage) => (
+              <option key={stage.id} value={stage.name}>
+                {statusLabel(stage.name)}
               </option>
             ))}
           </select>
-        )}
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm"
-          disabled={repairingNames}
-          onClick={async () => {
-            if (!window.confirm('Correggo i nomi generici derivati da email tipo info@dominio?')) return
-            setRepairingNames(true)
-            try {
-              const result = await apiFetch<{ updated: number }>('/api/contacts/repair-names', {
-                method: 'POST',
-              })
-              await refresh()
-              showToast(
-                result.updated > 0
-                  ? `${result.updated} nomi corretti da email`
-                  : 'Nessun nome da correggere'
-              )
-            } catch (error) {
-              window.alert(error instanceof Error ? error.message : 'Riparazione nomi non riuscita')
-            } finally {
-              setRepairingNames(false)
-            }
-          }}
-        >
-          {repairingNames ? 'Correzione…' : 'Correggi nomi email'}
-        </button>
-        <select
-          className="filter-select"
-          value={assigneeFilter}
-          onChange={(event) => setAssigneeFilter(event.target.value)}
-          aria-label="Filtra per assegnatario"
-        >
-          <option value="">Assegnato: tutti</option>
-          {assignees.map((assignee) => (
-            <option key={assignee} value={assignee}>
-              👤 {assignee}
-            </option>
-          ))}
-          <option value="__unassigned__">— Non assegnato a nessuno —</option>
-        </select>
-        <button
-          type="button"
-          className={`filter-chip ${showHidden ? 'active' : ''}`}
-          onClick={() => setShowHidden((v) => !v)}
-          disabled={showAllContactsSearch}
-          style={showHidden ? { background: '#fef2f2', borderColor: '#fca5a5', color: '#b91c1c' } : undefined}
-        >
-          {showAllContactsSearch ? '👁️ Nascosti inclusi' : '👁️ Nascosti'}
-        </button>
-        <button
-          type="button"
-          className={`filter-chip ${dataCompletenessFilter === 'missing_phone' ? 'active' : ''}`}
-          onClick={() =>
-            setDataCompletenessFilter((value) => (value === 'missing_phone' ? '' : 'missing_phone'))
-          }
-        >
-          Senza telefono
-        </button>
-        <button
-          type="button"
-          className="filter-chip"
-          onClick={() => setShowMore((value) => !value)}
-        >
-          Altri filtri {activeFilterCount > 1 && `(${activeFilterCount})`}
-        </button>
-        {activeFilterCount > 0 && (
-          <button type="button" className="filter-chip" onClick={resetFilters}>
-            Azzera
+          <select
+            className="filter-select"
+            value={listFilter}
+            onChange={(event) => setListFilter(event.target.value)}
+          >
+            <option value="">Lista: tutte</option>
+            {lists.map((list) => (
+              <option key={list} value={list}>
+                {list}
+              </option>
+            ))}
+          </select>
+          {scope === 'personal' && sectionOptions.length > 0 && (
+            <select
+              className="filter-select"
+              value={sectionFilter}
+              onChange={(event) => setSectionFilter(event.target.value)}
+              aria-label="Filtra per sezione"
+            >
+              <option value="">Sezione: tutte</option>
+              {sectionOptions.map((section) => (
+                <option key={section} value={section}>
+                  {section}
+                </option>
+              ))}
+            </select>
+          )}
+          <select
+            className="filter-select"
+            value={assigneeFilter}
+            onChange={(event) => setAssigneeFilter(event.target.value)}
+            aria-label="Filtra per assegnatario"
+          >
+            <option value="">Assegnato: tutti</option>
+            {assignees.map((assignee) => (
+              <option key={assignee} value={assignee}>
+                {assignee}
+              </option>
+            ))}
+            <option value="__unassigned__">— Non assegnato a nessuno —</option>
+          </select>
+          <button
+            type="button"
+            className={`filter-chip ${showHidden ? 'active' : ''}`}
+            onClick={() => setShowHidden((v) => !v)}
+            disabled={showAllContactsSearch}
+          >
+            {showAllContactsSearch ? 'Nascosti inclusi' : 'Nascosti'}
           </button>
-        )}
-      </div>
+          <button
+            type="button"
+            className={`filter-chip ${showMore ? 'active' : ''}`}
+            onClick={() => setShowMore((value) => !value)}
+          >
+            Altri filtri {activeFilterCount > 1 && `(${activeFilterCount})`}
+          </button>
+          {activeFilterCount > 0 && (
+            <button type="button" className="filter-chip" onClick={resetFilters}>
+              Azzera
+            </button>
+          )}
+        </div>
 
-      {scope !== 'holding' && folderSummary.length > 0 && (
-        <div className="contacts-folders">
-          <div className="contacts-folders-head">
-            <strong>📁 Cartelle (liste separate)</strong>
-            <span>Apri una cartella nella vista Liste separate. Restano fuori dalla pipeline CRM.</span>
+        {showMore && (
+          <div className="contacts-more-filters">
+            <select
+              className="filter-select"
+              value={sourceFilter}
+              onChange={(event) => setSourceFilter(event.target.value)}
+            >
+              <option value="">Origine: tutte</option>
+              {sources.map((source) => (
+                <option key={source} value={source}>
+                  {sourceLabel(source)}
+                </option>
+              ))}
+            </select>
+            <select
+              className="filter-select"
+              value={priorityFilter}
+              onChange={(event) => setPriorityFilter(event.target.value)}
+            >
+              <option value="">Priorità: tutte</option>
+              <option value="3">Alta</option>
+              <option value="2">Media</option>
+              <option value="1">Bassa</option>
+              <option value="0">Nessuna</option>
+            </select>
+            <button
+              type="button"
+              className={`filter-chip ${dataCompletenessFilter === 'missing_phone' ? 'active' : ''}`}
+              onClick={() =>
+                setDataCompletenessFilter((value) => (value === 'missing_phone' ? '' : 'missing_phone'))
+              }
+            >
+              Senza telefono
+            </button>
+            <button
+              type="button"
+              className={`filter-chip ${dataCompletenessFilter === 'missing_email' ? 'active' : ''}`}
+              onClick={() =>
+                setDataCompletenessFilter((value) => (value === 'missing_email' ? '' : 'missing_email'))
+              }
+            >
+              Senza email
+            </button>
+            {FOCUS_CHIPS.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                className={`filter-chip ${focusFilter === chip.key ? 'active' : ''}`}
+                onClick={() => setFocusFilter((value) => (value === chip.key ? '' : chip.key))}
+              >
+                {chip.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm contacts-repair-btn"
+              disabled={repairingNames}
+              onClick={async () => {
+                if (!window.confirm('Correggo i nomi generici derivati da email tipo info@dominio?')) return
+                setRepairingNames(true)
+                try {
+                  const result = await apiFetch<{ updated: number }>('/api/contacts/repair-names', {
+                    method: 'POST',
+                  })
+                  await refresh()
+                  showToast(
+                    result.updated > 0
+                      ? `${result.updated} nomi corretti da email`
+                      : 'Nessun nome da correggere'
+                  )
+                } catch (error) {
+                  window.alert(error instanceof Error ? error.message : 'Riparazione nomi non riuscita')
+                } finally {
+                  setRepairingNames(false)
+                }
+              }}
+            >
+              {repairingNames ? 'Correzione…' : 'Correggi nomi email'}
+            </button>
           </div>
-          <div className="contacts-folders-list">
+        )}
+
+        {scope !== 'holding' && folderSummary.length > 0 && (
+          <div className="contacts-folders">
+            <span
+              className="contacts-folders-label"
+              title="Apri una cartella nella vista Liste separate. Restano fuori dalla pipeline CRM."
+            >
+              Cartelle
+            </span>
             {folderSummary.map((folder) => (
               <Link
                 key={folder.name}
@@ -752,64 +800,8 @@ function ContactsPageInner() {
               </Link>
             ))}
           </div>
-        </div>
-      )}
-
-      {showMore && (
-        <div className="contacts-more-filters">
-          <select
-            className="filter-select"
-            value={sourceFilter}
-            onChange={(event) => setSourceFilter(event.target.value)}
-          >
-            <option value="">Origine: tutte</option>
-            {sources.map((source) => (
-              <option key={source} value={source}>
-                {sourceLabel(source)}
-              </option>
-            ))}
-          </select>
-          <select
-            className="filter-select"
-            value={priorityFilter}
-            onChange={(event) => setPriorityFilter(event.target.value)}
-          >
-            <option value="">Priorità: tutte</option>
-            <option value="3">Alta</option>
-            <option value="2">Media</option>
-            <option value="1">Bassa</option>
-            <option value="0">Nessuna</option>
-          </select>
-          <button
-            type="button"
-            className={`filter-chip ${dataCompletenessFilter === 'missing_phone' ? 'active' : ''}`}
-            onClick={() =>
-              setDataCompletenessFilter((value) => (value === 'missing_phone' ? '' : 'missing_phone'))
-            }
-          >
-            Senza telefono
-          </button>
-          <button
-            type="button"
-            className={`filter-chip ${dataCompletenessFilter === 'missing_email' ? 'active' : ''}`}
-            onClick={() =>
-              setDataCompletenessFilter((value) => (value === 'missing_email' ? '' : 'missing_email'))
-            }
-          >
-            Senza email
-          </button>
-          {FOCUS_CHIPS.map((chip) => (
-            <button
-              key={chip.key}
-              type="button"
-              className={`filter-chip ${focusFilter === chip.key ? 'active' : ''}`}
-              onClick={() => setFocusFilter((value) => (value === chip.key ? '' : chip.key))}
-            >
-              {chip.label}
-            </button>
-          ))}
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="contacts-summary">
         <span>
@@ -828,13 +820,16 @@ function ContactsPageInner() {
             </button>
           </span>
         )}
-        <label className="contacts-summary-selectall">
+        <label
+          className="contacts-summary-selectall"
+          title="Shift+click su una riga: selezione dal primo all'ultimo"
+        >
           <input
             type="checkbox"
             checked={allFilteredSelected}
             onChange={toggleSelectAllFiltered}
           />
-          <span>Seleziona tutti i filtrati</span>
+          <span>Seleziona tutti</span>
         </label>
         <div className="contacts-summary-range">
           <span>Intervallo</span>
@@ -858,11 +853,9 @@ function ContactsPageInner() {
             Seleziona
           </button>
         </div>
-        <span className="contacts-summary-chip">Shift+click: selezione da primo a ultimo</span>
-        {hasSelected && <span className="contacts-summary-chip">{selectedIds.length} selezionati</span>}
         {listFilter && (
           <span className="contacts-summary-chip">
-            📁 {listFilter}
+            {listFilter}
             <button type="button" onClick={() => setListFilter('')} aria-label="Rimuovi lista">
               ×
             </button>
@@ -870,7 +863,7 @@ function ContactsPageInner() {
         )}
         {dataCompletenessFilter === 'missing_phone' && (
           <span className="contacts-summary-chip">
-            📞 Senza telefono
+            Senza telefono
             <button type="button" onClick={() => setDataCompletenessFilter('')} aria-label="Rimuovi filtro telefono">
               ×
             </button>
@@ -897,13 +890,19 @@ function ContactsPageInner() {
 
       {hasSelected && (
         <div className="contacts-bulkbar">
-          <div className="contacts-bulkbar-copy">
-            <strong>{selectedIds.length} contatti selezionati</strong>
-            <span>Puoi assegnarli, aggiornare i dati o creare bozze Gmail in blocco.</span>
+          <div className="contacts-bulkbar-head">
+            <strong>{selectedIds.length} selezionati</strong>
+            <button
+              type="button"
+              className="contacts-bulkbar-clear"
+              onClick={() => setSelectedIds([])}
+            >
+              Deseleziona
+            </button>
           </div>
           <div className="contacts-bulkbar-actions">
             {scope === 'holding' && (
-              <>
+              <div className="contacts-bulk-group">
                 <select
                   className="filter-select"
                   value={bulkHoldingStatus}
@@ -930,41 +929,10 @@ function ContactsPageInner() {
                 >
                   Manda in CRM
                 </button>
-              </>
-            )}
-            <input
-              className="form-input contacts-bulk-draft-note"
-              value={bulkDraftNote}
-              onChange={(event) => setBulkDraftNote(event.target.value)}
-              placeholder="Contesto comune bozze Gmail"
-            />
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              disabled={bulkDraftGenerating || selectedWithEmailCount === 0}
-              onClick={generateBulkDrafts}
-            >
-              {bulkDraftGenerating ? 'Generazione…' : `Bozze Gmail (${selectedWithEmailCount})`}
-            </button>
-            {canRemoveSelectedFromList && (
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                disabled={bulkSaving}
-                onClick={async () => {
-                  await runBulkUpdate(
-                    { list_name: '' },
-                    listFilter
-                      ? `Lista "${listFilter}" rimossa dai contatti selezionati`
-                      : 'Lista rimossa dai contatti selezionati'
-                  )
-                }}
-              >
-                Togli da lista
-              </button>
+              </div>
             )}
             {assignees.length > 0 && (
-              <>
+              <div className="contacts-bulk-group">
                 <select
                   className="filter-select"
                   value={bulkAssignee}
@@ -992,129 +960,163 @@ function ContactsPageInner() {
                 >
                   {bulkSaving ? 'Salvataggio…' : 'Assegna'}
                 </button>
-              </>
+              </div>
             )}
-            <select
-              className="filter-select"
-              value={bulkStatusQuick}
-              onChange={(event) => setBulkStatusQuick(event.target.value)}
-            >
-              <option value="">Sposta pipeline…</option>
-              {stages.map((stage) => (
-                <option key={`quick-stage-${stage.id}`} value={stage.name}>
-                  {statusLabel(stage.name)}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              disabled={bulkSaving || !bulkStatusQuick}
-              onClick={async () => {
-                await runBulkUpdate({ status: bulkStatusQuick }, 'Stato pipeline aggiornato')
-                setBulkStatusQuick('')
-              }}
-            >
-              Sposta
-            </button>
-            <select
-              className="filter-select"
-              value={bulkFollowupMonths}
-              onChange={(event) => setBulkFollowupMonths(event.target.value)}
-            >
-              <option value="">Ricontatta…</option>
-              {FOLLOWUP_MONTH_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              disabled={bulkSaving || !bulkFollowupMonths}
-              onClick={async () => {
-                const months = Number(bulkFollowupMonths)
-                await runBulkUpdate(
-                  { next_followup_at: monthOffsetAt9am(months) },
-                  `Ricontatto pianificato ${months === 1 ? 'tra 1 mese' : `tra ${months} mesi`}`
-                )
-                setBulkFollowupMonths('')
-              }}
-            >
-              Pianifica
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              disabled={bulkSaving}
-              onClick={async () => {
-                if (!window.confirm(`Nascondere ${selectedIds.length} contatti dalla pipeline? Resteranno visibili con il toggle "Mostra nascosti".`)) return
-                await runBulkUpdate(
-                  { hidden: true },
-                  'Contatti nascosti dalla pipeline'
-                )
-              }}
-            >
-              👁️ Nascondi
-            </button>
-            {canShowSelectedInPipeline && (
+            <div className="contacts-bulk-group">
+              <select
+                className="filter-select"
+                value={bulkStatusQuick}
+                onChange={(event) => setBulkStatusQuick(event.target.value)}
+              >
+                <option value="">Sposta pipeline…</option>
+                {stages.map((stage) => (
+                  <option key={`quick-stage-${stage.id}`} value={stage.name}>
+                    {statusLabel(stage.name)}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                disabled={bulkSaving || !bulkStatusQuick}
+                onClick={async () => {
+                  await runBulkUpdate({ status: bulkStatusQuick }, 'Stato pipeline aggiornato')
+                  setBulkStatusQuick('')
+                }}
+              >
+                Sposta
+              </button>
+            </div>
+            <div className="contacts-bulk-group">
+              <select
+                className="filter-select"
+                value={bulkFollowupMonths}
+                onChange={(event) => setBulkFollowupMonths(event.target.value)}
+              >
+                <option value="">Ricontatta…</option>
+                {FOLLOWUP_MONTH_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                disabled={bulkSaving || !bulkFollowupMonths}
+                onClick={async () => {
+                  const months = Number(bulkFollowupMonths)
+                  await runBulkUpdate(
+                    { next_followup_at: monthOffsetAt9am(months) },
+                    `Ricontatto pianificato ${months === 1 ? 'tra 1 mese' : `tra ${months} mesi`}`
+                  )
+                  setBulkFollowupMonths('')
+                }}
+              >
+                Pianifica
+              </button>
+            </div>
+            <div className="contacts-bulk-group">
+              <input
+                className="form-input contacts-folder-input"
+                list="folder-options"
+                value={bulkFolderName}
+                onChange={(event) => setBulkFolderName(event.target.value)}
+                placeholder="Sposta in cartella…"
+              />
+              <datalist id="folder-options">
+                {folderOptions.map((folderName) => (
+                  <option key={folderName} value={folderName} />
+                ))}
+              </datalist>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                disabled={bulkSaving || !bulkFolderName.trim()}
+                onClick={async () => {
+                  const folderName = bulkFolderName.trim()
+                  await runBulkUpdate(
+                    { contact_scope: 'holding', list_name: folderName },
+                    `Spostati in cartella "${folderName}"`
+                  )
+                  setBulkFolderName('')
+                }}
+              >
+                Sposta
+              </button>
+            </div>
+            <div className="contacts-bulk-group">
+              <input
+                className="form-input contacts-bulk-draft-note"
+                value={bulkDraftNote}
+                onChange={(event) => setBulkDraftNote(event.target.value)}
+                placeholder="Contesto comune bozze Gmail"
+              />
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={bulkDraftGenerating || selectedWithEmailCount === 0}
+                onClick={generateBulkDrafts}
+              >
+                {bulkDraftGenerating ? 'Generazione…' : `Bozze Gmail (${selectedWithEmailCount})`}
+              </button>
+            </div>
+            <div className="contacts-bulk-group">
+              {canRemoveSelectedFromList && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  disabled={bulkSaving}
+                  onClick={async () => {
+                    await runBulkUpdate(
+                      { list_name: '' },
+                      listFilter
+                        ? `Lista "${listFilter}" rimossa dai contatti selezionati`
+                        : 'Lista rimossa dai contatti selezionati'
+                    )
+                  }}
+                >
+                  Togli da lista
+                </button>
+              )}
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"
                 disabled={bulkSaving}
                 onClick={async () => {
-                  if (!window.confirm(`Riportare ${selectedIds.length} contatti nella pipeline?`)) return
+                  if (!window.confirm(`Nascondere ${selectedIds.length} contatti dalla pipeline? Resteranno visibili con il toggle "Nascosti".`)) return
                   await runBulkUpdate(
-                    { hidden: false },
-                    'Contatti riportati in pipeline'
+                    { hidden: true },
+                    'Contatti nascosti dalla pipeline'
                   )
                 }}
               >
-                📋 In pipeline
+                Nascondi
               </button>
-            )}
-            <input
-              className="form-input contacts-folder-input"
-              list="folder-options"
-              value={bulkFolderName}
-              onChange={(event) => setBulkFolderName(event.target.value)}
-              placeholder="Sposta in cartella..."
-            />
-            <datalist id="folder-options">
-              {folderOptions.map((folderName) => (
-                <option key={folderName} value={folderName} />
-              ))}
-            </datalist>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              disabled={bulkSaving || !bulkFolderName.trim()}
-              onClick={async () => {
-                const folderName = bulkFolderName.trim()
-                await runBulkUpdate(
-                  { contact_scope: 'holding', list_name: folderName },
-                  `Spostati in cartella "${folderName}"`
-                )
-                setBulkFolderName('')
-              }}
-            >
-              Sposta in cartella
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={() => setBulkEditOpen((value) => !value)}
-            >
-              {bulkEditOpen ? 'Chiudi update dati' : 'Update dati'}
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={() => setSelectedIds([])}
-            >
-              Deseleziona
-            </button>
+              {canShowSelectedInPipeline && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  disabled={bulkSaving}
+                  onClick={async () => {
+                    if (!window.confirm(`Riportare ${selectedIds.length} contatti nella pipeline?`)) return
+                    await runBulkUpdate(
+                      { hidden: false },
+                      'Contatti riportati in pipeline'
+                    )
+                  }}
+                >
+                  In pipeline
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setBulkEditOpen((value) => !value)}
+              >
+                {bulkEditOpen ? 'Chiudi update dati' : 'Update dati'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1306,8 +1308,12 @@ function ContactsPageInner() {
                 <div className="contacts-row-main">
                   <div className="contacts-row-name">
                     <strong>{contact.name}</strong>
-                    {contact.hidden && <span title="Nascosto dalla pipeline"> 👁️‍🗨️</span>}
                     {contact.company && <span className="contacts-row-company">· {contact.company}</span>}
+                    {contact.hidden && (
+                      <span className="contacts-hidden-tag" title="Nascosto dalla pipeline">
+                        Nascosto
+                      </span>
+                    )}
                   </div>
                   <div className="contacts-row-meta">
                     {contact.email ? <span>{contact.email}</span> : <span className="contacts-missing">Senza email</span>}
@@ -1332,12 +1338,16 @@ function ContactsPageInner() {
                         SDI: {contact.billing_sdi}
                       </span>
                     )}
-                    {holdingTag && <span>📁 {holdingTag}</span>}
-                    {contact.list_name && !holdingTag && <span>📁 {contact.list_name}</span>}
-                    {contact.responsible && <span>👤 {contact.responsible}</span>}
+                    {holdingTag && <span className="contacts-meta-tag" title="Cartella">{holdingTag}</span>}
+                    {contact.list_name && !holdingTag && (
+                      <span className="contacts-meta-tag" title="Cartella">{contact.list_name}</span>
+                    )}
+                    {contact.responsible && (
+                      <span className="contacts-meta-tag" title="Assegnato a">{contact.responsible}</span>
+                    )}
                     {(contact.email_open_count || contact.email_click_count) ? (
                       <span>
-                        Engagement: {contact.email_open_count || 0} aperture · {contact.email_click_count || 0} click
+                        {contact.email_open_count || 0} aperture · {contact.email_click_count || 0} click
                       </span>
                     ) : null}
                   </div>
@@ -1432,7 +1442,7 @@ function ContactsPageInner() {
                           showToast(`${contact.name} → ricontatto aggiunto per oggi`)
                         }}
                       >
-                        📞 Oggi
+                        Chiama oggi
                       </button>
                     )
                   )}
