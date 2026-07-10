@@ -26,7 +26,7 @@
       "position": [520, 260],
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.SPEAQI_CRM_URL + '/api/automation/orchestrator' }}",
+        "url": "={{ $env.APP_BASE_URL + '/api/automation/orchestrator' }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

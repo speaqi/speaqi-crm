@@ -121,7 +121,11 @@ export function useCRM(pathname = '') {
   const [adminDashboardShowAllContacts, setAdminDashboardShowAllContacts] = useState(false)
 
   const crmContacts = useMemo(
-    () => state.contacts.filter((contact) => !isHoldingContact(contact) && !isPartnerContact(contact)),
+    () =>
+      state.contacts.filter(
+        (contact) =>
+          !isHoldingContact(contact) && !isPartnerContact(contact) && !isPersonalContact(contact)
+      ),
     [state.contacts]
   )
 

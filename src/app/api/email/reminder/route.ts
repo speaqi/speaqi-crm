@@ -2,7 +2,16 @@ import { NextRequest } from 'next/server'
 import { sendReminderEmail } from '@/lib/email'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 
+function validateSecret(request: NextRequest) {
+  const secret = process.env.AUTOMATION_SECRET
+  return !!secret && request.headers.get('x-automation-secret') === secret
+}
+
 export async function POST(request: NextRequest) {
+  if (!validateSecret(request)) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const body = await request.json().catch(() => ({}))
     const recipientEmail = body.email || process.env.REMINDER_EMAIL

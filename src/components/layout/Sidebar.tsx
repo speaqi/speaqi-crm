@@ -18,18 +18,16 @@ interface SidebarProps {
   }
 }
 
+// Menu ridotto al core loop quotidiano. Le altre pagine (progetti, finanza,
+// marketing, acumbamail, email, voice, ...) restano raggiungibili via URL:
+// partner e personali vivono come tab dentro /contacts.
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Oggi', icon: '🏠', badgeKey: 'oggi' as const, badgeRed: true },
   { href: '/kanban', label: 'Pipeline', icon: '🔀', badgeKey: 'kanban' as const },
-  { href: '/progetti', label: 'Progetti', icon: '🎯' },
   { href: '/contacts', label: 'Contatti', icon: '👥', badgeKey: 'contacts' as const },
-  { href: '/partner', label: 'Partner', icon: '🤝', badgeKey: 'partner' as const },
-  { href: '/preventivi', label: 'Preventivi', icon: '💶' },
   { href: '/calendario', label: 'Follow-up', icon: '📅', badgeKey: 'tasks' as const, badgeRed: true },
-  { href: '/email', label: 'Email', icon: '✉️' },
-  { href: '/acumbamail', label: 'Acumbamail', icon: '📨' },
+  { href: '/preventivi', label: 'Preventivi', icon: '💶' },
   { href: '/attivita', label: 'Analytics', icon: '📊' },
-  { href: '/finanza', label: 'Finanza', icon: '📈' },
   { href: '/impostazioni', label: 'Impostazioni', icon: '⚙️' },
 ]
 
@@ -69,10 +67,6 @@ export function Sidebar({ counts }: SidebarProps) {
       </nav>
 
       <div className="sidebar-footer">
-        <Link href="/personali" className="nav-item sidebar-footer-item">
-          <span className="icon">🗂️</span>
-          Personali
-        </Link>
         <Link href="/import" className="nav-item sidebar-footer-item">
           <span className="icon">📥</span>
           Importa

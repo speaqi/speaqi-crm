@@ -7,6 +7,7 @@ import { ContactModal } from '@/components/crm/ContactModal'
 import { DashboardHero } from '@/components/crm/DashboardHero'
 import { DashboardPriorityQueue, type QueueItem } from '@/components/crm/DashboardPriorityQueue'
 import { QuickDismissMenu } from '@/components/crm/QuickDismissMenu'
+import { DashboardRecoveryPanel, type RecoveryItem } from '@/components/crm/DashboardRecoveryPanel'
 import { DashboardRiskPanel } from '@/components/crm/DashboardRiskPanel'
 import { DashboardEmailInbox } from '@/components/crm/DashboardEmailInbox'
 import { useCRMContext } from '../layout'
@@ -161,10 +162,27 @@ export default function OggiPage() {
       seen.add(call.contact.id)
     }
 
-    // Add contacts without follow-up that are in progress
+    // Sort: critical first, then high, then medium, then by score desc
+    const priorityOrder = { critical: 0, high: 1, medium: 2 }
+    return items.sort((a, b) => {
+      const pDiff = priorityOrder[a.priority] - priorityOrder[b.priority]
+      if (pDiff !== 0) return pDiff
+      return b.score - a.score
+    })
+  }, [dashboardScheduledCalls, todayKey])
+
+  // ─── Da recuperare: contatti aperti senza prossimo passo ───
+  const recoveryItems = useMemo<RecoveryItem[]>(() => {
+    const queuedContactIds = new Set(dashboardScheduledCalls.map((call) => call.contact.id))
+    const items: RecoveryItem[] = []
+
     for (const contact of contacts) {
-      if (seen.has(contact.id)) continue
-      if (isInactiveStatus(contact.status)) continue
+      if (isClosedStatus(contact.status)) continue
+      if (queuedContactIds.has(contact.id)) continue
+
+      const followupAt = contact.next_followup_at ? new Date(contact.next_followup_at).getTime() : null
+      // Parcheggiato consapevolmente (es. Waiting "richiama tra 3 mesi") con data futura: non disturbare.
+      if (followupAt && followupAt > now.getTime()) continue
 
       const lastContact = contact.last_contact_at ? new Date(contact.last_contact_at) : null
       const daysStale = lastContact
@@ -173,23 +191,17 @@ export default function OggiPage() {
 
       items.push({
         contact,
-        due_at: '',
-        task: null,
-        quote: null,
-        reason: daysStale > 14 ? 'stale' : contact.status === 'New' ? 'no_contact' : 'followup_due',
-        priority: daysStale > 7 ? 'high' : 'medium',
-        score: contact.score || 0,
+        daysStale,
+        // Waiting/inattivo con richiamo scaduto: buildScheduledCalls lo salta, quindi riemerge qui.
+        reason: followupAt ? 'waiting_due' : 'no_next_step',
       })
     }
 
-    // Sort: critical first, then high, then medium, then by score desc
-    const priorityOrder = { critical: 0, high: 1, medium: 2 }
     return items.sort((a, b) => {
-      const pDiff = priorityOrder[a.priority] - priorityOrder[b.priority]
-      if (pDiff !== 0) return pDiff
-      return b.score - a.score
+      if (a.reason !== b.reason) return a.reason === 'waiting_due' ? -1 : 1
+      return b.daysStale - a.daysStale
     })
-  }, [dashboardScheduledCalls, contacts, todayKey, now])
+  }, [contacts, dashboardScheduledCalls, now])
 
   // ─── Risk items ───
   const riskItems = useMemo(() => {
@@ -322,6 +334,15 @@ export default function OggiPage() {
       showToast(`${label} ✓`)
     } catch (error) {
       showToast(`Errore: ${error instanceof Error ? error.message : 'operazione'}`)
+    }
+  }
+
+  async function handleRecoverySchedule(contactId: string, followupAt: string) {
+    try {
+      await updateContact(contactId, { next_followup_at: followupAt })
+      showToast(`Richiamo fissato per il ${followupLabel(followupAt)}`)
+    } catch (error) {
+      showToast(`Errore: ${error instanceof Error ? error.message : 'pianificazione'}`)
     }
   }
 
@@ -494,6 +515,14 @@ export default function OggiPage() {
           />
         </div>
       </div>
+
+      {/* ─── DA RECUPERARE ─── */}
+      <DashboardRecoveryPanel
+        items={recoveryItems}
+        onSchedule={handleRecoverySchedule}
+        onDismiss={handleDismiss}
+        onOpenContact={openDrawerFromMouse}
+      />
 
       {/* ─── EMAIL INBOX ─── */}
       <DashboardEmailInbox showToast={showToast} refresh={refresh} />
