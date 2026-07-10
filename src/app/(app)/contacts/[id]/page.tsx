@@ -81,6 +81,12 @@ export default function ContactDetailPage() {
   const [changingStage, setChangingStage] = useState(false)
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null)
   const [aiSuggestionLoading, setAiSuggestionLoading] = useState(false)
+  const [reopenOpen, setReopenOpen] = useState(false)
+  const [reopenTitle, setReopenTitle] = useState('')
+  const [reopenCounterparty, setReopenCounterparty] = useState('')
+  const [reopenValue, setReopenValue] = useState('')
+  const [reopenFollowup, setReopenFollowup] = useState('')
+  const [reopenSaving, setReopenSaving] = useState(false)
 
   async function loadDetail(showSpinner = true) {
     if (showSpinner || !detail) setLoading(true)
@@ -131,6 +137,40 @@ export default function ContactDetailPage() {
       showToast(`Errore: ${error instanceof Error ? error.message : 'aggiornamento partner'}`)
     } finally {
       setPromotingToPartner(false)
+    }
+  }
+
+  // ─── Nuova opportunità (rientro in pipeline) ───
+  async function handleReopenDeal() {
+    if (!reopenFollowup) {
+      showToast('Indica la data del primo follow-up della nuova opportunità')
+      return
+    }
+    setReopenSaving(true)
+    try {
+      await apiFetch('/api/deals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contact_id: contactId,
+          title: reopenTitle.trim() || undefined,
+          counterparty: reopenCounterparty.trim() || undefined,
+          value: reopenValue ? Number(reopenValue) : undefined,
+          followup_at: fromDatetimeLocalValue(reopenFollowup),
+        }),
+      })
+      showToast('Nuova opportunità aperta: contatto di nuovo in pipeline')
+      setReopenOpen(false)
+      setReopenTitle('')
+      setReopenCounterparty('')
+      setReopenValue('')
+      setReopenFollowup('')
+      await loadDetail(false)
+      refresh()
+    } catch (error) {
+      showToast(`Errore: ${error instanceof Error ? error.message : 'nuova opportunità'}`)
+    } finally {
+      setReopenSaving(false)
     }
   }
 
@@ -210,6 +250,8 @@ export default function ContactDetailPage() {
   const holdingContact = isHoldingContact(contact)
   const personalContact = isPersonalContact(contact)
   const partnerContact = isPartnerContact(contact)
+  const deals = detail.deals || []
+  const openDeal = deals.find((deal) => !deal.closed_at) || null
   const pinnedNotes = activities.filter((activity) => isPinnedNote(activity) || isActionRequiredNote(activity))
   const activeStages = stages.filter((s) => {
     const key = (s.system_key || s.name).toLowerCase()
@@ -387,6 +429,92 @@ export default function ContactDetailPage() {
           <div className="meta-card" style={{ marginBottom: 20 }}>
             <strong>🤝 Partner</strong>
             <span>Questo contatto è un partner: può comunque stare in pipeline come cliente, con trattative, note e follow-up dedicati.</span>
+          </div>
+        )}
+
+        {/* ─── OPPORTUNITÀ (TRATTATIVE) ─── */}
+        {(deals.length > 0 || !holdingContact) && !personalContact && (
+          <div className="dash-card" style={{ marginBottom: 20 }}>
+            <div className="dash-card-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              💼 Opportunità
+              {!openDeal && (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  style={{ marginLeft: 'auto' }}
+                  onClick={() => setReopenOpen((v) => !v)}
+                >
+                  🔁 Nuova opportunità
+                </button>
+              )}
+            </div>
+            {reopenOpen && !openDeal && (
+              <div style={{ display: 'grid', gap: 8, marginBottom: 14, maxWidth: 520 }}>
+                <input
+                  className="fi"
+                  placeholder="Titolo (es. Rinnovo 2027, Progetto QR menu)"
+                  value={reopenTitle}
+                  onChange={(e) => setReopenTitle(e.target.value)}
+                />
+                <input
+                  className="fi"
+                  placeholder="Controparte (es. Federalberghi) — opzionale"
+                  value={reopenCounterparty}
+                  onChange={(e) => setReopenCounterparty(e.target.value)}
+                />
+                <input
+                  className="fi"
+                  type="number"
+                  placeholder="Valore stimato € — opzionale"
+                  value={reopenValue}
+                  onChange={(e) => setReopenValue(e.target.value)}
+                />
+                <label className="fl">
+                  Primo follow-up *
+                  <input
+                    className="fi"
+                    type="datetime-local"
+                    value={reopenFollowup}
+                    onChange={(e) => setReopenFollowup(e.target.value)}
+                  />
+                </label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" className="btn btn-primary btn-sm" disabled={reopenSaving} onClick={handleReopenDeal}>
+                    {reopenSaving ? 'Apertura…' : 'Apri e rimetti in pipeline'}
+                  </button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setReopenOpen(false)}>
+                    Annulla
+                  </button>
+                </div>
+              </div>
+            )}
+            {deals.length === 0 ? (
+              <p style={{ color: 'var(--text3)', fontSize: 13 }}>
+                Nessuna trattativa registrata. Lo storico apparirà qui dopo la migrazione o al primo cambio stato.
+              </p>
+            ) : (
+              <div style={{ display: 'grid', gap: 6 }}>
+                {deals.map((deal) => (
+                  <div
+                    key={deal.id}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'var(--surface2)', borderRadius: 8, fontSize: 13 }}
+                  >
+                    <span>{deal.closed_at ? (deal.outcome === 'won' ? '✅' : '❌') : '🟢'}</span>
+                    <strong style={{ flex: 1 }}>
+                      {deal.title}
+                      {deal.counterparty ? ` · ${deal.counterparty}` : ''}
+                    </strong>
+                    <span className="ctag ctag-contattato">{statusLabel(deal.stage)}</span>
+                    {deal.value ? <span>€{deal.value}</span> : null}
+                    <span style={{ color: 'var(--text3)' }}>
+                      {deal.closed_at
+                        ? `chiusa ${new Date(deal.closed_at).toLocaleDateString('it-IT')}`
+                        : `aperta ${new Date(deal.created_at).toLocaleDateString('it-IT')}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

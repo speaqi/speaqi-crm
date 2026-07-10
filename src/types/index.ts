@@ -137,12 +137,30 @@ export interface TaskWithContact extends Task {
   } | null
 }
 
+export interface Deal {
+  id: string
+  user_id?: string
+  contact_id: string
+  title: string
+  counterparty?: string | null
+  stage: string
+  value?: number | null
+  quote_id?: string | null
+  expected_close_at?: string | null
+  outcome?: 'won' | 'lost' | null
+  lost_reason?: string | null
+  closed_at?: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface ContactDetail {
   contact: CRMContact
   activities: Activity[]
   tasks: Task[]
   emails: GmailMessage[]
   gmail: GmailAccountStatus
+  deals?: Deal[]
 }
 
 export interface CRMState {

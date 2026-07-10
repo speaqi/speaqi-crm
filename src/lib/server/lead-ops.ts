@@ -1,4 +1,5 @@
 import { isClosedStatus } from '@/lib/data'
+import { syncDealWithContactStatus } from '@/lib/server/deal-ops'
 import {
   completePendingCallTasks,
   createActivities,
@@ -146,6 +147,9 @@ export async function createLeadFromInput(supabase: any, userId: string, body: a
     toStage: inserted.status,
     changedAt: inserted.created_at,
   })
+  await syncDealWithContactStatus(supabase, userId, inserted.id, inserted.status, {
+    value: inserted.value ?? undefined,
+  })
 
   let task = null
   if (nextActionAt) {
@@ -242,6 +246,13 @@ export async function updateLeadFromInput(
     .single()
 
   if (error) throw error
+
+  if ((current.status || 'New') !== nextStatus) {
+    await syncDealWithContactStatus(supabase, userId, leadId, nextStatus, {
+      value: updated?.value ?? undefined,
+      lostReason: updated?.lost_reason ?? undefined,
+    })
+  }
 
   if (isClosedStatus(nextStatus)) {
     await completePendingCallTasks(supabase, userId, leadId)

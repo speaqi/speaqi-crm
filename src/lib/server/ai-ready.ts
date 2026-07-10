@@ -1,4 +1,5 @@
 import { isClosedStatus } from '@/lib/data'
+import { syncDealWithContactStatus } from '@/lib/server/deal-ops'
 import { isCallTaskType } from '@/lib/schedule'
 import type { LeadMemory, NextActionSuggestion, SpecLead } from '@/types'
 
@@ -1101,6 +1102,10 @@ export async function applyReplyOutcome(supabase: any, userId: string, leadId: s
     .eq('id', leadId)
 
   if (statusError) throw statusError
+
+  if ((leadRow.status || 'New') !== nextStatus) {
+    await syncDealWithContactStatus(supabase, userId, leadId, nextStatus)
+  }
 
   const memory = await upsertLeadMemory(supabase, userId, leadId, memoryUpdate)
   const suggestion = await suggestNextActionWithAI({

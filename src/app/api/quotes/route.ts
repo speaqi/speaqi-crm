@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createActivities } from '@/lib/server/crm'
+import { getOpenDeal } from '@/lib/server/deal-ops'
 import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { errorMessage } from '@/lib/server/http'
 import {
@@ -319,6 +320,23 @@ export async function POST(request: NextRequest) {
 
     if (insertError) throw insertError
     if (!insertedId) throw new Error('Impossibile creare il preventivo')
+
+    // Aggancia il preventivo alla trattativa aperta del contatto (best-effort:
+    // se la tabella deals o la colonna deal_id non esistono ancora, si ignora).
+    if (contact?.id) {
+      try {
+        const openDeal = await getOpenDeal(auth.supabase, auth.workspaceUserId, contact.id)
+        if (openDeal) {
+          await auth.supabase
+            .from('quotes')
+            .update({ deal_id: openDeal.id })
+            .eq('user_id', auth.workspaceUserId)
+            .eq('id', insertedId)
+        }
+      } catch {
+        // colonna/tabella non ancora migrata: il preventivo resta senza deal_id
+      }
+    }
 
     const data = await fetchQuoteById(auth.supabase, auth.workspaceUserId, insertedId)
     if (!data) throw new Error('Preventivo non trovato dopo la creazione')

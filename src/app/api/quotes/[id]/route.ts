@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
-import { createActivities } from '@/lib/server/crm'
+import { completePendingCallTasks, createActivities } from '@/lib/server/crm'
+import { syncDealWithContactStatus } from '@/lib/server/deal-ops'
 import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { errorMessage } from '@/lib/server/http'
 import {
@@ -410,6 +411,28 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           },
         },
       ])
+    }
+
+    // Preventivo pagato → il contatto va a Paid e la trattativa si chiude won
+    // (prima status contatto e preventivi erano del tutto scollegati).
+    if (quoteData.contact_id && current.status !== 'paid' && quoteData.status === 'paid') {
+      const nowIso = new Date().toISOString()
+      const { data: paidContact } = await auth.supabase
+        .from('contacts')
+        .update({
+          status: 'Paid',
+          won_at: nowIso,
+          next_followup_at: null,
+          next_action_at: null,
+        })
+        .eq('user_id', auth.workspaceUserId)
+        .eq('id', quoteData.contact_id)
+        .select('id')
+        .maybeSingle()
+      if (paidContact) {
+        await syncDealWithContactStatus(auth.supabase, auth.workspaceUserId, quoteData.contact_id, 'Paid')
+        await completePendingCallTasks(auth.supabase, auth.workspaceUserId, quoteData.contact_id)
+      }
     }
 
     return Response.json({ quote: normalizeQuoteRow(quoteData) })

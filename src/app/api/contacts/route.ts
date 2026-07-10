@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createActivities, ensurePipelineStages, formatActivityDate, updateContactSummary } from '@/lib/server/crm'
+import { syncDealWithContactStatus } from '@/lib/server/deal-ops'
 import { priorityLevelFromNumber } from '@/lib/server/ai-ready'
 import {
   contactAssigneeMatchOrFilter,
@@ -258,6 +259,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (insertError) throw insertError
+
+    // Il lead pipeline nasce con la sua trattativa; i nascosti (partner
+    // dormienti) la aprono quando entrano in pipeline.
+    if (contact.contact_scope === 'crm' && !contact.hidden) {
+      await syncDealWithContactStatus(auth.supabase, auth.workspaceUserId, contact.id, contact.status, {
+        value: contact.value ?? undefined,
+      })
+    }
 
     let task = null
     if (contact.contact_scope !== 'holding' && contact.next_followup_at) {

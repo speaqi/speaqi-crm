@@ -9,6 +9,7 @@ import {
   updateContactSummary,
 } from '@/lib/server/crm'
 import { getGmailAccount, gmailStatus, isMissingRelation } from '@/lib/server/gmail'
+import { listContactDeals, syncDealWithContactStatus } from '@/lib/server/deal-ops'
 import { insertStageTransition } from '@/lib/server/ai-ready'
 import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { requireRouteUser } from '@/lib/server/supabase'
@@ -283,6 +284,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       { data: tasks, error: tasksError },
       emailsResult,
       gmailAccount,
+      deals,
     ] =
       await Promise.all([
         auth.supabase
@@ -305,6 +307,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
           .order('sent_at', { ascending: false, nullsFirst: false })
           .limit(30),
         getGmailAccount(auth.supabase, auth.workspaceUserId, { tolerateMissingRelation: true }),
+        listContactDeals(auth.supabase, auth.workspaceUserId, id),
       ])
 
     if (activitiesError) throw activitiesError
@@ -322,6 +325,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       tasks: tasks || [],
       emails,
       gmail: gmailStatus(gmailAccount),
+      deals: deals || [],
     })
   } catch (error) {
     return Response.json(
@@ -481,6 +485,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         fromStage: current.status,
         toStage: nextStatus,
         changedAt: nowIso,
+      })
+      await syncDealWithContactStatus(auth.supabase, auth.workspaceUserId, id, nextStatus, {
+        value: data?.value ?? undefined,
+        lostReason: data?.lost_reason ?? undefined,
       })
     }
 

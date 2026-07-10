@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { isClosedStatus, normalizeContactScope } from '@/lib/data'
 import { completePendingCallTasks, syncPendingCallTask } from '@/lib/server/crm'
+import { syncDealWithContactStatus } from '@/lib/server/deal-ops'
 import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { requireRouteUser } from '@/lib/server/supabase'
 
@@ -129,6 +130,11 @@ export async function PATCH(request: NextRequest) {
       await Promise.all(
         (data || []).map(async (contact) => {
           const nextScopeValue = (contact.contact_scope || 'crm') as string
+          if ('status' in updatePayload && nextScopeValue === 'crm') {
+            await syncDealWithContactStatus(auth.supabase, auth.workspaceUserId, contact.id, contact.status, {
+              lostReason: contact.lost_reason ?? undefined,
+            })
+          }
           if (isClosedStatus(contact.status) || nextScopeValue === 'holding') {
             await completePendingCallTasks(auth.supabase, auth.workspaceUserId, contact.id)
             return
