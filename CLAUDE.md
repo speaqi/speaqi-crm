@@ -73,7 +73,8 @@ supabase migration up
 | Table | Purpose |
 |---|---|
 | `pipeline_stages` | Configurable pipeline stages |
-| `contacts` | Leads/contacts (AI-ready fields, contact_scope, engagement tracking) |
+| `contacts` | Leads/contacts (AI-ready fields, contact_scope, `is_partner`, `hidden`, engagement tracking) |
+| `deals` | Trattative/opportunità per contact (max 1 open per contact, enables re-entry after close) |
 | `activities` | Full interaction timeline per contact |
 | `tasks` | Follow-ups and next actions (idempotency_key for deduplication) |
 | `lead_memories` | AI-generated synthetic memory per lead |
@@ -180,25 +181,40 @@ Path alias: `@/*` → `./src/*`
 - **Email reply** → updates memory, status, score, next_action
 - `next_followup_at` and `next_action_at` stay in sync with pending tasks
 - Tasks use `idempotency_key` to prevent duplicates
-- Contacts have `contact_scope`: `crm` (active pipeline), `holding` (waiting for reply), or `personal` (personal area)
+- Contacts have `contact_scope`: `crm` (active pipeline), `holding` (waiting for reply), or `personal` (personal area) — plus the orthogonal flags `is_partner` (partner AND possibly client) and `hidden` (out of pipeline surfaces)
 - Vinitaly/Acumbamail leads enter as `holding` scope until engaged
+- Every status change also syncs the contact's open deal (`syncDealWithContactStatus`); closed contacts re-enter the pipeline via "Nuova opportunità" (`POST /api/deals`)
+- Dashboard "Da recuperare" panel surfaces open contacts with no next step (including Waiting contacts whose recall date has passed) with quick reschedule/dismiss actions
+- Sidebar shows only the core loop (Oggi, Pipeline, Contatti, Follow-up, Preventivi, Analytics, Impostazioni); other pages stay reachable by URL
 - **Admin collaborator filter**: Admin can toggle `workspace=all` to see all contacts, otherwise sees only assigned contacts (matching `responsible` or `assigned_agent` via `contactMatchesAssigneeName`)
 
 ## Pipeline Stages
 
 Default stages (configurable in `pipeline_stages` table, see `src/lib/data.ts`):
 
-New → Contacted → Interested → Supertop → Call booked → Quote → Lost → Closed → Paid
+New → Contacted → Interested → Waiting → Call booked → Quote → Lost → Closed → Paid
 
 Each stage has a `system_key` and `color`. Closed statuses: `closed`, `paid`, `lost`, `not_interested`.
+
+> "Supertop" is NOT a stage anymore: it means `priority = 3` (max) on the contact, shown as star/badge.
+
+## Deals (Trattative)
+
+- Pipeline position lives on `contacts.status` (mirror cache read by dashboard/kanban/automations), but each contact has a history of `deals` — at most ONE open (partial unique index `deals_one_open_per_contact`).
+- `src/lib/server/deal-ops.ts`: `syncDealWithContactStatus` keeps the open deal aligned on every status change (hooked in contacts POST/PATCH, bulk, lead-ops, Gmail reply outcome); `reopenWithNewDeal` re-enters a closed/paid contact into the pipeline with a new opportunity.
+- `POST /api/deals` = "Nuova opportunità" (button in contact detail page); `GET /api/deals?contact_id=X` = history.
+- Each deal has an optional `counterparty` (the entity the deal is with — a person can carry deals for different organizations).
+- Quote paid → contact `Paid` + open deal closed as won; new quotes attach to the open deal via `quotes.deal_id`.
 
 ## Contact Scopes
 
 | Scope | Description | Route |
 |---|---|---|
 | `crm` | Active pipeline, main CRM flow | `/contacts`, `/kanban` |
-| `holding` | Waiting list (event leads, unengaged) | `/vinitaly` |
-| `personal` | Personal contacts, separate from CRM | `/personali` |
+| `holding` | Waiting list (event leads, unengaged) | `/contacts?scope=holding` |
+| `personal` | Personal contacts, separate from CRM | `/contacts?scope=personal` |
+
+**Partner is NOT a scope**: it's the `is_partner` boolean — a partner can also be a client and sit in the pipeline. Per-contact pipeline exclusion uses the `hidden` flag. Canonical server-side visibility rule in `src/lib/server/scope-filters.ts`: `applyPipelineScope` (scope crm + not hidden — work queues, automations) and `applyCrmScope` (scope only — analytics/finance reporting).
 
 ## Quotes / Preventivi
 
@@ -286,12 +302,16 @@ Each stage has a `system_key` and `color`. Closed statuses: `closed`, `paid`, `l
 
 ## n8n Workflows
 
-Located in `n8n/workflows/`. Three workflows:
-1. `01-followups.json` — follow-up automation
-2. `02-stale-leads.json` — stale lead detection
-3. `03-speaqi-webhook.json` — webhook processing
+Located in `n8n/workflows/` — see `n8n/README.md` for the recommended re-enable order. Seven workflows (all exported with `"active": false`):
+1. `01-followups.json` — due/SLA/quote-recovery task generation (every 10 min)
+2. `02-stale-leads.json` — stale lead detection (daily 09:00)
+3. `03-speaqi-webhook.json` — inbound lead ingestion webhook
+4. `04-orchestrator.json` — morning AI email drafts (Mon–Fri 08:00, human sends)
+5. `05-reply-monitor.json` — Gmail reply sync + AI classification (every 30 min)
+6. `06-db-maintenance.json` — data hygiene (hourly)
+7. `07-weekly-recap.json` — weekly recap email (Monday 07:30)
 
-All require `AUTOMATION_SECRET` for endpoint authentication.
+All use `APP_BASE_URL` and require `AUTOMATION_SECRET` for endpoint authentication (including `/api/email/reminder`). The n8n workflows are just schedulers: the logic lives in `/api/automation/*`.
 
 ## Analytics Team (`/attivita`)
 
