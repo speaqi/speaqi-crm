@@ -1,4 +1,4 @@
-export type ContactScope = 'crm' | 'holding' | 'personal' | 'partner'
+export type ContactScope = 'crm' | 'holding' | 'personal'
 export type MarketingStatus =
   | 'not_ready'
   | 'ready_to_draft'
@@ -66,6 +66,7 @@ export interface CRMContact {
   email_unsubscribe_source?: string | null
   marketing_status?: MarketingStatus | null
   marketing_paused_until?: string | null
+  is_partner?: boolean | null
   hidden?: boolean | null
   stage_entered_at?: string | null
   first_closed_at?: string | null
@@ -130,6 +131,7 @@ export interface TaskWithContact extends Task {
     last_activity_summary?: string | null
     contact_scope?: ContactScope | null
     personal_section?: string | null
+    is_partner?: boolean | null
     priority: number
     next_followup_at?: string | null
   } | null
@@ -336,6 +338,7 @@ export interface ContactInput {
   lost_reason?: string | null
   company_size?: string | null
   industry?: string | null
+  is_partner?: boolean | null
   hidden?: boolean | null
 }
 

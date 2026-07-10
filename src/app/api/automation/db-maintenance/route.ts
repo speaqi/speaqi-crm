@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       .from('contacts')
       .select('id, user_id, next_followup_at')
       .not('next_followup_at', 'is', null)
-      .in('contact_scope', ['crm', 'holding', 'partner'])
+      .in('contact_scope', ['crm', 'holding'])
 
     if (staleFollowups?.length) {
       const contactIds = staleFollowups.map((c: any) => c.id)
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       .from('contacts')
       .select('id')
       .not('next_action_at', 'is', null)
-      .in('contact_scope', ['crm', 'holding', 'partner'])
+      .in('contact_scope', ['crm', 'holding'])
 
     if (contactsWithAction?.length) {
       const ids = contactsWithAction.map((c: any) => c.id)
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
     const { data: allActive } = await supabase
       .from('contacts')
       .select('id, name, email, status, next_followup_at, next_action_at')
-      .in('contact_scope', ['crm', 'holding', 'partner'])
+      .in('contact_scope', ['crm', 'holding'])
       .not('status', 'in', '("Closed","Paid","Lost")')
       .not('email', 'is', null)
       .lt('updated_at', sevenDaysAgo)

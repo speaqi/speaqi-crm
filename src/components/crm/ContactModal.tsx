@@ -51,6 +51,8 @@ function buildInitialState(contact?: CRMContact | null, defaultSource?: string):
     list_name: contact.list_name || '',
     status: contact.status,
     contact_scope: contact.contact_scope || 'crm',
+    is_partner: Boolean(contact.is_partner),
+    hidden: contact.hidden ?? false,
     personal_section: contact.personal_section || '',
     source: contact.source || defaultSource || 'manual',
     priority: contact.priority || 0,
@@ -90,7 +92,9 @@ export function ContactModal({
       return
     }
 
-    if (form.contact_scope === 'crm' && !isClosedStatus(form.status) && !form.next_followup_at) {
+    // I partner possono essere salvati senza follow-up: restano tracciati
+    // fuori pipeline (hidden) finché non si fissa un prossimo passo.
+    if (form.contact_scope === 'crm' && !form.is_partner && !form.hidden && !isClosedStatus(form.status) && !form.next_followup_at) {
       window.alert('Ogni contatto aperto deve avere un prossimo follow-up')
       return
     }
@@ -298,10 +302,22 @@ export function ContactModal({
           }
         >
           <option value="crm">CRM</option>
-          <option value="partner">Partner</option>
           <option value="personal">Area personale</option>
           <option value="holding">Lista separata</option>
         </select>
+      </div>
+
+      <div className="fg">
+        <label className="fl" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={Boolean(form.is_partner)}
+            onChange={(event) =>
+              setForm((previous) => ({ ...previous, is_partner: event.target.checked }))
+            }
+          />
+          🤝 È partner (può comunque stare in pipeline come cliente)
+        </label>
       </div>
 
       {form.contact_scope === 'personal' && (

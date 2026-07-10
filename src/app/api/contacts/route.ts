@@ -114,7 +114,8 @@ export async function GET(request: NextRequest) {
     if (scope === 'crm') query = query.eq('contact_scope', 'crm')
     if (scope === 'holding') query = query.eq('contact_scope', 'holding')
     if (scope === 'personal') query = query.eq('contact_scope', 'personal')
-    if (scope === 'partner') query = query.eq('contact_scope', 'partner')
+    // Partner è un attributo trasversale (is_partner), non più uno scope.
+    if (scope === 'partner') query = query.eq('is_partner', true)
 
     const workspaceAll = workspaceContactsAllFromRequest(request, auth.isAdmin)
     // Filtro assegnatario per tutti (admin incluso) quando non è richiesto workspace completo.
@@ -156,6 +157,8 @@ export async function POST(request: NextRequest) {
     const listName = normalizeText(body.list_name)
     const personalSection = normalizeText(body.personal_section)
     const initialTaskNote = normalizeText(body.initial_task_note)
+    const isPartner = body.is_partner === true
+    const isHidden = body.hidden === true
     const billingLocation = [
       normalizeText(body.billing_address),
       [normalizeText(body.billing_zip), normalizeText(body.billing_city)].filter(Boolean).join(' '),
@@ -167,7 +170,8 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Inserisci almeno un referente o un nome organizzazione' }, { status: 400 })
     }
 
-    if (contactScope === 'crm' && !isClosedStatus(status) && !nextFollowupAt) {
+    // I contatti nascosti (es. partner tracciati fuori pipeline) non richiedono un follow-up.
+    if (contactScope === 'crm' && !isHidden && !isClosedStatus(status) && !nextFollowupAt) {
       return Response.json(
         { error: 'Ogni contatto aperto deve avere un prossimo follow-up' },
         { status: 400 }
@@ -195,6 +199,8 @@ export async function POST(request: NextRequest) {
       status,
       source: normalizeText(body.source) || 'manual',
       contact_scope: contactScope,
+      is_partner: isPartner,
+      hidden: isHidden,
       priority: Math.max(0, Math.min(3, Number(body.priority || 0))),
       score: Math.max(0, Math.min(100, Number(body.score || 0))),
       assigned_agent: normalizeText(body.assigned_agent),
@@ -279,8 +285,8 @@ export async function POST(request: NextRequest) {
         ? 'Contatto creato in lista separata.'
         : contact.contact_scope === 'personal'
           ? 'Contatto creato in area personale.'
-        : contact.contact_scope === 'partner'
-          ? 'Partner aggiunto.'
+        : contact.is_partner
+          ? 'Partner aggiunto al CRM.'
         : 'Contatto creato nel CRM.',
       `Stato iniziale: ${contact.status}.`,
       contact.company ? `Azienda: ${contact.company}.` : null,
@@ -295,8 +301,8 @@ export async function POST(request: NextRequest) {
         ? 'Resterà fuori da pipeline e follow-up fino a una risposta email.'
         : contact.contact_scope === 'personal'
           ? 'Resta fuori dalla pipeline CRM ma può avere note e promemoria dedicati.'
-        : contact.contact_scope === 'partner'
-          ? 'Partner tracciato fuori dalla pipeline CRM.'
+        : contact.hidden
+          ? 'Tracciato fuori dalla pipeline (nascosto) finché non viene mostrato.'
         : null,
       contact.next_followup_at ? `Follow-up iniziale: ${formatActivityDate(contact.next_followup_at)}.` : null,
       task ? 'Task di follow-up creato automaticamente.' : null,

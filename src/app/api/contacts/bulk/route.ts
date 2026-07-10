@@ -80,6 +80,8 @@ export async function PATCH(request: NextRequest) {
         updatePayload.priority = Math.max(0, Math.min(3, priority))
       }
     }
+    if ('is_partner' in patch) updatePayload.is_partner = patch.is_partner === true
+    if ('hidden' in patch) updatePayload.hidden = patch.hidden === true
 
     const nextStatus = 'status' in updatePayload ? String(updatePayload.status || '') : null
     const nextScope = 'contact_scope' in updatePayload ? String(updatePayload.contact_scope || 'crm') : null

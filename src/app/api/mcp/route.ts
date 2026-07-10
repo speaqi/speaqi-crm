@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { sendCustomEmail } from '@/lib/email'
+import { applyPipelineScope } from '@/lib/server/scope-filters'
 import { requireRouteUser } from '@/lib/server/supabase'
 
 const TOOLS = [
@@ -80,11 +81,12 @@ async function handleTool(request: NextRequest, name: string, args: Record<strin
   switch (name) {
     case 'search_contacts': {
       const query = String(args.query || '').toLowerCase()
-      let queryBuilder = auth.supabase
-        .from('contacts')
-        .select('id, name, status, source, category, priority, next_followup_at')
-        .eq('user_id', auth.user.id)
-        .eq('contact_scope', 'crm')
+      let queryBuilder = applyPipelineScope(
+        auth.supabase
+          .from('contacts')
+          .select('id, name, status, source, category, priority, next_followup_at')
+          .eq('user_id', auth.user.id)
+      )
         .or(`name.ilike.%${query}%,email.ilike.%${query}%,note.ilike.%${query}%,category.ilike.%${query}%`)
         .limit(10)
 
@@ -102,7 +104,9 @@ async function handleTool(request: NextRequest, name: string, args: Record<strin
       const [{ data: stages, error: stagesError }, { data: contacts, error: contactsError }] =
         await Promise.all([
           auth.supabase.from('pipeline_stages').select('name, color').eq('user_id', auth.user.id).order('order', { ascending: true }),
-          auth.supabase.from('contacts').select('status, priority, value').eq('user_id', auth.user.id).eq('contact_scope', 'crm'),
+          applyPipelineScope(
+            auth.supabase.from('contacts').select('status, priority, value').eq('user_id', auth.user.id)
+          ),
         ])
 
       if (stagesError) throw stagesError

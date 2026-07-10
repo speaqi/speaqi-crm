@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { sendReminderEmail } from '@/lib/email'
 import { normalizeTaskAction, priorityLevelFromNumber, taskTypeForAction } from '@/lib/server/ai-ready'
+import { applyPipelineScope } from '@/lib/server/scope-filters'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 
 function validateSecret(request: NextRequest) {
@@ -50,10 +51,9 @@ export async function POST(request: NextRequest) {
     const quoteRecovery = body.quote_recovery !== false
     const supabase = createServiceRoleClient()
 
-    let contactsQuery = supabase
-      .from('contacts')
-      .select('*')
-      .eq('contact_scope', 'crm')
+    let contactsQuery = applyPipelineScope(
+      supabase.from('contacts').select('*')
+    )
       .neq('status', 'Closed')
       .neq('status', 'Paid')
       .neq('status', 'Lost')

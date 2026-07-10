@@ -117,17 +117,18 @@ export default function ContactDetailPage() {
     }
   }
 
-  // ─── Promote to partner ───
+  // ─── Toggle flag partner ───
   const [promotingToPartner, setPromotingToPartner] = useState(false)
   async function handlePromoteToPartner() {
     if (!detail) return
     setPromotingToPartner(true)
+    const makePartner = !detail.contact.is_partner
     try {
-      await updateContact(contactId, { contact_scope: 'partner' })
-      showToast('Spostato nei Partner')
+      await updateContact(contactId, { is_partner: makePartner })
+      showToast(makePartner ? 'Segnato come partner' : 'Non è più partner')
       await loadDetail(false)
     } catch (error) {
-      showToast(`Errore: ${error instanceof Error ? error.message : 'spostamento partner'}`)
+      showToast(`Errore: ${error instanceof Error ? error.message : 'aggiornamento partner'}`)
     } finally {
       setPromotingToPartner(false)
     }
@@ -259,7 +260,7 @@ export default function ContactDetailPage() {
           </div>
 
           {/* ─── QUICK ACTIONS + LOST REASON ─── */}
-          {!holdingContact && !personalContact && !partnerContact && (
+          {!holdingContact && !personalContact && (
             <div className="detail-quick-actions">
               <button className="detail-quick-btn" onClick={quickCall} title="Chiama">
                 📞 Chiama
@@ -282,7 +283,7 @@ export default function ContactDetailPage() {
           )}
 
           {/* ─── AI SUGGESTION ─── */}
-          {!holdingContact && !personalContact && !partnerContact && (
+          {!holdingContact && !personalContact && (
             <div className="detail-ai-box">
               {aiSuggestion ? (
                 <span className="detail-ai-text">💡 {aiSuggestion}</span>
@@ -299,7 +300,7 @@ export default function ContactDetailPage() {
           )}
 
           {/* ─── PIPELINE STAGE BAR ─── */}
-          {!holdingContact && !personalContact && !partnerContact && (
+          {!holdingContact && !personalContact && (
             <div className="detail-stage-bar">
               <div className="detail-stage-bar-label">Pipeline</div>
               <div className="detail-stage-bar-stages">
@@ -335,9 +336,9 @@ export default function ContactDetailPage() {
                     background: partnerContact ? '#f59e0b' : undefined,
                     color: partnerContact ? '#fff' : undefined,
                   } as React.CSSProperties}
-                  disabled={promotingToPartner || partnerContact}
+                  disabled={promotingToPartner}
                   onClick={handlePromoteToPartner}
-                  title={partnerContact ? 'Già nei Partner' : 'Sposta nei Partner'}
+                  title={partnerContact ? 'Togli flag partner' : 'Segna come partner'}
                 >
                   🤝 Partner
                 </button>
@@ -385,7 +386,7 @@ export default function ContactDetailPage() {
         {partnerContact && (
           <div className="meta-card" style={{ marginBottom: 20 }}>
             <strong>🤝 Partner</strong>
-            <span>Partner tracciato fuori dalla pipeline CRM. Puoi gestire note, promemoria e follow-up dedicati.</span>
+            <span>Questo contatto è un partner: può comunque stare in pipeline come cliente, con trattative, note e follow-up dedicati.</span>
           </div>
         )}
 

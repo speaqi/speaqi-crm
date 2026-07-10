@@ -226,7 +226,7 @@ export default function OggiPage() {
           quote: null,
           daysStale,
         })
-      } else if (daysStale >= 7 && (contact.status === 'Quote' || contact.status === 'Supertop')) {
+      } else if (daysStale >= 7 && (contact.status === 'Quote' || contact.priority >= 3)) {
         items.push({
           contact,
           reason: 'In fase avanzata senza contatto',

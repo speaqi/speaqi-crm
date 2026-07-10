@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { errorMessage } from '@/lib/server/http'
+import { applyCrmScope } from '@/lib/server/scope-filters'
 import { requireRouteUser } from '@/lib/server/supabase'
 
 type QuoteRow = {
@@ -149,12 +150,12 @@ export async function GET(request: NextRequest) {
   if ('error' in auth) return auth.error
 
   try {
-    let contactsQuery = auth.supabase
-      .from('contacts')
-      .select('id, name, company, status, value, score, win_probability, responsible')
-      .eq('user_id', auth.workspaceUserId)
-      .or('contact_scope.is.null,contact_scope.eq.crm')
-      .limit(5000)
+    let contactsQuery = applyCrmScope(
+      auth.supabase
+        .from('contacts')
+        .select('id, name, company, status, value, score, win_probability, responsible')
+        .eq('user_id', auth.workspaceUserId)
+    ).limit(5000)
 
     if (!auth.isAdmin) {
       const assigneeOr = contactAssigneeMatchOrFilter(auth.memberName)

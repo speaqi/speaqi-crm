@@ -49,6 +49,7 @@ type OptionalContactColumn =
   | 'win_probability'
   | 'company_size'
   | 'industry'
+  | 'is_partner'
   | 'hidden'
   | 'stage_entered_at'
   | 'first_closed_at'
@@ -213,6 +214,12 @@ function buildContactUpdateSummary(current: any, next: any) {
   }
   if ((current.email_draft_note || null) !== (next.email_draft_note || null)) {
     changes.push('nota bozza email aggiornata')
+  }
+  if (Boolean(current.is_partner) !== Boolean(next.is_partner)) {
+    changes.push(next.is_partner ? 'segnato come partner' : 'tolto flag partner')
+  }
+  if (Boolean(current.hidden) !== Boolean(next.hidden)) {
+    changes.push(next.hidden ? 'nascosto dalla pipeline' : 'mostrato in pipeline')
   }
   if ((current.lost_reason || null) !== (next.lost_reason || null)) {
     changes.push('motivo perdita aggiornato')
@@ -410,6 +417,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         body.company_size !== undefined ? normalizeText(body.company_size) : current.company_size,
       industry:
         body.industry !== undefined ? normalizeText(body.industry) : current.industry,
+      is_partner:
+        body.is_partner !== undefined ? body.is_partner === true : current.is_partner,
+      hidden: body.hidden !== undefined ? body.hidden === true : current.hidden,
       next_action_at: nextFollowupAt,
       next_followup_at: nextFollowupAt,
     }

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { normalizeLeadRecord, normalizeLeadStatus } from '@/lib/server/ai-ready'
 import { errorMessage, parseLimit } from '@/lib/server/http'
 import { createLeadFromInput } from '@/lib/server/lead-ops'
+import { applyPipelineScope } from '@/lib/server/scope-filters'
 import { requireRouteUser } from '@/lib/server/supabase'
 
 export async function GET(request: NextRequest) {
@@ -14,11 +15,9 @@ export async function GET(request: NextRequest) {
     const categoryFilter = request.nextUrl.searchParams.get('category')
     const limit = parseLimit(request.nextUrl.searchParams.get('limit'), 100, 500)
 
-    let query = auth.supabase
-      .from('contacts')
-      .select('*')
-      .eq('user_id', auth.user.id)
-      .eq('contact_scope', 'crm')
+    let query = applyPipelineScope(
+      auth.supabase.from('contacts').select('*').eq('user_id', auth.user.id)
+    )
       .order('next_action_at', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false })
       .limit(limit)

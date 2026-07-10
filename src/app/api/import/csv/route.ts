@@ -11,7 +11,6 @@ const ALLOWED_STATUSES = new Set([
   'New',
   'Contacted',
   'Interested',
-  'Supertop',
   'Call booked',
   'Quote',
   'Lost',
@@ -133,7 +132,8 @@ function normalizeStatus(value: unknown) {
   if (normalized === 'nuovo' || normalized === 'new') return 'New'
   if (normalized === 'contattato' || normalized === 'contacted') return 'Contacted'
   if (normalized === 'interessato' || normalized === 'interested') return 'Interested'
-  if (normalized === 'supertop' || normalized === 'super' || normalized === 'top') return 'Supertop'
+  // Supertop non è più uno stadio: i lead "top" entrano come Interested (la priorità si gestisce a parte).
+  if (normalized === 'supertop' || normalized === 'super' || normalized === 'top') return 'Interested'
   if (normalized === 'callbooked' || normalized === 'callfissata' || normalized === 'callscheduled') return 'Call booked'
   if (normalized === 'preventivo' || normalized === 'quote') return 'Quote'
   if (normalized === 'perso' || normalized === 'lost' || normalized === 'notinterested') return 'Lost'

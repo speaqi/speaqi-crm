@@ -7,6 +7,7 @@ import {
   activityTypeLabel,
   formatDateTime,
   holdingListLabel,
+  isHiddenContact,
   isHoldingContact,
   isPartnerContact,
   isPersonalContact,
@@ -213,7 +214,7 @@ export function ContactDrawer({ contactId, onClose, onEdit, anchorPoint = null }
             </div>
 
             <div className="drawer-section">
-              {(isHoldingContact(contact) || isPersonalContact(contact) || isPartnerContact(contact)) && (
+              {(isHoldingContact(contact) || isPersonalContact(contact) || isHiddenContact(contact)) && (
                 <div className="drawer-actions-row" style={{ marginBottom: 10 }}>
                   <button
                     type="button"
@@ -226,6 +227,7 @@ export function ContactDrawer({ contactId, onClose, onEdit, anchorPoint = null }
                         const fallbackFollowup = toInputDate(1)
                         await updateContact(contact.id, {
                           contact_scope: 'crm',
+                          hidden: false,
                           next_followup_at: contact.next_followup_at || fallbackFollowup,
                         })
                         const refreshed = await loadContactDetail(contact.id)

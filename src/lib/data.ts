@@ -1,11 +1,13 @@
 import type { CRMContact, ContactInput, ContactScope, PipelineStage, TeamMember } from '@/types'
 
+// Supertop non è più uno stadio: era un livello di importanza travestito da
+// fase pipeline (ora: priorità 3). Gli order mantengono i valori storici,
+// i buchi sono innocui (gli stage sono ordinati per order).
 export const DEFAULT_PIPELINE_STAGES: Array<Omit<PipelineStage, 'id'>> = [
   { name: 'New', order: 0, color: '#3b82f6', system_key: 'new' },
   { name: 'Contacted', order: 1, color: '#f59e0b', system_key: 'contacted' },
   { name: 'Interested', order: 2, color: '#10b981', system_key: 'interested' },
   { name: 'Waiting', order: 3, color: '#8b5cf6', system_key: 'waiting' },
-  { name: 'Supertop', order: 4, color: '#e11d48', system_key: 'supertop' },
   { name: 'Call booked', order: 5, color: '#7c3aed', system_key: 'call_booked' },
   { name: 'Quote', order: 6, color: '#f97316', system_key: 'quote' },
   { name: 'Lost', order: 7, color: '#ef4444', system_key: 'lost' },
@@ -41,6 +43,7 @@ export const EMPTY_CONTACT_INPUT: ContactInput = {
   status: 'New',
   source: 'manual',
   contact_scope: 'crm',
+  is_partner: false,
   personal_section: '',
   category: '',
   company: '',
@@ -90,8 +93,6 @@ export function contactScopeLabel(scope?: string | null) {
       return 'Area personale'
     case 'holding':
       return 'Lista separata'
-    case 'partner':
-      return 'Partner'
     case 'crm':
     default:
       return 'CRM'
@@ -276,15 +277,21 @@ export function isHoldingContact(contact: Pick<CRMContact, 'contact_scope'>) {
   return (contact.contact_scope || 'crm') === 'holding'
 }
 
-export function isPartnerContact(contact: Pick<CRMContact, 'contact_scope'>) {
-  return (contact.contact_scope || 'crm') === 'partner'
+/** Partner è un attributo del contatto (può stare in pipeline), non più uno scope. */
+export function isPartnerContact(contact: Pick<CRMContact, 'is_partner'>) {
+  return Boolean(contact.is_partner)
+}
+
+/** Contatto nascosto dalla pipeline (dormiente) senza cambiarne lo scope. */
+export function isHiddenContact(contact: Pick<CRMContact, 'hidden'>) {
+  return Boolean(contact.hidden)
 }
 
 export function normalizeContactScope(value?: string | null, fallback: ContactScope = 'crm'): ContactScope {
   const normalized = String(value ?? fallback).trim().toLowerCase()
   if (normalized === 'holding') return 'holding'
   if (normalized === 'personal') return 'personal'
-  if (normalized === 'partner') return 'partner'
+  // 'partner' era uno scope legacy: oggi è il flag is_partner, il contatto vive nel CRM.
   return 'crm'
 }
 

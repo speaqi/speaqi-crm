@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { applyPipelineScope } from '@/lib/server/scope-filters'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 
 function validateSecret(request: NextRequest) {
@@ -19,10 +20,9 @@ export async function POST(request: NextRequest) {
     const requestedSource = body.source ? String(body.source).trim() : ''
     const supabase = createServiceRoleClient()
 
-    let query = supabase
-      .from('contacts')
-      .select('*')
-      .eq('contact_scope', 'crm')
+    let query = applyPipelineScope(
+      supabase.from('contacts').select('*')
+    )
       .neq('status', 'Closed')
       .neq('status', 'Paid')
       .neq('status', 'Lost')

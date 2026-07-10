@@ -31,7 +31,7 @@ async function scanContacts(supabase: any, daysAhead: number) {
   const { data: dueContacts, error: dueError } = await supabase
     .from('contacts')
     .select('*')
-    .in('contact_scope', ['crm', 'holding', 'partner'])
+    .in('contact_scope', ['crm', 'holding'])
     .not('status', 'in', '("Closed","Paid","Lost")')
     .not('email', 'is', null)
     .gte('next_followup_at', todayIso)
@@ -45,7 +45,7 @@ async function scanContacts(supabase: any, daysAhead: number) {
   const { data: overdueContacts, error: overdueError } = await supabase
     .from('contacts')
     .select('*')
-    .in('contact_scope', ['crm', 'holding', 'partner'])
+    .in('contact_scope', ['crm', 'holding'])
     .not('status', 'in', '("Closed","Paid","Lost")')
     .not('email', 'is', null)
     .lt('next_followup_at', todayIso)

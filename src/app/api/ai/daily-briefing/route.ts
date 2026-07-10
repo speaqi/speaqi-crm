@@ -7,6 +7,7 @@
 
 import { NextRequest } from 'next/server'
 import { requireRouteUser } from '@/lib/server/supabase'
+import { applyPipelineScope } from '@/lib/server/scope-filters'
 import { buildScheduledCalls, dueAtLocalDateKey, localDayDateKey } from '@/lib/schedule'
 import { isClosedStatus } from '@/lib/data'
 
@@ -20,12 +21,12 @@ export async function GET(request: NextRequest) {
 
     // Fetch contacts + tasks in parallel
     const [contactsResult, tasksResult] = await Promise.all([
-      auth.supabase
-        .from('contacts')
-        .select('*')
-        .eq('user_id', auth.workspaceUserId)
-        .or('contact_scope.is.null,contact_scope.eq.crm')
-        .limit(2000),
+      applyPipelineScope(
+        auth.supabase
+          .from('contacts')
+          .select('*')
+          .eq('user_id', auth.workspaceUserId)
+      ).limit(2000),
       auth.supabase
         .from('tasks')
         .select('*, contact:contacts(*)')

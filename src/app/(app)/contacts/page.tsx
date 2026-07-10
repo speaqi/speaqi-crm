@@ -260,7 +260,7 @@ function ContactsPageInner() {
         (contact) => scopeOf(contact) === 'crm' && contact.source === 'speaqi'
       ).length,
       personal: allContacts.filter((contact) => scopeOf(contact) === 'personal').length,
-      partner: allContacts.filter((contact) => scopeOf(contact) === 'partner').length,
+      partner: allContacts.filter((contact) => Boolean(contact.is_partner)).length,
     }
   }, [allContacts])
 
@@ -1355,26 +1355,27 @@ function ContactsPageInner() {
                 <div className="contacts-row-side">
                   <button
                     type="button"
-                    className={`contacts-star-action ${contact.status === 'Supertop' ? 'active' : ''}`}
-                    title="Manda in pipeline Supertop"
-                    aria-label="Manda in pipeline Supertop"
-                    disabled={bulkSaving || contact.status === 'Supertop'}
+                    className={`contacts-star-action ${contact.priority >= 3 ? 'active' : ''}`}
+                    title="Priorità massima (Supertop)"
+                    aria-label="Priorità massima (Supertop)"
+                    disabled={bulkSaving}
                     onClick={async (e) => {
                       e.stopPropagation()
                       setBulkSaving(true)
+                      const makeTop = contact.priority < 3
                       try {
                         await apiFetch('/api/contacts/bulk', {
                           method: 'PATCH',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
                             contact_ids: [contact.id],
-                            patch: { status: 'Supertop' },
+                            patch: { priority: makeTop ? 3 : 0 },
                           }),
                         })
                         await refresh()
-                        showToast(`${contact.name} spostato in Supertop`)
+                        showToast(makeTop ? `${contact.name} segnato Supertop` : `${contact.name} tolto da Supertop`)
                       } catch (error) {
-                        window.alert(error instanceof Error ? error.message : 'Spostamento in Supertop non riuscito')
+                        window.alert(error instanceof Error ? error.message : 'Aggiornamento priorità non riuscito')
                       } finally {
                         setBulkSaving(false)
                       }
@@ -1385,25 +1386,26 @@ function ContactsPageInner() {
                   <button
                     type="button"
                     className={`contacts-star-action contacts-partner-action ${isPartnerContact(contact) ? 'active' : ''}`}
-                    title="Sposta nei Partner"
-                    aria-label="Sposta nei Partner"
-                    disabled={bulkSaving || isPartnerContact(contact)}
+                    title={isPartnerContact(contact) ? 'Togli flag partner' : 'Segna come partner'}
+                    aria-label={isPartnerContact(contact) ? 'Togli flag partner' : 'Segna come partner'}
+                    disabled={bulkSaving}
                     onClick={async (e) => {
                       e.stopPropagation()
                       setBulkSaving(true)
+                      const makePartner = !isPartnerContact(contact)
                       try {
                         await apiFetch('/api/contacts/bulk', {
                           method: 'PATCH',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
                             contact_ids: [contact.id],
-                            patch: { contact_scope: 'partner' },
+                            patch: { is_partner: makePartner },
                           }),
                         })
                         await refresh()
-                        showToast(`${contact.name} spostato nei Partner`)
+                        showToast(makePartner ? `${contact.name} segnato come partner` : `${contact.name} non è più partner`)
                       } catch (error) {
-                        window.alert(error instanceof Error ? error.message : 'Spostamento nei Partner non riuscito')
+                        window.alert(error instanceof Error ? error.message : 'Aggiornamento partner non riuscito')
                       } finally {
                         setBulkSaving(false)
                       }
@@ -1495,7 +1497,12 @@ function ContactsPageInner() {
             const normalized = { ...payload }
             if (scope === 'holding') normalized.contact_scope = 'holding'
             if (scope === 'personal') normalized.contact_scope = 'personal'
-            if (scope === 'partner') normalized.contact_scope = 'partner'
+            if (scope === 'partner') {
+              // Partner: resta nel CRM col flag; senza follow-up parte nascosto (fuori pipeline).
+              normalized.contact_scope = 'crm'
+              normalized.is_partner = true
+              normalized.hidden = !normalized.next_followup_at
+            }
             if (scope === 'inbound') normalized.source = normalized.source || 'speaqi'
             await createContact(normalized)
             showToast('Contatto creato')

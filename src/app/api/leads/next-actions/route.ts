@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { normalizeLeadRecord, normalizeTaskAction, normalizeTaskPriority, normalizeTaskRecord, priorityLevelFromNumber } from '@/lib/server/ai-ready'
 import { errorMessage, parseLimit } from '@/lib/server/http'
+import { applyPipelineScope } from '@/lib/server/scope-filters'
 import { requireRouteUser } from '@/lib/server/supabase'
 
 function asTimestamp(value?: string | null) {
@@ -18,11 +19,9 @@ export async function GET(request: NextRequest) {
     const categoryFilter = request.nextUrl.searchParams.get('category')
     const sourceFilter = request.nextUrl.searchParams.get('source')
 
-    let contactQuery = auth.supabase
-      .from('contacts')
-      .select('*')
-      .eq('user_id', auth.user.id)
-      .eq('contact_scope', 'crm')
+    let contactQuery = applyPipelineScope(
+      auth.supabase.from('contacts').select('*').eq('user_id', auth.user.id)
+    )
       .order('next_action_at', { ascending: true, nullsFirst: false })
       .limit(limit * 3)
 

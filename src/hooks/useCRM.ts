@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api'
-import { contactActivityTimestamp, isClosedStatus, isHoldingContact, isPartnerContact, isPersonalContact } from '@/lib/data'
+import { contactActivityTimestamp, isClosedStatus, isHiddenContact, isHoldingContact, isPartnerContact, isPersonalContact } from '@/lib/data'
 import { buildScheduledCalls, dueAtLocalDateKey, isCallTaskType, localDayDateKey } from '@/lib/schedule'
 import { createClient } from '@/lib/supabase'
 import type {
@@ -58,6 +58,7 @@ function buildTaskContactSnapshot(contact?: CRMContact | null) {
     last_activity_summary: contact.last_activity_summary,
     contact_scope: contact.contact_scope,
     personal_section: contact.personal_section,
+    is_partner: contact.is_partner,
     priority: contact.priority,
     next_followup_at: contact.next_followup_at,
   }
@@ -120,11 +121,13 @@ export function useCRM(pathname = '') {
   /** Solo dashboard: false = solo i tuoi / non assegnati ai colleghi (default). True = tutto il workspace come Kanban. */
   const [adminDashboardShowAllContacts, setAdminDashboardShowAllContacts] = useState(false)
 
+  // Superficie pipeline: scope crm e non nascosto. I partner (is_partner) NON
+  // sono esclusi: un partner può essere anche cliente e stare in pipeline.
   const crmContacts = useMemo(
     () =>
       state.contacts.filter(
         (contact) =>
-          !isHoldingContact(contact) && !isPartnerContact(contact) && !isPersonalContact(contact)
+          !isHoldingContact(contact) && !isPersonalContact(contact) && !isHiddenContact(contact)
       ),
     [state.contacts]
   )
@@ -159,6 +162,8 @@ export function useCRM(pathname = '') {
     [partnerContacts]
   )
 
+  // I task dei partner restano visibili nella coda di lavoro: i promemoria
+  // legati a un partner (es. progetti) non devono sparire.
   const visibleTasks = useMemo(
     () =>
       state.tasks.filter(
@@ -166,12 +171,10 @@ export function useCRM(pathname = '') {
           task.contact_id &&
           !holdingContactIds.has(task.contact_id) &&
           !personalContactIds.has(task.contact_id) &&
-          !partnerContactIds.has(task.contact_id) &&
           !isHoldingContact({ contact_scope: task.contact?.contact_scope || 'crm' }) &&
-          !isPersonalContact({ contact_scope: task.contact?.contact_scope || 'crm' }) &&
-          !isPartnerContact({ contact_scope: task.contact?.contact_scope || 'crm' })
+          !isPersonalContact({ contact_scope: task.contact?.contact_scope || 'crm' })
       ),
-    [holdingContactIds, personalContactIds, partnerContactIds, state.tasks]
+    [holdingContactIds, personalContactIds, state.tasks]
   )
 
   const personalTasks = useMemo(
@@ -189,7 +192,7 @@ export function useCRM(pathname = '') {
       state.tasks.filter(
         (task) =>
           (task.contact_id && partnerContactIds.has(task.contact_id)) ||
-          isPartnerContact({ contact_scope: task.contact?.contact_scope || 'crm' })
+          isPartnerContact({ is_partner: task.contact?.is_partner })
       ),
     [partnerContactIds, state.tasks]
   )
