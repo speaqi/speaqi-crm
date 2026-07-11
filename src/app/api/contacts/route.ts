@@ -49,6 +49,7 @@ type OptionalContactColumn =
   | 'win_probability'
   | 'company_size'
   | 'industry'
+  | 'is_partner'
 
 const BILLING_CONTACT_COLUMNS: OptionalContactColumn[] = [
   'billing_tax_id',
@@ -89,6 +90,11 @@ function buildContactInsertFallbackPayload(payload: Record<string, unknown>, err
   }
   if (isMissingOptionalContactColumn(error, 'personal_section')) {
     delete fallback.personal_section
+    changed = true
+  }
+  // Colonna is_partner non ancora migrata: crea il contatto senza il flag.
+  if (isMissingOptionalContactColumn(error, 'is_partner')) {
+    delete fallback.is_partner
     changed = true
   }
   if (hasBillingColumnSchemaError(error)) {

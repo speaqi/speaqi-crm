@@ -99,6 +99,11 @@ function buildContactUpdateFallbackPayload(payload: Record<string, unknown>, err
     delete fallback.personal_section
     changed = true
   }
+  // Colonna is_partner non ancora migrata: aggiorna il contatto senza il flag.
+  if (isMissingOptionalContactColumn(error, 'is_partner')) {
+    delete fallback.is_partner
+    changed = true
+  }
   if (hasBillingColumnSchemaError(error)) {
     return stripBillingColumns(fallback)
   }
