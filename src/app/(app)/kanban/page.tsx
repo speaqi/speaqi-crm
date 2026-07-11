@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { apiFetch } from '@/lib/api'
 import { ContactModal } from '@/components/crm/ContactModal'
 import {
   formatDateTime,
@@ -14,7 +15,20 @@ import {
   stageColor,
 } from '@/lib/data'
 import { useCRMContext } from '../layout'
-import type { CRMContact } from '@/types'
+import type { CRMContact, Deal } from '@/types'
+
+/**
+ * "Azienda con cui lavorerò" per la card: la controparte della trattativa
+ * aperta se indicata (es. Federalberghi), altrimenti l'azienda del contatto.
+ */
+function dealCompanyLabel(contact: CRMContact, openDeal?: Pick<Deal, 'counterparty'> | null) {
+  const counterparty = (openDeal?.counterparty || '').trim()
+  const company = (contact.company || '').trim()
+  if (counterparty && company && counterparty.toLowerCase() !== company.toLowerCase()) {
+    return `${counterparty} · ${company}`
+  }
+  return counterparty || company || null
+}
 
 type ViewMode = 'board' | 'list'
 
@@ -69,7 +83,23 @@ export default function KanbanPage() {
   const [collapsedColumns, setCollapsedColumns] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingContact, setEditingContact] = useState<CRMContact | null>(null)
+  const [openDealByContact, setOpenDealByContact] = useState<Map<string, Deal>>(new Map())
   const dragId = useRef<string | null>(null)
+
+  useEffect(() => {
+    let mounted = true
+    apiFetch<{ deals: Deal[] }>('/api/deals?open=1')
+      .then((response) => {
+        if (!mounted) return
+        setOpenDealByContact(new Map((response.deals || []).map((deal) => [deal.contact_id, deal])))
+      })
+      .catch(() => {
+        // trattative non disponibili (migrazione non applicata): card senza controparte
+      })
+    return () => {
+      mounted = false
+    }
+  }, [contacts])
 
   const filtered = useMemo(() => {
     return contacts.filter((contact) => {
@@ -80,6 +110,8 @@ export default function KanbanPage() {
         query &&
         !contact.name.toLowerCase().includes(query) &&
         !(contact.email || '').toLowerCase().includes(query) &&
+        !(contact.company || '').toLowerCase().includes(query) &&
+        !(openDealByContact.get(contact.id)?.counterparty || '').toLowerCase().includes(query) &&
         !(contact.responsible || '').toLowerCase().includes(query) &&
         !(contact.category || '').toLowerCase().includes(query)
       ) {
@@ -93,7 +125,7 @@ export default function KanbanPage() {
       if (comuneFilter === 'altri' && isComuneContact(contact)) return false
       return true
     })
-  }, [categoryFilter, comuneFilter, contacts, priorityFilter, search, sourceFilter])
+  }, [categoryFilter, comuneFilter, contacts, openDealByContact, priorityFilter, search, sourceFilter])
 
   const uniqueSources = Array.from(new Set(contacts.map((contact) => contact.source).filter(Boolean))).sort()
   const uniqueCategories = Array.from(new Set(contacts.map((contact) => contact.category).filter(Boolean))).sort()
@@ -256,8 +288,10 @@ export default function KanbanPage() {
                         className="pipeline-list-main"
                       >
                         <strong>{call.contact.name}</strong>
-                        {call.contact.company && (
-                          <span className="pipeline-list-company">· {call.contact.company}</span>
+                        {dealCompanyLabel(call.contact, openDealByContact.get(call.contact.id)) && (
+                          <span className="pipeline-list-company">
+                            · {dealCompanyLabel(call.contact, openDealByContact.get(call.contact.id))}
+                          </span>
                         )}
                       </Link>
                       <span className="pipeline-list-stage" style={{ background: stageColor(call.contact.status, stages) }}>
@@ -339,8 +373,16 @@ export default function KanbanPage() {
                             <button className="icon-btn" onClick={() => openEdit(contact)}>✏️</button>
                           </div>
                           <div className="card-header">
-                            <div className="card-name">{contact.name}</div>
+                            <div className="card-name">
+                              {contact.name}
+                              {contact.is_partner ? <span title="Partner"> 🤝</span> : null}
+                            </div>
                           </div>
+                          {dealCompanyLabel(contact, openDealByContact.get(contact.id)) && (
+                            <div className="card-company" style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 600, marginBottom: 4 }}>
+                              🏢 {dealCompanyLabel(contact, openDealByContact.get(contact.id))}
+                            </div>
+                          )}
                           <div className="card-desc">
                             {contact.last_activity_summary || 'Nessuna attività registrata'}
                           </div>
