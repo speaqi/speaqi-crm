@@ -2,6 +2,7 @@
 
 import { useState, type MouseEvent } from 'react'
 import { statusLabel } from '@/lib/data'
+import { engagementBadge } from '@/lib/contact-priority'
 import type { CRMContact } from '@/types'
 import { QuickDismissMenu } from '@/components/crm/QuickDismissMenu'
 
@@ -48,7 +49,9 @@ export function DashboardRecoveryPanel({ items, onSchedule, onDismiss, onOpenCon
         <span className="oggi-overdue-count">{items.length}</span>
       </div>
       <p className="oggi-muted">
-        Contatti aperti senza un prossimo passo: dai una data di richiamo o chiudili.
+        Contatti aperti senza un prossimo passo, ordinati per pertinenza: in cima
+        quelli lavorati più volte (🔁) e più avanti in pipeline. Dai una data di
+        richiamo o chiudili.
       </p>
       <div className="oggi-priority-queue">
         {visibleItems.map((item) => (
@@ -66,6 +69,14 @@ export function DashboardRecoveryPanel({ items, onSchedule, onDismiss, onOpenCon
                 )}
               </div>
               <div className="oggi-queue-meta">
+                {engagementBadge(item.contact.engagement_count) && (
+                  <span
+                    className="oggi-queue-touch"
+                    title={`Lavorato ${item.contact.engagement_count} volte: contatto ricorrente, tienilo in alto`}
+                  >
+                    🔁 {engagementBadge(item.contact.engagement_count)}
+                  </span>
+                )}
                 <span className="oggi-queue-reason">
                   {item.reason === 'waiting_due'
                     ? 'Richiamo scaduto'

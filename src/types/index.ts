@@ -56,6 +56,8 @@ export interface CRMContact {
   industry?: string | null
   last_activity_summary?: string | null
   last_contact_at?: string | null
+  /** Quante volte il contatto è stato lavorato (chiamate/note/email registrate). Segnale di pertinenza. */
+  engagement_count?: number | null
   next_followup_at?: string | null
   next_action_at?: string | null
   email_open_count?: number | null

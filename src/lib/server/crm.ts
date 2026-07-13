@@ -322,6 +322,18 @@ export async function syncContactNextFollowupFromPendingTasks(
   return nextFollowupAt
 }
 
+/**
+ * +1 alla pertinenza del contatto (engagement_count). Best-effort: un errore
+ * qui non deve mai bloccare il salvataggio dell'attività/esito.
+ */
+export async function bumpContactEngagement(supabase: any, contactId: string) {
+  try {
+    await supabase.rpc('increment_contact_engagement', { p_contact_id: contactId })
+  } catch {
+    /* colonna/funzione non ancora presente o RLS: ignora, non è critico */
+  }
+}
+
 export async function updateContactAfterActivity(
   supabase: any,
   contactId: string,
@@ -337,7 +349,8 @@ export async function updateContactAfterActivity(
     updated_at: new Date().toISOString(),
   }
 
-  if (options?.touchLastContactAt !== false) {
+  const isTouch = options?.touchLastContactAt !== false
+  if (isTouch) {
     payload.last_contact_at = new Date().toISOString()
   }
 
@@ -352,6 +365,10 @@ export async function updateContactAfterActivity(
     .eq('id', contactId)
 
   if (error) throw error
+
+  if (isTouch) {
+    await bumpContactEngagement(supabase, contactId)
+  }
 }
 
 export async function updateContactSummary(
@@ -386,6 +403,10 @@ export async function updateContactSummary(
     .eq('id', contactId)
 
   if (error) throw error
+
+  if (options?.touchLastContactAt) {
+    await bumpContactEngagement(supabase, contactId)
+  }
 }
 
 export async function createActivities(

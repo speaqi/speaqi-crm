@@ -12,6 +12,7 @@ import { DashboardRiskPanel } from '@/components/crm/DashboardRiskPanel'
 import { DashboardEmailInbox } from '@/components/crm/DashboardEmailInbox'
 import { useCRMContext } from '../layout'
 import { isClosedStatus, isInactiveStatus, statusLabel } from '@/lib/data'
+import { contactRelevanceScore } from '@/lib/contact-priority'
 import { buildScheduledCalls, dueAtLocalDateKey, localDayDateKey, type ScheduledCall } from '@/lib/schedule'
 import { startOfDay, dayKey } from '@/lib/schedule'
 import type { ContactInput, CRMContact } from '@/types'
@@ -162,11 +163,15 @@ export default function OggiPage() {
       seen.add(call.contact.id)
     }
 
-    // Sort: critical first, then high, then medium, then by score desc
+    // Sort: critical first, then high, then medium; a parità, i contatti più
+    // lavorati (pertinenza) salgono, poi lo score.
     const priorityOrder = { critical: 0, high: 1, medium: 2 }
     return items.sort((a, b) => {
       const pDiff = priorityOrder[a.priority] - priorityOrder[b.priority]
       if (pDiff !== 0) return pDiff
+      const relDiff =
+        contactRelevanceScore({ contact: b.contact }) - contactRelevanceScore({ contact: a.contact })
+      if (relDiff !== 0) return relDiff
       return b.score - a.score
     })
   }, [dashboardScheduledCalls, todayKey])
@@ -197,8 +202,19 @@ export default function OggiPage() {
       })
     }
 
+    // Ordina per pertinenza: in cima chi ho lavorato di più / è più avanti in
+    // pipeline (non chi è semplicemente fermo da più giorni). La vecchiaia è
+    // solo lo spareggio a parità di pertinenza.
     return items.sort((a, b) => {
-      if (a.reason !== b.reason) return a.reason === 'waiting_due' ? -1 : 1
+      const relA = contactRelevanceScore({
+        contact: a.contact,
+        recallOverdue: a.reason === 'waiting_due',
+      })
+      const relB = contactRelevanceScore({
+        contact: b.contact,
+        recallOverdue: b.reason === 'waiting_due',
+      })
+      if (relB !== relA) return relB - relA
       return b.daysStale - a.daysStale
     })
   }, [contacts, dashboardScheduledCalls, now])
