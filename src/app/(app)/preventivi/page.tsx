@@ -40,7 +40,7 @@ const DEFAULT_PUBLIC_NOTE = 'Acconto 30%. Saldo alla consegna.'
 const PRO_PLAN_LINE_ID = 'speaqi-pro-plan-option'
 const QR_WASTE_LINE_ID = 'speaqi-qr-waste-sheets'
 const PRO_PLAN_DETAILS =
-  'Nella presente offerta: primo anno incluso a €0. Dal secondo anno il servizio è facoltativo: il Cliente può scegliere se rinnovare o meno il Piano PRO al prezzo di listino (€299/anno + IVA).'
+  'Nella presente offerta: Piano PRO incluso per il primo anno a €490 + IVA. Dal secondo anno il servizio è facoltativo: il Cliente può scegliere se rinnovare o meno il Piano PRO al prezzo di listino (€299/anno + IVA).'
 
 function makeProPlanLine(): QuoteLineItem {
   return {
@@ -48,7 +48,7 @@ function makeProPlanLine(): QuoteLineItem {
     description: 'Piano PRO Speaqi',
     details: PRO_PLAN_DETAILS,
     quantity: 1,
-    unit_price: 0,
+    unit_price: 490,
   }
 }
 
@@ -457,10 +457,9 @@ export default function PreventiviPage() {
         body: JSON.stringify(draft),
       })
 
-      setQuotes((previous) => {
-        const next = [response.quote, ...previous.filter((quote) => quote.id !== response.quote.id)]
-        return next.sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
-      })
+      // Il preventivo appena creato o aggiornato deve restare subito visibile in cima.
+      // Non riordiniamo per data qui: timestamp identici o assenti possono rimetterlo in fondo.
+      setQuotes((previous) => [response.quote, ...previous.filter((quote) => quote.id !== response.quote.id)])
       showToast(editingId ? 'Preventivo aggiornato' : 'Preventivo generato')
       resetForm()
     } catch (submitError) {
@@ -842,7 +841,7 @@ export default function PreventiviPage() {
                 onChange={(event) => setIncludeProPlan(event.target.checked)}
               />
               <span>
-                Includi Piano PRO (1° anno a €0, secondo anno facoltativo a €299/anno + IVA)
+                Includi Piano PRO (1° anno a €490 + IVA, secondo anno facoltativo a €299/anno + IVA)
               </span>
             </label>
 
