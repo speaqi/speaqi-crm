@@ -29,6 +29,13 @@ function normalizeNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function defaultReopenFollowupAt() {
+  const date = new Date()
+  date.setDate(date.getDate() + 3)
+  date.setHours(10, 0, 0, 0)
+  return date.toISOString()
+}
+
 function errorMessage(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message
   if (error && typeof error === 'object' && 'message' in error) {
@@ -364,10 +371,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         : body.next_followup_at
           ? String(body.next_followup_at)
           : current.next_followup_at
+    const isReopening = isClosedStatus(current.status) && !isClosedStatus(nextStatus)
     const nextFollowupAt =
       nextContactScope === 'holding' || isClosedStatus(nextStatus)
         ? null
-        : requestedFollowupAt
+        : requestedFollowupAt || (isReopening ? defaultReopenFollowupAt() : null)
 
     if (nextContactScope === 'crm') {
       await ensureNextAction(auth.supabase, auth.workspaceUserId, id, nextStatus, nextFollowupAt)

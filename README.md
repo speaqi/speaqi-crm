@@ -197,6 +197,13 @@ I workflow template sono in:
 - [`n8n/workflows/01-followups.json`](/Users/massimo/Documents/thebest/speaqi-crm/n8n/workflows/01-followups.json)
 - [`n8n/workflows/02-stale-leads.json`](/Users/massimo/Documents/thebest/speaqi-crm/n8n/workflows/02-stale-leads.json)
 - [`n8n/workflows/03-speaqi-webhook.json`](/Users/massimo/Documents/thebest/speaqi-crm/n8n/workflows/03-speaqi-webhook.json)
+- [`n8n/workflows/07-acumbamail-qualification.json`](/Users/massimo/Documents/thebest/speaqi-crm/n8n/workflows/07-acumbamail-qualification.json)
+
+Il workflow Acumbamail di qualificazione non invia email: ogni 10 minuti promuove nel CRM operativo
+solo i contatti ancora in `holding` che hanno cliccato o raggiunto la soglia di aperture della campagna.
+Assegna il responsabile della campagna, imposta un follow-up (1 giorno per click, 3 giorni per aperture)
+e crea il relativo task. Importalo in n8n, configura `SPEAQI_CRM_URL` e `AUTOMATION_SECRET`, quindi
+attivalo dopo un primo test con body `{"dry_run":true}`.
 
 ## Acumbamail webhook
 
