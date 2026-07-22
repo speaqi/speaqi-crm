@@ -8,6 +8,7 @@ import {
 } from '@/lib/server/gmail'
 import { EMPTY_USER_SETTINGS, loadUserSettings, type UserSettings } from '@/lib/server/user-settings'
 import { buildEmailSegmentGuidance } from '@/lib/server/email-draft-context'
+import { buildEmailAiPolicy } from '@/lib/email-ai-framework'
 import type { CRMContact, GmailMessage } from '@/types'
 
 type GeneratedEmail = {
@@ -166,14 +167,11 @@ async function generateEmail(input: {
     input.followupMode
       ? 'Stai scrivendo un follow-up su una conversazione gia iniziata. Non ripartire da zero e non sembrare una prima email fredda.'
       : 'Stai scrivendo una prima bozza commerciale o una ripresa iniziale del contatto.',
-    input.speaqiContext ? `\n## Contesto prodotto/azienda\n${input.speaqiContext}` : '',
-    input.emailTone ? `\n## Tono richiesto\n${input.emailTone}` : '',
-    input.settings?.email_target_audience ? `\n## Target ideale\n${input.settings.email_target_audience}` : '',
-    input.settings?.email_value_proposition ? `\n## Valore da comunicare\n${input.settings.email_value_proposition}` : '',
-    input.settings?.email_offer_details ? `\n## Offerta / proposta\n${input.settings.email_offer_details}` : '',
-    input.settings?.email_proof_points ? `\n## Prove, esempi, credibilita\n${input.settings.email_proof_points}` : '',
-    input.settings?.email_objection_notes ? `\n## Obiezioni, limiti e cose da evitare\n${input.settings.email_objection_notes}` : '',
-    input.settings?.email_call_to_action ? `\n## CTA preferita\n${input.settings.email_call_to_action}` : '',
+    buildEmailAiPolicy({
+      ...input.settings,
+      speaqi_context: input.speaqiContext || input.settings?.speaqi_context,
+      email_tone: input.emailTone || input.settings?.email_tone,
+    }),
     segmentGuidance ? `\n## Indicazioni specifiche per questo segmento\n${segmentGuidance}` : '',
   ]
     .filter(Boolean)

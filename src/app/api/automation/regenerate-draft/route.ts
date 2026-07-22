@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server'
 import { requireRouteUser } from '@/lib/server/supabase'
 import { errorMessage } from '@/lib/server/http'
 import { EMPTY_USER_SETTINGS, loadUserSettings } from '@/lib/server/user-settings'
+import { buildEmailAiPolicy } from '@/lib/email-ai-framework'
+import { buildEmailSegmentGuidance } from '@/lib/server/email-draft-context'
 import type { CRMContact, GmailMessage } from '@/types'
 
 // ─── Context loading (shared with orchestrator) ───
@@ -174,27 +176,22 @@ async function regenerateDraft(
     threadState = 'Non ci sono email precedenti con questo contatto. Stai scrivendo una prima email commerciale.'
   }
 
-  const hasSettings = !!(settings?.speaqi_context || settings?.email_target_audience || settings?.email_value_proposition)
+  const segmentGuidance = buildEmailSegmentGuidance(contact)
 
   const system = [
-    'Sei un assistente commerciale che scrive email per conto di Speaqi, agenzia di comunicazione e marketing digitale.',
-    'Speaqi aiuta aziende a crescere con strategie digitali, siti web, advertising, e automazione.',
-    'Scrivi email professionali, concrete, in italiano, in prima persona.',
+    'Sei un senior sales copywriter che prepara email commerciali per conto di Speaqi.',
+    'Usa come fonte di verita esclusivamente il contesto aziendale, i dati del contatto e la cronologia forniti sotto.',
+    'Scrivi nella lingua del contatto quando disponibile; altrimenti in italiano. Scrivi in prima persona, con tono umano e concreto.',
     'NON usare frasi generiche come "spero che tu stia bene", "come stai", "buongiorno/buonasera" vuoti. Vai dritto al punto con un aggancio personale o contestuale.',
     'Non inventare dati, prezzi, disponibilità, meeting o promesse non presenti nel contesto.',
     'Non inserire la firma: il CRM la aggiungerà dopo, usando la firma Gmail reale.',
-    'Struttura richiesta: saluto naturale, motivo del contatto, valore specifico, eventuali 2-3 bullet se aiutano, CTA chiara con una sola prossima azione.',
-    'Il corpo deve essere leggibile anche in plain text: paragrafi brevi, niente blocchi lunghi.',
+    'Non inventare una personalizzazione: se i dati non bastano, usa un motivo del contatto onesto e specifico per il segmento.',
+    'Non descrivere servizi o capacita che non compaiono nel contesto aziendale.',
+    'Struttura: apertura rilevante, problema o opportunita osservabile, valore specifico, una sola CTA semplice.',
+    'Mantieni il corpo tra 70 e 180 parole. Evita buzzword, autocelebrazioni, elenchi di servizi e frasi vaghe.',
     threadState,
-    settings?.speaqi_context ? `\n## Contesto Speaqi / prodotto\n${settings.speaqi_context}` : '',
-    settings?.email_tone ? `\n## Tono richiesto\n${settings.email_tone}` : '',
-    settings?.email_target_audience ? `\n## Target ideale\n${settings.email_target_audience}` : '',
-    settings?.email_value_proposition ? `\n## Valore da comunicare\n${settings.email_value_proposition}` : '',
-    settings?.email_offer_details ? `\n## Offerta / proposta\n${settings.email_offer_details}` : '',
-    settings?.email_proof_points ? `\n## Prove, esempi, credibilità\n${settings.email_proof_points}` : '',
-    settings?.email_objection_notes ? `\n## Obiezioni e cose da evitare\n${settings.email_objection_notes}` : '',
-    settings?.email_call_to_action ? `\n## CTA preferita\n${settings.email_call_to_action}` : '',
-    !hasSettings ? '\n## Nota importante\nNon hai contesto aziendale specifico nelle impostazioni. Basati ESCLUSIVAMENTE sui dati del contatto e sulla cronologia disponibile. Sii concreto ma non inventare dettagli su Speaqi che non conosci.' : '',
+    buildEmailAiPolicy(settings),
+    segmentGuidance ? `\n## Indicazioni specifiche per questo segmento\n${segmentGuidance}` : '',
     note ? `\n## Nota specifica per questa bozza (fornita dall'utente)\n${note}` : '',
   ]
     .filter(Boolean)

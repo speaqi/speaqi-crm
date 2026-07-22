@@ -4,6 +4,7 @@ import { errorMessage } from '@/lib/server/http'
 import type { CRMContact, GmailMessage } from '@/types'
 import { EMPTY_USER_SETTINGS, loadUserSettings, type UserSettings } from '@/lib/server/user-settings'
 import { buildEmailSegmentGuidance } from '@/lib/server/email-draft-context'
+import { buildEmailAiPolicy } from '@/lib/email-ai-framework'
 
 function validateSecret(request: NextRequest) {
   const secret = process.env.AUTOMATION_SECRET
@@ -268,7 +269,6 @@ async function generateDraft(
     threadState = 'Non ci sono email precedenti con questo contatto. Stai scrivendo una prima email commerciale.'
   }
 
-  const hasSettings = !!(settings?.speaqi_context || settings?.email_target_audience || settings?.email_value_proposition)
   const segmentGuidance = buildEmailSegmentGuidance(contact)
 
   const system = [
@@ -287,17 +287,8 @@ async function generateDraft(
     'L oggetto deve essere breve, specifico e collegato al caso del destinatario; evita oggetti generici riutilizzabili per chiunque.',
     'Prima di rispondere verifica mentalmente: coerenza con il destinatario, coerenza con il prodotto, nessun fatto inventato, CTA unica.',
     threadState,
-    settings?.speaqi_context ? `\n## Contesto Speaqi / prodotto\n${settings.speaqi_context}` : '',
-    settings?.email_tone ? `\n## Tono richiesto\n${settings.email_tone}` : '',
-    settings?.email_target_audience ? `\n## Target ideale\n${settings.email_target_audience}` : '',
-    settings?.email_value_proposition ? `\n## Valore da comunicare\n${settings.email_value_proposition}` : '',
-    settings?.email_offer_details ? `\n## Offerta / proposta\n${settings.email_offer_details}` : '',
-    settings?.email_proof_points ? `\n## Prove, esempi, credibilità\n${settings.email_proof_points}` : '',
-    settings?.email_objection_notes ? `\n## Obiezioni e cose da evitare\n${settings.email_objection_notes}` : '',
-    settings?.email_call_to_action ? `\n## CTA preferita\n${settings.email_call_to_action}` : '',
+    buildEmailAiPolicy(settings),
     segmentGuidance ? `\n## Indicazioni specifiche per questo segmento\n${segmentGuidance}` : '',
-    // When settings are missing, nudge the AI to be more generic but still useful
-    !hasSettings ? '\n## Nota importante\nNon hai contesto aziendale specifico nelle impostazioni. Basati ESCLUSIVAMENTE sui dati del contatto e sulla cronologia disponibile. Sii concreto ma non inventare dettagli su Speaqi che non conosci.' : '',
   ]
     .filter(Boolean)
     .join('\n')

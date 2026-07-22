@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import { useCRMContext } from '@/app/(app)/layout'
+import { DEFAULT_EMAIL_AI_FRAMEWORK } from '@/lib/email-ai-framework'
 
 type UserSettings = {
   speaqi_context: string | null
@@ -15,6 +16,10 @@ type UserSettings = {
   email_proof_points: string | null
   email_objection_notes: string | null
   email_call_to_action: string | null
+  email_goal: string | null
+  email_strategy: string | null
+  email_positioning: string | null
+  email_do_not_say: string | null
 }
 
 type SettingsField = {
@@ -29,11 +34,39 @@ type SettingsField = {
 const SETTINGS_FIELDS: SettingsField[] = [
   {
     key: 'speaqi_context',
-    label: 'Contesto Speaqi',
-    hint: "Descrivi cos'e Speaqi, cosa vendete, il valore principale e quando ha senso proporlo.",
-    placeholder: 'Speaqi e una piattaforma CRM per agenti commerciali nel settore vino e bevande...',
-    rows: 8,
+    label: 'Identità e Posizionamento di Speaqi',
+    hint: "Insegna all'AI come deve pensare a Speaqi: valore strategico, destinatari e confini del messaggio.",
+    placeholder: 'Identità, ruolo e valore di Speaqi...',
+    rows: 12,
     wide: true,
+  },
+  {
+    key: 'email_positioning',
+    label: 'Posizionamento',
+    hint: 'La narrativa competitiva da usare: problema, visione, beneficio, poi Speaqi.',
+    placeholder: 'Come Speaqi deve essere posizionato rispetto al problema...',
+    rows: 6,
+  },
+  {
+    key: 'email_do_not_say',
+    label: 'Cose da non dire',
+    hint: 'Frasi, promesse e linguaggio da escludere sempre dalle bozze.',
+    placeholder: 'Superlativi, promesse e messaggi da evitare...',
+    rows: 6,
+  },
+  {
+    key: 'email_goal',
+    label: "Obiettivo dell'email",
+    hint: 'Definisci la risposta che vuoi ottenere: curiosità e conversazione, non una vendita immediata.',
+    placeholder: 'Perche questa persona dovrebbe rispondere?',
+    rows: 5,
+  },
+  {
+    key: 'email_strategy',
+    label: 'Strategia di scrittura',
+    hint: 'Il ragionamento da applicare prima di scrivere: destinatario, problema, risultato, poi Speaqi.',
+    placeholder: 'Come collegare Speaqi al problema specifico del destinatario...',
+    rows: 6,
   },
   {
     key: 'email_target_audience',
@@ -127,6 +160,10 @@ export default function EmailAIPage() {
     email_proof_points: '',
     email_objection_notes: '',
     email_call_to_action: '',
+    email_goal: '',
+    email_strategy: '',
+    email_positioning: '',
+    email_do_not_say: '',
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -144,6 +181,10 @@ export default function EmailAIPage() {
           email_proof_points: s.email_proof_points ?? '',
           email_objection_notes: s.email_objection_notes ?? '',
           email_call_to_action: s.email_call_to_action ?? '',
+          email_goal: s.email_goal ?? '',
+          email_strategy: s.email_strategy ?? '',
+          email_positioning: s.email_positioning ?? '',
+          email_do_not_say: s.email_do_not_say ?? '',
         })
       })
       .finally(() => setLoading(false))
@@ -175,7 +216,7 @@ export default function EmailAIPage() {
           <h1>Email AI</h1>
         </div>
         <p className="page-subtitle">
-          Configura il contesto che l'AI usa per generare bozze email personalizzate.
+          Ogni bozza usa questi criteri per ragionare sul destinatario prima di scrivere: problema, risultato, prova e una CTA.
         </p>
       </div>
 
@@ -205,6 +246,18 @@ export default function EmailAIPage() {
         </div>
 
         <div>
+          <button
+            className="btn btn-ghost"
+            type="button"
+            style={{ marginRight: 10 }}
+            onClick={() => setSettings((previous) => ({
+              ...previous,
+              ...DEFAULT_EMAIL_AI_FRAMEWORK,
+            }))}
+            disabled={saving}
+          >
+            Ripristina framework Speaqi
+          </button>
           <button
             className="btn btn-primary"
             onClick={handleSave}
