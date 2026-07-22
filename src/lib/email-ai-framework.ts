@@ -32,7 +32,7 @@ export const DEFAULT_EMAIL_AI_FRAMEWORK: Required<EmailAiFrameworkSettings> = {
   email_objection_notes:
     'Anticipa i dubbi senza essere difensivo e senza criticare strumenti esistenti. Se hanno gia un sito: Speaqi non lo sostituisce, lo rende piu accessibile e distribuibile. Se hanno traduzioni: il tema e gestirle, aggiornarle e distribuirle. Se sembra complesso: un caricamento e un link. Se non hanno budget: proponi un pilota. Se non hanno stranieri: utile anche per italiani, accessibilita e crescita futura.',
   email_call_to_action:
-    'Una sola CTA, semplice e concreta: ad esempio “Posso mostrarti un esempio sul vostro Comune?”, “Ti va una demo di 15 minuti?” o “Posso preparare gratuitamente un esempio sul vostro territorio?”. Non inserire piu di una richiesta.',
+    'Usa sempre una sola CTA, semplice e concreta, per ottenere un riscontro umano: chiedi se e possibile fissare una call di 15 minuti con la persona o l’ufficio piu adatto. Per esempio: “Sarebbe possibile organizzare una call di 15 minuti con la persona che segue questi temi?” oppure “Può indicarmi il referente con cui confrontarci 15 minuti?”. Non inserire piu di una richiesta e non chiedere l’acquisto.',
   email_tone:
     'Sembra scritta da una persona, mai da un software. Massimo 180 parole, paragrafi brevi, una sola idea per paragrafo. Niente marketing aggressivo, superlativi, punti esclamativi, emoji, formule standard (“Spero che questa email la trovi bene”), “leader di mercato”, “rivoluzionario” o “innovativo”. Personalizza sempre l’apertura e chiudi con una richiesta semplice.',
   email_goal:

@@ -32,7 +32,8 @@ export function buildEmailSegmentGuidance(contact: CRMContact) {
   ) {
     guidance.push(
       'Ente pubblico o destinazione: usa il Lei e collega Speaqi a informazioni turistiche, culturali o di servizio accessibili in piu lingue tramite un solo link o QR.',
-      'Evita tono da vendita aggressiva e non attribuire progetti o priorita specifiche non presenti nei dati.'
+      'Evita tono da vendita aggressiva e non attribuire progetti o priorita specifiche non presenti nei dati.',
+      'Se il contatto e un Comune, un ente o una casella istituzionale senza un referente personale certo, apri con “Buongiorno,” senza inventare un nome. Non presumere che chi legge sia il decisore: chiedi cortesemente se e possibile organizzare una call di 15 minuti con la persona o l’ufficio che segue turismo, cultura, comunicazione o accessibilita.'
     )
   }
 
