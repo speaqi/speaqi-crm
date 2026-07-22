@@ -114,6 +114,9 @@ export interface Task {
   status: 'pending' | 'done'
   note?: string | null
   idempotency_key?: string | null
+  started_at?: string | null
+  rescheduled_at?: string | null
+  reschedule_count?: number
   completed_at?: string | null
   created_at: string
   updated_at: string

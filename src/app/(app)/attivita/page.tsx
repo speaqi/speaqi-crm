@@ -211,12 +211,50 @@ export default function AttivitaPage() {
   const [todoInput, setTodoInput] = useState('')
   const [todoAdding, setTodoAdding] = useState(false)
   const [editingTodoId, setEditingTodoId] = useState<string | null>(null)
+  const [todoView, setTodoView] = useState<'today' | 'week' | 'inbox' | 'done'>('today')
   const [showDone, setShowDone] = useState(false)
 
   // ── Computed ──
   const overdueTasks = tasks.filter(t => t.due_date && isOverdue(t.due_date))
   const callsToday = scheduledCalls.filter(i => new Date(i.due_at).getTime() < tomorrow.getTime())
   const missingNextStep = openContactsWithoutQueue.filter(c => !isClosedStatus(c.status))
+
+  const todoGroups = useMemo(() => {
+    const start = startOfDay(today)
+    const end = new Date(start)
+    end.setDate(end.getDate() + 7)
+    const isToday = (task: typeof standaloneTasks[number]) => {
+      if (!task.due_date) return false
+      const due = new Date(task.due_date)
+      return due >= start && due < tomorrow
+    }
+    const isWithinWeek = (task: typeof standaloneTasks[number]) => {
+      if (!task.due_date) return false
+      return new Date(task.due_date) < end
+    }
+    return {
+      today: standaloneTasks.filter(isToday),
+      week: standaloneTasks.filter(isWithinWeek),
+      inbox: standaloneTasks.filter((task) => !task.due_date),
+      done: completedStandaloneTasks,
+    }
+  }, [standaloneTasks, completedStandaloneTasks, todayStr])
+
+  const visibleTodoTasks = todoGroups[todoView]
+
+  function formatTaskDate(value?: string | null) {
+    if (!value) return 'Da pianificare'
+    return new Date(value).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })
+  }
+
+  function formatTaskTimestamp(value?: string | null) {
+    if (!value) return ''
+    return new Date(value).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  }
+
+  function asTaskDate(value?: string | null) {
+    return value ? toDateInput(new Date(value)) : ''
+  }
 
   const followupInbox = useMemo(() => {
     const startOfToday = startOfDay(today)
@@ -333,32 +371,65 @@ export default function AttivitaPage() {
     <div className="dash-content">
 
       {/* ── TO-DO LIST ─────────────────────────────────────────────────────── */}
-      <section className="attivita-todo">
+      <section className="attivita-todo attivita-todo-v2">
         <div className="attivita-todo-head">
-          <h2>📋 Cose da fare</h2>
-          <span className="attivita-todo-count">{standaloneTasks.length}</span>
+          <div>
+            <div className="attivita-eyebrow">Operativo</div>
+            <h2>Le cose che devono muoversi</h2>
+          </div>
+          <span className="attivita-todo-count">{standaloneTasks.length} aperte</span>
+        </div>
+
+        <div className="attivita-todo-tabs" role="tablist" aria-label="Vista cose da fare">
+          {([['today', 'Oggi'], ['week', 'Prossimi 7 giorni'], ['inbox', 'Da pianificare'], ['done', 'Completate']] as const).map(([key, label]) => (
+            <button key={key} type="button" className={todoView === key ? 'active' : ''} onClick={() => setTodoView(key)}>
+              {label}<span>{todoGroups[key].length}</span>
+            </button>
+          ))}
         </div>
 
         <div className="attivita-todo-body">
-          {standaloneTasks.map((t) => (
-            <div key={t.id} className="attivita-todo-item">
+          {visibleTodoTasks.length === 0 && <div className="attivita-todo-empty">Niente qui. Cattura una nuova cosa sotto e decidi dopo quando farla.</div>}
+          {visibleTodoTasks.map((t) => (
+            <div key={t.id} className={`attivita-todo-item ${t.status === 'done' ? 'done' : ''}`}>
               <button
                 type="button"
                 className="attivita-todo-check"
-                title="Segna come fatto"
+                title={t.status === 'done' ? 'Riapri' : 'Segna come fatto'}
                 onClick={async () => {
                   try {
-                    await completeStandaloneTask(t.id)
-                    showToast('Fatto ✓')
+                    if (t.status === 'done') {
+                      await reopenStandaloneTask(t.id)
+                      showToast('Riaperto')
+                    } else {
+                      await completeStandaloneTask(t.id)
+                      showToast('Fatto ✓')
+                    }
                   } catch (e) {
                     showToast(`Errore: ${e instanceof Error ? e.message : 'completamento'}`)
                   }
                 }}
               >
-                ○
+                {t.status === 'done' ? '↩' : '○'}
               </button>
 
-              <span className="attivita-todo-text">{t.title}</span>
+              <div className="attivita-todo-main">
+                <span className={`attivita-todo-text ${t.status === 'done' ? 'done' : ''}`}>{t.title}</span>
+                <span className="attivita-todo-meta">
+                  {t.due_date ? `Scadenza ${formatTaskDate(t.due_date)}` : 'Senza scadenza'} · Inserita il {formatTaskTimestamp(t.created_at)}
+                  {t.started_at ? ` · Avviata il ${formatTaskTimestamp(t.started_at)}` : ''}
+                  {t.reschedule_count ? ` · ${t.reschedule_count} rinvii` : ''}
+                </span>
+              </div>
+
+              {t.status !== 'done' && (
+                <>
+                  <input aria-label={`Scadenza per ${t.title}`} className="attivita-todo-date" type="date" value={asTaskDate(t.due_date)} onChange={async (e) => { await updateStandaloneTask(t.id, { due_date: e.target.value ? new Date(`${e.target.value}T09:00:00`).toISOString() : null }); showToast('Pianificazione aggiornata') }} />
+                  <button type="button" className={`attivita-todo-start ${t.started_at ? 'started' : ''}`} onClick={async () => { await updateStandaloneTask(t.id, { started_at: t.started_at ? null : new Date().toISOString() }); showToast(t.started_at ? 'Riportata in attesa' : 'Partita ora') }}>
+                    {t.started_at ? 'In corso' : 'Avvia'}
+                  </button>
+                </>
+              )}
 
               {/* Priority badge */}
               <button
@@ -382,7 +453,7 @@ export default function AttivitaPage() {
               )}
 
               {/* Inline editor */}
-              {editingTodoId === t.id && (
+              {editingTodoId === t.id && t.status !== 'done' && (
                 <div className="attivita-todo-editor">
                   <select
                     value={t.priority || 'medium'}
@@ -425,6 +496,7 @@ export default function AttivitaPage() {
                   >
                     Chiudi
                   </button>
+                  <button type="button" className="btn btn-ghost btn-xs" onClick={async () => { await updateStandaloneTask(t.id, { due_date: shiftDate(t.due_date, 7) }); showToast('Spostata di 7 giorni') }}>+7g</button>
                 </div>
               )}
             </div>
@@ -460,45 +532,6 @@ export default function AttivitaPage() {
           </form>
         </div>
 
-        {/* Completed tasks */}
-        {completedStandaloneTasks.length > 0 && (
-          <div className="attivita-todo-done">
-            <button
-              type="button"
-              className="attivita-todo-done-toggle"
-              onClick={() => setShowDone(!showDone)}
-            >
-              {showDone ? '▲' : '▼'} Fatto ({completedStandaloneTasks.length})
-            </button>
-            {showDone && (
-              <div className="attivita-todo-done-list">
-                {completedStandaloneTasks.map((t) => (
-                  <div key={t.id} className="attivita-todo-item done">
-                    <button
-                      type="button"
-                      className="attivita-todo-check done"
-                      title="Riapri"
-                      onClick={async () => {
-                        try {
-                          await reopenStandaloneTask(t.id)
-                          showToast('Riaperto')
-                        } catch (e) {
-                          showToast(`Errore: ${e instanceof Error ? e.message : 'riapertura'}`)
-                        }
-                      }}
-                    >
-                      ↩
-                    </button>
-                    <span className="attivita-todo-text done">{t.title}</span>
-                    <span className="attivita-todo-done-date">
-                      {t.updated_at ? new Date(t.updated_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </section>
 
       {/* ── Analytics Team ──────────────────────────────────────────────────── */}

@@ -702,7 +702,7 @@ export function useCRM(pathname = '') {
     setStandaloneTasks((previous) => [...previous, reopened])
   }, [completedStandaloneTasks])
 
-  const updateStandaloneTask = useCallback(async (taskId: string, payload: { title?: string; note?: string | null; priority?: string }) => {
+  const updateStandaloneTask = useCallback(async (taskId: string, payload: { title?: string; note?: string | null; priority?: string; due_date?: string | null; started_at?: string | null; status?: 'pending' | 'done' }) => {
     const response = await apiFetch<{ task: Task }>('/api/tasks/standalone', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
