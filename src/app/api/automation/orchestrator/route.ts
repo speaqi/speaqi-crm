@@ -3,7 +3,12 @@ import { createServiceRoleClient } from '@/lib/server/supabase'
 import { errorMessage } from '@/lib/server/http'
 import type { CRMContact, GmailMessage } from '@/types'
 import { EMPTY_USER_SETTINGS, loadUserSettings, type UserSettings } from '@/lib/server/user-settings'
-import { buildEmailSegmentGuidance } from '@/lib/server/email-draft-context'
+import {
+  buildEmailSegmentGuidance,
+  formatPublicOrganizationResearch,
+  researchPublicOrganization,
+  validatePublicOrganizationDraft,
+} from '@/lib/server/email-draft-context'
 import { buildEmailAiPolicy } from '@/lib/email-ai-framework'
 
 function validateSecret(request: NextRequest) {
@@ -270,6 +275,9 @@ async function generateDraft(
   }
 
   const segmentGuidance = buildEmailSegmentGuidance(contact)
+  const publicResearch = formatPublicOrganizationResearch(
+    await researchPublicOrganization(contact).catch(() => null)
+  )
 
   const system = [
     'Sei un senior sales copywriter che prepara bozze email commerciali per conto del venditore.',
@@ -290,6 +298,7 @@ async function generateDraft(
     threadState,
     buildEmailAiPolicy(settings),
     segmentGuidance ? `\n## Indicazioni specifiche per questo segmento\n${segmentGuidance}` : '',
+    publicResearch,
   ]
     .filter(Boolean)
     .join('\n')
@@ -315,14 +324,26 @@ async function generateDraft(
     threadSummary ? `\n## Storico email completo\n${threadSummary}` : '',
     '\n## Istruzioni per questa bozza',
     followupMode
-      ? 'Genera un follow-up naturale, coerente con le email già inviate, citando un punto concreto dell’ultima email o risposta presente nello storico. NON sembrare una prima email e non inventare interazioni o interesse.'
+      ? 'Genera un follow-up naturale. Per un Comune o una casella istituzionale apri il primo paragrafo ricordando con tatto che avevamo inviato un’email qualche tempo fa, poi chiedi un breve incontro per spiegare le possibilita di Speaqi e di essere indirizzati al referente competente. Riprendi un punto concreto dello storico e non inventare interazioni o interesse.'
       : 'Genera una prima email concreta, con apertura personalizzata solo se il contesto la giustifica. Presenta Speaqi in modo naturale, senza autocelebrazioni.',
     'Oggetto: specifico e breve, senza emoji e senza maiuscole aggressive.',
     'HTML: usa solo tag semplici (<p>, <ul>, <li>, <br>, <strong>) e niente CSS inline complesso.',
     'Rispondi solo in JSON con i campi: subject (stringa), body_text (testo plain), body_html (HTML semplice).',
   ].filter(Boolean).join('\n')
 
-  return callOpenAI(apiKey, model, system, userPrompt)
+  const generated = await callOpenAI(apiKey, model, system, userPrompt)
+  const issues = validatePublicOrganizationDraft(contact, generated, followupMode)
+  if (!issues.length) return generated
+
+  const corrected = await callOpenAI(
+    apiKey,
+    model,
+    system,
+    `${userPrompt}\n\n## Correzioni obbligatorie\n${issues.map((issue) => `- ${issue}`).join('\n')}`
+  )
+  const remainingIssues = validatePublicOrganizationDraft(contact, corrected, followupMode)
+  if (remainingIssues.length) throw new Error(`Bozza istituzionale non conforme: ${remainingIssues.join(' ')}`)
+  return corrected
 }
 
 // ─── Route handler ───

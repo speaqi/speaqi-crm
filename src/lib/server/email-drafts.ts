@@ -7,7 +7,12 @@ import {
   type EmailSignature,
 } from '@/lib/server/gmail'
 import { EMPTY_USER_SETTINGS, loadUserSettings, type UserSettings } from '@/lib/server/user-settings'
-import { buildEmailSegmentGuidance } from '@/lib/server/email-draft-context'
+import {
+  buildEmailSegmentGuidance,
+  formatPublicOrganizationResearch,
+  researchPublicOrganization,
+  validatePublicOrganizationDraft,
+} from '@/lib/server/email-draft-context'
 import { buildEmailAiPolicy } from '@/lib/email-ai-framework'
 import type { CRMContact, GmailMessage } from '@/types'
 
@@ -143,6 +148,7 @@ async function generateEmail(input: {
   threadSummary?: string | null
   activitySummary?: string | null
   followupMode?: boolean
+  publicResearch?: string | null
 }): Promise<GeneratedEmail | null> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) return null
@@ -174,6 +180,7 @@ async function generateEmail(input: {
       email_tone: input.emailTone || input.settings?.email_tone,
     }),
     segmentGuidance ? `\n## Indicazioni specifiche per questo segmento\n${segmentGuidance}` : '',
+    input.publicResearch || '',
   ]
     .filter(Boolean)
     .join('\n')
@@ -200,7 +207,7 @@ async function generateEmail(input: {
     input.note ? `\n## Contesto specifico per questa bozza\n${input.note}` : '',
     '\n## Istruzioni',
     input.followupMode
-      ? 'Genera un follow-up naturale, coerente con le email gia inviate, con riferimento al punto concreto rimasto aperto.'
+      ? 'Genera un follow-up naturale. Per un Comune o una casella istituzionale apri il primo paragrafo ricordando con tatto che avevamo inviato un’email qualche tempo fa, poi chiedi un breve incontro per spiegare le possibilita di Speaqi e di essere indirizzati al referente competente.'
       : 'Genera una prima email concreta, con apertura personalizzata solo se il contesto lo giustifica.',
     'Oggetto: specifico e breve, senza emoji e senza maiuscole aggressive.',
     'HTML: usa solo tag semplici (<p>, <ul>, <li>, <br>, <strong>) e niente CSS inline complesso.',
@@ -209,35 +216,42 @@ async function generateEmail(input: {
     .filter(Boolean)
     .join('\n')
 
-  try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: user },
-        ],
-        max_tokens: 1400,
-        temperature: 0.7,
-      }),
-    })
+  let correction = ''
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: correction ? `${user}\n\n## Correzioni obbligatorie\n${correction}` : user },
+          ],
+          max_tokens: 1400,
+          temperature: attempt === 0 ? 0.7 : 0.35,
+        }),
+      })
 
-    if (!response.ok) return null
+      if (!response.ok) return null
+      const payload = await response.json()
+      const text = payload?.choices?.[0]?.message?.content
+      if (!text) return null
 
-    const payload = await response.json()
-    const text = payload?.choices?.[0]?.message?.content
-    if (!text) return null
-
-    return JSON.parse(text) as GeneratedEmail
-  } catch {
-    return null
+      const generated = JSON.parse(text) as GeneratedEmail
+      const issues = validatePublicOrganizationDraft(input.contact, generated, !!input.followupMode)
+      if (!issues.length) return generated
+      correction = issues.map((issue) => `- ${issue}`).join('\n')
+    } catch {
+      return null
+    }
   }
+
+  return null
 }
 
 export async function createGeneratedContactDraft(
@@ -248,13 +262,14 @@ export async function createGeneratedContactDraft(
   shared?: {
     settings?: UserSettings
     emailSignature?: EmailSignature | null
+    forceFollowup?: boolean
   }
 ) {
   if (!contact.email) {
     return { error: 'Email mancante' as const }
   }
 
-  const [settings, leadMemory, messages, activitySummary, gmailSignature] = await Promise.all([
+  const [settings, leadMemory, messages, activitySummary, gmailSignature, publicResearch] = await Promise.all([
     shared?.settings
       ? Promise.resolve(shared.settings)
       : loadUserSettings(supabase, userId).catch(() => EMPTY_USER_SETTINGS),
@@ -264,11 +279,13 @@ export async function createGeneratedContactDraft(
     shared && 'emailSignature' in shared
       ? Promise.resolve(shared.emailSignature || null)
       : loadRequiredGmailSignature(supabase, userId),
+    researchPublicOrganization(contact).catch(() => null),
   ])
 
   const threadContext = buildDraftContext(messages)
   const effectiveNote = String(note ?? (contact.email_draft_note || '')).trim() || null
-  const followupMode = !!threadContext.latestOutbound && !threadContext.hasInboundAfterLatestOutbound
+  const followupMode = !!shared?.forceFollowup ||
+    (!!threadContext.latestOutbound && !threadContext.hasInboundAfterLatestOutbound)
 
   const generated = await generateEmail({
     contact,
@@ -281,6 +298,7 @@ export async function createGeneratedContactDraft(
     activitySummary,
     threadSummary: messages.length ? summarizeThread(threadContext.messages) : null,
     followupMode,
+    publicResearch: formatPublicOrganizationResearch(publicResearch),
   })
 
   if (!generated) {

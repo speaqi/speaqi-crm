@@ -9,6 +9,7 @@ import { EMPTY_USER_SETTINGS, loadUserSettings } from '@/lib/server/user-setting
 type DraftRequest = {
   contact_id: string
   note?: string
+  mode?: 'followup'
 }
 
 async function runWithConcurrency<T, R>(
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest) {
           auth.workspaceUserId,
           contact,
           mergeNotes(item.note, commonNote),
-          { settings, emailSignature }
+          { settings, emailSignature, forceFollowup: item.mode === 'followup' }
         )
         if ('error' in result) {
           return { contact_id: item.contact_id, error: result.error }

@@ -160,6 +160,7 @@ export default function MarketingPage() {
             {
               contact_id: contact.id,
               note: notes[contact.id]?.trim() || undefined,
+              mode: item.bucket === 'followup' ? 'followup' : undefined,
             },
           ],
         }),
