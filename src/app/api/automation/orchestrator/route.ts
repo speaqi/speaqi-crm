@@ -279,6 +279,7 @@ async function generateDraft(
     'Apri sempre con un saluto: “Buongiorno Nome,” se il nome e affidabile, altrimenti “Buongiorno,”. Non usare frasi generiche come “spero che tu stia bene” o “come stai”; dopo il saluto vai dritto al punto con un aggancio personale o contestuale.',
     'Non inventare dati, prezzi, disponibilità, meeting o promesse non presenti nel contesto.',
     'Non inventare una personalizzazione: se i dati non bastano, usa un motivo del contatto onesto e specifico per il segmento.',
+    'Non scrivere mai che il destinatario ha mostrato interesse, aperto, cliccato o risposto a una campagna se questo fatto non compare esplicitamente nello storico email fornito. Non usare “campagna” come aggancio generico.',
     'Non descrivere servizi o capacita che non compaiono nel contesto aziendale.',
     'Non inserire la firma: il CRM la aggiungerà dopo, usando la firma Gmail reale.',
     'Struttura: saluto, apertura rilevante, problema o opportunita osservabile, valore specifico, una sola CTA semplice che chieda un riscontro per una call di 15 minuti con il referente appropriato.',
@@ -314,7 +315,7 @@ async function generateDraft(
     threadSummary ? `\n## Storico email completo\n${threadSummary}` : '',
     '\n## Istruzioni per questa bozza',
     followupMode
-      ? 'Genera un follow-up naturale, coerente con le email già inviate, con riferimento al punto concreto rimasto aperto. NON sembrare una prima email — il contatto sa già chi siamo.'
+      ? 'Genera un follow-up naturale, coerente con le email già inviate, citando un punto concreto dell’ultima email o risposta presente nello storico. NON sembrare una prima email e non inventare interazioni o interesse.'
       : 'Genera una prima email concreta, con apertura personalizzata solo se il contesto la giustifica. Presenta Speaqi in modo naturale, senza autocelebrazioni.',
     'Oggetto: specifico e breve, senza emoji e senza maiuscole aggressive.',
     'HTML: usa solo tag semplici (<p>, <ul>, <li>, <br>, <strong>) e niente CSS inline complesso.',
