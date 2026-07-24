@@ -9,6 +9,7 @@ import {
 import { EMPTY_USER_SETTINGS, loadUserSettings, type UserSettings } from '@/lib/server/user-settings'
 import {
   buildEmailSegmentGuidance,
+  ensureDraftRequiredAssets,
   formatPublicOrganizationResearch,
   researchPublicOrganization,
   validatePublicOrganizationDraft,
@@ -242,7 +243,10 @@ async function generateEmail(input: {
       const text = payload?.choices?.[0]?.message?.content
       if (!text) return null
 
-      const generated = JSON.parse(text) as GeneratedEmail
+      const generated = ensureDraftRequiredAssets(
+        input.contact,
+        JSON.parse(text) as GeneratedEmail
+      ) as GeneratedEmail
       const issues = validatePublicOrganizationDraft(input.contact, generated, !!input.followupMode)
       if (!issues.length) return generated
       correction = issues.map((issue) => `- ${issue}`).join('\n')

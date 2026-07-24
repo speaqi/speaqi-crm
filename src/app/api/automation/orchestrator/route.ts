@@ -5,6 +5,7 @@ import type { CRMContact, GmailMessage } from '@/types'
 import { EMPTY_USER_SETTINGS, loadUserSettings, type UserSettings } from '@/lib/server/user-settings'
 import {
   buildEmailSegmentGuidance,
+  ensureDraftRequiredAssets,
   formatPublicOrganizationResearch,
   researchPublicOrganization,
   validatePublicOrganizationDraft,
@@ -331,15 +332,18 @@ async function generateDraft(
     'Rispondi solo in JSON con i campi: subject (stringa), body_text (testo plain), body_html (HTML semplice).',
   ].filter(Boolean).join('\n')
 
-  const generated = await callOpenAI(apiKey, model, system, userPrompt)
+  const generated = ensureDraftRequiredAssets(contact, await callOpenAI(apiKey, model, system, userPrompt))
   const issues = validatePublicOrganizationDraft(contact, generated, followupMode)
   if (!issues.length) return generated
 
-  const corrected = await callOpenAI(
-    apiKey,
-    model,
-    system,
-    `${userPrompt}\n\n## Correzioni obbligatorie\n${issues.map((issue) => `- ${issue}`).join('\n')}`
+  const corrected = ensureDraftRequiredAssets(
+    contact,
+    await callOpenAI(
+      apiKey,
+      model,
+      system,
+      `${userPrompt}\n\n## Correzioni obbligatorie\n${issues.map((issue) => `- ${issue}`).join('\n')}`
+    )
   )
   const remainingIssues = validatePublicOrganizationDraft(contact, corrected, followupMode)
   if (remainingIssues.length) throw new Error(`Bozza istituzionale non conforme: ${remainingIssues.join(' ')}`)

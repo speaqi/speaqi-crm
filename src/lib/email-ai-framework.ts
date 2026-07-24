@@ -29,7 +29,7 @@ export const DEFAULT_EMAIL_AI_FRAMEWORK: Required<EmailAiFrameworkSettings> = {
   email_offer_details:
     'Non cercare di vendere direttamente. Proponi un primo passo semplice e pertinente: demo di 15 minuti, esempio reale sul loro territorio, primo contenuto gratuito, test su un QR, caso studio, presentazione dedicata o confronto senza impegno. Lo scopo e iniziare una conversazione, non ottenere un acquisto.',
   email_proof_points:
-    'Usa soltanto prove presenti nel contesto o verificabili: servizio RAI 3, casi studio pubblicati, demo online, enti pubblici, eventi, turismo, formazione, partnership, QR o esempi visitabili. Non inventare mai numeri, clienti, risultati, partnership o casi studio.',
+    'Usa soltanto prove presenti nel contesto o verificabili. Proof point fisso da citare nel footer di ogni email: Speaqi raccontato da Rai 3 (Mezzogiorno Italia) — https://www.youtube.com/watch?v=HMb5XQEY4cM. Altre prove ammesse se verificate: casi studio pubblicati, demo online, enti pubblici, turismo, formazione, partnership, QR o esempi visitabili. Non inventare mai numeri, clienti, risultati, partnership o casi studio.',
   email_objection_notes:
     'Anticipa i dubbi senza essere difensivo e senza criticare strumenti esistenti. Se hanno gia un sito: Speaqi non lo sostituisce, lo rende piu accessibile e distribuibile. Se hanno traduzioni: il tema e gestirle, aggiornarle e distribuirle. Se sembra complesso: un caricamento e un link. Se non hanno budget: proponi un pilota. Se non hanno stranieri: utile anche per italiani, accessibilita e crescita futura.',
   email_call_to_action:
@@ -45,7 +45,7 @@ export const DEFAULT_EMAIL_AI_FRAMEWORK: Required<EmailAiFrameworkSettings> = {
   email_do_not_say:
     'Non usare mai: “siamo leader”, “rivoluzionario”, “innovativo”, “migliore piattaforma”, “soluzione unica al mondo”, “intelligenza artificiale avanzata”, “trasformazione digitale”. Evita termini troppo commerciali, superlativi e promesse non dimostrabili. Non parlare male dei concorrenti, non dire che Speaqi sostituisce sistemi esistenti: presentalo come uno strato che valorizza cio che il cliente possiede gia.',
   email_case_studies:
-    'Referenze disponibili da proporre solo quando pertinenti: GAL Molise; Comune di Napoli. Per ciascuna referenza aggiungi qui contesto, materiale da inviare e link verificabile. Non inventare progetti, risultati, numeri, link o allegati: se manca un dettaglio, limita l’email a proporre l’invio della referenza o del materiale di approfondimento.',
+    'Referenze disponibili da proporre solo quando pertinenti: GAL Molise; Comune di Napoli; servizio Rai 3 (https://www.youtube.com/watch?v=HMb5XQEY4cM). Per i soli contatti Comune (non per altri segmenti) puoi anche rimandare a https://speaqi.com/comuni. Non inventare progetti, risultati, numeri, link o allegati: se manca un dettaglio, limita l’email a proporre l’invio della referenza o del materiale di approfondimento.',
 }
 
 export function withEmailAiFramework<T extends EmailAiFrameworkSettings>(settings?: T | null) {
