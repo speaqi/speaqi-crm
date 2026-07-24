@@ -20,6 +20,7 @@ type UserSettings = {
   email_strategy: string | null
   email_positioning: string | null
   email_do_not_say: string | null
+  email_case_studies: string | null
 }
 
 type SettingsField = {
@@ -32,6 +33,14 @@ type SettingsField = {
 }
 
 const SETTINGS_FIELDS: SettingsField[] = [
+  {
+    key: 'email_case_studies',
+    label: 'Casi studio e referenze',
+    hint: 'Le referenze reali da usare o proporre nell’email. Per ciascuna indica contesto, materiale/link inviabile e quando è pertinente.',
+    placeholder: 'GAL Molise — contesto — materiale/link da inviare\nComune di Napoli — contesto — materiale/link da inviare',
+    rows: 7,
+    wide: true,
+  },
   {
     key: 'speaqi_context',
     label: 'Identità e Posizionamento di Speaqi',
@@ -164,6 +173,7 @@ export default function EmailAIPage() {
     email_strategy: '',
     email_positioning: '',
     email_do_not_say: '',
+    email_case_studies: '',
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -185,6 +195,7 @@ export default function EmailAIPage() {
           email_strategy: s.email_strategy ?? '',
           email_positioning: s.email_positioning ?? '',
           email_do_not_say: s.email_do_not_say ?? '',
+          email_case_studies: s.email_case_studies ?? '',
         })
       })
       .finally(() => setLoading(false))

@@ -11,6 +11,7 @@ export type EmailAiFrameworkSettings = {
   email_strategy?: string | null
   email_positioning?: string | null
   email_do_not_say?: string | null
+  email_case_studies?: string | null
 }
 
 /**
@@ -43,6 +44,8 @@ export const DEFAULT_EMAIL_AI_FRAMEWORK: Required<EmailAiFrameworkSettings> = {
     'Speaqi non compete sui QR code, sulle traduzioni o sui chatbot: compete sulla gestione e distribuzione del patrimonio informativo. La narrativa deve essere sempre Problema → Visione → Beneficio → Speaqi. Mai Speaqi → Funzioni → Prezzo. Adatta il posizionamento: per una Regione e un’infrastruttura digitale territoriale; per un Comune, valorizzazione del territorio e accessibilita; per un museo, migliore fruizione del patrimonio; per una cantina, storytelling e internazionalizzazione; per un hotel, esperienza ospiti; per un’azienda, distribuzione di contenuti multilingua senza duplicazioni.',
   email_do_not_say:
     'Non usare mai: “siamo leader”, “rivoluzionario”, “innovativo”, “migliore piattaforma”, “soluzione unica al mondo”, “intelligenza artificiale avanzata”, “trasformazione digitale”. Evita termini troppo commerciali, superlativi e promesse non dimostrabili. Non parlare male dei concorrenti, non dire che Speaqi sostituisce sistemi esistenti: presentalo come uno strato che valorizza cio che il cliente possiede gia.',
+  email_case_studies:
+    'Referenze disponibili da proporre solo quando pertinenti: GAL Molise; Comune di Napoli. Per ciascuna referenza aggiungi qui contesto, materiale da inviare e link verificabile. Non inventare progetti, risultati, numeri, link o allegati: se manca un dettaglio, limita l’email a proporre l’invio della referenza o del materiale di approfondimento.',
 }
 
 export function withEmailAiFramework<T extends EmailAiFrameworkSettings>(settings?: T | null) {
@@ -64,6 +67,7 @@ export function buildEmailAiPolicy(settings?: EmailAiFrameworkSettings | null) {
     `## Valore da comunicare\n${effective.email_value_proposition}`,
     `## Offerta / proposta\n${effective.email_offer_details}`,
     `## Prove e credibilita\n${effective.email_proof_points}`,
+    `## Casi studio e referenze disponibili\n${effective.email_case_studies}\nSe pertinente, usa al massimo una referenza per rendere concreta l’email o proponine l’invio. Non citare una referenza senza essere certo che sia reale e adatta al destinatario.`,
     `## Obiezioni e limiti\n${effective.email_objection_notes}`,
     `## CTA preferita\n${effective.email_call_to_action}`,
     `## Tono email\n${effective.email_tone}`,

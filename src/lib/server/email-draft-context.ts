@@ -55,6 +55,7 @@ export function isPublicOrganizationContact(contact: CRMContact) {
   const company = String(contact.company || '').toLowerCase()
   const category = String(contact.category || '').toLowerCase()
   const email = String(contact.email || '').toLowerCase()
+  const emailLocalPart = email.split('@')[0] || ''
   const notes = String(contact.note || '').toLowerCase()
 
   return (
@@ -63,6 +64,7 @@ export function isPublicOrganizationContact(contact: CRMContact) {
     company.includes('provincia') ||
     category.includes('comune') ||
     category.includes('ente pubblico') ||
+    emailLocalPart.includes('comune') ||
     email.includes('@comune.') ||
     email.includes('.gov.') ||
     email.startsWith('sindaco@') ||
@@ -188,6 +190,9 @@ export function validatePublicOrganizationDraft(
   if (followupMode && !/(avevamo|abbiamo)\s+(?:gia\s+)?(?:scritto|inviato)|email\s+(?:precedente|inviata)|messaggio\s+(?:precedente|inviato)|qualche tempo fa/i.test(text)) {
     issues.push('Ricorda con tatto che era gia stata inviata un’email qualche tempo fa.')
   }
+  if (/(?:ho|abbiamo)\s+notato.{0,80}\binteresse\b|mostrato\s+interesse|interesse\s+per\s+le\s+soluzioni/i.test(text)) {
+    issues.push('Non attribuire interesse al Comune se non e presente nello storico email.')
+  }
 
   return issues
 }
@@ -198,6 +203,7 @@ export function buildEmailSegmentGuidance(contact: CRMContact) {
   const listName = String(contact.list_name || '').toLowerCase()
   const company = String(contact.company || '').toLowerCase()
   const email = String(contact.email || '').toLowerCase()
+  const emailLocalPart = email.split('@')[0] || ''
   const name = String(contact.name || '').trim()
   const notes = String(contact.note || '').toLowerCase()
 
@@ -217,6 +223,7 @@ export function buildEmailSegmentGuidance(contact: CRMContact) {
 
   if (
     company.includes('comune') ||
+    emailLocalPart.includes('comune') ||
     email.includes('.gov.') ||
     email.includes('comune.') ||
     email.startsWith('sindaco@') ||
