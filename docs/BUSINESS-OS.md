@@ -1,189 +1,265 @@
-# Speaqi Business OS — Piano di Evoluzione Strategica
+# Speaqi Business OS — Piano di evoluzione v2
 
-> Da CRM di gestione preventivi a **Business Operating System**: il centro di controllo
-> di tutta l'azienda, capace di mostrare in tempo reale quanto l'azienda guadagna,
-> quanto potrebbe guadagnare, dove cresce e quali azioni eseguire.
+> Il centro operativo e finanziario di Speaqi deve misurare clienti, progetti, abbonamenti e minuti video secondo il modello commerciale definito in [SPEAQI-BUSINESS-MODEL.md](./SPEAQI-BUSINESS-MODEL.md).
 
-## Stato attuale (analisi del codebase)
+**Versione:** v2
+**Data:** 2026-08-09
 
-Il CRM ha già fondamenta solide su cui costruire il Business OS:
+## Regola guida
 
-| Asset esistente | Cosa abilita |
+Il Business OS non considera più il preventivo una tantum o il contatto come unità economica principale. Le metriche e le automazioni partono dal **progetto**:
+
+```text
+Cliente
+  -> uno o più Progetti
+       -> Stato commerciale
+       -> Deal e preventivi
+       -> Abbonamento
+       -> Wallet minuti video
+       -> Ricavi, costi e margine
+```
+
+I vecchi pacchetti START, EXPERIENCE, SIGNATURE e il Piano PRO non fanno parte del modello v2.
+
+## Stato attuale
+
+Il CRM dispone già di asset riutilizzabili:
+
+| Asset | Utilizzo nel modello v2 |
 |---|---|
-| `quotes` con campi finanziari completi (`total_amount`, `tax_amount`, `deposit_amount`, `payment_state`, `paid_at`, `sent_at`) | Fatturato reale, incassi, tempi di pagamento — senza nuove tabelle |
-| `contacts` con `value`, `score`, `win_probability`, `industry`, `company_size` | Pipeline ponderata, scoring opportunità, segmentazione |
-| `activities` + `/api/analytics` | Produttività team, costo commerciale per cliente |
-| `lead_memories` + `ai_decision_logs` + endpoint `/api/ai/*` | Base per il Business Model Analyzer e l'AI CEO |
-| `stage_transitions` | Funnel analytics, velocità di conversione per stadio |
-| MCP server (`/api/mcp`) | Accesso AI a tutti i dati aziendali via tool |
+| `contacts` | Persone e stakeholder, da collegare ai clienti e ai progetti |
+| `deals` | Pipeline commerciale, da collegare a cliente e progetto |
+| `quotes` | Preventivi per abbonamenti, minuti video e accordi custom |
+| `activities` e `tasks` | Timeline, SLA, follow-up e handoff |
+| `stage_transitions` | Analisi del funnel commerciale |
+| `business_goals` | Obiettivi su MRR, ARR, progetti e ricavi video |
+| API AI e MCP | Automazioni e analisi basate sul nuovo dominio |
 
-**Limiti attuali**: nessuna nozione di costi (fissi/variabili), nessun ricavo ricorrente
-(niente abbonamenti), nessun obiettivo formalizzato, nessuna previsione, dashboard
-orientata all'operatività quotidiana ma non alla decisione strategica.
+Gap principali:
 
----
+- assenza di un'entità cliente separata dalle persone;
+- assenza di una vera entità progetto;
+- assenza di abbonamenti ricorrenti per progetto;
+- assenza di trial e transizioni progetto auditabili;
+- assenza di wallet e ledger minuti video;
+- preventivi ancora legati al vecchio catalogo commerciale;
+- dashboard finanziaria ancora orientata soprattutto ai preventivi una tantum.
 
-## Fase 1 — Financial Dashboard (✅ implementata)
+## Fase 0 — Fondazione del dominio
 
-Nuova area **`/finanza`** + API `/api/finance/overview` + tabella `business_goals`.
+Introdurre in modo additivo:
 
-Calcolata interamente da dati reali già presenti (preventivi + pipeline):
+- `customers`;
+- `projects`;
+- `project_contacts`;
+- collegamenti `customer_id` e `project_id` su deal, preventivi, attività e task;
+- audit delle transizioni progetto.
 
-- **Ricavi**: incassato totale (lordo/netto IVA), mese corrente, anno corrente, serie mensile 12 mesi
-- **Previsioni**: entrate confermate (accettati non pagati), previsione 30 giorni
-  (valore atteso ponderato dei preventivi aperti), pipeline trattative (lorda e ponderata)
-- **KPI**: run-rate mensile/annuale (proxy MRR/ARR), win rate, ticket medio,
-  ricavo medio per cliente, tempo medio di incasso, clienti paganti
-- **Scoring opportunità**: ogni preventivo aperto ha una probabilità calcolata da
-  stato, età, scadenza, score e win_probability del contatto → risponde a
-  *"Quanto potrei fatturare nei prossimi 30 giorni?"* e *"Quali preventivi si chiuderanno?"*
-- **Ricavi per prodotto**: classificazione dei line item (START/EXPERIENCE/SIGNATURE/Altro)
-- **Top clienti**: chi sta comprando di più
-- **Sistema Obiettivi**: target mensili/trimestrali/annuali su fatturato, nuovi clienti,
-  preventivi inviati — con avanzamento %, marker dell'avanzamento atteso a oggi e
-  flag automatico "a rischio" quando il progresso è sotto il 75% del previsto
-- **Analisi automatica**: insight a regole (crescita/calo, preventivi fermi >30gg,
-  concentrazione fatturato sul top client, copertura pipeline vs obiettivo, win rate)
+La migrazione deve mantenere temporaneamente `contacts.status` come cache di compatibilità, senza usarlo per rappresentare lo stato del progetto.
 
-### Probabilità di chiusura (euristica v1)
+### Risultato atteso
 
-```
-accettato non pagato        → 90%
-inviato                     → 35% base
-  + win_probability contatto (se impostata)
-  + score/400 (max +25%)
-  × 0.6 se inviato da >30gg, × 0.35 se >60gg
-  × 0.5 se valid_until scaduto
-bozza                       → 10%
-clamp 2%–95%
-```
+- Un cliente può avere più progetti.
+- La stessa persona può partecipare a più progetti.
+- Pipeline commerciale e stato operativo del progetto sono separati.
+- Tutte le nuove funzionalità usano `project_id` come chiave economica.
 
-Quando ci sarà storico sufficiente (≥50 preventivi decisi), sostituire con
-regressione calibrata sui dati reali (per stadio, fascia importo, settore).
+## Fase 1 — Lifecycle Demo, Trial e Active
 
----
+Implementare i cinque stati canonici:
 
-## Fase 2 — Costi, margini e Break Even (Area Business Plan)
+- `demo`;
+- `trial`;
+- `active`;
+- `suspended`;
+- `archived`.
 
-Nuove tabelle:
+Funzioni:
+
+- checklist di readiness;
+- richiesta di validazione;
+- validazione manuale da parte del team Speaqi;
+- attivazione trial di 30 giorni;
+- countdown e alert trial;
+- sospensione automatica alla scadenza senza accordo;
+- attivazione o riattivazione dopo pagamento;
+- audit completo di attore, data e motivazione.
+
+## Fase 2 — Subscription OS
+
+Nuova tabella `project_subscriptions` e integrazione con il provider di pagamento.
+
+### Piano standard
+
+- 99 €/mese per progetto;
+- 990 €/anno per progetto;
+- tutte le funzioni incluse;
+- nessun prezzo per utente;
+- nessun tier di funzionalità.
+
+### Funzioni finanziarie
+
+- MRR e ARR per progetto;
+- nuovo MRR, expansion, contraction e churn;
+- stato pagamento e recupero insoluti;
+- rinnovi mensili e annuali;
+- cancellazioni a fine periodo;
+- inclusione del canone negli accordi custom senza perdere il valore economico interno.
+
+## Fase 3 — Video Revenue OS
+
+Introdurre:
 
 ```sql
-cost_entries (id, user_id, category, label, amount, frequency        -- 'monthly'|'yearly'|'one_off'
-              cost_type,                                              -- 'fixed'|'variable'
-              variable_driver,                                        -- es. 'per_quote_paid', 'per_client'
-              starts_on, ends_on)
-
-revenue_lines (id, user_id, name, kind,                               -- 'one_off'|'recurring'|'usage'
-               unit_price, unit_cost, billing_period, active, notes)  -- linee di ricavo attuali e future
+video_minute_packages
+project_video_wallets
+video_minute_ledger
+video_processing_costs
 ```
 
-Funzionalità `/business-plan`:
+Funzioni:
 
-- **Modello di business**: linee di ricavo (esistenti, mappate sui pacchetti; future, simulate)
-- **Costi fissi e variabili** con timeline di validità
-- **Margine per linea/cliente**: ricavo − costi variabili attribuiti
-- **Break Even Point**: `costi_fissi_mensili / margine_medio_unitario` → quanti
-  preventivi/abbonamenti servono al mese, visualizzato come gauge vs run-rate attuale
-- **Scenari previsionali** (prudente / realistico / aggressivo): tre set di parametri
-  (win rate, ticket medio, nuovi lead/mese, churn) applicati a un motore di proiezione
-  a 12-24 mesi; salvati in `forecast_scenarios` e confrontabili in un unico grafico
-- **Obiettivi a cascata**: obiettivo annuale → trimestrali → mensili generati
-  automaticamente e tracciati con il sistema della Fase 1
+- catalogo pacchetti configurabile;
+- vendita per minuti;
+- prezzo per minuto decrescente per volume;
+- saldo pubblico in minuti;
+- prenotazione e consumo durante l'elaborazione;
+- rimborso automatico per lavorazioni fallite;
+- costo interno per modello/provider;
+- margine per minuto, pacchetto, progetto e cliente;
+- alert saldo basso e proposta di riacquisto.
 
-## Fase 3 — Customer Intelligence
+Il ledger interno può usare crediti tecnici, ma UI, preventivi, email e contratti mostrano soltanto minuti.
 
-Estensione della pagina contatto `/contacts/[id]` con un blocco "Valore cliente":
+## Fase 4 — Preventivi e Deal Desk
 
-- Fatturato generato (somma preventivi pagati), storico preventivi e pagamenti
-- Servizi acquistati (dai line item), attività svolte, contatti effettuati (già presenti)
-- **CLV** e margine cliente (quando esistono i costi della Fase 2)
-- **Suggerimenti upsell/cross-sell**: regole + AI — es. "ha START da 8 mesi e
-  engagement alto → proponi EXPERIENCE"; "ha comprato il servizio X ma non Y che
-  l'82% dei clienti simili acquista"
-- API `GET /api/contacts/[id]/intelligence` che aggrega tutto in una scheda unica
-  (riusabile anche dall'MCP server)
+Il generatore preventivi deve offrire queste righe commerciali:
 
-## Fase 4 — Business Model Analyzer + AI CEO
+1. Abbonamento piattaforma mensile.
+2. Abbonamento piattaforma annuale.
+3. Pacchetto minuti video configurabile.
+4. Servizi professionali opzionali approvati.
+5. Accordo custom per grandi volumi.
 
-L'asset distintivo. Architettura:
+Per gli accordi custom il CRM deve richiedere:
 
-1. **Snapshot giornaliero**: job (n8n → `/api/automation/business-snapshot`) che
-   materializza in `business_snapshots` le metriche chiave del giorno (ricavi, pipeline,
-   KPI, per prodotto, per settore) → trend storici senza ricalcoli pesanti
-2. **Tool MCP finanziari**: esporre `finance_overview`, `customer_intelligence`,
-   `goal_status`, `scenario_simulate` come tool del server MCP esistente → qualsiasi
-   agente AI (incluso il voice command) può rispondere a "quale prodotto è più
-   profittevole?", "dove stiamo perdendo denaro?"
-3. **AI CEO Dashboard** (`/ceo`): report settimanale generato da OpenAI con accesso
-   agli snapshot — SWOT (punti di forza/debolezza, rischi, opportunità),
-   raccomandazioni azionabili (clienti da contattare, offerte da creare, attività da
-   interrompere), salvato in `ai_decision_logs` per audit
-4. **Simulatore "what-if"**: motore deterministico (non LLM) parametrizzato —
-   *"cosa succede se acquisisco 50 comuni?"* = 50 × ticket medio segmento ×
-   margine − costi variabili, proiettato sui 3 scenari; l'AI traduce la domanda in
-   parametri, il motore calcola, l'AI spiega il risultato
+- progetto associato;
+- durata;
+- minuti inclusi;
+- prezzo effettivo per minuto;
+- valore piattaforma;
+- indicazione `platform_fee_included`;
+- sconto e motivazione;
+- approvatore interno;
+- margine previsto.
 
-## Fase 5 — Investor Dashboard + Export
+Ogni eccezione deve essere registrata per poter capire quali condizioni custom meritano di diventare standard.
 
-- `/investor`: crescita clienti/fatturato MoM e YoY, retention, pipeline, previsioni
-  annuali, KPI strategici — sola lettura, design "board-ready"
-- **Export PDF** professionale (react-pdf o route con Puppeteer) con brand Speaqi
-- Link pubblico con token a scadenza (stesso pattern di `public_token` dei preventivi)
-  per condividere con soci/investitori senza account
+## Fase 5 — Financial Dashboard v2
 
-## Fase 6 — UX: da "visualizzare dati" a "prendere decisioni"
+### Vista executive
 
-Principi per il redesign:
+- clienti attivi;
+- progetti demo, trial, active, suspended e archived;
+- MRR e ARR;
+- trial-to-active conversion;
+- churn clienti e churn progetti;
+- ricavo video;
+- margine video;
+- ricavo totale per cliente e progetto;
+- pipeline ponderata;
+- forecast 30/90/365 giorni.
 
-- **Ogni numero ha un'azione**: accanto a "preventivi fermi >30gg" c'è "Genera follow-up"
-  (riusa `email-drafts`); accanto a "obiettivo a rischio" c'è "Mostra le 5 opportunità
-  che lo chiudono"
-- **Home a tre livelli**: Oggi (operativo, esistente) → Finanza (tattico, Fase 1) →
-  CEO (strategico, Fase 4)
-- **Comando unico**: la barra vocale/testuale esistente diventa l'interfaccia
-  trasversale ("quanto ho fatturato a maggio?", "crea obiettivo Q3 da 50k")
-  instradata sui tool MCP
-- **Alert proattivi**: gli insight critici della Fase 1 inviati via email/notifica,
-  non solo mostrati a chi apre la pagina
+### Vista sales
 
----
+- valore pipeline per fase;
+- demo pronte per validazione;
+- trial in scadenza;
+- preventivi aperti;
+- accordi custom in approvazione;
+- deal senza prossimo passo;
+- velocità di conversione per settore e responsabile.
 
-## 10 funzionalità innovative ad alto impatto competitivo
+### Vista operations
 
-1. **Revenue Autopilot** — quando la previsione 30gg scende sotto l'obiettivo mensile,
-   il sistema genera automaticamente (in bozza) la lista di azioni che colmano il gap:
-   follow-up sui preventivi a più alto valore atteso, upsell sui clienti caldi.
-2. **Probabilità auto-calibrata** — il modello di scoring impara dallo storico reale
-   dei preventivi chiusi/persi di Speaqi e mostra quanto è affidabile ("negli ultimi
-   90 giorni le previsioni hanno sbagliato del ±12%").
-3. **Margine in tempo reale sul preventivo** — mentre componi un preventivo vedi
-   margine e contributo al break-even, non solo il totale: il pricing diventa una
-   decisione informata.
-4. **Simulatore "what-if" in linguaggio naturale** — "cosa succede se vendo Speaqi a
-   100 cantine?" → proiezione immediata su ricavi, margini, BEP nei 3 scenari.
-5. **Health Score cliente** — combinazione di engagement email, recenza contatti,
-   pagamenti puntuali → previsione churn e lista "clienti da salvare questa settimana".
-6. **Briefing vocale del lunedì** — l'AI CEO registra/sintetizza un audio di 2 minuti:
-   come è andata la settimana, i 3 numeri che contano, le 3 azioni della settimana.
-7. **Concentrazione e rischio** — indice di dipendenza da top client/settore con
-   soglie di allarme: il CRM avverte *prima* che perdere un cliente diventi un problema
-   esistenziale.
-8. **Forecast di cassa** — non solo fatturato: usando acconti (`deposit_amount`),
-   saldi e tempi medi di incasso, proietta la cassa a 90 giorni (il vero collo di
-   bottiglia delle PMI).
-9. **Benchmark interno per segmento** — confronto automatico win rate/ticket/ciclo di
-   vendita tra settori (cantine vs comuni vs hotel) → "i comuni chiudono al 45% con
-   ciclo 18gg: attacca quel mercato".
-10. **Investor link "live"** — invece del PDF statico, un link sempre aggiornato con i
-    KPI reali (con token revocabile): trasparenza verso soci come feature di prodotto.
+- progetti da validare;
+- trial da attivare;
+- progetti da sospendere o riattivare;
+- saldo minuti basso;
+- elaborazioni video bloccate o rimborsate;
+- rinnovi e pagamenti falliti.
+
+## Fase 6 — Customer e Project Intelligence
+
+La pagina cliente deve mostrare:
+
+- contatti e stakeholder;
+- elenco progetti;
+- ricavi ricorrenti e una tantum;
+- storico video;
+- valore totale e margine;
+- rischi e opportunità di espansione.
+
+La pagina progetto deve mostrare:
+
+- stato e timeline commerciale;
+- readiness e validazione;
+- trial e giorni residui;
+- abbonamento e rinnovo;
+- deal e preventivi;
+- wallet e movimenti minuti;
+- attività, task e responsabili;
+- KPI di utilizzo della piattaforma.
+
+## Fase 7 — AI CEO e Revenue Autopilot
+
+Le analisi AI devono ragionare sul nuovo modello:
+
+- quali trial hanno maggiore probabilità di conversione;
+- quali progetti active sono a rischio sospensione;
+- quali clienti possono aprire un secondo progetto;
+- quali progetti hanno bisogno di nuovi minuti video;
+- quali accordi custom hanno margine insufficiente;
+- quali attività chiudono il gap rispetto agli obiettivi MRR/ARR;
+- come cambia il forecast al variare di conversione trial, churn e consumo video.
+
+Le azioni generate restano in bozza finché non vengono approvate dall'utente.
+
+## KPI e formule
+
+| KPI | Formula |
+|---|---|
+| MRR standard | Somma canoni mensili + canoni annuali / 12 dei progetti active |
+| ARR | MRR × 12 |
+| Trial-to-active | Progetti diventati active / trial terminati nel periodo |
+| Project churn | Progetti active persi / progetti active a inizio periodo |
+| Logo churn | Clienti senza più progetti active / clienti attivi a inizio periodo |
+| Video attach rate | Progetti active con acquisto video / progetti active |
+| Prezzo medio minuto | Ricavo video / minuti venduti |
+| Margine video | Ricavo video − costo elaborazione |
+| Revenue per project | Canone + video + servizi del progetto |
+| Revenue per customer | Somma dei ricavi di tutti i progetti del cliente |
 
 ## Roadmap consigliata
 
-| Fase | Contenuto | Effort indicativo |
+| Fase | Contenuto | Dipendenze |
 |---|---|---|
-| 1 ✅ | Financial Dashboard + Obiettivi + Insight | fatta in questo branch |
-| 2 | Costi, margini, BEP, scenari | 1-2 settimane |
-| 3 | Customer Intelligence + upsell | 1 settimana |
-| 4 | Snapshot + tool MCP + AI CEO + what-if | 2-3 settimane |
-| 5 | Investor dashboard + PDF | 1 settimana |
-| 6 | UX action-first trasversale | continuo |
+| 0 | Clienti, progetti, relazioni e audit | Nessuna |
+| 1 | Demo, validazione, trial e stati progetto | Fase 0 |
+| 2 | Abbonamenti e pagamenti ricorrenti | Fasi 0-1 |
+| 3 | Pacchetti, wallet e ledger minuti video | Fase 0 |
+| 4 | Preventivi v2 e deal desk | Fasi 0, 2 e 3 |
+| 5 | Dashboard finanziaria v2 | Fasi 2-4 |
+| 6 | Customer/Project Intelligence | Fasi 0-5 |
+| 7 | AI CEO e Revenue Autopilot | Dati storici delle fasi precedenti |
+
+## Criterio di completamento
+
+Il passaggio al modello v2 è completo solo quando:
+
+- nessuna nuova trattativa usa i vecchi pacchetti;
+- nessun progetto è rappresentato da un semplice `contacts.status`;
+- preventivi, ricavi, trial, abbonamenti e minuti video sono attribuibili a `project_id`;
+- il piano unico e le condizioni custom sono gestiti senza reintrodurre tier;
+- dashboard e AI distinguono ricavi SaaS, video e servizi;
+- tutte le transizioni commerciali sono auditabili.

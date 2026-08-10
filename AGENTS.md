@@ -73,3 +73,23 @@ If a team member sees an empty CRM after login, check in Supabase:
 2. **Assignment fields**: RLS and API treat a contact as assigned to a member when **`lower(trim(responsible))`** or **`lower(trim(assigned_agent))`** equals **`lower(trim(team_members.name))`**. If the admin UI shows an assignee but the DB value differs (extra spaces, spelling), fix the contact or rename the member (team update can cascade `responsible` in some flows).
 3. **Apply migrations**: Policies in `20260424120000_collaborator_rls_align.sql` replace stricter older rules; run `supabase db push` / migrate on the target project.
 4. **`20260424183000_team_members_collaborator_read.sql`**: `requireRouteUser` resolves the workspace by querying `team_members` with the **user JWT** first. Without this migration, missing `SUPABASE_SERVICE_ROLE_KEY` on the host made resolution fail silently (`workspaceUserId` stayed the collaborator’s own uid → **zero rows** for contacts/tasks). After push, collaborators can read team rows for their workspace without service role on every request.
+
+## Speaqi business model v2 — mandatory source of truth
+
+Before changing pricing, projects, quotes, subscriptions, finance, video usage, pipeline, dashboards, automations or AI recommendations, read:
+
+1. `.agents/product-marketing.md`
+2. `docs/SPEAQI-BUSINESS-MODEL.md`
+3. `docs/BUSINESS-OS.md`
+
+Mandatory invariants:
+
+- The **project**, not the user or contact, is the commercial unit.
+- One customer can own multiple projects with independent lifecycle and economics.
+- Project statuses are `demo`, `trial`, `active`, `suspended`, `archived`.
+- The standard platform subscription is a single full-feature plan: **99 EUR/month** or **990 EUR/year per project**.
+- Do not create or reintroduce Pro, Business, Enterprise, START, EXPERIENCE or SIGNATURE plans.
+- Text generation, translation and multilingual audio are included in the platform subscription.
+- AI video is sold separately in visible **minutes**; internal credits must never be exposed to customers.
+- High-volume custom agreements may negotiate video pricing and include the platform fee, but are not separate product tiers.
+- Sales pipeline stages and project lifecycle status must remain separate concepts.
