@@ -3,6 +3,7 @@ import { errorMessage } from '@/lib/server/http'
 import { requireRouteUser } from '@/lib/server/supabase'
 import {
   collectEmailEvents,
+  describeAcumbamailPayload,
   fetchAcumbamailFunction,
   inferContactName,
   slugify,
@@ -137,6 +138,8 @@ export async function POST(request: NextRequest) {
       rows,
       summary,
       fetched_at: new Date().toISOString(),
+      _debug_openers_shape: describeAcumbamailPayload(openersPayload),
+      _debug_clicks_shape: describeAcumbamailPayload(clicksPayload),
     })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Recupero dati Acumbamail non riuscito') }, { status: 500 })

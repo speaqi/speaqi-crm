@@ -200,6 +200,29 @@ export function inferContactName(email: string) {
     .join(' ')
 }
 
+export function describeAcumbamailPayload(payload: unknown): string {
+  function describe(value: unknown, depth = 0): unknown {
+    if (depth > 3) return typeof value
+    if (Array.isArray(value)) {
+      return {
+        type: 'array',
+        length: value.length,
+        first_items: value.slice(0, 2).map((item) => describe(item, depth + 1)),
+      }
+    }
+    if (isRecord(value)) {
+      const keys = Object.keys(value)
+      const sample: Record<string, unknown> = {}
+      for (const key of keys.slice(0, 8)) {
+        sample[key] = describe(value[key], depth + 1)
+      }
+      return { type: 'object', key_count: keys.length, keys: keys.slice(0, 20), sample }
+    }
+    return { type: typeof value, value: typeof value === 'string' ? value.slice(0, 60) : value }
+  }
+  return JSON.stringify(describe(payload), null, 2)
+}
+
 export function slugify(value: unknown) {
   return String(value || '')
     .normalize('NFD')
