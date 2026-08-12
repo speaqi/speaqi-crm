@@ -2981,6 +2981,10 @@ textarea.form-input::placeholder { color: var(--text3); }
 .attivita-todo-date { border: 1px solid var(--border); border-radius: 6px; padding: 5px 7px; background: var(--surface); color: var(--text2); font: inherit; font-size: 11px; }
 .attivita-todo-start { border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; background: var(--surface2); color: var(--text2); font: inherit; font-size: 11px; cursor: pointer; white-space: nowrap; }
 .attivita-todo-start:hover, .attivita-todo-start.started { background: #ecfdf5; border-color: #86efac; color: #047857; }
+.attivita-todo-calendar { border: 1px solid #c7d2fe; border-radius: 6px; padding: 5px 8px; background: #eef2ff; color: #3730a3; font: inherit; font-size: 11px; cursor: pointer; text-decoration: none; white-space: nowrap; }
+.attivita-todo-calendar:hover { border-color: #818cf8; background: #e0e7ff; }
+.attivita-todo-calendar:disabled { opacity: .42; cursor: not-allowed; }
+.attivita-todo-calendar.linked { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
 .attivita-todo-empty { padding: 20px 4px; color: var(--text3); font-size: 13px; }
 @media (max-width: 700px) {
   .attivita-todo-v2 .attivita-todo-head { align-items: flex-start; }
@@ -6245,6 +6249,9 @@ textarea.form-input::placeholder { color: var(--text3); }
 .acumbamail-qualified-badge { background: var(--green-light); color: var(--green); }
 .acumbamail-detail-pagination { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 10px; color: var(--text2); font-size: 12px; }
 .acumbamail-detail-pagination > div { display: flex; gap: 6px; }
+.acumbamail-sortable { cursor: pointer; user-select: none; }
+.acumbamail-sortable:hover { color: var(--accent); }
+.acumbamail-draft-note-input::placeholder { color: var(--text3); font-size: 11px; }
 
 @media (max-width: 900px) {
   .acumbamail-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -40,7 +40,30 @@ type CampaignDetail = {
   fetched_at: string
 }
 
+type ApiCampaignRow = {
+  email: string
+  name: string | null
+  open_count: number
+  click_count: number
+  last_open_at: string | null
+  last_click_at: string | null
+  qualified: boolean
+  contact_id: string | null
+}
+
+type ApiCampaignResult = {
+  ok: boolean
+  campaign_id: string
+  campaign_key: string
+  campaign_name: string
+  rows: ApiCampaignRow[]
+  summary: { tracked: number; openers: number; clickers: number; qualified: number }
+  fetched_at: string
+}
+
 type DetailFilter = 'all' | 'qualified' | 'clickers' | 'openers'
+type SortField = 'name' | 'email' | 'open_count' | 'click_count'
+type SortDir = 'asc' | 'desc'
 const DETAIL_PAGE_SIZE = 100
 
 function formatUpdateTime(value: string) {
@@ -73,6 +96,18 @@ export default function AcumbamailPage() {
   const [detailSearch, setDetailSearch] = useState('')
   const [detailPage, setDetailPage] = useState(1)
   const [syncingCampaignKey, setSyncingCampaignKey] = useState<string | null>(null)
+  const [apiCampaignId, setApiCampaignId] = useState('')
+  const [apiCampaignName, setApiCampaignName] = useState('')
+  const [apiMinOpens, setApiMinOpens] = useState(5)
+  const [apiListName, setApiListName] = useState('Acumbamail')
+  const [apiResponsible, setApiResponsible] = useState('')
+  const [apiLoading, setApiLoading] = useState(false)
+  const [apiResult, setApiResult] = useState<ApiCampaignResult | null>(null)
+  const [apiError, setApiError] = useState('')
+  const [sortField, setSortField] = useState<SortField>('click_count')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [draftingEmail, setDraftingEmail] = useState<string | null>(null)
+  const [draftNotes, setDraftNotes] = useState<Record<string, string>>({})
 
   const loadCampaigns = useCallback(async () => {
     try {
@@ -219,7 +254,101 @@ export default function AcumbamailPage() {
     }
   }
 
-  if (!isAdmin) return <div className="inline-error">L’area Acumbamail è riservata agli amministratori.</div>
+  async function fetchFromApi() {
+    if (!apiCampaignId.trim()) return
+    setApiLoading(true)
+    setApiError('')
+    setApiResult(null)
+    try {
+      const result = await apiFetch<ApiCampaignResult>('/api/integrations/acumbamail/fetch-campaign-stats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaign_id: apiCampaignId.trim(),
+          name: apiCampaignName.trim() || undefined,
+          min_opens: apiMinOpens,
+          list_name: apiListName.trim() || undefined,
+          responsible: apiResponsible || undefined,
+        }),
+      })
+      setApiResult(result)
+      setSortField('click_count')
+      setSortDir('desc')
+      showToast(`${result.summary.tracked} email · ${result.summary.clickers} click · ${result.summary.openers} aperture`)
+      await loadCampaigns()
+    } catch (fetchError) {
+      setApiError(fetchError instanceof Error ? fetchError.message : 'Recupero dati non riuscito')
+    } finally {
+      setApiLoading(false)
+    }
+  }
+
+  const sortedApiRows = useMemo(() => {
+    if (!apiResult) return []
+    const sorted = [...apiResult.rows]
+    sorted.sort((a, b) => {
+      if (sortField === 'name' || sortField === 'email') {
+        const aVal = (a[sortField] || '').toLowerCase()
+        const bVal = (b[sortField] || '').toLowerCase()
+        return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
+      }
+      return sortDir === 'asc' ? a[sortField] - b[sortField] : b[sortField] - a[sortField]
+    })
+    return sorted
+  }, [apiResult, sortField, sortDir])
+
+  function toggleSort(field: SortField) {
+    if (sortField === field) {
+      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortDir('desc')
+    }
+  }
+
+  function sortIndicator(field: SortField) {
+    if (sortField !== field) return ''
+    return sortDir === 'asc' ? ' ▲' : ' ▼'
+  }
+
+  async function generateDraft(row: ApiCampaignRow) {
+    setDraftingEmail(row.email)
+    try {
+      const result = await apiFetch<{ ok?: boolean; draft_id?: string; error?: string; contact_id?: string }>(
+        '/api/integrations/acumbamail/contact-and-draft',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: row.email,
+            name: row.name,
+            list_name: apiResult?.campaign_name || 'Acumbamail',
+            campaign_key: apiResult?.campaign_key,
+            note: draftNotes[row.email] || undefined,
+          }),
+        }
+      )
+      if (result.error) {
+        showToast(result.error)
+      } else {
+        showToast(`Bozza creata per ${row.email}`)
+        if (apiResult) {
+          setApiResult({
+            ...apiResult,
+            rows: apiResult.rows.map((r) =>
+              r.email === row.email ? { ...r, contact_id: result.contact_id || r.contact_id } : r
+            ),
+          })
+        }
+      }
+    } catch (draftError) {
+      showToast(draftError instanceof Error ? draftError.message : 'Bozza non creata')
+    } finally {
+      setDraftingEmail(null)
+    }
+  }
+
+  if (!isAdmin) return <div className="inline-error">L'area Acumbamail è riservata agli amministratori.</div>
 
   return (
     <div className="acumbamail-page">
@@ -231,7 +360,96 @@ export default function AcumbamailPage() {
       <section className="acumbamail-card">
         <div className="acumbamail-card-head">
           <div>
-            <h2>Nuova campagna</h2>
+            <h2>Recupera dati da API</h2>
+            <p>Inserisci l&apos;ID della campagna Acumbamail per recuperare aperture e click direttamente dall&apos;API.</p>
+          </div>
+        </div>
+
+        <div className="acumbamail-form-grid">
+          <label><span>ID campagna *</span><input value={apiCampaignId} onChange={(event) => setApiCampaignId(event.target.value.replace(/\D/g, ''))} placeholder="Es. 3796370" /></label>
+          <label><span>Nome campagna</span><input value={apiCampaignName} onChange={(event) => setApiCampaignName(event.target.value)} placeholder="Opzionale" /></label>
+          <label><span>Soglia aperture</span><input type="number" min="1" value={apiMinOpens} onChange={(event) => setApiMinOpens(Math.max(1, Number(event.target.value) || 1))} /></label>
+          <label>
+            <span>Responsabile</span>
+            <select value={apiResponsible} onChange={(event) => setApiResponsible(event.target.value)}>
+              <option value="">Nessuno</option>
+              {teamMembers.map((member) => <option key={member.id} value={member.name}>{member.name}</option>)}
+            </select>
+          </label>
+        </div>
+        {apiError && <div className="import-error">{apiError}</div>}
+        <div className="acumbamail-actions">
+          <button type="button" className="btn btn-primary" disabled={apiLoading || !apiCampaignId.trim()} onClick={fetchFromApi}>
+            {apiLoading ? 'Recupero…' : 'Recupera dati'}
+          </button>
+        </div>
+      </section>
+
+      {apiResult && (
+        <section className="acumbamail-campaigns">
+          <div className="acumbamail-card-head" style={{ marginBottom: 14 }}>
+            <div>
+              <h2>{apiResult.campaign_name}</h2>
+              <p>ID {apiResult.campaign_id} · soglia {apiMinOpens} aperture · aggiornato alle {formatUpdateTime(apiResult.fetched_at)}</p>
+            </div>
+          </div>
+          <div className="acumbamail-detail-summary">
+            <div><strong>{apiResult.summary.tracked}</strong><span>monitorati</span></div>
+            <div><strong>{apiResult.summary.openers}</strong><span>hanno aperto</span></div>
+            <div><strong>{apiResult.summary.clickers}</strong><span>hanno cliccato</span></div>
+            <div><strong>{apiResult.summary.qualified}</strong><span>qualificati</span></div>
+          </div>
+          <div className="acumbamail-detail-table-wrap">
+            <table className="acumbamail-detail-table">
+              <thead>
+                <tr>
+                  <th className="acumbamail-sortable" onClick={() => toggleSort('name')}>Contatto{sortIndicator('name')}</th>
+                  <th className="acumbamail-sortable" onClick={() => toggleSort('email')}>Email{sortIndicator('email')}</th>
+                  <th className="acumbamail-sortable" onClick={() => toggleSort('open_count')}>Aperture{sortIndicator('open_count')}</th>
+                  <th className="acumbamail-sortable" onClick={() => toggleSort('click_count')}>Click{sortIndicator('click_count')}</th>
+                  <th>Esito</th>
+                  <th>Bozza</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedApiRows.map((row) => (
+                  <tr key={row.email}>
+                    <td>{row.name || '—'}</td>
+                    <td>{row.email}</td>
+                    <td><strong>{row.open_count}</strong></td>
+                    <td>{row.click_count > 0 ? <span className="acumbamail-click-badge">✓ {row.click_count}</span> : '—'}</td>
+                    <td>{row.qualified ? <span className="acumbamail-qualified-badge">Qualificato</span> : <span className="import-muted">In monitoraggio</span>}</td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <input
+                          className="acumbamail-draft-note-input"
+                          placeholder="Nota bozza..."
+                          value={draftNotes[row.email] || ''}
+                          onChange={(event) => setDraftNotes((prev) => ({ ...prev, [row.email]: event.target.value }))}
+                          style={{ width: 120, fontSize: 12, padding: '4px 7px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', color: 'var(--text)' }}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={draftingEmail === row.email}
+                          onClick={() => generateDraft(row)}
+                        >
+                          {draftingEmail === row.email ? '…' : 'Crea bozza AI'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      <section className="acumbamail-card">
+        <div className="acumbamail-card-head">
+          <div>
+            <h2>Nuova campagna (CSV)</h2>
             <p>Carica i due report separati di Acumbamail. Lo stesso contatto presente in entrambi viene contato una sola volta.</p>
           </div>
           <span className="acumbamail-threshold">≥ {minOpens} aperture</span>
@@ -291,7 +509,7 @@ export default function AcumbamailPage() {
               <div className="acumbamail-campaign-row">
                 <div className="acumbamail-campaign-main">
                   <h3>{campaign.name}</h3>
-                  <p>Lista “{campaign.list_name}” · ID {campaign.campaign_id || 'non configurato'} · soglia {campaign.min_opens} aperture{campaign.responsible ? ` · ${campaign.responsible}` : ''}</p>
+                  <p>Lista &ldquo;{campaign.list_name}&rdquo; · ID {campaign.campaign_id || 'non configurato'} · soglia {campaign.min_opens} aperture{campaign.responsible ? ` · ${campaign.responsible}` : ''}</p>
                   {campaign.last_synced_at && <p>Ultima sync API: {new Date(campaign.last_synced_at).toLocaleString('it-IT')}</p>}
                   {campaign.last_sync_error && <p className="acumbamail-sync-error">{campaign.last_sync_error}</p>}
                 </div>
