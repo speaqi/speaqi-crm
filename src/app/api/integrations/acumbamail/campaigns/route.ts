@@ -185,11 +185,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const finalCampaignKey = mergeIntoKey || campaignKey
+
     const deduped = Array.from(merged.values()).map((row) => {
       const isQualified = row.openCount >= minOpens || row.clickCount > 0
       return {
         user_id: auth.workspaceUserId,
-      campaign_key: finalCampaignKey,
+        campaign_key: finalCampaignKey,
         email: row.email,
         name: row.name,
         open_count: row.openCount,
@@ -232,12 +234,9 @@ export async function POST(request: NextRequest) {
           row.open_count = Math.max(row.open_count, existing.open_count)
           row.click_count = Math.max(row.click_count, existing.click_count)
         }
-        row.campaign_key = mergeIntoKey
         row.promoted_at = row.click_count > 0 || row.open_count >= targetMinOpens ? new Date().toISOString() : null
       }
     }
-
-    const finalCampaignKey = mergeIntoKey || campaignKey
 
     const { error: campaignError } = await auth.supabase.from('acumbamail_campaigns').upsert({
       user_id: auth.workspaceUserId,
