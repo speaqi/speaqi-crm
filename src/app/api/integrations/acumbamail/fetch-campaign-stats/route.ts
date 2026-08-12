@@ -231,7 +231,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const rows: EngagementRow[] = engagementRows.map((row) => ({
+    const rows: EngagementRow[] = engagementRows
+      .filter((row) => row.click_count > 0 || row.open_count >= minOpens)
+      .map((row) => ({
       email: row.email,
       name: row.name,
       open_count: row.open_count,
