@@ -140,7 +140,11 @@ export function collectEmailEvents(
         ? normalizeTimestamp(firstValue(value, ['date', 'timestamp', 'created_at', 'occurred_at', 'click_date', 'open_date']))
         : normalizeTimestamp(value)
       const valueRecord = isRecord(value) ? value : {}
-      const count = isRecord(valueRecord) ? eventCountFromRecord(valueRecord) : 1
+      const count = isRecord(value)
+        ? (eventCountFromRecord(value) || 1)
+        : (typeof value === 'number' && Number.isFinite(value)
+          ? Math.max(1, Math.round(value))
+          : (Number(String(value).replace(',', '.')) || 1))
       const name = isRecord(valueRecord) ? eventNameFromRecord(valueRecord) : null
       addSummaryWithMeta(out, keyEmail, occurredAt, count, name)
       handledEmailKeys = true
