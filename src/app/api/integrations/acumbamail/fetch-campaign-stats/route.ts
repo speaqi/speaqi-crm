@@ -2,15 +2,138 @@ import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
 import { requireRouteUser } from '@/lib/server/supabase'
 import {
-  collectEmailEvents,
   fetchAcumbamailFunction,
   inferContactName,
-  laterTimestamp,
   slugify,
-  normalizeContactScope,
   normalizeEmail,
   normalizeText,
+  isRecord,
 } from '@/lib/server/acumbamail-api'
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+type ParsedEntry = {
+  email: string
+  name: string | null
+  count: number
+}
+
+function toNumber(value: unknown, fallback = 0): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.round(value)
+  if (value === null || value === undefined || value === '') return fallback
+  const num = Number(String(value).replace(',', '.').trim())
+  return Number.isFinite(num) ? Math.round(num) : fallback
+}
+
+function findEmail(value: unknown): string | null {
+  if (typeof value === 'string' && EMAIL_RE.test(value.trim())) return value.trim().toLowerCase()
+  if (isRecord(value)) {
+    for (const key of ['email', 'mail', 'subscriber_email', 'email_address', 'recipient']) {
+      const val = value[key]
+      if (typeof val === 'string' && EMAIL_RE.test(val.trim())) return val.trim().toLowerCase()
+    }
+  }
+  return null
+}
+
+function findName(value: unknown): string | null {
+  if (!isRecord(value)) return null
+  for (const key of ['name', 'full_name', 'subscriber_name', 'nombre', 'nombre_completo']) {
+    const val = value[key]
+    if (typeof val === 'string' && val.trim()) return val.trim()
+  }
+  return null
+}
+
+function findCount(value: unknown): number {
+  if (typeof value === 'number') return Math.max(0, Math.round(value))
+  if (typeof value === 'string') {
+    const num = toNumber(value)
+    if (num > 0) return num
+  }
+  if (isRecord(value)) {
+    for (const key of ['count', 'total', 'opens', 'open_count', 'clicks', 'click_count', 'times_opened', 'times_clicked']) {
+      const val = value[key]
+      if (typeof val === 'number' && Number.isFinite(val)) return Math.round(val)
+      if (typeof val === 'string') {
+        const num = toNumber(val)
+        if (num > 0) return num
+      }
+    }
+  }
+  return 0
+}
+
+function parseAcumbamailResponse(payload: unknown): Map<string, ParsedEntry> {
+  const result = new Map<string, ParsedEntry>()
+
+  function merge(email: string, name: string | null, count: number) {
+    const existing = result.get(email)
+    if (existing) {
+      existing.count = Math.max(existing.count, count)
+      if (!existing.name && name) existing.name = name
+    } else {
+      result.set(email, { email, name, count })
+    }
+  }
+
+  function process(value: unknown, depth = 0) {
+    if (depth > 5 || value === null || value === undefined) return
+
+    if (Array.isArray(value)) {
+      for (const item of value) process(item, depth + 1)
+      return
+    }
+
+    if (typeof value === 'string') {
+      const email = findEmail(value)
+      if (email) merge(email, null, 1)
+      return
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') return
+
+    if (!isRecord(value)) return
+
+    const directEmail = findEmail(value)
+    if (directEmail) {
+      merge(directEmail, findName(value), Math.max(1, findCount(value)))
+      return
+    }
+
+    for (const [key, val] of Object.entries(value)) {
+      const keyEmail = key.trim().toLowerCase()
+      if (EMAIL_RE.test(keyEmail)) {
+        if (typeof val === 'number') {
+          merge(keyEmail, null, val)
+        } else if (typeof val === 'string') {
+          const num = toNumber(val)
+          merge(keyEmail, null, num > 0 ? num : 1)
+        } else if (isRecord(val)) {
+          merge(keyEmail, findName(val), Math.max(1, findCount(val)))
+        } else {
+          merge(keyEmail, null, 1)
+        }
+      } else {
+        process(val, depth + 1)
+      }
+    }
+  }
+
+  process(payload)
+
+  if (result.size === 0) {
+    const text = typeof payload === 'string' ? payload : JSON.stringify(payload)
+    const emails = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g)
+    if (emails) {
+      for (const email of emails) {
+        merge(email.toLowerCase(), null, 1)
+      }
+    }
+  }
+
+  return result
+}
 
 type EngagementRow = {
   email: string
@@ -49,15 +172,15 @@ export async function POST(request: NextRequest) {
       fetchAcumbamailFunction('getCampaignClicks', token, campaignId),
     ])
 
-    const openers = collectEmailEvents(openersPayload)
-    const clickers = collectEmailEvents(clicksPayload)
+    const openers = parseAcumbamailResponse(openersPayload)
+    const clickers = parseAcumbamailResponse(clicksPayload)
     const allEmails = Array.from(new Set([...openers.keys(), ...clickers.keys()])).sort()
 
     const engagementRows = allEmails.map((email) => {
       const open = openers.get(email)
       const click = clickers.get(email)
-      const openCount = Number(open?.count || 0)
-      const clickCount = Number(click?.count || 0)
+      const openCount = open?.count || 0
+      const clickCount = click?.count || 0
       const displayName = click?.name || open?.name || inferContactName(email)
       return {
         user_id: auth.workspaceUserId,
@@ -66,7 +189,7 @@ export async function POST(request: NextRequest) {
         name: displayName,
         open_count: openCount,
         click_count: clickCount,
-        last_open_at: open?.lastAt || null,
+        last_open_at: null,
         promoted_at: clickCount > 0 || openCount >= minOpens ? new Date().toISOString() : null,
         updated_at: new Date().toISOString(),
       }
@@ -114,7 +237,7 @@ export async function POST(request: NextRequest) {
       open_count: row.open_count,
       click_count: row.click_count,
       last_open_at: row.last_open_at,
-      last_click_at: clickers.get(row.email)?.lastAt || null,
+      last_click_at: null,
       qualified: row.click_count > 0 || row.open_count >= minOpens,
       contact_id: contactMap.get(row.email) || null,
     }))
