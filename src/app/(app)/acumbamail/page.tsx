@@ -60,8 +60,6 @@ type ApiCampaignResult = {
   rows: ApiCampaignRow[]
   summary: { tracked: number; openers: number; clickers: number; qualified: number }
   fetched_at: string
-  _debug_openers_shape?: string
-  _debug_clicks_shape?: string
 }
 
 type DetailFilter = 'all' | 'qualified' | 'clickers' | 'openers'
@@ -402,13 +400,6 @@ export default function AcumbamailPage() {
             <div><strong>{apiResult.summary.clickers}</strong><span>hanno cliccato</span></div>
             <div><strong>{sortedApiRows.length}</strong><span>in tabella (≥{apiMinOpens} aperture o click)</span></div>
           </div>
-          {(apiResult._debug_openers_shape || apiResult._debug_clicks_shape) && (
-            <details style={{ marginBottom: 14, fontSize: 11, color: 'var(--text3)' }}>
-              <summary style={{ cursor: 'pointer' }}>Debug: struttura risposta API (temporaneo, per diagnosi)</summary>
-              {apiResult._debug_openers_shape && <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 300, overflow: 'auto', background: 'var(--surface2)', padding: 8, borderRadius: 4 }}>OPENERS: {apiResult._debug_openers_shape}</pre>}
-              {apiResult._debug_clicks_shape && <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 300, overflow: 'auto', background: 'var(--surface2)', padding: 8, borderRadius: 4, marginTop: 8 }}>CLICKS: {apiResult._debug_clicks_shape}</pre>}
-            </details>
-          )}
           <div className="acumbamail-detail-table-wrap">
             <table className="acumbamail-detail-table">
               <thead>

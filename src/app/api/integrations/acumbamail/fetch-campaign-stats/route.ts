@@ -3,13 +3,21 @@ import { errorMessage } from '@/lib/server/http'
 import { requireRouteUser } from '@/lib/server/supabase'
 import {
   collectEmailEvents,
-  describeAcumbamailPayload,
   fetchAcumbamailFunction,
   inferContactName,
+  laterTimestamp,
   slugify,
   normalizeEmail,
   normalizeText,
 } from '@/lib/server/acumbamail-api'
+
+function chunk<T>(items: T[], size = 200) {
+  const batches: T[][] = []
+  for (let index = 0; index < items.length; index += size) {
+    batches.push(items.slice(index, index + size))
+  }
+  return batches
+}
 
 type EngagementRow = {
   email: string
@@ -52,12 +60,30 @@ export async function POST(request: NextRequest) {
     const clickers = collectEmailEvents(clicksPayload)
     const allEmails = Array.from(new Set([...openers.keys(), ...clickers.keys()])).sort()
 
+    // Acumbamail's getCampaignOpeners/getCampaignClicks only report "opened/clicked at least
+    // once" (no per-subscriber count), so the real repeat counts come from webhook events
+    // accumulated over time in acumbamail_campaign_engagements. Merge with the max of the two.
+    const existingByEmail = new Map<string, { name: string | null; open_count: number; click_count: number; last_open_at: string | null; promoted_at: string | null }>()
+    for (const batch of chunk(allEmails)) {
+      const { data: existingEngagements, error: existingEngagementsError } = await auth.supabase
+        .from('acumbamail_campaign_engagements')
+        .select('email,name,open_count,click_count,last_open_at,promoted_at')
+        .eq('user_id', auth.workspaceUserId)
+        .eq('campaign_key', campaignKey)
+        .in('email', batch)
+      if (existingEngagementsError) throw existingEngagementsError
+      for (const row of existingEngagements || []) {
+        existingByEmail.set(String(row.email || '').toLowerCase(), row)
+      }
+    }
+
     const engagementRows = allEmails.map((email) => {
       const open = openers.get(email)
       const click = clickers.get(email)
-      const openCount = Number(open?.count || 0)
-      const clickCount = Number(click?.count || 0)
-      const displayName = click?.name || open?.name || inferContactName(email)
+      const existing = existingByEmail.get(email)
+      const openCount = Math.max(Number(existing?.open_count || 0), Number(open?.count || 0))
+      const clickCount = Math.max(Number(existing?.click_count || 0), Number(click?.count || 0))
+      const displayName = existing?.name || click?.name || open?.name || inferContactName(email)
       return {
         user_id: auth.workspaceUserId,
         campaign_key: campaignKey,
@@ -65,8 +91,9 @@ export async function POST(request: NextRequest) {
         name: displayName,
         open_count: openCount,
         click_count: clickCount,
-        last_open_at: open?.lastAt || null,
-        promoted_at: clickCount > 0 || openCount >= minOpens ? new Date().toISOString() : null,
+        last_open_at: laterTimestamp(existing?.last_open_at || null, open?.lastAt || null),
+        promoted_at:
+          existing?.promoted_at || (clickCount > 0 || openCount >= minOpens ? new Date().toISOString() : null),
         updated_at: new Date().toISOString(),
       }
     })
@@ -138,8 +165,6 @@ export async function POST(request: NextRequest) {
       rows,
       summary,
       fetched_at: new Date().toISOString(),
-      _debug_openers_shape: describeAcumbamailPayload(openersPayload),
-      _debug_clicks_shape: describeAcumbamailPayload(clicksPayload),
     })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Recupero dati Acumbamail non riuscito') }, { status: 500 })
