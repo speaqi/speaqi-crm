@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
       const isQualified = row.openCount >= minOpens || row.clickCount > 0
       return {
         user_id: auth.workspaceUserId,
-        campaign_key: campaignKey,
+      campaign_key: finalCampaignKey,
         email: row.email,
         name: row.name,
         open_count: row.openCount,
@@ -215,6 +215,10 @@ export async function POST(request: NextRequest) {
       ])
       if (existingEngsResult.error) throw existingEngsResult.error
 
+      const targetMinOpens = targetCampaignResult.data
+        ? Math.max(1, Number(targetCampaignResult.data.min_opens) || minOpens)
+        : minOpens
+
       const existingMap = new Map<string, { open_count: number; click_count: number }>()
       for (const eng of (existingEngsResult.data || [])) {
         existingMap.set(String(eng.email || '').toLowerCase(), {
@@ -229,13 +233,7 @@ export async function POST(request: NextRequest) {
           row.click_count = Math.max(row.click_count, existing.click_count)
         }
         row.campaign_key = mergeIntoKey
-        row.promoted_at = row.click_count > 0 || row.open_count >= minOpens ? new Date().toISOString() : null
-      }
-
-      if (targetCampaignResult.data) {
-        const targetName = String(targetCampaignResult.data.list_name || '').trim() || listName
-        const targetResponsible = String(targetCampaignResult.data.responsible || '').trim() || responsible
-        const targetMinOpens = Number(targetCampaignResult.data.min_opens) || minOpens
+        row.promoted_at = row.click_count > 0 || row.open_count >= targetMinOpens ? new Date().toISOString() : null
       }
     }
 
