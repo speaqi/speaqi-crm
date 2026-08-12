@@ -259,6 +259,8 @@ export async function POST(request: NextRequest) {
       rows,
       summary,
       fetched_at: new Date().toISOString(),
+      _debug_openers_sample: JSON.stringify(openersPayload).slice(0, 500),
+      _debug_clicks_sample: JSON.stringify(clicksPayload).slice(0, 500),
     })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Recupero dati Acumbamail non riuscito') }, { status: 500 })
