@@ -77,13 +77,30 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const contactIdByEmail = new Map<string, string>()
+    const contactNameByEmail = new Map<string, string>()
+    for (const batch of chunk(allEmails)) {
+      const { data: matchedContacts, error: matchedContactsError } = await auth.supabase
+        .from('contacts')
+        .select('id,name,email')
+        .eq('user_id', auth.workspaceUserId)
+        .in('email', batch)
+      if (matchedContactsError) throw matchedContactsError
+      for (const contact of matchedContacts || []) {
+        const normalized = normalizeEmail(contact.email)
+        if (!normalized) continue
+        contactIdByEmail.set(normalized, contact.id)
+        if (contact.name) contactNameByEmail.set(normalized, contact.name)
+      }
+    }
+
     const engagementRows = allEmails.map((email) => {
       const open = openers.get(email)
       const click = clickers.get(email)
       const existing = existingByEmail.get(email)
       const openCount = Math.max(Number(existing?.open_count || 0), Number(open?.count || 0))
       const clickCount = Math.max(Number(existing?.click_count || 0), Number(click?.count || 0))
-      const displayName = existing?.name || click?.name || open?.name || inferContactName(email)
+      const displayName = existing?.name || click?.name || open?.name || contactNameByEmail.get(email) || inferContactName(email)
       return {
         user_id: auth.workspaceUserId,
         campaign_key: campaignKey,
@@ -119,21 +136,6 @@ export async function POST(request: NextRequest) {
       if (error) throw error
     }
 
-    const emailList = allEmails
-    const contactMap = new Map<string, string>()
-    for (let index = 0; index < emailList.length; index += 200) {
-      const batch = emailList.slice(index, index + 200)
-      const { data: existingContacts } = await auth.supabase
-        .from('contacts')
-        .select('id,email')
-        .eq('user_id', auth.workspaceUserId)
-        .in('email', batch)
-      for (const contact of (existingContacts || [])) {
-        const normalized = normalizeEmail(contact.email)
-        if (normalized) contactMap.set(normalized, contact.id)
-      }
-    }
-
     const rows: EngagementRow[] = engagementRows.map((row) => ({
       email: row.email,
       name: row.name,
@@ -142,7 +144,7 @@ export async function POST(request: NextRequest) {
       last_open_at: row.last_open_at,
       last_click_at: null,
       qualified: row.click_count > 0 || row.open_count >= minOpens,
-      contact_id: contactMap.get(row.email) || null,
+      contact_id: contactIdByEmail.get(row.email) || null,
     }))
 
     const allTracked = rows.length

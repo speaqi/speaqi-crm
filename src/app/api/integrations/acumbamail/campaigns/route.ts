@@ -165,6 +165,25 @@ export async function POST(request: NextRequest) {
     }
 
     for (const email of unsubscribedEmails) merged.delete(email)
+
+    const emailsMissingName = Array.from(merged.values())
+      .filter((row) => !row.name)
+      .map((row) => row.email)
+    for (let index = 0; index < emailsMissingName.length; index += 200) {
+      const batch = emailsMissingName.slice(index, index + 200)
+      const { data: matchedContacts, error: matchedContactsError } = await auth.supabase
+        .from('contacts')
+        .select('name,email')
+        .eq('user_id', auth.workspaceUserId)
+        .in('email', batch)
+      if (matchedContactsError) throw matchedContactsError
+      for (const contact of matchedContacts || []) {
+        const email = String(contact.email || '').trim().toLowerCase()
+        const row = merged.get(email)
+        if (row && !row.name && contact.name) row.name = contact.name
+      }
+    }
+
     const deduped = Array.from(merged.values()).map((row) => {
       const isQualified = row.openCount >= minOpens || row.clickCount > 0
       return {
