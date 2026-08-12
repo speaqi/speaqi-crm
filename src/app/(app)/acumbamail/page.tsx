@@ -109,6 +109,8 @@ export default function AcumbamailPage() {
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [draftingEmail, setDraftingEmail] = useState<string | null>(null)
   const [draftNotes, setDraftNotes] = useState<Record<string, string>>({})
+  const [mergeIntoCampaign, setMergeIntoCampaign] = useState('')
+  const [deletingKey, setDeletingKey] = useState<string | null>(null)
 
   const loadCampaigns = useCallback(async () => {
     try {
@@ -233,6 +235,7 @@ export default function AcumbamailPage() {
           opens_csv_text: opensCsvText,
           clicks_csv_text: clicksCsvText,
           unsubscribes_csv_text: unsubscribesCsvText,
+          merge_into_campaign_key: mergeIntoCampaign || undefined,
         }),
       })
       showToast(`${result.qualified} qualificati · ${result.clickers} clicker · ${result.excluded_unsubscribed} cancellati esclusi`)
@@ -248,10 +251,30 @@ export default function AcumbamailPage() {
       if (clicksFileRef.current) clicksFileRef.current.value = ''
       if (unsubscribesFileRef.current) unsubscribesFileRef.current.value = ''
       await Promise.all([loadCampaigns(), refresh()])
+      setMergeIntoCampaign('')
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : 'Import non riuscito')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function deleteCampaign(campaignKey: string) {
+    if (!confirm(`Cancellare la campagna e tutti i suoi dati?`)) return
+    setDeletingKey(campaignKey)
+    try {
+      await apiFetch('/api/integrations/acumbamail/campaigns', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaign_key: campaignKey }),
+      })
+      showToast('Campagna cancellata')
+      await loadCampaigns()
+      if (expandedCampaignKey === campaignKey) setExpandedCampaignKey(null)
+    } catch (deleteErr) {
+      showToast(deleteErr instanceof Error ? deleteErr.message : 'Cancellazione non riuscita')
+    } finally {
+      setDeletingKey(null)
     }
   }
 
@@ -468,6 +491,13 @@ export default function AcumbamailPage() {
               {teamMembers.map((member) => <option key={member.id} value={member.name}>{member.name}</option>)}
             </select>
           </label>
+          <label>
+            <span>Unisci a campagna esistente</span>
+            <select value={mergeIntoCampaign} onChange={(event) => setMergeIntoCampaign(event.target.value)}>
+              <option value="">Nuova campagna</option>
+              {campaigns.map((c) => <option key={c.campaign_key} value={c.campaign_key}>{c.name}</option>)}
+            </select>
+          </label>
         </div>
 
         <div className="acumbamail-upload-grid">
@@ -533,6 +563,9 @@ export default function AcumbamailPage() {
                       showToast('URL webhook copiato')
                     }}>Copia webhook</button>
                   ) : <span className="inline-hint inline-hint-warn">Configura ACUMBAMAIL_WEBHOOK_TOKEN</span>}
+                  <button type="button" className="btn btn-ghost btn-sm" style={{ color: 'var(--red)' }} disabled={deletingKey === campaign.campaign_key} onClick={() => deleteCampaign(campaign.campaign_key)}>
+                    {deletingKey === campaign.campaign_key ? '…' : '🗑'}
+                  </button>
                 </div>
               </div>
 

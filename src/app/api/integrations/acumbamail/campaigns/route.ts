@@ -148,6 +148,7 @@ export async function POST(request: NextRequest) {
     const opensCsvText = String(body.opens_csv_text || body.csv_text || '')
     const clicksCsvText = String(body.clicks_csv_text || '')
     const unsubscribesCsvText = String(body.unsubscribes_csv_text || '')
+    const mergeIntoKey = String(body.merge_into_campaign_key || '').trim() || null
     if (!name || !campaignKey || (!opensCsvText.trim() && !clicksCsvText.trim())) {
       return Response.json({ error: 'Nome campagna e almeno un CSV sono obbligatori' }, { status: 400 })
     }
@@ -198,14 +199,56 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    if (mergeIntoKey) {
+      const [existingEngsResult, targetCampaignResult] = await Promise.all([
+        auth.supabase
+          .from('acumbamail_campaign_engagements')
+          .select('email,open_count,click_count')
+          .eq('user_id', auth.workspaceUserId)
+          .eq('campaign_key', mergeIntoKey),
+        auth.supabase
+          .from('acumbamail_campaigns')
+          .select('list_name,responsible,min_opens')
+          .eq('user_id', auth.workspaceUserId)
+          .eq('campaign_key', mergeIntoKey)
+          .single(),
+      ])
+      if (existingEngsResult.error) throw existingEngsResult.error
+
+      const existingMap = new Map<string, { open_count: number; click_count: number }>()
+      for (const eng of (existingEngsResult.data || [])) {
+        existingMap.set(String(eng.email || '').toLowerCase(), {
+          open_count: Number(eng.open_count || 0),
+          click_count: Number(eng.click_count || 0),
+        })
+      }
+      for (const row of deduped) {
+        const existing = existingMap.get(row.email)
+        if (existing) {
+          row.open_count = Math.max(row.open_count, existing.open_count)
+          row.click_count = Math.max(row.click_count, existing.click_count)
+        }
+        row.campaign_key = mergeIntoKey
+        row.promoted_at = row.click_count > 0 || row.open_count >= minOpens ? new Date().toISOString() : null
+      }
+
+      if (targetCampaignResult.data) {
+        const targetName = String(targetCampaignResult.data.list_name || '').trim() || listName
+        const targetResponsible = String(targetCampaignResult.data.responsible || '').trim() || responsible
+        const targetMinOpens = Number(targetCampaignResult.data.min_opens) || minOpens
+      }
+    }
+
+    const finalCampaignKey = mergeIntoKey || campaignKey
+
     const { error: campaignError } = await auth.supabase.from('acumbamail_campaigns').upsert({
       user_id: auth.workspaceUserId,
-      campaign_key: campaignKey,
-      name,
-      list_name: listName,
-      min_opens: minOpens,
-      responsible,
-      campaign_id: campaignId,
+      campaign_key: finalCampaignKey,
+      name: mergeIntoKey ? undefined : name,
+      list_name: mergeIntoKey ? undefined : listName,
+      min_opens: mergeIntoKey ? undefined : minOpens,
+      responsible: mergeIntoKey ? undefined : responsible,
+      campaign_id: mergeIntoKey ? undefined : campaignId,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,campaign_key' })
     if (campaignError) throw campaignError
@@ -225,7 +268,7 @@ export async function POST(request: NextRequest) {
           .from('acumbamail_campaign_engagements')
           .delete()
           .eq('user_id', auth.workspaceUserId)
-          .eq('campaign_key', campaignKey)
+          .eq('campaign_key', finalCampaignKey)
           .in('email', batch)
         if (deleteError) throw deleteError
 
@@ -267,15 +310,15 @@ export async function POST(request: NextRequest) {
           .from('acumbamail_campaign_engagements')
           .delete()
           .eq('user_id', auth.workspaceUserId)
-          .eq('campaign_key', campaignKey)
+          .eq('campaign_key', finalCampaignKey)
           .eq('email', row.email)
         continue
       }
 
       if (existing?.[0]) {
         const { error } = await auth.supabase.from('contacts').update({
-          list_name: listName,
-          event_tag: campaignKey,
+          list_name: mergeIntoKey ? undefined : listName,
+          event_tag: finalCampaignKey,
           source: 'acumbamail',
           contact_scope: 'holding',
           responsible,
@@ -301,8 +344,8 @@ export async function POST(request: NextRequest) {
           contact_scope: 'holding',
           priority: row.click_count > 0 ? 3 : 2,
           responsible,
-          list_name: listName,
-          event_tag: campaignKey,
+          list_name: mergeIntoKey ? undefined : listName,
+          event_tag: finalCampaignKey,
           email_open_count: row.open_count,
           email_click_count: row.click_count,
           note: row.click_count > 0
@@ -347,4 +390,33 @@ export async function PATCH(request: NextRequest) {
     .eq('campaign_key', campaignKey)
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return Response.json({ ok: true })
+}
+
+export async function DELETE(request: NextRequest) {
+  const auth = await requireRouteUser(request)
+  if ('error' in auth) return auth.error
+  if (!auth.isAdmin) return Response.json({ error: 'Solo admin' }, { status: 403 })
+
+  try {
+    const body = await request.json().catch(() => ({}))
+    const campaignKey = String(body.campaign_key || '').trim()
+    if (!campaignKey) return Response.json({ error: 'campaign_key obbligatorio' }, { status: 400 })
+
+    await auth.supabase
+      .from('acumbamail_campaign_engagements')
+      .delete()
+      .eq('user_id', auth.workspaceUserId)
+      .eq('campaign_key', campaignKey)
+
+    const { error } = await auth.supabase
+      .from('acumbamail_campaigns')
+      .delete()
+      .eq('user_id', auth.workspaceUserId)
+      .eq('campaign_key', campaignKey)
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+
+    return Response.json({ ok: true })
+  } catch (error) {
+    return Response.json({ error: errorMessage(error, 'Cancellazione non riuscita') }, { status: 500 })
+  }
 }
