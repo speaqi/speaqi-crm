@@ -293,46 +293,63 @@ export async function POST(request: NextRequest) {
     const qualified = deduped.filter((row) => row.open_count >= minOpens || row.click_count > 0)
     let promoted = 0
     let excludedUnsubscribed = unsubscribedEmails.size
-    for (const row of qualified) {
-      const { data: existing, error: findError } = await auth.supabase
+
+    type ExistingContact = {
+      id: string
+      email: string
+      status: string
+      email_open_count: number | null
+      email_click_count: number | null
+      email_unsubscribed_at: string | null
+    }
+    const existingByEmail = new Map<string, ExistingContact>()
+    for (let index = 0; index < qualified.length; index += 200) {
+      const batch = qualified.slice(index, index + 200).map((row) => row.email)
+      const { data, error } = await auth.supabase
         .from('contacts')
-        .select('id,status,email_open_count,email_click_count,email_unsubscribed_at')
+        .select('id,email,status,email_open_count,email_click_count,email_unsubscribed_at')
         .eq('user_id', auth.workspaceUserId)
-        .ilike('email', row.email)
-        .limit(1)
-      if (findError) throw findError
-      if (existing?.[0]?.email_unsubscribed_at) {
+        .in('email', batch)
+      if (error) throw error
+      for (const contact of (data || []) as ExistingContact[]) {
+        existingByEmail.set(String(contact.email || '').trim().toLowerCase(), contact)
+      }
+    }
+
+    const unsubscribedDuringPromotion: string[] = []
+    const toInsert: Record<string, unknown>[] = []
+    const toUpdate: Record<string, unknown>[] = []
+
+    for (const row of qualified) {
+      const existing = existingByEmail.get(row.email)
+      if (existing?.email_unsubscribed_at) {
         excludedUnsubscribed += 1
-        await auth.supabase
-          .from('acumbamail_campaign_engagements')
-          .delete()
-          .eq('user_id', auth.workspaceUserId)
-          .eq('campaign_key', finalCampaignKey)
-          .eq('email', row.email)
+        unsubscribedDuringPromotion.push(row.email)
         continue
       }
 
-      if (existing?.[0]) {
-        const { error } = await auth.supabase.from('contacts').update({
+      if (existing) {
+        toUpdate.push({
+          id: existing.id,
+          user_id: auth.workspaceUserId,
           list_name: mergeIntoKey ? undefined : listName,
           event_tag: finalCampaignKey,
           source: 'acumbamail',
           contact_scope: 'holding',
           responsible,
-          email_open_count: Math.max(Number(existing[0].email_open_count || 0), row.open_count),
-          email_click_count: Math.max(Number(existing[0].email_click_count || 0), row.click_count),
-          status: isClosedStatus(String(existing[0].status || ''))
-            ? existing[0].status
+          email_open_count: Math.max(Number(existing.email_open_count || 0), row.open_count),
+          email_click_count: Math.max(Number(existing.email_click_count || 0), row.click_count),
+          status: isClosedStatus(String(existing.status || ''))
+            ? existing.status
             : row.click_count > 0 ? 'Interested' : 'Contacted',
           priority: row.click_count > 0 ? 3 : 2,
           last_activity_summary: row.click_count > 0
             ? `Click nella campagna Acumbamail ${name}.`
             : `${row.open_count} aperture nella campagna Acumbamail ${name}.`,
           updated_at: new Date().toISOString(),
-        }).eq('id', existing[0].id).eq('user_id', auth.workspaceUserId)
-        if (error) throw error
+        })
       } else {
-        const { error } = await auth.supabase.from('contacts').insert({
+        toInsert.push({
           user_id: auth.workspaceUserId,
           name: row.name || inferName(row.email),
           email: row.email,
@@ -352,9 +369,31 @@ export async function POST(request: NextRequest) {
             ? `Click nella campagna Acumbamail ${name}.`
             : `${row.open_count} aperture nella campagna Acumbamail ${name}.`,
         })
-        if (error) throw error
       }
       promoted += 1
+    }
+
+    for (let index = 0; index < unsubscribedDuringPromotion.length; index += 200) {
+      const batch = unsubscribedDuringPromotion.slice(index, index + 200)
+      const { error } = await auth.supabase
+        .from('acumbamail_campaign_engagements')
+        .delete()
+        .eq('user_id', auth.workspaceUserId)
+        .eq('campaign_key', finalCampaignKey)
+        .in('email', batch)
+      if (error) throw error
+    }
+
+    for (let index = 0; index < toUpdate.length; index += 200) {
+      const { error } = await auth.supabase
+        .from('contacts')
+        .upsert(toUpdate.slice(index, index + 200), { onConflict: 'id' })
+      if (error) throw error
+    }
+
+    for (let index = 0; index < toInsert.length; index += 200) {
+      const { error } = await auth.supabase.from('contacts').insert(toInsert.slice(index, index + 200))
+      if (error) throw error
     }
 
     return Response.json({
