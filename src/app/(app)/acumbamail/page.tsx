@@ -219,7 +219,7 @@ export default function AcumbamailPage() {
   }
 
   async function importCampaign() {
-    if (!name.trim() || (!opensCsvText.trim() && !clicksCsvText.trim())) return
+    if ((!name.trim() && !mergeIntoCampaign) || (!opensCsvText.trim() && !clicksCsvText.trim())) return
     setLoading(true)
     setError('')
     try {
@@ -227,7 +227,7 @@ export default function AcumbamailPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name,
+          name: name || undefined,
           campaign_id: campaignId || null,
           list_name: listName,
           min_opens: minOpens,
@@ -519,7 +519,7 @@ export default function AcumbamailPage() {
         <input ref={unsubscribesFileRef} type="file" accept=".csv,text/csv" onChange={(event) => readFile(event, 'unsubscribes')} hidden />
         {error && <div className="import-error">{error}</div>}
         <div className="acumbamail-actions">
-          <button type="button" className="btn btn-primary" disabled={loading || !name.trim() || (!opensCsvText.trim() && !clicksCsvText.trim())} onClick={importCampaign}>
+          <button type="button" className="btn btn-primary" disabled={loading || (!name.trim() && !mergeIntoCampaign) || (!opensCsvText.trim() && !clicksCsvText.trim())} onClick={importCampaign}>
             {loading ? 'Importazione…' : 'Crea campagna e importa'}
           </button>
         </div>

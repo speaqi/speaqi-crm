@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
     const clicksCsvText = String(body.clicks_csv_text || '')
     const unsubscribesCsvText = String(body.unsubscribes_csv_text || '')
     const mergeIntoKey = String(body.merge_into_campaign_key || '').trim() || null
-    if (!name || !campaignKey || (!opensCsvText.trim() && !clicksCsvText.trim())) {
+    if ((!name && !mergeIntoKey) || (!opensCsvText.trim() && !clicksCsvText.trim())) {
       return Response.json({ error: 'Nome campagna e almeno un CSV sono obbligatori' }, { status: 400 })
     }
 
@@ -187,6 +187,8 @@ export async function POST(request: NextRequest) {
 
     const finalCampaignKey = mergeIntoKey || campaignKey
 
+    let targetCampaignName: string | null = null
+
     const deduped = Array.from(merged.values()).map((row) => {
       const isQualified = row.openCount >= minOpens || row.clickCount > 0
       return {
@@ -210,7 +212,7 @@ export async function POST(request: NextRequest) {
           .eq('campaign_key', mergeIntoKey),
         auth.supabase
           .from('acumbamail_campaigns')
-          .select('list_name,responsible,min_opens')
+          .select('name,list_name,responsible,min_opens')
           .eq('user_id', auth.workspaceUserId)
           .eq('campaign_key', mergeIntoKey)
           .single(),
@@ -220,6 +222,10 @@ export async function POST(request: NextRequest) {
       const targetMinOpens = targetCampaignResult.data
         ? Math.max(1, Number(targetCampaignResult.data.min_opens) || minOpens)
         : minOpens
+
+      if (targetCampaignResult.data) {
+        targetCampaignName = String(targetCampaignResult.data.name || '').trim() || null
+      }
 
       const existingMap = new Map<string, { open_count: number; click_count: number }>()
       for (const eng of (existingEngsResult.data || [])) {
@@ -237,6 +243,8 @@ export async function POST(request: NextRequest) {
         row.promoted_at = row.click_count > 0 || row.open_count >= targetMinOpens ? new Date().toISOString() : null
       }
     }
+
+    const displayName = name || targetCampaignName || 'Acumbamail'
 
     const { error: campaignError } = await auth.supabase.from('acumbamail_campaigns').upsert({
       user_id: auth.workspaceUserId,
@@ -344,8 +352,8 @@ export async function POST(request: NextRequest) {
             : row.click_count > 0 ? 'Interested' : 'Contacted',
           priority: row.click_count > 0 ? 3 : 2,
           last_activity_summary: row.click_count > 0
-            ? `Click nella campagna Acumbamail ${name}.`
-            : `${row.open_count} aperture nella campagna Acumbamail ${name}.`,
+            ? `Click nella campagna Acumbamail ${displayName}.`
+            : `${row.open_count} aperture nella campagna Acumbamail ${displayName}.`,
           updated_at: new Date().toISOString(),
         })
       } else {
@@ -363,11 +371,11 @@ export async function POST(request: NextRequest) {
           email_open_count: row.open_count,
           email_click_count: row.click_count,
           note: row.click_count > 0
-            ? `Qualificato dalla campagna Acumbamail ${name}: ha cliccato un link.`
-            : `Qualificato dalla campagna Acumbamail ${name}: almeno ${minOpens} aperture.`,
+            ? `Qualificato dalla campagna Acumbamail ${displayName}: ha cliccato un link.`
+            : `Qualificato dalla campagna Acumbamail ${displayName}: almeno ${minOpens} aperture.`,
           last_activity_summary: row.click_count > 0
-            ? `Click nella campagna Acumbamail ${name}.`
-            : `${row.open_count} aperture nella campagna Acumbamail ${name}.`,
+            ? `Click nella campagna Acumbamail ${displayName}.`
+            : `${row.open_count} aperture nella campagna Acumbamail ${displayName}.`,
         })
       }
       promoted += 1
