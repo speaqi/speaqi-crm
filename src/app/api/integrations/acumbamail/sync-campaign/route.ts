@@ -432,16 +432,22 @@ export async function POST(request: NextRequest) {
       const click = clickers.get(email) || null
 
       for (const contact of targets) {
+        // A contact already living in the real pipeline (crm) or the personal area must never be
+        // silently demoted/reassigned/reset just because they opened or clicked a marketing email -
+        // only their engagement counters (and the activity log) get updated for those.
+        const isActivePipelineContact = contact.contact_scope === 'crm' || contact.contact_scope === 'personal'
+
         const updates: Record<string, unknown> = {
           updated_at: new Date().toISOString(),
-          source: contact.source || source,
-          contact_scope: contact.contact_scope === 'personal' ? contact.contact_scope : contactScope,
         }
-
-        if (responsible) updates.responsible = responsible
-        if (assignedAgent) updates.assigned_agent = assignedAgent
-        if (listName) updates.list_name = listName
-        if (eventTag) updates.event_tag = eventTag
+        if (!isActivePipelineContact) {
+          updates.source = contact.source || source
+          updates.contact_scope = contactScope
+          if (responsible) updates.responsible = responsible
+          if (assignedAgent) updates.assigned_agent = assignedAgent
+          if (listName) updates.list_name = listName
+          if (eventTag) updates.event_tag = eventTag
+        }
         let changed = false
         const importedName = click?.name || open?.name || null
         if (
@@ -455,8 +461,10 @@ export async function POST(request: NextRequest) {
         if (open && !alreadySynced.has(openKey)) {
           updates.email_open_count = Math.max(0, Number(contact.email_open_count || 0)) + open.count
           updates.last_email_open_at = laterTimestamp(contact.last_email_open_at || null, open.lastAt)
-          updates.priority = Math.max(Number(contact.priority || 0), 2)
-          if (!isClosedStatus(contact.status) && contact.status === 'New') updates.status = 'Contacted'
+          if (!isActivePipelineContact) {
+            updates.priority = Math.max(Number(contact.priority || 0), 2)
+            if (!isClosedStatus(contact.status) && contact.status === 'New') updates.status = 'Contacted'
+          }
           activities.push({
             user_id: auth.workspaceUserId,
             contact_id: contact.id,
@@ -485,8 +493,10 @@ export async function POST(request: NextRequest) {
         if (click && !alreadySynced.has(clickKey)) {
           updates.email_click_count = Math.max(0, Number(contact.email_click_count || 0)) + click.count
           updates.last_email_click_at = laterTimestamp(contact.last_email_click_at || null, click.lastAt)
-          updates.priority = 3
-          if (!isClosedStatus(contact.status)) updates.status = 'Interested'
+          if (!isActivePipelineContact) {
+            updates.priority = 3
+            if (!isClosedStatus(contact.status)) updates.status = 'Interested'
+          }
           activities.push({
             user_id: auth.workspaceUserId,
             contact_id: contact.id,

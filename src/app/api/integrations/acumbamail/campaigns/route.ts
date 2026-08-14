@@ -313,6 +313,7 @@ export async function POST(request: NextRequest) {
       email: string
       name: string
       status: string
+      contact_scope: 'crm' | 'holding' | 'personal' | null
       email_open_count: number | null
       email_click_count: number | null
       email_unsubscribed_at: string | null
@@ -322,7 +323,7 @@ export async function POST(request: NextRequest) {
       const batch = qualified.slice(index, index + 200).map((row) => row.email)
       const { data, error } = await auth.supabase
         .from('contacts')
-        .select('id,email,name,status,email_open_count,email_click_count,email_unsubscribed_at')
+        .select('id,email,name,status,contact_scope,email_open_count,email_click_count,email_unsubscribed_at')
         .eq('user_id', auth.workspaceUserId)
         .in('email', batch)
       if (error) throw error
@@ -344,23 +345,28 @@ export async function POST(request: NextRequest) {
       }
 
       if (existing) {
+        // A contact already living in the real pipeline (crm) or the personal area must never
+        // be silently demoted/reassigned just because their email shows up in a marketing CSV -
+        // only their engagement counters get topped up. Only genuine holding-scope (or scope-less)
+        // contacts get the full acumbamail treatment (scope/status/priority/responsible).
+        const isActivePipelineContact = existing.contact_scope === 'crm' || existing.contact_scope === 'personal'
         toUpdate.push({
           id: existing.id,
           user_id: auth.workspaceUserId,
           // upsert() validates NOT NULL columns on the tentative insert row even though this
           // always resolves to an UPDATE, so name (NOT NULL, no default) must ride along unchanged.
           name: existing.name,
-          list_name: mergeIntoKey ? undefined : listName,
-          event_tag: finalCampaignKey,
-          source: 'acumbamail',
-          contact_scope: 'holding',
-          responsible,
+          list_name: isActivePipelineContact || mergeIntoKey ? undefined : listName,
+          event_tag: isActivePipelineContact ? undefined : finalCampaignKey,
+          source: isActivePipelineContact ? undefined : 'acumbamail',
+          contact_scope: isActivePipelineContact ? existing.contact_scope : 'holding',
+          responsible: isActivePipelineContact ? undefined : responsible,
           email_open_count: Math.max(Number(existing.email_open_count || 0), row.open_count),
           email_click_count: Math.max(Number(existing.email_click_count || 0), row.click_count),
-          status: isClosedStatus(String(existing.status || ''))
+          status: isActivePipelineContact || isClosedStatus(String(existing.status || ''))
             ? existing.status
             : row.click_count > 0 ? 'Interested' : 'Contacted',
-          priority: row.click_count > 0 ? 3 : 2,
+          priority: isActivePipelineContact ? undefined : (row.click_count > 0 ? 3 : 2),
           last_activity_summary: row.click_count > 0
             ? `Click nella campagna Acumbamail ${displayName}.`
             : `${row.open_count} aperture nella campagna Acumbamail ${displayName}.`,
