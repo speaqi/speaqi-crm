@@ -311,6 +311,7 @@ export async function POST(request: NextRequest) {
     type ExistingContact = {
       id: string
       email: string
+      name: string
       status: string
       email_open_count: number | null
       email_click_count: number | null
@@ -321,7 +322,7 @@ export async function POST(request: NextRequest) {
       const batch = qualified.slice(index, index + 200).map((row) => row.email)
       const { data, error } = await auth.supabase
         .from('contacts')
-        .select('id,email,status,email_open_count,email_click_count,email_unsubscribed_at')
+        .select('id,email,name,status,email_open_count,email_click_count,email_unsubscribed_at')
         .eq('user_id', auth.workspaceUserId)
         .in('email', batch)
       if (error) throw error
@@ -346,6 +347,9 @@ export async function POST(request: NextRequest) {
         toUpdate.push({
           id: existing.id,
           user_id: auth.workspaceUserId,
+          // upsert() validates NOT NULL columns on the tentative insert row even though this
+          // always resolves to an UPDATE, so name (NOT NULL, no default) must ride along unchanged.
+          name: existing.name,
           list_name: mergeIntoKey ? undefined : listName,
           event_tag: finalCampaignKey,
           source: 'acumbamail',
