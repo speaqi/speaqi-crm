@@ -354,6 +354,82 @@ export async function createGeneratedContactDraft(
   }
 }
 
+// Generates AI content and saves it as a pending row in email_drafts (reviewed/sent from the
+// /email inbox, which marks it sent there) instead of createGeneratedContactDraft's path of
+// pushing straight into the Gmail account's Drafts folder with no local tracking.
+export async function createEmailDraftRecord(
+  supabase: any,
+  userId: string,
+  contact: CRMContact,
+  note?: string | null,
+  shared?: {
+    settings?: UserSettings
+    forceFollowup?: boolean
+    source?: string
+  }
+) {
+  if (!contact.email) {
+    return { error: 'Email mancante' as const }
+  }
+
+  const [settings, leadMemory, messages, activitySummary, publicResearch] = await Promise.all([
+    shared?.settings
+      ? Promise.resolve(shared.settings)
+      : loadUserSettings(supabase, userId).catch(() => EMPTY_USER_SETTINGS),
+    loadLeadMemory(supabase, userId, contact.id).catch(() => null),
+    loadContactMessages(supabase, userId, contact.id).catch(() => []),
+    loadRecentActivityContext(supabase, userId, contact.id).catch(() => ''),
+    researchPublicOrganization(contact).catch(() => null),
+  ])
+
+  const threadContext = buildDraftContext(messages)
+  const effectiveNote = String(note ?? (contact.email_draft_note || '')).trim() || null
+  const followupMode = !!shared?.forceFollowup ||
+    (!!threadContext.latestOutbound && !threadContext.hasInboundAfterLatestOutbound)
+
+  const generated = await generateEmail({
+    contact,
+    lastActivitySummary: contact.last_activity_summary,
+    leadMemory,
+    speaqiContext: settings.speaqi_context || null,
+    emailTone: settings.email_tone || null,
+    settings,
+    note: effectiveNote,
+    activitySummary,
+    threadSummary: messages.length ? summarizeThread(threadContext.messages) : null,
+    followupMode,
+    publicResearch: formatPublicOrganizationResearch(publicResearch),
+  })
+
+  if (!generated) {
+    return { error: 'Generazione AI fallita' as const }
+  }
+
+  const { data: draft, error: insertError } = await supabase
+    .from('email_drafts')
+    .insert({
+      user_id: userId,
+      contact_id: contact.id,
+      subject: generated.subject,
+      body_text: generated.body_text,
+      body_html: generated.body_html,
+      source: shared?.source || 'manual',
+      status: 'pending',
+    })
+    .select('id')
+    .single()
+
+  if (insertError) {
+    return { error: insertError.message as string }
+  }
+
+  return {
+    draftId: draft.id as string,
+    generated,
+    context: threadContext,
+  }
+}
+
 export async function maybeAutoCreateFollowupDraft(
   supabase: any,
   userId: string,

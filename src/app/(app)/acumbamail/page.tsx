@@ -111,6 +111,9 @@ export default function AcumbamailPage() {
   const [draftNotes, setDraftNotes] = useState<Record<string, string>>({})
   const [mergeIntoCampaign, setMergeIntoCampaign] = useState('')
   const [deletingKey, setDeletingKey] = useState<string | null>(null)
+  const [detailDraftingEmail, setDetailDraftingEmail] = useState<string | null>(null)
+  const [detailDraftNotes, setDetailDraftNotes] = useState<Record<string, string>>({})
+  const [detailDraftedContacts, setDetailDraftedContacts] = useState<Record<string, string>>({})
 
   const loadCampaigns = useCallback(async () => {
     try {
@@ -355,7 +358,7 @@ export default function AcumbamailPage() {
       if (result.error) {
         showToast(result.error)
       } else {
-        showToast(`Bozza creata per ${row.email}`)
+        showToast(`Bozza creata per ${row.email} · vai su Email per inviarla`)
         if (apiResult) {
           setApiResult({
             ...apiResult,
@@ -369,6 +372,39 @@ export default function AcumbamailPage() {
       showToast(draftError instanceof Error ? draftError.message : 'Bozza non creata')
     } finally {
       setDraftingEmail(null)
+    }
+  }
+
+  async function generateDraftForCampaignRow(campaign: Campaign, row: CampaignDetailRow) {
+    const key = `${campaign.campaign_key}:${row.email}`
+    setDetailDraftingEmail(key)
+    try {
+      const result = await apiFetch<{ ok?: boolean; draft_id?: string; error?: string; contact_id?: string }>(
+        '/api/integrations/acumbamail/contact-and-draft',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: row.email,
+            name: row.name,
+            list_name: campaign.list_name,
+            campaign_key: campaign.campaign_key,
+            note: detailDraftNotes[key] || undefined,
+          }),
+        }
+      )
+      if (result.error) {
+        showToast(result.error)
+      } else {
+        showToast(`Bozza creata per ${row.email} · vai su Email per inviarla`)
+        if (result.contact_id) {
+          setDetailDraftedContacts((prev) => ({ ...prev, [key]: result.contact_id as string }))
+        }
+      }
+    } catch (draftError) {
+      showToast(draftError instanceof Error ? draftError.message : 'Bozza non creata')
+    } finally {
+      setDetailDraftingEmail(null)
     }
   }
 
@@ -594,17 +630,46 @@ export default function AcumbamailPage() {
                       </div>
                       <div className="acumbamail-detail-table-wrap">
                         <table className="acumbamail-detail-table">
-                          <thead><tr><th>Contatto</th><th>Email</th><th>Aperture</th><th>Click</th><th>Esito</th></tr></thead>
+                          <thead><tr><th>Contatto</th><th>Email</th><th>Aperture</th><th>Click</th><th>Esito</th><th>Bozza</th></tr></thead>
                           <tbody>
-                            {pageRows.map((row) => (
-                              <tr key={row.email}>
-                                <td>{row.name || '—'}</td>
-                                <td>{row.email}</td>
-                                <td><strong>{row.open_count}</strong></td>
-                                <td>{row.click_count > 0 ? <span className="acumbamail-click-badge">✓ Ha cliccato</span> : '—'}</td>
-                                <td>{row.qualified ? <span className="acumbamail-qualified-badge">Qualificato</span> : <span className="import-muted">In monitoraggio</span>}</td>
-                              </tr>
-                            ))}
+                            {pageRows.map((row) => {
+                              const draftKey = `${campaign.campaign_key}:${row.email}`
+                              const draftedContactId = detailDraftedContacts[draftKey]
+                              return (
+                                <tr key={row.email}>
+                                  <td>{row.name || '—'}</td>
+                                  <td>{row.email}</td>
+                                  <td><strong>{row.open_count}</strong></td>
+                                  <td>{row.click_count > 0 ? <span className="acumbamail-click-badge">✓ Ha cliccato</span> : '—'}</td>
+                                  <td>{row.qualified ? <span className="acumbamail-qualified-badge">Qualificato</span> : <span className="import-muted">In monitoraggio</span>}</td>
+                                  <td>
+                                    {draftedContactId ? (
+                                      <a href="/email" target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">
+                                        Vai a Email per inviare →
+                                      </a>
+                                    ) : (
+                                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                        <input
+                                          className="acumbamail-draft-note-input"
+                                          placeholder="Nota bozza..."
+                                          value={detailDraftNotes[draftKey] || ''}
+                                          onChange={(event) => setDetailDraftNotes((prev) => ({ ...prev, [draftKey]: event.target.value }))}
+                                          style={{ width: 120, fontSize: 12, padding: '4px 7px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', color: 'var(--text)' }}
+                                        />
+                                        <button
+                                          type="button"
+                                          className="btn btn-primary btn-sm"
+                                          disabled={detailDraftingEmail === draftKey}
+                                          onClick={() => generateDraftForCampaignRow(campaign, row)}
+                                        >
+                                          {detailDraftingEmail === draftKey ? '…' : 'Crea bozza AI'}
+                                        </button>
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+                              )
+                            })}
                           </tbody>
                         </table>
                       </div>

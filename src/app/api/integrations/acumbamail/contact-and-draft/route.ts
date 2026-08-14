@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
-import { createGeneratedContactDraft } from '@/lib/server/email-drafts'
-import { loadRequiredGmailSignature } from '@/lib/server/gmail'
+import { createEmailDraftRecord } from '@/lib/server/email-drafts'
 import { EMPTY_USER_SETTINGS, loadUserSettings } from '@/lib/server/user-settings'
 import { requireRouteUser } from '@/lib/server/supabase'
 import type { CRMContact } from '@/types'
@@ -76,17 +75,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const [settings, emailSignature] = await Promise.all([
-      loadUserSettings(auth.supabase, auth.workspaceUserId).catch(() => EMPTY_USER_SETTINGS),
-      loadRequiredGmailSignature(auth.supabase, auth.workspaceUserId),
-    ])
+    const settings = await loadUserSettings(auth.supabase, auth.workspaceUserId).catch(() => EMPTY_USER_SETTINGS)
 
-    const result = await createGeneratedContactDraft(
+    const result = await createEmailDraftRecord(
       auth.supabase,
       auth.workspaceUserId,
       contact,
       note,
-      { settings, emailSignature }
+      { settings, source: 'manual' }
     )
 
     if ('error' in result) {
