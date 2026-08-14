@@ -188,6 +188,7 @@ export async function POST(request: NextRequest) {
     const finalCampaignKey = mergeIntoKey || campaignKey
 
     let targetCampaignName: string | null = null
+    let targetListName: string | null = null
 
     const deduped = Array.from(merged.values()).map((row) => {
       const isQualified = row.openCount >= minOpens || row.clickCount > 0
@@ -225,6 +226,7 @@ export async function POST(request: NextRequest) {
 
       if (targetCampaignResult.data) {
         targetCampaignName = String(targetCampaignResult.data.name || '').trim() || null
+        targetListName = String(targetCampaignResult.data.list_name || '').trim() || null
       }
 
       const existingMap = new Map<string, { open_count: number; click_count: number }>()
@@ -244,13 +246,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Postgres upsert still validates NOT NULL columns while building the tentative INSERT
+    // row even when the ON CONFLICT branch will just UPDATE, so name/list_name must always
+    // carry a real value here (falling back to the merge target's own values when merging).
     const displayName = name || targetCampaignName || 'Acumbamail'
+    const finalListName = mergeIntoKey ? (targetListName || listName) : listName
 
     const { error: campaignError } = await auth.supabase.from('acumbamail_campaigns').upsert({
       user_id: auth.workspaceUserId,
       campaign_key: finalCampaignKey,
-      name: mergeIntoKey ? undefined : name,
-      list_name: mergeIntoKey ? undefined : listName,
+      name: displayName,
+      list_name: finalListName,
       min_opens: mergeIntoKey ? undefined : minOpens,
       responsible: mergeIntoKey ? undefined : responsible,
       campaign_id: mergeIntoKey ? undefined : campaignId,
