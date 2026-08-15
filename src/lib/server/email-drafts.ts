@@ -165,7 +165,7 @@ async function generateEmail(input: {
     'Apri sempre con un saluto: “Buongiorno Nome,” se il nome e affidabile, altrimenti “Buongiorno,”. Non usare frasi generiche come “spero che tu stia bene”; dopo il saluto vai dritto al punto.',
     'Non inventare dati, prezzi, disponibilita, meeting o promesse non presenti nel contesto.',
     'Non inventare una personalizzazione: se i dati non bastano, usa un motivo del contatto onesto e specifico per il segmento.',
-    'Non scrivere mai che il destinatario ha mostrato interesse, aperto, cliccato o risposto a una campagna se questo fatto non compare esplicitamente nello storico email fornito. Non usare “campagna” come aggancio generico.',
+    'Non scrivere mai che il destinatario ha mostrato interesse, aperto, cliccato o risposto a una campagna se questo fatto non compare esplicitamente nello storico email fornito o nelle indicazioni di segmento sotto. Non usare “campagna” come aggancio generico e non citare mai un numero di aperture/click.',
     'Non descrivere servizi o capacita che non compaiono nel contesto aziendale.',
     'Non inserire la firma: il CRM la aggiunge dopo, usando la firma Gmail quando disponibile.',
     'Struttura: saluto, apertura rilevante, problema o opportunita osservabile, valore specifico, una sola CTA semplice che chieda un riscontro per una call di 15 minuti con il referente appropriato.',

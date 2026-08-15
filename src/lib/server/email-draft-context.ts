@@ -306,12 +306,27 @@ export function buildEmailSegmentGuidance(contact: CRMContact) {
 
   const guidance: string[] = []
 
-  if (
+  const isWineOrEventSegment =
     source.includes('vinitaly') ||
     category.includes('vitigno') ||
     listName.includes('vinitaly') ||
     listName.includes('vitigno')
-  ) {
+
+  const openCount = Number(contact.email_open_count || 0)
+  const clickCount = Number(contact.email_click_count || 0)
+  const isHighInterestContact = clickCount > 0 || openCount >= 2
+
+  if (isWineOrEventSegment && isHighInterestContact) {
+    guidance.push(
+      'Segmento contatti ad alto interesse: il destinatario ha gia ricevuto una precedente comunicazione e l ha aperta ripetutamente o cliccata. Non trattarlo come un cold lead e non ripresentare Speaqi da zero: l obiettivo e trasformare l interesse gia manifestato in una conversazione.',
+      'Non dire esplicitamente che ha aperto la mail piu volte o quante volte (puo risultare invasivo). Fai invece riferimento naturale alla comunicazione precedente, per esempio: "Ti avevo scritto qualche giorno fa...", "Riprendo velocemente la mail che ti avevo mandato...", "Ti riscrivo perche credo che per la vostra cantina possa esserci un applicazione molto concreta."',
+      'Porta subito un elemento nuovo rispetto alla prima email: un esempio reale, un applicazione concreta, una referenza dello stesso settore, o la possibilita di vedere Speaqi applicato a uno dei loro vini.',
+      'Per il settore vino, quando pertinente, privilegia come referenza San Salvatore 1988, Dalibra o Leonarda Tardi.',
+      'Non descrivere di nuovo tutte le funzionalita di Speaqi: il destinatario ha gia ricevuto una prima comunicazione.',
+      'Struttura del corpo: richiamo alla precedente email, poi motivo concreto per cui riscrivi, poi una prova/esempio, poi una CTA molto semplice.',
+      'Usa una sola CTA, preferibilmente una domanda a cui sia facile rispondere. L obiettivo e ottenere una risposta, non spiegare di nuovo il prodotto.'
+    )
+  } else if (isWineOrEventSegment) {
     guidance.push(
       'Segmento vino/eventi: collega Speaqi a un caso d uso concreto come QR o link multilingua per schede prodotto, degustazioni, materiali fiera, export o visite in cantina.',
       'Non dire che il destinatario ha aperto o cliccato una precedente email e non fingere di averlo incontrato in fiera.'
