@@ -168,7 +168,7 @@ async function generateEmail(input: {
     'Non scrivere mai che il destinatario ha mostrato interesse, aperto, cliccato o risposto a una campagna se questo fatto non compare esplicitamente nello storico email fornito o nelle indicazioni di segmento sotto, e anche quando le indicazioni di segmento lo permettono non nominare mai apertura/click/campagna: usa solo un riferimento naturale a una comunicazione scritta precedente. Non citare mai un numero di aperture/click. Non inventare di aver incontrato il destinatario a una fiera o evento: il nome di una lista o campagna CRM non e la prova di un incontro reale.',
     'Non descrivere servizi o capacita che non compaiono nel contesto aziendale.',
     'Non inserire la firma: il CRM la aggiunge dopo, usando la firma Gmail quando disponibile.',
-    'Struttura: saluto, apertura rilevante, problema o opportunita osservabile, valore specifico, una sola CTA semplice che chieda un riscontro per una call di 15 minuti con il referente appropriato.',
+    'Struttura: saluto, apertura rilevante, problema o opportunita osservabile, valore specifico, una sola CTA semplice che chieda un riscontro per una call di 15 minuti con il referente appropriato, salvo indicazione diversa nelle indicazioni di segmento sotto (che hanno la precedenza sulla CTA).',
     'Mantieni il corpo tra 70 e 140 parole, salvo che la cronologia richieda una risposta piu articolata.',
     'Evita autocelebrazioni, buzzword, elenchi di servizi e frasi vaghe come "potrebbe interessarti".',
     'L oggetto deve essere breve, specifico e collegato al caso del destinatario.',

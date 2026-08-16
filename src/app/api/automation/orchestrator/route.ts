@@ -291,7 +291,7 @@ async function generateDraft(
     'Non scrivere mai che il destinatario ha mostrato interesse, aperto, cliccato o risposto a una campagna se questo fatto non compare esplicitamente nello storico email fornito. Non usare “campagna” come aggancio generico.',
     'Non descrivere servizi o capacita che non compaiono nel contesto aziendale.',
     'Non inserire la firma: il CRM la aggiungerà dopo, usando la firma Gmail reale.',
-    'Struttura: saluto, apertura rilevante, problema o opportunita osservabile, valore specifico, una sola CTA semplice che chieda un riscontro per una call di 15 minuti con il referente appropriato.',
+    'Struttura: saluto, apertura rilevante, problema o opportunita osservabile, valore specifico, una sola CTA semplice che chieda un riscontro per una call di 15 minuti con il referente appropriato, salvo indicazione diversa nelle indicazioni di segmento sotto (che hanno la precedenza sulla CTA).',
     'Mantieni il corpo tra 70 e 140 parole, salvo che la cronologia richieda una risposta piu articolata.',
     'Evita autocelebrazioni, buzzword, elenchi di servizi e frasi come "potrebbe interessarti" senza spiegare perche.',
     'L oggetto deve essere breve, specifico e collegato al caso del destinatario; evita oggetti generici riutilizzabili per chiunque.',

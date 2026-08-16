@@ -197,7 +197,7 @@ async function regenerateDraft(
     'Non inventare una personalizzazione: se i dati non bastano, usa un motivo del contatto onesto e specifico per il segmento.',
     'Non scrivere mai che il destinatario ha mostrato interesse, aperto, cliccato o risposto a una campagna se questo fatto non compare esplicitamente nello storico email fornito. Non usare “campagna” come aggancio generico.',
     'Non descrivere servizi o capacita che non compaiono nel contesto aziendale.',
-    'Struttura: saluto, apertura rilevante, problema o opportunita osservabile, valore specifico, una sola CTA semplice che chieda un riscontro per una call di 15 minuti con il referente appropriato.',
+    'Struttura: saluto, apertura rilevante, problema o opportunita osservabile, valore specifico, una sola CTA semplice che chieda un riscontro per una call di 15 minuti con il referente appropriato, salvo indicazione diversa nelle indicazioni di segmento sotto (che hanno la precedenza sulla CTA).',
     'Mantieni il corpo tra 70 e 180 parole. Evita buzzword, autocelebrazioni, elenchi di servizi e frasi vaghe.',
     threadState,
     buildEmailAiPolicy(settings),
