@@ -312,7 +312,7 @@ async function generateDraft(
     `Stato CRM: ${contact.status}`,
     contact.source ? `Origine: ${contact.source}` : '',
     contact.event_tag ? `Evento/tag: ${contact.event_tag}` : '',
-    contact.list_name ? `Lista: ${contact.list_name}` : '',
+    contact.list_name ? `Lista CRM interna (etichetta gestionale, non un evento o una fiera reale — non citarla nell email): ${contact.list_name}` : '',
     contact.country ? `Paese: ${contact.country}` : '',
     contact.language ? `Lingua: ${contact.language}` : '',
     contact.responsible ? `Responsabile: ${contact.responsible}` : '',
