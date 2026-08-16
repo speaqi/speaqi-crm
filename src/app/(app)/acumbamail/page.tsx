@@ -486,7 +486,7 @@ export default function AcumbamailPage() {
                           placeholder="Nota bozza..."
                           value={draftNotes[row.email] || ''}
                           onChange={(event) => setDraftNotes((prev) => ({ ...prev, [row.email]: event.target.value }))}
-                          style={{ width: 120, fontSize: 12, padding: '4px 7px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', color: 'var(--text)' }}
+                          style={{ width: 84, fontSize: 12, padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', color: 'var(--text)' }}
                         />
                         <button
                           type="button"
@@ -654,7 +654,7 @@ export default function AcumbamailPage() {
                                           placeholder="Nota bozza..."
                                           value={detailDraftNotes[draftKey] || ''}
                                           onChange={(event) => setDetailDraftNotes((prev) => ({ ...prev, [draftKey]: event.target.value }))}
-                                          style={{ width: 120, fontSize: 12, padding: '4px 7px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', color: 'var(--text)' }}
+                                          style={{ width: 84, fontSize: 12, padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', color: 'var(--text)' }}
                                         />
                                         <button
                                           type="button"
