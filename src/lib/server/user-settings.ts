@@ -15,6 +15,7 @@ export type UserSettings = {
   email_positioning?: string | null
   email_do_not_say?: string | null
   email_case_studies?: string | null
+  email_high_interest_segment?: string | null
 }
 
 const BASE_COLUMNS = ['speaqi_context', 'email_tone', 'email_signature'] as const
@@ -31,8 +32,12 @@ const EXTENDED_COLUMNS = [
   'email_positioning',
   'email_do_not_say',
   'email_case_studies',
+  'email_high_interest_segment',
 ] as const
-const PRE_CASE_STUDIES_EXTENDED_COLUMNS = EXTENDED_COLUMNS.filter(
+const PRE_HIGH_INTEREST_EXTENDED_COLUMNS = EXTENDED_COLUMNS.filter(
+  (column) => column !== 'email_high_interest_segment'
+)
+const PRE_CASE_STUDIES_EXTENDED_COLUMNS = PRE_HIGH_INTEREST_EXTENDED_COLUMNS.filter(
   (column) => column !== 'email_case_studies'
 )
 const PRE_POSITIONING_EXTENDED_COLUMNS = EXTENDED_COLUMNS.filter(
@@ -57,6 +62,7 @@ export const EMPTY_USER_SETTINGS: UserSettings = {
   email_positioning: DEFAULT_EMAIL_AI_FRAMEWORK.email_positioning,
   email_do_not_say: DEFAULT_EMAIL_AI_FRAMEWORK.email_do_not_say,
   email_case_studies: DEFAULT_EMAIL_AI_FRAMEWORK.email_case_studies,
+  email_high_interest_segment: DEFAULT_EMAIL_AI_FRAMEWORK.email_high_interest_segment,
 }
 
 function errorMessage(error: unknown) {
@@ -80,7 +86,8 @@ function isMissingSettingsColumn(error: unknown) {
     message.includes('email_strategy') ||
     message.includes('email_positioning') ||
     message.includes('email_do_not_say') ||
-    message.includes('email_case_studies')
+    message.includes('email_case_studies') ||
+    message.includes('email_high_interest_segment')
 
   return columnMissing &&
     (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
@@ -107,6 +114,7 @@ function normalizePayload(input: Partial<UserSettings>) {
     email_positioning: normalizeSetting(input.email_positioning),
     email_do_not_say: normalizeSetting(input.email_do_not_say),
     email_case_studies: normalizeSetting(input.email_case_studies),
+    email_high_interest_segment: normalizeSetting(input.email_high_interest_segment),
   }
 }
 
@@ -132,6 +140,16 @@ export async function loadUserSettings(supabase: any, userId: string): Promise<U
   }
 
   if (!isMissingSettingsColumn(extended.error)) throw extended.error
+
+  const preHighInterest = await supabase
+    .from('user_settings')
+    .select(PRE_HIGH_INTEREST_EXTENDED_COLUMNS.join(', '))
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (!preHighInterest.error) {
+    return mergeLoadedSettings(preHighInterest.data)
+  }
 
   const preCaseStudies = await supabase
     .from('user_settings')
@@ -188,7 +206,7 @@ export async function saveUserSettings(supabase: any, userId: string, input: Par
   if (!extended.error) return
   if (!isMissingSettingsColumn(extended.error)) throw extended.error
 
-  const preCaseStudiesPayload = {
+  const preHighInterestPayload = {
     user_id: userId,
     speaqi_context: normalized.speaqi_context,
     email_tone: normalized.email_tone,
@@ -203,7 +221,19 @@ export async function saveUserSettings(supabase: any, userId: string, input: Par
     email_strategy: normalized.email_strategy,
     email_positioning: normalized.email_positioning,
     email_do_not_say: normalized.email_do_not_say,
+    email_case_studies: normalized.email_case_studies,
     updated_at: new Date().toISOString(),
+  }
+
+  const preHighInterest = await supabase
+    .from('user_settings')
+    .upsert(preHighInterestPayload, { onConflict: 'user_id' })
+
+  if (!preHighInterest.error) return
+
+  const preCaseStudiesPayload = {
+    ...preHighInterestPayload,
+    email_case_studies: undefined,
   }
 
   const preCaseStudies = await supabase

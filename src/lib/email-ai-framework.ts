@@ -12,6 +12,7 @@ export type EmailAiFrameworkSettings = {
   email_positioning?: string | null
   email_do_not_say?: string | null
   email_case_studies?: string | null
+  email_high_interest_segment?: string | null
 }
 
 /**
@@ -46,6 +47,8 @@ export const DEFAULT_EMAIL_AI_FRAMEWORK: Required<EmailAiFrameworkSettings> = {
     'Non usare mai: “siamo leader”, “rivoluzionario”, “innovativo”, “migliore piattaforma”, “soluzione unica al mondo”, “intelligenza artificiale avanzata”, “trasformazione digitale”. Evita termini troppo commerciali, superlativi e promesse non dimostrabili. Non parlare male dei concorrenti, non dire che Speaqi sostituisce sistemi esistenti: presentalo come uno strato che valorizza cio che il cliente possiede gia.',
   email_case_studies:
     'Referenze disponibili da proporre solo quando pertinenti: GAL Molise; Comune di Napoli; servizio Rai 3 (https://www.youtube.com/watch?v=HMb5XQEY4cM). Per i soli contatti Comune (non per altri segmenti) puoi anche rimandare a https://speaqi.com/comuni. Non inventare progetti, risultati, numeri, link o allegati: se manca un dettaglio, limita l’email a proporre l’invio della referenza o del materiale di approfondimento.',
+  email_high_interest_segment:
+    'Se il destinatario ha gia ricevuto una precedente comunicazione e l’ha aperta ripetutamente o cliccata, non trattarlo come un cold lead e non ripresentare Speaqi da zero: l’obiettivo e trasformare l’interesse gia manifestato in una conversazione. Non dire esplicitamente che ha aperto la mail piu volte o quante volte, puo risultare invasivo: fai invece riferimento naturale alla comunicazione precedente, per esempio “Ti avevo scritto qualche giorno fa…”, “Riprendo velocemente la mail che ti avevo mandato…”, “Ti riscrivo perche credo che per la vostra cantina possa esserci un’applicazione molto concreta.” Porta subito un elemento nuovo: esempio reale, applicazione concreta, referenza dello stesso settore, demo o possibilita di vedere Speaqi applicato a uno dei loro vini. Per il settore vino privilegia come referenze San Salvatore 1988, Dalibra e Leonarda Tardi quando pertinenti. Non descrivere di nuovo tutte le funzionalita di Speaqi: il destinatario ha gia ricevuto una prima comunicazione. Struttura: richiamo alla precedente email, poi motivo concreto per cui riscrivi, poi una prova/esempio, poi una CTA molto semplice. Usa una sola CTA, preferibilmente una domanda a cui sia facile rispondere: l’obiettivo e ottenere una risposta, non spiegare di nuovo il prodotto.',
 }
 
 export function withEmailAiFramework<T extends EmailAiFrameworkSettings>(settings?: T | null) {

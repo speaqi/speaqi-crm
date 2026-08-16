@@ -182,7 +182,7 @@ async function regenerateDraft(
     threadState = 'Non ci sono email precedenti con questo contatto. Stai scrivendo una prima email commerciale.'
   }
 
-  const segmentGuidance = buildEmailSegmentGuidance(contact)
+  const segmentGuidance = buildEmailSegmentGuidance(contact, settings)
   const publicResearch = formatPublicOrganizationResearch(
     await researchPublicOrganization(contact).catch(() => null)
   )

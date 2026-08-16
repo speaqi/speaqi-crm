@@ -155,7 +155,7 @@ async function generateEmail(input: {
   if (!apiKey) return null
 
   const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
-  const segmentGuidance = buildEmailSegmentGuidance(input.contact)
+  const segmentGuidance = buildEmailSegmentGuidance(input.contact, input.settings)
 
   const system = [
     'Sei un senior sales copywriter che prepara bozze email commerciali per conto del venditore.',

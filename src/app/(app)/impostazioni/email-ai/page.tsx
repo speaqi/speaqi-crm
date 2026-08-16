@@ -21,6 +21,7 @@ type UserSettings = {
   email_positioning: string | null
   email_do_not_say: string | null
   email_case_studies: string | null
+  email_high_interest_segment: string | null
 }
 
 type SettingsField = {
@@ -127,6 +128,14 @@ const SETTINGS_FIELDS: SettingsField[] = [
     rows: 4,
   },
   {
+    key: 'email_high_interest_segment',
+    label: 'Segmento contatti ad alto interesse',
+    hint: 'Come scrivere a chi ha gia ricevuto una comunicazione (es. campagna Acumbamail) e l\'ha aperta ripetutamente o cliccata: non ripartire da zero, richiama la mail precedente senza citare il numero di aperture, porta un elemento nuovo.',
+    placeholder: 'Non trattarlo come un cold lead. Richiama la comunicazione precedente in modo naturale, porta un elemento nuovo, usa una sola CTA a domanda semplice...',
+    rows: 8,
+    wide: true,
+  },
+  {
     key: 'email_signature',
     label: 'Firma manuale di fallback',
     hint: 'Se Gmail e autorizzato, il CRM usa la firma gia presente in Gmail. Questo campo resta come fallback.',
@@ -174,6 +183,7 @@ export default function EmailAIPage() {
     email_positioning: '',
     email_do_not_say: '',
     email_case_studies: '',
+    email_high_interest_segment: '',
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -196,6 +206,7 @@ export default function EmailAIPage() {
           email_positioning: s.email_positioning ?? '',
           email_do_not_say: s.email_do_not_say ?? '',
           email_case_studies: s.email_case_studies ?? '',
+          email_high_interest_segment: s.email_high_interest_segment ?? '',
         })
       })
       .finally(() => setLoading(false))
