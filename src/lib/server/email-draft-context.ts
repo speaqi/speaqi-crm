@@ -309,9 +309,15 @@ export function buildEmailSegmentGuidance(contact: CRMContact, settings?: EmailA
 
   const isWineOrEventSegment =
     source.includes('vinitaly') ||
+    source.includes('vino') ||
     category.includes('vitigno') ||
+    category.includes('vino') ||
     listName.includes('vinitaly') ||
-    listName.includes('vitigno')
+    listName.includes('vitigno') ||
+    listName.includes('vino') ||
+    company.includes('cantina') ||
+    company.includes('vitivinicol') ||
+    company.includes('vigneti')
 
   const openCount = Number(contact.email_open_count || 0)
   const clickCount = Number(contact.email_click_count || 0)
