@@ -23,6 +23,7 @@ type UserSettings = {
   email_case_studies: string | null
   email_high_interest_segment: string | null
   email_wine_core_message: string | null
+  email_wine_templates: string | null
   email_public_sector_core_message: string | null
 }
 
@@ -42,6 +43,14 @@ const SETTINGS_FIELDS: SettingsField[] = [
     hint: 'Il concetto master del verticale vino, usato in ogni email a una cantina (prima email e follow-up). Non e un modello di email: e l\u2019idea che ogni bozza deve far passare — raccontate la cantina una volta, Speaqi la fa parlare con il mondo.',
     placeholder: 'Messaggio centrale, concetto da far passare, regole per le email wine...',
     rows: 16,
+    wide: true,
+  },
+  {
+    key: 'email_wine_templates',
+    label: 'Modelli email — Speaqi Wine',
+    hint: 'I modelli che l’AI segue per struttura, ritmo e CTA nelle email alle cantine. Un blocco per modello: “### ID | Etichetta”, poi le righe facoltative “Quando:” e “Oggetto:”, poi il testo. Puoi aggiungerne, toglierne o riscriverli: il primo dell’elenco e il preferito e viene usato il doppio delle volte. {{nome}} e {{azienda}} sono segnaposto sostituiti con i dati reali del contatto. Il testo non viene copiato: serve da modello.',
+    placeholder: '### A | Esempio gratuito\nQuando: ripresa contatto con offerta di un esempio\nOggetto: Ti faccio vedere Speaqi su un vostro vino?\n\nBuongiorno {{nome}},\n...',
+    rows: 22,
     wide: true,
   },
   {
@@ -230,6 +239,7 @@ export default function EmailAIPage() {
     email_case_studies: '',
     email_high_interest_segment: '',
     email_wine_core_message: '',
+    email_wine_templates: '',
     email_public_sector_core_message: '',
   })
   const [loading, setLoading] = useState(true)
@@ -255,6 +265,7 @@ export default function EmailAIPage() {
           email_case_studies: s.email_case_studies ?? '',
           email_high_interest_segment: s.email_high_interest_segment ?? '',
           email_wine_core_message: s.email_wine_core_message ?? '',
+          email_wine_templates: s.email_wine_templates ?? '',
           email_public_sector_core_message: s.email_public_sector_core_message ?? '',
         })
       })

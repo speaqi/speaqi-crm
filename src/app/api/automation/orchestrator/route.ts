@@ -8,12 +8,11 @@ import {
   buildEmailSegmentGuidance,
   ensureDraftRequiredAssets,
   formatPublicOrganizationResearch,
-  isWineSegmentContact,
   researchPublicOrganization,
+  resolveWineTemplateId,
   validateGeneratedDraft,
 } from '@/lib/server/email-draft-context'
 import { buildEmailAiPolicy } from '@/lib/email-ai-framework'
-import { pickWineEmailTemplate } from '@/lib/email-wine-templates'
 
 // ─── Scanner: find contacts needing follow-up ───
 
@@ -499,9 +498,7 @@ export async function POST(request: NextRequest) {
           status: 'pending',
           scheduled_for: scheduledFor,
           // Modello wine seguito dalla bozza: /email lo mostra e consente di cambiarlo.
-          wine_template: isWineSegmentContact(contact)
-            ? pickWineEmailTemplate(contact).id
-            : null,
+          wine_template: resolveWineTemplateId(contact, settings),
         }
 
         let { data: draft, error: insertError } = await supabase

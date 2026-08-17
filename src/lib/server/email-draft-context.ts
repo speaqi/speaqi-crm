@@ -1,6 +1,10 @@
 import type { CRMContact } from '@/types'
 import { withEmailAiFramework, type EmailAiFrameworkSettings } from '@/lib/email-ai-framework'
-import { formatWineEmailTemplateGuidance, pickWineEmailTemplate } from '@/lib/email-wine-templates'
+import {
+  formatWineEmailTemplateGuidance,
+  getWineEmailTemplates,
+  pickWineEmailTemplate,
+} from '@/lib/email-wine-templates'
 
 export const SPEAQI_COMUNI_URL = 'https://speaqi.com/comuni'
 export const SPEAQI_RAI3_URL = 'https://www.youtube.com/watch?v=HMb5XQEY4cM'
@@ -404,6 +408,20 @@ export function validateWineDraft(contact: CRMContact, draft: DraftLike) {
   return issues
 }
 
+/**
+ * Variante wine da salvare sulla bozza (`email_drafts.wine_template`).
+ * `null` per i contatti fuori dal segmento vino.
+ */
+export function resolveWineTemplateId(
+  contact: CRMContact,
+  settings?: EmailAiFrameworkSettings | null,
+  explicitId?: string | null
+) {
+  if (!isWineSegmentContact(contact)) return null
+  const templates = getWineEmailTemplates(withEmailAiFramework(settings).email_wine_templates)
+  return pickWineEmailTemplate(contact, explicitId, templates).id
+}
+
 export type EmailSegmentGuidanceOptions = {
   /** C'e gia una email inviata a questo contatto: sblocca i modelli di ripresa contatto. */
   followupMode?: boolean
@@ -449,8 +467,13 @@ export function buildEmailSegmentGuidance(
     }
 
     // I modelli wine chiudono il segmento: sono l'ultima parola su struttura e CTA.
+    const template = pickWineEmailTemplate(
+      contact,
+      options.wineTemplateId,
+      getWineEmailTemplates(framework.email_wine_templates)
+    )
     guidance.push(
-      formatWineEmailTemplateGuidance(pickWineEmailTemplate(contact, options.wineTemplateId), {
+      formatWineEmailTemplateGuidance(template, {
         hasPreviousContact: !!options.followupMode || isHighInterestContact,
       })
     )

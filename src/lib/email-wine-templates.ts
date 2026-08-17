@@ -111,27 +111,98 @@ export const WINE_EMAIL_TEMPLATES: WineEmailTemplate[] = [
   },
 ]
 
+// ─── Testo modificabile da /impostazioni/email-ai ───
+
+/**
+ * I modelli vivono anche come testo, cosi sono modificabili dalle impostazioni
+ * senza toccare il codice: un blocco per modello, `### ID | Etichetta`, poi le
+ * righe opzionali `Quando:` e `Oggetto:` e il corpo. Si possono aggiungere o
+ * togliere modelli liberamente.
+ */
+export function serializeWineEmailTemplates(templates: WineEmailTemplate[] = WINE_EMAIL_TEMPLATES) {
+  return templates
+    .map((template) =>
+      [
+        `### ${template.id} | ${template.label}`,
+        `Quando: ${template.angle}`,
+        `Oggetto: ${template.subject}`,
+        '',
+        template.body,
+      ].join('\n')
+    )
+    .join('\n\n')
+}
+
+export const DEFAULT_WINE_EMAIL_TEMPLATES_TEXT = serializeWineEmailTemplates()
+
+export function parseWineEmailTemplates(text?: string | null): WineEmailTemplate[] {
+  const raw = String(text || '').trim()
+  if (!raw) return WINE_EMAIL_TEMPLATES
+
+  const templates: WineEmailTemplate[] = []
+  const seen = new Set<string>()
+
+  for (const block of raw.split(/^###\s*/m).slice(1)) {
+    const lines = block.split('\n')
+    const [idPart, labelPart] = String(lines.shift() || '').split('|')
+    const id = idPart.trim().toUpperCase().slice(0, 8)
+    if (!id || seen.has(id)) continue
+
+    let angle = ''
+    let subject = ''
+    while (lines.length) {
+      const line = lines[0].trim()
+      if (/^quando\s*:/i.test(line)) angle = line.replace(/^quando\s*:/i, '').trim()
+      else if (/^oggetto\s*:/i.test(line)) subject = line.replace(/^oggetto\s*:/i, '').trim()
+      else if (line) break
+      lines.shift()
+    }
+
+    const body = lines.join('\n').trim()
+    if (!body) continue
+
+    seen.add(id)
+    templates.push({
+      id: id as WineEmailTemplateId,
+      label: labelPart?.trim() || `Modello ${id}`,
+      angle,
+      subject,
+      body,
+    })
+  }
+
+  // Testo svuotato o illeggibile: meglio i modelli di default che nessun modello.
+  return templates.length ? templates : WINE_EMAIL_TEMPLATES
+}
+
+/** Modelli effettivi per questo workspace: personalizzati o di default. */
+export function getWineEmailTemplates(settingsText?: string | null) {
+  return parseWineEmailTemplates(settingsText)
+}
+
 export function isWineEmailTemplateId(value: unknown): value is WineEmailTemplateId {
-  return value === 'A' || value === 'B' || value === 'C' || value === 'D'
+  return typeof value === 'string' && /^[A-Z0-9]{1,8}$/.test(value)
 }
 
-export function findWineEmailTemplate(id?: string | null) {
-  return WINE_EMAIL_TEMPLATES.find((template) => template.id === id) || null
+export function findWineEmailTemplate(
+  id?: string | null,
+  templates: WineEmailTemplate[] = WINE_EMAIL_TEMPLATES
+) {
+  return templates.find((template) => template.id === id) || null
 }
-
-/** A e il modello preferito: pesa il doppio degli altri nella rotazione. */
-const TEMPLATE_ROTATION: WineEmailTemplateId[] = ['A', 'B', 'A', 'C', 'A', 'D', 'A', 'B', 'C', 'D']
 
 /**
  * Senza scelta esplicita il modello e stabile per contatto: rigenerare una bozza
  * non cambia angolo a sorpresa, ma contatti diversi della stessa lista ricevono
- * email diverse.
+ * email diverse. Il primo modello dell'elenco e il preferito e pesa il doppio.
  */
 export function pickWineEmailTemplate(
   contact: Pick<CRMContact, 'id'>,
-  explicitId?: string | null
+  explicitId?: string | null,
+  templates: WineEmailTemplate[] = WINE_EMAIL_TEMPLATES
 ): WineEmailTemplate {
-  const explicit = findWineEmailTemplate(explicitId)
+  const available = templates.length ? templates : WINE_EMAIL_TEMPLATES
+  const explicit = findWineEmailTemplate(explicitId, available)
   if (explicit) return explicit
 
   const key = String(contact.id || '')
@@ -139,8 +210,12 @@ export function pickWineEmailTemplate(
   for (let index = 0; index < key.length; index++) {
     hash = (hash * 31 + key.charCodeAt(index)) % 100000
   }
-  const id = TEMPLATE_ROTATION[hash % TEMPLATE_ROTATION.length]
-  return findWineEmailTemplate(id) || WINE_EMAIL_TEMPLATES[0]
+
+  // Il preferito compare una volta ogni due posizioni della rotazione.
+  const rotation = available.flatMap((template, index) =>
+    index === 0 ? [template] : [available[0], template]
+  )
+  return rotation[hash % rotation.length]
 }
 
 /**

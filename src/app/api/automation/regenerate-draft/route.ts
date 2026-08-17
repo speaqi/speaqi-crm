@@ -9,9 +9,10 @@ import {
   formatPublicOrganizationResearch,
   isWineSegmentContact,
   researchPublicOrganization,
+  resolveWineTemplateId,
   validateGeneratedDraft,
 } from '@/lib/server/email-draft-context'
-import { isWineEmailTemplateId, pickWineEmailTemplate } from '@/lib/email-wine-templates'
+import { isWineEmailTemplateId } from '@/lib/email-wine-templates'
 import type { CRMContact, GmailMessage } from '@/types'
 
 // ─── Context loading (shared with orchestrator) ───
@@ -328,9 +329,7 @@ export async function POST(request: NextRequest) {
       effectiveTemplateId
     )
 
-    const wineTemplate = isWineSegmentContact(contact as CRMContact)
-      ? pickWineEmailTemplate(contact as CRMContact, effectiveTemplateId)
-      : null
+    const wineTemplate = resolveWineTemplateId(contact as CRMContact, settings, effectiveTemplateId)
 
     // Update the draft in place
     const { data: updated, error: updateError } = await auth.supabase
@@ -339,7 +338,7 @@ export async function POST(request: NextRequest) {
         subject: generated.subject,
         body_text: generated.body_text,
         body_html: generated.body_html,
-        wine_template: wineTemplate?.id || null,
+        wine_template: wineTemplate,
         // If there was a note passed, store it in the note field if it exists
         ...(note ? { note } : {}),
       })

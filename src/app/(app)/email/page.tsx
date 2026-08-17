@@ -6,7 +6,12 @@ import { apiFetch } from '@/lib/api'
 import { WINE_EMAIL_TEMPLATES } from '@/lib/email-wine-templates'
 import { useCRMContext } from '../layout'
 
-const WINE_TEMPLATE_OPTIONS = WINE_EMAIL_TEMPLATES.map(({ id, label }) => ({ id, label }))
+type WineTemplateOption = { id: string; label: string }
+
+// Fallback se l'API non li restituisce: i modelli di default del framework.
+const DEFAULT_WINE_TEMPLATE_OPTIONS: WineTemplateOption[] = WINE_EMAIL_TEMPLATES.map(
+  ({ id, label }) => ({ id, label })
+)
 
 type EmailDraft = {
   id: string
@@ -78,6 +83,9 @@ export default function EmailPage() {
   const [recordingSeconds, setRecordingSeconds] = useState(0)
   const [transcribingDraftId, setTranscribingDraftId] = useState<string | null>(null)
   const [checkingGmail, setCheckingGmail] = useState(false)
+  const [wineTemplates, setWineTemplates] = useState<WineTemplateOption[]>(
+    DEFAULT_WINE_TEMPLATE_OPTIONS
+  )
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -86,11 +94,14 @@ export default function EmailPage() {
   const loadData = useCallback(async () => {
     try {
       const [pendingRes, sentRes] = await Promise.all([
-        apiFetch<{ drafts: EmailDraft[] }>('/api/automation/drafts?status=pending'),
+        apiFetch<{ drafts: EmailDraft[]; wine_templates?: WineTemplateOption[] }>(
+          '/api/automation/drafts?status=pending'
+        ),
         apiFetch<{ drafts: EmailDraft[] }>('/api/automation/drafts?status=sent'),
       ])
       setDrafts(pendingRes.drafts || [])
       setSent(sentRes.drafts || [])
+      if (pendingRes.wine_templates?.length) setWineTemplates(pendingRes.wine_templates)
     } catch {
       // silent
     } finally {
@@ -488,7 +499,7 @@ export default function EmailPage() {
                             <span
                               style={{ fontSize: 11, color: 'var(--text3)', background: 'var(--surface2)', padding: '1px 6px', borderRadius: 4 }}
                               title={`Modello vino ${draft.wine_template}: ${
-                                WINE_TEMPLATE_OPTIONS.find((option) => option.id === draft.wine_template)?.label || ''
+                                wineTemplates.find((option) => option.id === draft.wine_template)?.label || ''
                               }`}
                             >
                               modello {draft.wine_template}
@@ -565,7 +576,7 @@ export default function EmailPage() {
                               rigenerare la bozza con quella struttura.
                             </p>
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                              {WINE_TEMPLATE_OPTIONS.map((option) => {
+                              {wineTemplates.map((option) => {
                                 const isActive = draft.wine_template === option.id
                                 return (
                                   <button

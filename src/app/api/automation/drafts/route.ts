@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server'
 import { requireRouteUser } from '@/lib/server/supabase'
 import { errorMessage } from '@/lib/server/http'
 import { isWineSegmentContact } from '@/lib/server/email-draft-context'
+import { EMPTY_USER_SETTINGS, loadUserSettings } from '@/lib/server/user-settings'
+import { getWineEmailTemplates } from '@/lib/email-wine-templates'
 import type { CRMContact } from '@/types'
 
 export async function GET(request: NextRequest) {
@@ -43,7 +45,19 @@ export async function GET(request: NextRequest) {
       wine_segment: draft.contact ? isWineSegmentContact(draft.contact as CRMContact) : false,
     }))
 
-    return Response.json({ drafts: enriched })
+    // I modelli sono modificabili da /impostazioni/email-ai: il selettore in
+    // /email deve mostrare quelli del workspace, non quelli di default.
+    const hasWineDraft = enriched.some((draft: any) => draft.wine_segment)
+    const settings = hasWineDraft
+      ? await loadUserSettings(auth.supabase, auth.workspaceUserId).catch(() => EMPTY_USER_SETTINGS)
+      : null
+
+    return Response.json({
+      drafts: enriched,
+      wine_templates: settings
+        ? getWineEmailTemplates(settings.email_wine_templates).map(({ id, label }) => ({ id, label }))
+        : [],
+    })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Failed to load drafts') }, { status: 500 })
   }

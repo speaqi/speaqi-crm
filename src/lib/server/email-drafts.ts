@@ -11,12 +11,11 @@ import {
   buildEmailSegmentGuidance,
   ensureDraftRequiredAssets,
   formatPublicOrganizationResearch,
-  isWineSegmentContact,
   researchPublicOrganization,
+  resolveWineTemplateId,
   validateGeneratedDraft,
 } from '@/lib/server/email-draft-context'
 import { buildEmailAiPolicy } from '@/lib/email-ai-framework'
-import { pickWineEmailTemplate } from '@/lib/email-wine-templates'
 import type { CRMContact, GmailMessage } from '@/types'
 
 type GeneratedEmail = {
@@ -401,9 +400,7 @@ export async function createEmailDraftRecord(
 
   // Il modello wine usato viene salvato sulla bozza: /email lo mostra e permette
   // di rigenerare con un altro angolo.
-  const wineTemplate = isWineSegmentContact(contact)
-    ? pickWineEmailTemplate(contact, shared?.wineTemplateId)
-    : null
+  const wineTemplateId = resolveWineTemplateId(contact, settings, shared?.wineTemplateId)
 
   const generated = await generateEmail({
     contact,
@@ -417,7 +414,7 @@ export async function createEmailDraftRecord(
     threadSummary: messages.length ? summarizeThread(threadContext.messages) : null,
     followupMode,
     publicResearch: formatPublicOrganizationResearch(publicResearch),
-    wineTemplateId: wineTemplate?.id,
+    wineTemplateId,
   })
 
   if (!generated) {
@@ -434,7 +431,7 @@ export async function createEmailDraftRecord(
       body_html: generated.body_html,
       source: shared?.source || 'manual',
       status: 'pending',
-      wine_template: wineTemplate?.id || null,
+      wine_template: wineTemplateId,
     })
     .select('id')
     .single()

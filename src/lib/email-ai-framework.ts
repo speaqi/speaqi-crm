@@ -1,3 +1,5 @@
+import { DEFAULT_WINE_EMAIL_TEMPLATES_TEXT } from '@/lib/email-wine-templates'
+
 export type EmailAiFrameworkSettings = {
   speaqi_context?: string | null
   email_tone?: string | null
@@ -14,6 +16,7 @@ export type EmailAiFrameworkSettings = {
   email_case_studies?: string | null
   email_high_interest_segment?: string | null
   email_wine_core_message?: string | null
+  email_wine_templates?: string | null
   email_public_sector_core_message?: string | null
 }
 
@@ -121,6 +124,7 @@ export const DEFAULT_EMAIL_AI_FRAMEWORK: Required<EmailAiFrameworkSettings> = {
     'CTA: per questo segmento non chiedere una call, offri invece di mandare un esempio concreto (“Ti va se ti mando un esempio concreto?”): se conosci un vino reale della cantina personalizzala (“Se vuoi, posso farti vedere direttamente come funzionerebbe su [Nome Vino]”). Deve restare una sola domanda semplice a cui sia facile rispondere: l’obiettivo e un piccolo si, non spiegare di nuovo il prodotto. ' +
     'Struttura: apertura con nome e motivo per riscrivere, poi l’esempio concreto, poi eventualmente le referenze e l’offerta di prova gratuita, poi la CTA a bassa frizione.',
   email_wine_core_message: WINE_CORE_MESSAGE,
+  email_wine_templates: DEFAULT_WINE_EMAIL_TEMPLATES_TEXT,
   email_public_sector_core_message: PUBLIC_SECTOR_CORE_MESSAGE,
 }
 
