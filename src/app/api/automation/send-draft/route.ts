@@ -7,6 +7,7 @@ import {
   updateContactDraft,
 } from '@/lib/server/gmail'
 import { errorMessage } from '@/lib/server/http'
+import { nextFollowupAfterEmail } from '@/lib/sla'
 import type { CRMContact } from '@/types'
 
 export async function POST(request: NextRequest) {
@@ -129,23 +130,8 @@ export async function POST(request: NextRequest) {
       if (editError) throw editError
     }
 
-    // Calculate smart follow-up time based on contact status (SLA)
-    function followupHours(status: string): number {
-      const s = status.toLowerCase()
-      if (s === 'new') return 4
-      if (s === 'contacted') return 24
-      if (s === 'interested' || s === 'supertop' || s === 'quote') return 24
-      if (s.includes('call')) return 12
-      return 72
-    }
-
-    const followupAt = new Date(Date.now() + followupHours(contact.status) * 60 * 60 * 1000)
-    // Move to callable slot (not midnight, not weekend)
-    if (followupAt.getHours() === 0) followupAt.setHours(10)
-    while (followupAt.getDay() === 0 || followupAt.getDay() === 6) {
-      followupAt.setDate(followupAt.getDate() + 1)
-      followupAt.setHours(10)
-    }
+    // Cadenza SLA centralizzata in @/lib/sla
+    const followupAt = nextFollowupAfterEmail(contact.status)
 
     // Send via Gmail
     const result = await sendContactEmail(

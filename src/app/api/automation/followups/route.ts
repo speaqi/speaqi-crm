@@ -3,6 +3,7 @@ import { sendReminderEmail } from '@/lib/email'
 import { normalizeTaskAction, priorityLevelFromNumber, taskTypeForAction } from '@/lib/server/ai-ready'
 import { applyPipelineScope } from '@/lib/server/scope-filters'
 import { createServiceRoleClient } from '@/lib/server/supabase'
+import { statusSlaHours } from '@/lib/sla'
 
 function validateSecret(request: NextRequest) {
   const secret = process.env.AUTOMATION_SECRET
@@ -21,15 +22,6 @@ function addHours(value: string, hours: number) {
 
 function dayKey(value = new Date()) {
   return value.toISOString().slice(0, 10)
-}
-
-function statusSlaHours(status?: string | null) {
-  const normalized = String(status || '').trim().toLowerCase()
-  if (normalized === 'new') return 4
-  if (normalized === 'contacted') return 24
-  if (normalized === 'interested' || normalized === 'supertop' || normalized === 'quote') return 24
-  if (normalized.includes('call')) return 12
-  return 72
 }
 
 function taskKey(task: { contact_id: string; due_date?: string | null; idempotency_key?: string | null }) {

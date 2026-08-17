@@ -117,6 +117,9 @@ export interface Task {
   started_at?: string | null
   rescheduled_at?: string | null
   reschedule_count?: number
+  calendar_event_id?: string | null
+  calendar_event_link?: string | null
+  calendar_synced_at?: string | null
   completed_at?: string | null
   created_at: string
   updated_at: string

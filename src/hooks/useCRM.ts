@@ -679,30 +679,28 @@ export function useCRM(pathname = '') {
   const completeStandaloneTask = useCallback(async (taskId: string) => {
     const doneTask = standaloneTasks.find((t) => t.id === taskId)
     if (!doneTask) return
-    const completed = { ...doneTask, status: 'done' as const }
-    await apiFetch('/api/tasks/standalone', {
+    const response = await apiFetch<{ task: Task }>('/api/tasks/standalone', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: taskId, status: 'done' }),
     })
     setStandaloneTasks((previous) => previous.filter((t) => t.id !== taskId))
-    setCompletedStandaloneTasks((previous) => [completed, ...previous])
+    setCompletedStandaloneTasks((previous) => [{ ...doneTask, ...response.task }, ...previous])
   }, [standaloneTasks])
 
   const reopenStandaloneTask = useCallback(async (taskId: string) => {
     const task = completedStandaloneTasks.find((t) => t.id === taskId)
     if (!task) return
-    const reopened = { ...task, status: 'pending' as const }
-    await apiFetch('/api/tasks/standalone', {
+    const response = await apiFetch<{ task: Task }>('/api/tasks/standalone', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: taskId, status: 'pending' }),
     })
     setCompletedStandaloneTasks((previous) => previous.filter((t) => t.id !== taskId))
-    setStandaloneTasks((previous) => [...previous, reopened])
+    setStandaloneTasks((previous) => [...previous, { ...task, ...response.task }])
   }, [completedStandaloneTasks])
 
-  const updateStandaloneTask = useCallback(async (taskId: string, payload: { title?: string; note?: string | null; priority?: string; due_date?: string | null; started_at?: string | null; status?: 'pending' | 'done' }) => {
+  const updateStandaloneTask = useCallback(async (taskId: string, payload: { title?: string; note?: string | null; priority?: string; due_date?: string | null; started_at?: string | null; status?: 'pending' | 'done'; calendar_action?: 'sync' | 'unsync' }) => {
     const response = await apiFetch<{ task: Task }>('/api/tasks/standalone', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

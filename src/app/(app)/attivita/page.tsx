@@ -428,6 +428,26 @@ export default function AttivitaPage() {
                   <button type="button" className={`attivita-todo-start ${t.started_at ? 'started' : ''}`} onClick={async () => { await updateStandaloneTask(t.id, { started_at: t.started_at ? null : new Date().toISOString() }); showToast(t.started_at ? 'Riportata in attesa' : 'Partita ora') }}>
                     {t.started_at ? 'In corso' : 'Avvia'}
                   </button>
+                  {t.calendar_event_link ? (
+                    <a className="attivita-todo-calendar linked" href={t.calendar_event_link} target="_blank" rel="noreferrer">↗ Calendario</a>
+                  ) : (
+                    <button
+                      type="button"
+                      className="attivita-todo-calendar"
+                      disabled={!t.due_date}
+                      title={t.due_date ? 'Aggiungi al tuo Google Calendar' : 'Scegli prima una data'}
+                      onClick={async () => {
+                        try {
+                          await updateStandaloneTask(t.id, { calendar_action: 'sync' })
+                          showToast('Aggiunta a Google Calendar')
+                        } catch (error) {
+                          showToast(error instanceof Error ? error.message : 'Impossibile aggiungere al calendario')
+                        }
+                      }}
+                    >
+                      + Calendario
+                    </button>
+                  )}
                 </>
               )}
 
@@ -497,6 +517,9 @@ export default function AttivitaPage() {
                     Chiudi
                   </button>
                   <button type="button" className="btn btn-ghost btn-xs" onClick={async () => { await updateStandaloneTask(t.id, { due_date: shiftDate(t.due_date, 7) }); showToast('Spostata di 7 giorni') }}>+7g</button>
+                  {t.calendar_event_id && (
+                    <button type="button" className="btn btn-ghost btn-xs" onClick={async () => { await updateStandaloneTask(t.id, { calendar_action: 'unsync' }); showToast('Rimossa dal calendario') }}>Rimuovi calendario</button>
+                  )}
                 </div>
               )}
             </div>
@@ -513,7 +536,8 @@ export default function AttivitaPage() {
               try {
                 await createStandaloneTask({ title: text })
                 setTodoInput('')
-                showToast('Aggiunto')
+                setTodoView('inbox')
+                showToast('Aggiunto in “Da pianificare”')
               } catch (err) {
                 showToast(`Errore: ${err instanceof Error ? err.message : 'aggiunta task'}`)
               } finally {
