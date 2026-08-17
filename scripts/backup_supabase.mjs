@@ -9,6 +9,7 @@
  *
  *   npm run backup              # tabelle predefinite
  *   npm run backup -- contacts  # solo alcune tabelle
+ *   npm run backup -- --keep=30 # tiene i 30 backup piu recenti (default)
  *
  * Scrive in backups/<YYYY-MM-DD_HHMM>/: un JSON per tabella (righe complete,
  * riutilizzabili per un ripristino via upsert), contacts.csv per aprirlo in
@@ -35,6 +36,30 @@ const DEFAULT_TABLES = [
 
 /** PostgREST tronca a 1000 righe: senza paginazione un backup e silenziosamente incompleto. */
 const PAGE_SIZE = 1000
+
+/** Nome esatto delle cartelle create da questo script: 2026-08-17_0854. */
+const BACKUP_DIR_PATTERN = /^\d{4}-\d{2}-\d{2}_\d{4}$/
+
+/**
+ * Tiene i `keep` backup piu recenti. Cancella SOLO cartelle che corrispondono
+ * al pattern di questo script: qualunque altra cosa dentro backups/ (dump
+ * manuali, export, cartelle di altri strumenti) non viene toccata.
+ */
+function pruneOldBackups(backupsRoot, keep) {
+  if (!Number.isFinite(keep) || keep <= 0) return []
+
+  const owned = fs
+    .readdirSync(backupsRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && BACKUP_DIR_PATTERN.test(entry.name))
+    .map((entry) => entry.name)
+    .sort()
+
+  const obsolete = owned.slice(0, Math.max(0, owned.length - keep))
+  for (const name of obsolete) {
+    fs.rmSync(path.join(backupsRoot, name), { recursive: true, force: true })
+  }
+  return obsolete
+}
 
 function loadEnv() {
   const fromProcess = {
@@ -118,10 +143,15 @@ async function main() {
   const requested = process.argv.slice(2).filter((arg) => !arg.startsWith('-'))
   const tables = requested.length ? requested : DEFAULT_TABLES
 
+  const keepArg = process.argv.slice(2).find((arg) => arg.startsWith('--keep='))
+  const keep = keepArg ? Number(keepArg.split('=')[1]) : 30
+
   const now = new Date()
   const stamp = `${now.toISOString().slice(0, 10)}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`
-  const outDir = path.join(process.cwd(), 'backups', stamp)
+  const backupsRoot = path.join(process.cwd(), 'backups')
+  const outDir = path.join(backupsRoot, stamp)
   fs.mkdirSync(outDir, { recursive: true })
+  console.log(`${now.toISOString()} — backup su ${path.relative(process.cwd(), outDir)}`)
 
   const manifest = { created_at: now.toISOString(), source: url, tables: {} }
   let failed = 0
@@ -151,11 +181,20 @@ async function main() {
   }
 
   fs.writeFileSync(path.join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2))
-  console.log(`\nBackup in ${path.relative(process.cwd(), outDir)}`)
+
   if (failed) {
-    console.log(`${failed} tabelle non salvate: controlla manifest.json`)
+    // Un backup incompleto non deve far scadere quelli buoni che lo precedono.
+    console.log(`${failed} tabelle non salvate: controlla manifest.json. Rotazione saltata.`)
     process.exitCode = 1
+    return
   }
+
+  const removed = pruneOldBackups(backupsRoot, keep)
+  console.log(
+    removed.length
+      ? `Backup completato. Rimossi ${removed.length} backup oltre i ${keep} piu recenti.`
+      : 'Backup completato.'
+  )
 }
 
 main().catch((error) => {

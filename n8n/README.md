@@ -17,20 +17,23 @@ endpoint `/api/automation/*` dell'app, protetti da `x-automation-secret`.
 
 Riattiva un workflow alla volta e osserva per qualche giorno prima del successivo:
 
-1. **01-followups** (ogni 10 min) — massimo impatto: rigenera i task dovuti,
+1. **08-backup** (ogni notte 03:00) — primo di tutti: e l'unica rete di
+   sicurezza sui dati, visto che il piano Free di Supabase non ha backup ne
+   PITR. Non tocca nulla, legge soltanto.
+2. **01-followups** (ogni 10 min) — massimo impatto: rigenera i task dovuti,
    gli SLA e il recupero preventivi. È quello che tiene piena la lista delle
    cose da fare.
-2. **06-db-maintenance** (ogni ora) — igiene: riallinea follow-up e task,
+3. **06-db-maintenance** (ogni ora) — igiene: riallinea follow-up e task,
    pulisce le bozze scartate. Evita che il disordine si riaccumuli.
-3. **07-weekly-recap** (lunedì 07:30) — email di recap settimanale:
+4. **07-weekly-recap** (lunedì 07:30) — email di recap settimanale:
    pipeline per stadio, vinte/perse, chiamate dei prossimi 14 giorni,
    contatti da recuperare.
-4. **02-stale-leads** (ogni giorno 09:00) — task "Riattiva X" sui contatti
+5. **02-stale-leads** (ogni giorno 09:00) — task "Riattiva X" sui contatti
    fermi da più di 5 giorni.
-5. **05-reply-monitor** (ogni 30 min) — sync Gmail + classificazione AI delle
+6. **05-reply-monitor** (ogni 30 min) — sync Gmail + classificazione AI delle
    risposte. Prima di attivarlo verifica che i token OAuth Gmail siano validi.
-6. **03-speaqi-webhook** — solo se il form del sito è attivo.
-7. **04-orchestrator** (lun-ven 08:00) — bozze email AI del mattino
+7. **03-speaqi-webhook** — solo se il form del sito è attivo.
+8. **04-orchestrator** (lun-ven 08:00) — bozze email AI del mattino
    (restano bozze: l'invio è sempre manuale). Ultimo perché è il più complesso.
 
 ## Endpoint chiamati
@@ -44,6 +47,7 @@ Riattiva un workflow alla volta e osserva per qualche giorno prima del successiv
 | 05-reply-monitor | `POST /api/automation/reply-monitor` | `*/30 * * * *` |
 | 06-db-maintenance | `POST /api/automation/db-maintenance` | `0 * * * *` |
 | 07-weekly-recap | `POST /api/automation/weekly-recap` | `30 7 * * 1` |
+| 08-backup | `POST /api/automation/backup` | `0 3 * * *` |
 
 Test manuale di un endpoint (senza n8n):
 

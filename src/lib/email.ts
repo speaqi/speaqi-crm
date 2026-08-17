@@ -168,3 +168,43 @@ export async function sendQuoteAcceptanceRequestEmail(
   )
   return result
 }
+
+/** Copia off-site del backup: allegato compresso, fuori da Supabase. */
+export async function sendBackupEmail(
+  to: string,
+  backup: {
+    filename: string
+    content: string
+    bytes: number
+    summary: Record<string, { rows: number } | { error: string }>
+  }
+) {
+  const rows = Object.entries(backup.summary)
+    .map(([table, info]) =>
+      'rows' in info
+        ? `<li><strong>${table}</strong>: ${info.rows} righe</li>`
+        : `<li><strong>${table}</strong>: <span style="color:#c0392b">errore — ${info.error}</span></li>`
+    )
+    .join('')
+
+  const result = await getResendClient().emails.send({
+    from: 'CRM <crm@speaqi.it>',
+    to,
+    subject: `Backup Speaqi CRM — ${backup.filename}`,
+    html: `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;margin:0 auto">
+        <h2 style="color:#16192e">Backup del database</h2>
+        <p style="color:#555">Copia compressa allegata (${(backup.bytes / 1024 / 1024).toFixed(2)} MB). Conservala: e la copia indipendente da Supabase.</p>
+        <ul style="color:#333;line-height:1.7">${rows}</ul>
+        <p style="color:#888;font-size:12px">Per ripristinare: decomprimi il .gz e reimporta le righe con un upsert sulla tabella corrispondente.</p>
+      </div>
+    `,
+    attachments: [{ filename: backup.filename, content: backup.content }],
+  })
+
+  assertResendEmailSent(
+    result as { data: { id?: string } | null; error: { message: string } | null },
+    'sendBackupEmail'
+  )
+  return result
+}

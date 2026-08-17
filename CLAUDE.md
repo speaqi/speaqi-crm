@@ -314,6 +314,9 @@ Located in `n8n/workflows/` — see `n8n/README.md` for the recommended re-enabl
 5. `05-reply-monitor.json` — Gmail reply sync + AI classification (every 30 min)
 6. `06-db-maintenance.json` — data hygiene (hourly)
 7. `07-weekly-recap.json` — weekly recap email (Monday 07:30)
+8. `08-backup.json` — nightly database backup (03:00)
+
+**Backup**: the Supabase Free plan has no daily backups and no PITR. `POST /api/automation/backup` (logic in `src/lib/server/backup.ts`) dumps every table in `BACKUP_TABLES`, gzips it, uploads it to the private `backups` Storage bucket and emails a copy via Resend — two copies, one outside Supabase. Paginates at 1000 rows (PostgREST truncates there), aborts if `contacts` fails, and only prunes old backups after an intact run. `send_email: false` in the body verifies dump + Storage without sending. Local equivalent: `npm run backup`.
 
 All use `APP_BASE_URL` and require `AUTOMATION_SECRET` for endpoint authentication (including `/api/email/reminder`). The n8n workflows are just schedulers: the logic lives in `/api/automation/*`.
 
