@@ -8,10 +8,12 @@ import {
   buildEmailSegmentGuidance,
   ensureDraftRequiredAssets,
   formatPublicOrganizationResearch,
+  isWineSegmentContact,
   researchPublicOrganization,
   validateGeneratedDraft,
 } from '@/lib/server/email-draft-context'
 import { buildEmailAiPolicy } from '@/lib/email-ai-framework'
+import { pickWineEmailTemplate } from '@/lib/email-wine-templates'
 
 // ─── Scanner: find contacts needing follow-up ───
 
@@ -271,7 +273,7 @@ async function generateDraft(
     threadState = 'Non ci sono email precedenti con questo contatto. Stai scrivendo una prima email commerciale.'
   }
 
-  const segmentGuidance = buildEmailSegmentGuidance(contact, settings)
+  const segmentGuidance = buildEmailSegmentGuidance(contact, settings, { followupMode })
   const publicResearch = formatPublicOrganizationResearch(
     await researchPublicOrganization(contact).catch(() => null)
   )
@@ -496,6 +498,10 @@ export async function POST(request: NextRequest) {
           source: 'auto',
           status: 'pending',
           scheduled_for: scheduledFor,
+          // Modello wine seguito dalla bozza: /email lo mostra e consente di cambiarlo.
+          wine_template: isWineSegmentContact(contact)
+            ? pickWineEmailTemplate(contact).id
+            : null,
         }
 
         let { data: draft, error: insertError } = await supabase
@@ -504,9 +510,18 @@ export async function POST(request: NextRequest) {
           .select('id')
           .single()
 
-        if (insertError && isMissingColumn(insertError, 'scheduled_for')) {
+        // Colonne opzionali: la bozza deve nascere anche su uno schema non ancora migrato.
+        if (
+          insertError &&
+          (isMissingColumn(insertError, 'scheduled_for') || isMissingColumn(insertError, 'wine_template'))
+        ) {
           const fallbackPayload = { ...insertPayload }
-          delete (fallbackPayload as Partial<typeof insertPayload>).scheduled_for
+          if (isMissingColumn(insertError, 'scheduled_for')) {
+            delete (fallbackPayload as Partial<typeof insertPayload>).scheduled_for
+          }
+          if (isMissingColumn(insertError, 'wine_template')) {
+            delete (fallbackPayload as Partial<typeof insertPayload>).wine_template
+          }
           const fallback = await supabase
             .from('email_drafts')
             .insert(fallbackPayload)

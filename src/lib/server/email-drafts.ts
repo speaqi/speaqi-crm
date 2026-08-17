@@ -11,10 +11,12 @@ import {
   buildEmailSegmentGuidance,
   ensureDraftRequiredAssets,
   formatPublicOrganizationResearch,
+  isWineSegmentContact,
   researchPublicOrganization,
   validateGeneratedDraft,
 } from '@/lib/server/email-draft-context'
 import { buildEmailAiPolicy } from '@/lib/email-ai-framework'
+import { pickWineEmailTemplate } from '@/lib/email-wine-templates'
 import type { CRMContact, GmailMessage } from '@/types'
 
 type GeneratedEmail = {
@@ -150,12 +152,16 @@ async function generateEmail(input: {
   activitySummary?: string | null
   followupMode?: boolean
   publicResearch?: string | null
+  wineTemplateId?: string | null
 }): Promise<GeneratedEmail | null> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) return null
 
   const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
-  const segmentGuidance = buildEmailSegmentGuidance(input.contact, input.settings)
+  const segmentGuidance = buildEmailSegmentGuidance(input.contact, input.settings, {
+    followupMode: input.followupMode,
+    wineTemplateId: input.wineTemplateId,
+  })
 
   const system = [
     'Sei un senior sales copywriter che prepara bozze email commerciali per conto del venditore.',
@@ -270,6 +276,7 @@ export async function createGeneratedContactDraft(
     settings?: UserSettings
     emailSignature?: EmailSignature | null
     forceFollowup?: boolean
+    wineTemplateId?: string | null
   }
 ) {
   if (!contact.email) {
@@ -306,6 +313,7 @@ export async function createGeneratedContactDraft(
     threadSummary: messages.length ? summarizeThread(threadContext.messages) : null,
     followupMode,
     publicResearch: formatPublicOrganizationResearch(publicResearch),
+    wineTemplateId: shared?.wineTemplateId,
   })
 
   if (!generated) {
@@ -369,6 +377,7 @@ export async function createEmailDraftRecord(
     settings?: UserSettings
     forceFollowup?: boolean
     source?: string
+    wineTemplateId?: string | null
   }
 ) {
   if (!contact.email) {
@@ -390,6 +399,12 @@ export async function createEmailDraftRecord(
   const followupMode = !!shared?.forceFollowup ||
     (!!threadContext.latestOutbound && !threadContext.hasInboundAfterLatestOutbound)
 
+  // Il modello wine usato viene salvato sulla bozza: /email lo mostra e permette
+  // di rigenerare con un altro angolo.
+  const wineTemplate = isWineSegmentContact(contact)
+    ? pickWineEmailTemplate(contact, shared?.wineTemplateId)
+    : null
+
   const generated = await generateEmail({
     contact,
     lastActivitySummary: contact.last_activity_summary,
@@ -402,6 +417,7 @@ export async function createEmailDraftRecord(
     threadSummary: messages.length ? summarizeThread(threadContext.messages) : null,
     followupMode,
     publicResearch: formatPublicOrganizationResearch(publicResearch),
+    wineTemplateId: wineTemplate?.id,
   })
 
   if (!generated) {
@@ -418,6 +434,7 @@ export async function createEmailDraftRecord(
       body_html: generated.body_html,
       source: shared?.source || 'manual',
       status: 'pending',
+      wine_template: wineTemplate?.id || null,
     })
     .select('id')
     .single()

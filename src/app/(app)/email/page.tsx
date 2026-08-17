@@ -3,7 +3,10 @@
 import Link from 'next/link'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { apiFetch } from '@/lib/api'
+import { WINE_EMAIL_TEMPLATES } from '@/lib/email-wine-templates'
 import { useCRMContext } from '../layout'
+
+const WINE_TEMPLATE_OPTIONS = WINE_EMAIL_TEMPLATES.map(({ id, label }) => ({ id, label }))
 
 type EmailDraft = {
   id: string
@@ -13,6 +16,8 @@ type EmailDraft = {
   body_html: string | null
   gmail_draft_id: string | null
   sent_via?: string | null
+  wine_template?: string | null
+  wine_segment?: boolean
   status: string
   source: string
   created_at: string
@@ -249,7 +254,7 @@ export default function EmailPage() {
     }
   }
 
-  async function handleRegenerate(draft: EmailDraft, explicitNote?: string) {
+  async function handleRegenerate(draft: EmailDraft, explicitNote?: string, wineTemplate?: string) {
     setBusy(draft.id)
     try {
       const note = explicitNote?.trim() || regenerateNotes[draft.id]?.trim() ||
@@ -259,7 +264,7 @@ export default function EmailPage() {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ draft_id: draft.id, note }),
+          body: JSON.stringify({ draft_id: draft.id, note, wine_template: wineTemplate }),
         }
       )
       setDrafts((prev) =>
@@ -479,6 +484,16 @@ export default function EmailPage() {
                           {draft.source === 'auto' && (
                             <span style={{ fontSize: 11, color: 'var(--text3)', background: 'var(--surface2)', padding: '1px 6px', borderRadius: 4 }}>auto</span>
                           )}
+                          {draft.wine_template && (
+                            <span
+                              style={{ fontSize: 11, color: 'var(--text3)', background: 'var(--surface2)', padding: '1px 6px', borderRadius: 4 }}
+                              title={`Modello vino ${draft.wine_template}: ${
+                                WINE_TEMPLATE_OPTIONS.find((option) => option.id === draft.wine_template)?.label || ''
+                              }`}
+                            >
+                              modello {draft.wine_template}
+                            </span>
+                          )}
                         </div>
                         <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>
                           {draft.subject || '(nessun oggetto)'}
@@ -540,6 +555,34 @@ export default function EmailPage() {
 
                     {isExpanded && (
                       <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                        {draft.wine_segment && (
+                          <div style={{ marginBottom: 14 }}>
+                            <label className="form-label" style={{ display: 'block', marginBottom: 6 }}>
+                              Modello email vino
+                            </label>
+                            <p className="oggi-muted" style={{ fontSize: 12, margin: '0 0 8px' }}>
+                              Quattro angoli diversi sulla stessa promessa. Scegline uno per
+                              rigenerare la bozza con quella struttura.
+                            </p>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                              {WINE_TEMPLATE_OPTIONS.map((option) => {
+                                const isActive = draft.wine_template === option.id
+                                return (
+                                  <button
+                                    key={option.id}
+                                    type="button"
+                                    className={`btn ${isActive ? 'btn-primary' : 'btn-ghost'} btn-sm`}
+                                    onClick={() => handleRegenerate(draft, undefined, option.id)}
+                                    disabled={isBusy || isRecording || isTranscribing}
+                                    title={`Rigenera con il modello ${option.id}: ${option.label}`}
+                                  >
+                                    {option.id} · {option.label}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
                         <label className="form-label" style={{ display: 'block', marginBottom: 6 }}>
                           Oggetto
                         </label>

@@ -7,9 +7,11 @@ import {
   buildEmailSegmentGuidance,
   ensureDraftRequiredAssets,
   formatPublicOrganizationResearch,
+  isWineSegmentContact,
   researchPublicOrganization,
   validateGeneratedDraft,
 } from '@/lib/server/email-draft-context'
+import { isWineEmailTemplateId, pickWineEmailTemplate } from '@/lib/email-wine-templates'
 import type { CRMContact, GmailMessage } from '@/types'
 
 // ─── Context loading (shared with orchestrator) ───
@@ -127,7 +129,8 @@ async function regenerateDraft(
   apiKey: string,
   model: string,
   settings?: typeof EMPTY_USER_SETTINGS | null,
-  note?: string | null
+  note?: string | null,
+  wineTemplateId?: string | null
 ) {
   const { messages, leadMemory, activities } = context
 
@@ -182,7 +185,10 @@ async function regenerateDraft(
     threadState = 'Non ci sono email precedenti con questo contatto. Stai scrivendo una prima email commerciale.'
   }
 
-  const segmentGuidance = buildEmailSegmentGuidance(contact, settings)
+  const segmentGuidance = buildEmailSegmentGuidance(contact, settings, {
+    followupMode,
+    wineTemplateId,
+  })
   const publicResearch = formatPublicOrganizationResearch(
     await researchPublicOrganization(contact).catch(() => null)
   )
@@ -268,6 +274,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const draftId = String(body.draft_id || '').trim()
     const note = String(body.note || '').trim() || null
+    // Variante wine scelta a mano; senza scelta si tiene quella gia usata dalla bozza.
+    const requestedTemplate = String(body.wine_template || '').trim().toUpperCase()
+    const wineTemplateId = isWineEmailTemplateId(requestedTemplate) ? requestedTemplate : null
 
     if (!draftId) {
       return Response.json({ error: 'draft_id obbligatorio' }, { status: 400 })
@@ -308,14 +317,20 @@ export async function POST(request: NextRequest) {
       loadUserSettings(auth.supabase, auth.workspaceUserId).catch(() => EMPTY_USER_SETTINGS),
     ])
 
+    const effectiveTemplateId = wineTemplateId || draft.wine_template || null
     const generated = await regenerateDraft(
       contact as CRMContact,
       context,
       apiKey,
       model,
       settings,
-      note
+      note,
+      effectiveTemplateId
     )
+
+    const wineTemplate = isWineSegmentContact(contact as CRMContact)
+      ? pickWineEmailTemplate(contact as CRMContact, effectiveTemplateId)
+      : null
 
     // Update the draft in place
     const { data: updated, error: updateError } = await auth.supabase
@@ -324,6 +339,7 @@ export async function POST(request: NextRequest) {
         subject: generated.subject,
         body_text: generated.body_text,
         body_html: generated.body_html,
+        wine_template: wineTemplate?.id || null,
         // If there was a note passed, store it in the note field if it exists
         ...(note ? { note } : {}),
       })
@@ -351,6 +367,7 @@ export async function POST(request: NextRequest) {
       draft: {
         ...updated,
         contact: contactSummary,
+        wine_segment: isWineSegmentContact(contact as CRMContact),
       },
       regenerated: true,
     })

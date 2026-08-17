@@ -1,5 +1,6 @@
 import type { CRMContact } from '@/types'
 import { withEmailAiFramework, type EmailAiFrameworkSettings } from '@/lib/email-ai-framework'
+import { formatWineEmailTemplateGuidance, pickWineEmailTemplate } from '@/lib/email-wine-templates'
 
 export const SPEAQI_COMUNI_URL = 'https://speaqi.com/comuni'
 export const SPEAQI_RAI3_URL = 'https://www.youtube.com/watch?v=HMb5XQEY4cM'
@@ -403,7 +404,18 @@ export function validateWineDraft(contact: CRMContact, draft: DraftLike) {
   return issues
 }
 
-export function buildEmailSegmentGuidance(contact: CRMContact, settings?: EmailAiFrameworkSettings | null) {
+export type EmailSegmentGuidanceOptions = {
+  /** C'e gia una email inviata a questo contatto: sblocca i modelli di ripresa contatto. */
+  followupMode?: boolean
+  /** Variante wine scelta a mano dalla UI; senza scelta si usa la rotazione per contatto. */
+  wineTemplateId?: string | null
+}
+
+export function buildEmailSegmentGuidance(
+  contact: CRMContact,
+  settings?: EmailAiFrameworkSettings | null,
+  options: EmailSegmentGuidanceOptions = {}
+) {
   const company = String(contact.company || '').toLowerCase()
   const email = String(contact.email || '').toLowerCase()
   const emailLocalPart = email.split('@')[0] || ''
@@ -435,6 +447,13 @@ export function buildEmailSegmentGuidance(contact: CRMContact, settings?: EmailA
         'Non dire che il destinatario ha aperto o cliccato una precedente email e non fingere di averlo incontrato in fiera o a un evento.'
       )
     }
+
+    // I modelli wine chiudono il segmento: sono l'ultima parola su struttura e CTA.
+    guidance.push(
+      formatWineEmailTemplateGuidance(pickWineEmailTemplate(contact, options.wineTemplateId), {
+        hasPreviousContact: !!options.followupMode || isHighInterestContact,
+      })
+    )
   }
 
   const isPa =
