@@ -351,6 +351,7 @@ Main page for sales team monitoring. Structure:
 
 | Path | Purpose |
 |---|---|
+| `scripts/backup_supabase.mjs` | Local dated backup (`npm run backup`) — the Free plan has no PITR/daily backups. Paginates at 1000 rows; writes JSON per table + `contacts.csv` + manifest into gitignored `backups/` |
 | `scripts/analyze_legacy_csv.py` | Analyze legacy CSV format |
 | `scripts/import_contacts_csv.py` | Import contacts from CSV |
 | `scripts/restore_dmo_contacts.py` | Restore DMO contacts |
