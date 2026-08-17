@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { validateAutomationSecret } from '@/lib/server/automation-auth'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 import { errorMessage } from '@/lib/server/http'
 import type { CRMContact, GmailMessage } from '@/types'
@@ -11,11 +12,6 @@ import {
   validateGeneratedDraft,
 } from '@/lib/server/email-draft-context'
 import { buildEmailAiPolicy } from '@/lib/email-ai-framework'
-
-function validateSecret(request: NextRequest) {
-  const secret = process.env.AUTOMATION_SECRET
-  return !!secret && request.headers.get('x-automation-secret') === secret
-}
 
 // ─── Scanner: find contacts needing follow-up ───
 
@@ -353,7 +349,7 @@ async function generateDraft(
 // ─── Route handler ───
 
 export async function POST(request: NextRequest) {
-  if (!validateSecret(request)) {
+  if (!validateAutomationSecret(request)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -539,6 +535,7 @@ export async function POST(request: NextRequest) {
     const dryRunNote = dryRun ? ' [DRY RUN — nessun salvataggio]' : ''
 
     return Response.json({
+      ok: failed === 0,
       scanned: contacts.length,
       processed: limited.length,
       generated,
@@ -547,7 +544,7 @@ export async function POST(request: NextRequest) {
       dry_run: dryRun,
       message: `${generated} bozze generate, ${failed} errori${dryRunNote}`,
       drafts: draftResults,
-    })
+    }, { status: failed > 0 ? 500 : 200 })
   } catch (error) {
     console.error('orchestrator failed', error)
     return Response.json({ error: errorMessage(error, 'Orchestrator failed') }, { status: 500 })

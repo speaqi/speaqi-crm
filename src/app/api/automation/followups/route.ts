@@ -4,11 +4,7 @@ import { normalizeTaskAction, priorityLevelFromNumber, taskTypeForAction } from 
 import { applyPipelineScope } from '@/lib/server/scope-filters'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 import { statusSlaHours } from '@/lib/sla'
-
-function validateSecret(request: NextRequest) {
-  const secret = process.env.AUTOMATION_SECRET
-  return !!secret && request.headers.get('x-automation-secret') === secret
-}
+import { validateAutomationSecret } from '@/lib/server/automation-auth'
 
 function asDate(value?: string | null) {
   if (!value) return null
@@ -29,7 +25,7 @@ function taskKey(task: { contact_id: string; due_date?: string | null; idempoten
 }
 
 export async function POST(request: NextRequest) {
-  if (!validateSecret(request)) {
+  if (!validateAutomationSecret(request)) {
     return Response.json({ error: 'Unauthorized automation' }, { status: 401 })
   }
 
@@ -222,7 +218,7 @@ export async function POST(request: NextRequest) {
       createdTasks = tasks?.length || 0
     }
 
-    if (recipientEmail && contacts.length) {
+    if (!dryRun && recipientEmail && contacts.length) {
       await sendReminderEmail(
         recipientEmail,
         contacts.map((contact: any) => ({

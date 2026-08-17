@@ -1,14 +1,10 @@
 import { NextRequest } from 'next/server'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 import { errorMessage } from '@/lib/server/http'
-
-function validateSecret(request: NextRequest) {
-  const secret = process.env.AUTOMATION_SECRET
-  return !!secret && request.headers.get('x-automation-secret') === secret
-}
+import { validateAutomationSecret } from '@/lib/server/automation-auth'
 
 export async function POST(request: NextRequest) {
-  if (!validateSecret(request)) {
+  if (!validateAutomationSecret(request)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -111,6 +107,16 @@ export async function POST(request: NextRequest) {
       }
       maintenance.cleaned_drafts = oldDrafts.length
     }
+
+    // Report uncertain sends; never recycle them automatically because Gmail
+    // may already have accepted the message.
+    const stuckBefore = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+    const { count: uncertainSends, error: uncertainError } = await supabase
+      .from('automation_send_attempts')
+      .select('id', { count: 'exact', head: true })
+      .in('status', ['claimed', 'provider_accepted', 'unknown'])
+      .lt('claimed_at', stuckBefore)
+    if (!uncertainError) maintenance.uncertain_sends = uncertainSends || 0
 
     // ─── 4. Detect orphan contacts (open, with email, no tasks, no follow-up, no recent activity) ───
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()

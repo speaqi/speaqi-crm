@@ -3,14 +3,10 @@ import { createServiceRoleClient } from '@/lib/server/supabase'
 import { errorMessage } from '@/lib/server/http'
 import { classifyReplyWithAI } from '@/lib/server/ai-ready'
 import { syncContactGmailMessages } from '@/lib/server/gmail'
-
-function validateSecret(request: NextRequest) {
-  const secret = process.env.AUTOMATION_SECRET
-  return !!secret && request.headers.get('x-automation-secret') === secret
-}
+import { validateAutomationSecret } from '@/lib/server/automation-auth'
 
 export async function POST(request: NextRequest) {
-  if (!validateSecret(request)) {
+  if (!validateAutomationSecret(request)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -22,10 +18,13 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}))
     const dryRun = body.dry_run === true
+    const parsedSinceMinutes = Number(body.since_minutes)
+    const sinceMinutes = Number.isFinite(parsedSinceMinutes)
+      ? Math.min(14 * 24 * 60, Math.max(1, Math.floor(parsedSinceMinutes)))
+      : 60
     const supabase = createServiceRoleClient()
 
-    // Find contacts that had outbound emails in the last 14 days, in active scope
-    const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
+    const since = new Date(Date.now() - sinceMinutes * 60 * 1000).toISOString()
 
     const { data: recentOutbounds, error: outError } = await supabase
       .from('gmail_messages')
@@ -38,7 +37,7 @@ export async function POST(request: NextRequest) {
     if (outError) throw outError
 
     if (!recentOutbounds?.length) {
-      return Response.json({ checked: 0, replies_found: 0, message: 'Nessuna email outbound recente' })
+      return Response.json({ ok: true, since_minutes: sinceMinutes, checked: 0, replies_found: 0, errors: 0, message: 'Nessuna email outbound recente' })
     }
 
     // Deduplicate by contact — keep only the latest outbound per contact for the sent_at threshold
@@ -132,13 +131,15 @@ export async function POST(request: NextRequest) {
     const errors = results.filter((r) => r.error).length
 
     return Response.json({
+      ok: errors === 0,
       dry_run: dryRun,
+      since_minutes: sinceMinutes,
       checked: results.length,
       replies_found: replies.length,
       errors,
       message: `${replies.length} risposte trovate su ${results.length} contatti`,
       replies,
-    })
+    }, { status: errors > 0 ? 500 : 200 })
   } catch (error) {
     console.error('reply-monitor failed', error)
     return Response.json({ error: errorMessage(error, 'Reply monitor failed') }, { status: 500 })

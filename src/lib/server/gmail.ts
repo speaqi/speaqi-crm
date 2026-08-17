@@ -278,11 +278,12 @@ function encodeMimeHeader(value: string) {
     : value
 }
 
-function encodeMessageBody(subject: string, to: string, html: string, text: string) {
+function encodeMessageBody(subject: string, to: string, html: string, text: string, messageIdHeader?: string) {
   const boundary = `crm-${crypto.randomUUID()}`
   const raw = [
     `To: ${to}`,
     `Subject: ${encodeMimeHeader(subject)}`,
+    ...(messageIdHeader ? [`Message-ID: ${messageIdHeader}`] : []),
     'MIME-Version: 1.0',
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
     '',
@@ -933,6 +934,7 @@ export async function sendContactEmail(
     text: string
     followupAt?: string | null
     appendSignature?: boolean
+    messageIdHeader?: string
   }
 ) {
   if (!contact.email) {
@@ -950,7 +952,7 @@ export async function sendContactEmail(
     { html: input.html, text: input.text },
     signature
   )
-  const raw = encodeMessageBody(input.subject, contact.email, signedInput.html, signedInput.text)
+  const raw = encodeMessageBody(input.subject, contact.email, signedInput.html, signedInput.text, input.messageIdHeader)
   // Un contatto in holding non deve intasare la coda giornaliera, ma nemmeno
   // sparire dal radar: prima l'invio azzerava next_followup_at e il contatto
   // non veniva piu ripescato dall'orchestrator. Ora prende una cadenza lenta.
@@ -1034,6 +1036,22 @@ export async function sendContactEmail(
     account,
     message: storedMessage as GmailMessage,
   }
+}
+
+export async function findSentGmailMessageByRfc822Id(
+  supabase: any,
+  userId: string,
+  messageIdHeader: string
+) {
+  const account = await getGmailAccount(supabase, userId)
+  if (!account) throw new Error('Gmail non collegato')
+  const accessToken = await refreshAccessToken(account)
+  const query = encodeURIComponent(`in:sent rfc822msgid:${messageIdHeader}`)
+  const result = await gmailApiRequest<{ messages?: Array<{ id: string }> }>(
+    accessToken,
+    `/users/me/messages?q=${query}&maxResults=1`
+  )
+  return result.messages?.[0]?.id || null
 }
 
 export async function createContactDraft(

@@ -13,28 +13,46 @@ endpoint `/api/automation/*` dell'app, protetti da `x-automation-secret`.
 | `REMINDER_EMAIL` | Destinatario di reminder e recap |
 | `SPEAQI_WEBHOOK_SECRET` | Solo per 03 (ingestion lead dal sito) |
 
+Variabili lato applicazione per l'invio sicuro:
+
+| Variabile | Uso |
+|---|---|
+| `AUTOMATION_WORKSPACE_USER_ID` | Owner del workspace autorizzato; non arriva dal body n8n |
+| `AUTOMATION_SENDER_USER_ID` | Account Gmail mittente; nella v1 coincide con l'owner |
+| `AUTOMATION_TIMEZONE` | Timezone del cap, default `Europe/Rome` |
+| `AUTOMATION_SEND_ENABLED` | Kill switch; lasciare `false` fino al rollout live |
+| `AUTOMATION_DAILY_SEND_CAP` | Cap atomico giornaliero, default 40 |
+| `AUTOMATION_SEND_DELAY_MS` | Pausa opzionale tra invii |
+| `AUTOMATION_RECONCILE_FAIL_HOURS` | Finestra di riconciliazione, minimo 24 ore |
+
 ## Ordine di riaccensione consigliato
 
 Riattiva un workflow alla volta e osserva per qualche giorno prima del successivo:
 
-1. **08-backup** (ogni notte 03:00) — primo di tutti: e l'unica rete di
+1. **00-error-handler** — importalo per primo, configura le credenziali SMTP
+   del nodo email e selezionalo come Error Workflow nelle impostazioni degli
+   altri workflow. L'ID è assegnato da n8n durante l'importo e non può essere
+   precompilato nei JSON.
+2. **08-backup** (ogni notte 03:00) — primo workflow operativo: e l'unica rete di
    sicurezza sui dati, visto che il piano Free di Supabase non ha backup ne
    PITR. Non tocca nulla, legge soltanto.
-2. **01-followups** (ogni 10 min) — massimo impatto: rigenera i task dovuti,
+3. **01-followups** (ogni 10 min) — massimo impatto: rigenera i task dovuti,
    gli SLA e il recupero preventivi. È quello che tiene piena la lista delle
    cose da fare.
-3. **06-db-maintenance** (ogni ora) — igiene: riallinea follow-up e task,
+4. **06-db-maintenance** (ogni ora) — igiene: riallinea follow-up e task,
    pulisce le bozze scartate. Evita che il disordine si riaccumuli.
-4. **07-weekly-recap** (lunedì 07:30) — email di recap settimanale:
+5. **07-weekly-recap** (lunedì 07:30) — email di recap settimanale:
    pipeline per stadio, vinte/perse, chiamate dei prossimi 14 giorni,
    contatti da recuperare.
-5. **02-stale-leads** (ogni giorno 09:00) — task "Riattiva X" sui contatti
+6. **02-stale-leads** (ogni giorno 09:00) — task "Riattiva X" sui contatti
    fermi da più di 5 giorni.
-6. **05-reply-monitor** (ogni 30 min) — sync Gmail + classificazione AI delle
+7. **05-reply-monitor** (ogni 30 min) — sync Gmail + classificazione AI delle
    risposte. Prima di attivarlo verifica che i token OAuth Gmail siano validi.
-7. **03-speaqi-webhook** — solo se il form del sito è attivo.
-8. **04-orchestrator** (lun-ven 08:00) — bozze email AI del mattino
-   (restano bozze: l'invio è sempre manuale). Ultimo perché è il più complesso.
+8. **03-speaqi-webhook** — solo se il form del sito è attivo.
+9. **04-orchestrator** (lun-ven 08:00) — bozze email AI del mattino.
+10. **09-score-leads** e **10-acumbamail-qualification** — endpoint orfani.
+11. **11-send-holding** — soltanto dopo sette giorni di osservazione; è
+    esportato in shadow mode con `dry_run: true`.
 
 ## Endpoint chiamati
 
@@ -48,6 +66,12 @@ Riattiva un workflow alla volta e osserva per qualche giorno prima del successiv
 | 06-db-maintenance | `POST /api/automation/db-maintenance` | `0 * * * *` |
 | 07-weekly-recap | `POST /api/automation/weekly-recap` | `30 7 * * 1` |
 | 08-backup | `POST /api/automation/backup` | `0 3 * * *` |
+| 09-score-leads | `POST /api/automation/score-leads` | `0 6 * * *` |
+| 10-acumbamail-qualification | `POST /api/automation/acumbamail-qualification` | `0 7 * * *` |
+| 11-send-holding | `POST /api/automation/send-batch` | `0 9 * * 1-5` |
+
+Il piano di test, shadow mode e rollout è in
+[`docs/AUTOMAZIONE-CRM-N8N.md`](../docs/AUTOMAZIONE-CRM-N8N.md).
 
 Test manuale di un endpoint (senza n8n):
 

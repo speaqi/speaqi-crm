@@ -1,0 +1,10 @@
+{
+  "name": "SPEAQI Send Holding",
+  "nodes": [
+    { "id": "cron_send_holding", "name": "Weekdays 09:00", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [260, 260], "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "0 9 * * 1-5" }] } } },
+    { "id": "call_send_holding", "name": "Send Holding Batch", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4, "position": [520, 260], "parameters": { "method": "POST", "url": "={{ $env.APP_BASE_URL + '/api/automation/send-batch' }}", "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "x-automation-secret", "value": "={{ $env.AUTOMATION_SECRET }}" }] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={\"limit\":3,\"min_age_minutes\":60,\"dry_run\":true}", "options": { "retry": { "maxTries": 1 } } } }
+  ],
+  "connections": { "Weekdays 09:00": { "main": [[{ "node": "Send Holding Batch", "type": "main", "index": 0 }]] } },
+  "settings": { "timezone": "Europe/Rome", "executionOrder": "v1" },
+  "active": false
+}

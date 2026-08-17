@@ -2,17 +2,14 @@ import { NextRequest } from 'next/server'
 import { isClosedStatus } from '@/lib/data'
 import { createActivities, syncPendingCallTask, updateContactSummary } from '@/lib/server/crm'
 import { createServiceRoleClient } from '@/lib/server/supabase'
-
-function validateSecret(request: NextRequest) {
-  const secret = process.env.AUTOMATION_SECRET
-  return !!secret && request.headers.get('x-automation-secret') === secret
-}
+import { validateAutomationSecret } from '@/lib/server/automation-auth'
+import { toCallableSlot } from '@/lib/sla'
 
 function followupAt(days: number) {
   const date = new Date()
   date.setDate(date.getDate() + days)
   date.setHours(10, 0, 0, 0)
-  return date.toISOString()
+  return toCallableSlot(date).toISOString()
 }
 
 function normalizedEmail(value: unknown) {
@@ -24,7 +21,7 @@ function normalizedEmail(value: unknown) {
  * operation idempotent: a promoted contact is not picked up on future runs.
  */
 export async function POST(request: NextRequest) {
-  if (!validateSecret(request)) {
+  if (!validateAutomationSecret(request)) {
     return Response.json({ error: 'Unauthorized automation' }, { status: 401 })
   }
 

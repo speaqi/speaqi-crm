@@ -5,6 +5,8 @@ import { sendContactEmail, simpleTextToHtml } from '@/lib/server/gmail'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 import { nextFollowupAfterEmail } from '@/lib/sla'
 import type { CRMContact } from '@/types'
+import { automationContext, validateAutomationSecret } from '@/lib/server/automation-auth'
+import { sendDraftAutomatically } from '@/lib/server/automation-send'
 
 /**
  * Invio email machine-to-machine.
@@ -16,11 +18,6 @@ import type { CRMContact } from '@/types'
  */
 
 const DEFAULT_DAILY_CAP = 40
-
-function validateSecret(request: NextRequest) {
-  const secret = process.env.AUTOMATION_SECRET
-  return !!secret && request.headers.get('x-automation-secret') === secret
-}
 
 function dailyCap() {
   const parsed = Number(process.env.AUTOMATION_DAILY_SEND_CAP)
@@ -72,7 +69,7 @@ function skip(reason: string, detail: string) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!validateSecret(request)) {
+  if (!validateAutomationSecret(request)) {
     return Response.json({ error: 'Unauthorized automation' }, { status: 401 })
   }
 
@@ -83,6 +80,22 @@ export async function POST(request: NextRequest) {
     const dryRun = body.dry_run === true
     const ignoreCap = body.ignore_cap === true
     const supabase = createServiceRoleClient()
+
+    if (draftId) {
+      if (!dryRun && process.env.AUTOMATION_SEND_ENABLED !== 'true') {
+        return Response.json({ error: 'Automatic sending disabled' }, { status: 503 })
+      }
+      const context = automationContext()
+      if (!context) {
+        return Response.json({ error: 'Automation workspace not configured' }, { status: 503 })
+      }
+      const result = await sendDraftAutomatically(supabase, context, {
+        draftId,
+        minAgeMinutes: Math.max(0, Math.floor(Number(body.min_age_minutes) || 0)),
+        dryRun,
+      })
+      return Response.json(result, { status: result.unknown ? 500 : 200 })
+    }
 
     if (!draftId && !requestedContactId) {
       return Response.json({ error: 'draft_id oppure contact_id obbligatorio' }, { status: 400 })

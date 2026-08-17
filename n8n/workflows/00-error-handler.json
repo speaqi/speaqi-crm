@@ -1,0 +1,32 @@
+{
+  "name": "SPEAQI Automation Error Handler",
+  "nodes": [
+    {
+      "id": "automation_error_trigger",
+      "name": "Automation Error",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [260, 260],
+      "parameters": {}
+    },
+    {
+      "id": "send_error_email",
+      "name": "Send Error Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [520, 260],
+      "parameters": {
+        "fromEmail": "={{ $env.REMINDER_EMAIL }}",
+        "toEmail": "={{ $env.REMINDER_EMAIL }}",
+        "subject": "=SPEAQI automation failed: {{ $json.workflow.name }}",
+        "emailFormat": "text",
+        "text": "=Workflow: {{ $json.workflow.name }}\nExecution: {{ $json.execution.id }}\nNode: {{ $json.execution.lastNodeExecuted }}\nError: {{ $json.execution.error.message }}\nTime: {{ $now }}\nURL: {{ $json.execution.url || 'n/a' }}"
+      }
+    }
+  ],
+  "connections": {
+    "Automation Error": { "main": [[{ "node": "Send Error Email", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "timezone": "Europe/Rome", "executionOrder": "v1" },
+  "active": false
+}

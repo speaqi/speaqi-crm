@@ -3,6 +3,7 @@ import { isClosedStatus } from '@/lib/data'
 import { sendCustomEmail } from '@/lib/email'
 import { applyPipelineScope } from '@/lib/server/scope-filters'
 import { createServiceRoleClient } from '@/lib/server/supabase'
+import { validateAutomationSecret } from '@/lib/server/automation-auth'
 
 /**
  * Recap settimanale via email (lunedì mattina, chiamato da n8n):
@@ -13,11 +14,6 @@ import { createServiceRoleClient } from '@/lib/server/supabase'
  * Solo lettura + una email Resend: nessun task o stato viene modificato.
  */
 
-function validateSecret(request: NextRequest) {
-  const secret = process.env.AUTOMATION_SECRET
-  return !!secret && request.headers.get('x-automation-secret') === secret
-}
-
 function euro(value: number) {
   return value.toLocaleString('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 }
@@ -27,7 +23,7 @@ function italianDate(value: string | Date) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!validateSecret(request)) {
+  if (!validateAutomationSecret(request)) {
     return Response.json({ error: 'Unauthorized automation' }, { status: 401 })
   }
 
