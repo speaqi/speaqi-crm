@@ -111,32 +111,48 @@ export async function GET(request: NextRequest) {
   try {
     const scope = String(request.nextUrl.searchParams.get('scope') || 'all').trim().toLowerCase()
 
-    let query = auth.supabase
-      .from('contacts')
-      .select('*')
-      .eq('user_id', auth.workspaceUserId)
-      .order('updated_at', { ascending: false })
-      .order('created_at', { ascending: false })
-
-    if (scope === 'crm') query = query.eq('contact_scope', 'crm')
-    if (scope === 'holding') query = query.eq('contact_scope', 'holding')
-    if (scope === 'personal') query = query.eq('contact_scope', 'personal')
-    // Partner è un attributo trasversale (is_partner), non più uno scope.
-    if (scope === 'partner') query = query.eq('is_partner', true)
-
     const workspaceAll = workspaceContactsAllFromRequest(request, auth.isAdmin)
-    // Filtro assegnatario per tutti (admin incluso) quando non è richiesto workspace completo.
-    if (auth.memberName && !workspaceAll) {
-      const assigneeOr = contactAssigneeMatchOrFilter(auth.memberName)
-      if (assigneeOr) query = query.or(assigneeOr)
-      else query = query.eq('responsible', '__no_member__')
+    const supabase = auth.supabase
+
+    function buildQuery() {
+      let query = supabase
+        .from('contacts')
+        .select('*')
+        .eq('user_id', auth.workspaceUserId)
+        .order('updated_at', { ascending: false })
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+
+      if (scope === 'crm') query = query.eq('contact_scope', 'crm')
+      if (scope === 'holding') query = query.eq('contact_scope', 'holding')
+      if (scope === 'personal') query = query.eq('contact_scope', 'personal')
+      // Partner è un attributo trasversale (is_partner), non più uno scope.
+      if (scope === 'partner') query = query.eq('is_partner', true)
+
+      // Filtro assegnatario per tutti (admin incluso) quando non è richiesto workspace completo.
+      if (auth.memberName && !workspaceAll) {
+        const assigneeOr = contactAssigneeMatchOrFilter(auth.memberName)
+        if (assigneeOr) query = query.or(assigneeOr)
+        else query = query.eq('responsible', '__no_member__')
+      }
+
+      return query
     }
 
-    const { data, error } = await query
+    // Senza range esplicito PostgREST tronca a 1000 righe: una campagna che
+    // aggiorna in massa i contatti li porta in cima all'ordinamento e spinge
+    // fuori risposta tutti i contatti più vecchi, che spariscono dalla UI.
+    const pageSize = 1000
+    const contacts: unknown[] = []
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await buildQuery().range(from, from + pageSize - 1)
+      if (error) throw error
+      const page = data || []
+      contacts.push(...page)
+      if (page.length < pageSize) break
+    }
 
-    if (error) throw error
-
-    return Response.json({ contacts: data || [] })
+    return Response.json({ contacts })
   } catch (error) {
     return Response.json(
       { error: errorMessage(error, 'Failed to load contacts') },
