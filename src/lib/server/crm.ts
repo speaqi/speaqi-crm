@@ -417,6 +417,8 @@ export async function createActivities(
     type: string
     content: string
     metadata?: Record<string, unknown> | null
+    /** Backdating: usato quando l'attivita rappresenta un fatto avvenuto prima (es. email trovata al sync). */
+    created_at?: string
   }>
 ) {
   const payload = activities

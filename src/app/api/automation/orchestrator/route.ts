@@ -8,7 +8,7 @@ import {
   ensureDraftRequiredAssets,
   formatPublicOrganizationResearch,
   researchPublicOrganization,
-  validatePublicOrganizationDraft,
+  validateGeneratedDraft,
 } from '@/lib/server/email-draft-context'
 import { buildEmailAiPolicy } from '@/lib/email-ai-framework'
 
@@ -333,8 +333,8 @@ async function generateDraft(
   ].filter(Boolean).join('\n')
 
   const generated = ensureDraftRequiredAssets(contact, await callOpenAI(apiKey, model, system, userPrompt))
-  const issues = validatePublicOrganizationDraft(contact, generated, followupMode)
-  if (!issues.length) return generated
+  const issues = validateGeneratedDraft(contact, generated, followupMode)
+  if (!issues.all.length) return generated
 
   const corrected = ensureDraftRequiredAssets(
     contact,
@@ -342,11 +342,11 @@ async function generateDraft(
       apiKey,
       model,
       system,
-      `${userPrompt}\n\n## Correzioni obbligatorie\n${issues.map((issue) => `- ${issue}`).join('\n')}`
+      `${userPrompt}\n\n## Correzioni obbligatorie\n${issues.all.map((issue) => `- ${issue}`).join('\n')}`
     )
   )
-  const remainingIssues = validatePublicOrganizationDraft(contact, corrected, followupMode)
-  if (remainingIssues.length) throw new Error(`Bozza istituzionale non conforme: ${remainingIssues.join(' ')}`)
+  const remaining = validateGeneratedDraft(contact, corrected, followupMode)
+  if (remaining.blocking.length) throw new Error(`Bozza istituzionale non conforme: ${remaining.blocking.join(' ')}`)
   return corrected
 }
 

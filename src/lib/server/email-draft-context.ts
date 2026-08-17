@@ -295,19 +295,14 @@ export function validatePublicOrganizationDraft(
   return issues
 }
 
-export function buildEmailSegmentGuidance(contact: CRMContact, settings?: EmailAiFrameworkSettings | null) {
+/** Wine / event vertical: the master Wine positioning applies to these contacts. */
+export function isWineSegmentContact(contact: CRMContact) {
   const source = String(contact.source || '').toLowerCase()
   const category = String(contact.category || '').toLowerCase()
   const listName = String(contact.list_name || '').toLowerCase()
   const company = String(contact.company || '').toLowerCase()
-  const email = String(contact.email || '').toLowerCase()
-  const emailLocalPart = email.split('@')[0] || ''
-  const name = String(contact.name || '').trim()
-  const notes = String(contact.note || '').toLowerCase()
 
-  const guidance: string[] = []
-
-  const isWineOrEventSegment =
+  return (
     source.includes('vinitaly') ||
     source.includes('vino') ||
     category.includes('vitigno') ||
@@ -318,19 +313,128 @@ export function buildEmailSegmentGuidance(contact: CRMContact, settings?: EmailA
     company.includes('cantina') ||
     company.includes('vitivinicol') ||
     company.includes('vigneti')
+  )
+}
+
+/**
+ * All quality checks for a generated draft.
+ * `blocking` = institutional rules (a non-compliant PA draft must not be kept);
+ * `all` = blocking + Wine guardrails, used to build the correction pass.
+ */
+export function validateGeneratedDraft(contact: CRMContact, draft: DraftLike, followupMode: boolean) {
+  const blocking = validatePublicOrganizationDraft(contact, draft, followupMode)
+  return {
+    blocking,
+    all: [
+      ...blocking,
+      ...validateWineDraft(contact, draft),
+      ...validatePublicSectorNarrative(contact, draft),
+    ],
+  }
+}
+
+/**
+ * Guardrails on the public sector master message. Non blocking, like the Wine
+ * ones: catch the drifts that make an email interchangeable with any vendor's.
+ */
+export function validatePublicSectorNarrative(contact: CRMContact, draft: DraftLike) {
+  if (!isPublicOrganizationContact(contact)) return []
+
+  const text = plainDraftText(draft)
+  const issues: string[] = []
+
+  if (/\bho notato che\b|\bavendo notato\b|\bho visto che (il|la|il vostro|la vostra)\b/i.test(text)) {
+    issues.push(
+      'Elimina l’apertura “Ho notato che...”: e la formula che qualunque fornitore scrive a qualunque Comune. Apri dal risultato per il territorio o dallo scenario del visitatore straniero.'
+    )
+  }
+  if (/\b(la nostra|il nostro) (piattaforma|sistema|soluzione|servizio|software|strumento)\b/i.test(text)) {
+    issues.push(
+      'Non descrivere “la nostra piattaforma”: racconta cosa succede a chi arriva sul territorio, non cosa fa il prodotto.'
+    )
+  }
+  if (/esigenze comunicative|potreste beneficiare|potrebbe beneficiare|soluzion[ei] innovativ|comunicazione digitale del (vostro )?comune/i.test(text)) {
+    issues.push(
+      'Elimina il linguaggio generico da fornitore (“esigenze comunicative”, “potreste beneficiare”, “soluzioni innovative”): usa parole concrete sul territorio e su chi lo visita.'
+    )
+  }
+  if (/potrebbe avere senso approfondire|se fosse di (vostro |suo )?interesse.{0,40}approfondire/i.test(text)) {
+    issues.push(
+      'Togli la richiesta vaga di “approfondire”: resta una sola CTA, la call di 15 minuti con il referente competente.'
+    )
+  }
+  if (/(piattaforma|servizio|sistema|soluzione|strumento)\s+(di\s+)?(traduzion|intelligenza artificiale|qr)/i.test(text)) {
+    issues.push(
+      'Speaqi non e una piattaforma di traduzione ne un generatore di QR: il valore e un’unica fonte ufficiale aggiornabile, distribuibile in ogni lingua e su ogni canale.'
+    )
+  }
+
+  return issues
+}
+
+/**
+ * Guardrails on the Wine master message. Only negative checks: they catch the
+ * drifts that break the concept (selling the QR/translation, canned openers)
+ * without forcing a specific wording on the AI.
+ */
+export function validateWineDraft(contact: CRMContact, draft: DraftLike) {
+  if (!isWineSegmentContact(contact)) return []
+
+  const text = plainDraftText(draft)
+  const issues: string[] = []
+
+  if (/(piattaforma|servizio|sistema|soluzione|tool|strumento)\s+(di\s+)?(traduzion|intelligenza artificiale|qr)/i.test(text) || /piattaforma\s+(ai|a\.i\.)\b/i.test(text)) {
+    issues.push(
+      'Non presentare Speaqi come piattaforma di traduzione, generatore di QR code o piattaforma AI: il valore e un’unica fonte di conoscenza da cui distribuire tutto il racconto della cantina in ogni lingua.'
+    )
+  }
+  if (/ho notato che (siete|sei|e|è)|potreste beneficiare|potrebbe beneficiare|soluzion[ei] innovativ|nel settore (vinicolo|del vino) come il vostro/i.test(text)) {
+    issues.push(
+      'Elimina le formule artificiali (“Ho notato che siete attivi nel settore vinicolo”, “potreste beneficiare di”, “soluzioni innovative”): parti dal risultato per la cantina.'
+    )
+  }
+  if (/(ho|abbiamo) (visto|notato) che (hai|ha|avete) (aperto|cliccato|letto)|(hai|ha|avete) (aperto|cliccato) (la|le|il|una|il nostro)/i.test(text)) {
+    issues.push('Non dire mai di aver tracciato aperture, click o letture delle comunicazioni precedenti.')
+  }
+  if (/\b(le nostre funzionalit|include:|offriamo:|ecco cosa (offriamo|include))/i.test(text)) {
+    issues.push('Non aprire ne costruire l’email su un elenco di funzionalita: usa uno scenario concreto (la bottiglia, il QR, il cliente straniero).')
+  }
+
+  return issues
+}
+
+export function buildEmailSegmentGuidance(contact: CRMContact, settings?: EmailAiFrameworkSettings | null) {
+  const company = String(contact.company || '').toLowerCase()
+  const email = String(contact.email || '').toLowerCase()
+  const emailLocalPart = email.split('@')[0] || ''
+  const category = String(contact.category || '').toLowerCase()
+  const name = String(contact.name || '').trim()
+  const notes = String(contact.note || '').toLowerCase()
+
+  const guidance: string[] = []
+
+  const isWineOrEventSegment = isWineSegmentContact(contact)
 
   const openCount = Number(contact.email_open_count || 0)
   const clickCount = Number(contact.email_click_count || 0)
   const isHighInterestContact = clickCount > 0 || openCount >= 2
 
-  if (isWineOrEventSegment && isHighInterestContact) {
-    const highInterestGuidance = withEmailAiFramework(settings).email_high_interest_segment
-    guidance.push(`Segmento contatti ad alto interesse:\n${highInterestGuidance}`)
-  } else if (isWineOrEventSegment) {
+  if (isWineOrEventSegment) {
+    const framework = withEmailAiFramework(settings)
+
+    // The master Wine positioning applies to every wine draft: cold and high interest.
     guidance.push(
-      'Segmento vino/eventi: collega Speaqi a un caso d uso concreto come QR o link multilingua per schede prodotto, degustazioni, materiali fiera, export o visite in cantina.',
-      'Non dire che il destinatario ha aperto o cliccato una precedente email e non fingere di averlo incontrato in fiera.'
+      `Messaggio centrale del settore vino (vale per ogni email a una cantina, prima o follow-up):\n${framework.email_wine_core_message}`
     )
+
+    if (isHighInterestContact) {
+      guidance.push(`Segmento contatti ad alto interesse:\n${framework.email_high_interest_segment}`)
+    } else {
+      guidance.push(
+        'Primo contatto con la cantina: parti dal risultato per la cantina, poi rendi concreto il concetto con lo scenario della bottiglia. Non elencare funzionalita e non vendere QR, traduzioni, video o AI come prodotti separati.',
+        'Non dire che il destinatario ha aperto o cliccato una precedente email e non fingere di averlo incontrato in fiera o a un evento.'
+      )
+    }
   }
 
   const isPa =
@@ -346,6 +450,7 @@ export function buildEmailSegmentGuidance(contact: CRMContact, settings?: EmailA
 
   if (isPa) {
     guidance.push(
+      `Messaggio centrale del settore pubblico (vale per ogni email a un Comune o ente, prima o follow-up):\n${withEmailAiFramework(settings).email_public_sector_core_message}`,
       'Ente pubblico o destinazione: usa sempre una forma istituzionale (Lei, Le, vostro Comune/ente). Non usare mai tu, ti o tuo.',
       'Evita tono da vendita aggressiva e non attribuire progetti o priorita specifiche non presenti nei dati.',
       'Se il contatto e un Comune, un ente o una casella istituzionale senza un referente personale certo, apri con “Buongiorno,” senza inventare un nome. Non presumere che chi legge sia il decisore: chiedi cortesemente di essere indirizzato al referente che segue turismo, cultura, comunicazione o accessibilita e proponi con quella persona un incontro di 15 minuti.',
@@ -357,7 +462,7 @@ export function buildEmailSegmentGuidance(contact: CRMContact, settings?: EmailA
   if (isMunicipalityContact(contact)) {
     guidance.push(
       'Comune: non agganciare l’email a eventi specifici, feste, sagre o calendari stagionali (rischio che siano gia passati).',
-      'Pitch evergreen: Speaqi aiuta i Comuni a raccontare il territorio a chi non parla italiano — turisti e cittadini — con un’unica fonte informativa aggiornabile e distribuibile in molte lingue (QR, web, audio, video). Zero app, zero ristampe.',
+      'Rendi concreto il messaggio centrale con lo scenario del visitatore straniero davanti alla targa o al punto panoramico, invece di descrivere la piattaforma.',
       `Nel corpo inserisci sempre il riferimento alla pagina dedicata: ${SPEAQI_COMUNI_URL} (Programma Pilota Comuni, come funziona, esempi).`,
       'Oggetto: orientato a territorio/accessibilita/informazioni multilingua, non a un evento o a una stagione.'
     )

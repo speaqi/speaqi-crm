@@ -1,6 +1,8 @@
 import crypto from 'crypto'
 import { createActivities, syncPendingCallTask, updateContactSummary } from '@/lib/server/crm'
 import { applyReplyOutcome, logAiDecision, logLeadActivity } from '@/lib/server/ai-ready'
+import { nextFollowupAfterEmail, nextHoldingFollowup } from '@/lib/sla'
+import { isClosedStatus } from '@/lib/data'
 import type { CRMContact, GmailAccountStatus, GmailMessage } from '@/types'
 
 type GmailAccountRecord = {
@@ -711,6 +713,117 @@ async function handleInboundReplies(
   )
 }
 
+/**
+ * Un'email inviata a mano da Gmail entra nel CRM solo al sync, che puo avvenire
+ * molto dopo. Oltre questa finestra la registriamo come messaggio ma non come
+ * attivita: il primo sync di un contatto importa tutto lo storico e non deve
+ * riversare mesi di email nel log giornaliero e nelle statistiche per agente.
+ */
+const OUTBOUND_SYNC_ACTIVITY_WINDOW_HOURS = 72
+
+/**
+ * Id dei messaggi gia registrati come attivita `email_sent`.
+ * In caso di errore assume che siano tutti gia registrati: meglio perdere
+ * un'attivita che duplicarla nelle statistiche.
+ */
+async function loggedOutboundMessageIds(supabase: any, userId: string, contactId: string) {
+  const { data, error } = await supabase
+    .from('activities')
+    .select('metadata')
+    .eq('user_id', userId)
+    .eq('contact_id', contactId)
+    .eq('type', 'email_sent')
+    .order('created_at', { ascending: false })
+    .limit(200)
+
+  if (error) return null
+
+  const ids = new Set<string>()
+  for (const row of data || []) {
+    const id = (row?.metadata as { gmail_message_id?: unknown } | null)?.gmail_message_id
+    if (typeof id === 'string' && id) ids.add(id)
+  }
+  return ids
+}
+
+/**
+ * Allinea al CRM le email inviate fuori dal CRM (bozza aperta e spedita da Gmail):
+ * attivita nel log + follow-up, come se fossero partite dal CRM.
+ */
+async function handleOutboundSyncedMessages(
+  supabase: any,
+  userId: string,
+  contact: CRMContact,
+  newMessages: Array<Omit<GmailMessage, 'id' | 'created_at'>>,
+  allMessages: Array<Omit<GmailMessage, 'id' | 'created_at'>>
+) {
+  const cutoff = Date.now() - OUTBOUND_SYNC_ACTIVITY_WINDOW_HOURS * 60 * 60 * 1000
+  const recentOutbound = newMessages
+    .filter((message) => message.direction === 'outbound' && message.sent_at)
+    .filter((message) => new Date(message.sent_at || 0).getTime() >= cutoff)
+    .sort((left, right) => new Date(left.sent_at || 0).getTime() - new Date(right.sent_at || 0).getTime())
+
+  if (!recentOutbound.length) return
+
+  // Gli invii partiti dal CRM sono gia loggati da sendContactEmail.
+  const alreadyLogged = await loggedOutboundMessageIds(supabase, userId, contact.id)
+  if (!alreadyLogged) return
+
+  const pending = recentOutbound.filter((message) => !alreadyLogged.has(message.gmail_message_id))
+  if (!pending.length) return
+
+  await createActivities(
+    supabase,
+    pending.map((message) => ({
+      user_id: userId,
+      contact_id: contact.id,
+      type: 'email_sent',
+      content: `Email inviata: ${message.subject || 'senza oggetto'}`,
+      // Datata al momento dell'invio, non del sync: il log giornaliero e le
+      // analytics per agente devono cadere nel giorno giusto.
+      created_at: message.sent_at || undefined,
+      metadata: {
+        source: 'gmail_sync',
+        gmail_message_id: message.gmail_message_id,
+        gmail_thread_id: message.gmail_thread_id,
+        direction: 'outbound',
+        subject: message.subject,
+        to: contact.email,
+      },
+    }))
+  )
+
+  const latest = pending[pending.length - 1]
+  const latestSentAt = new Date(latest.sent_at || 0).getTime()
+
+  // Se il contatto ha gia risposto dopo quell'invio, il prossimo passo lo decide
+  // applyReplyOutcome: non sovrascriverlo con un follow-up di attesa.
+  const answered = allMessages.some(
+    (message) =>
+      message.direction === 'inbound' && new Date(message.sent_at || 0).getTime() > latestSentAt
+  )
+  if (answered) return
+  if (isClosedStatus(String(contact.status || ''))) return
+
+  const sentAt = new Date(latestSentAt)
+  const followupAt = (
+    (contact.contact_scope || 'crm') === 'holding'
+      ? nextHoldingFollowup(sentAt)
+      : nextFollowupAfterEmail(contact.status, sentAt)
+  ).toISOString()
+
+  const subject = latest.subject || 'senza oggetto'
+  await updateContactSummary(supabase, contact.id, `Email inviata: ${subject}`, {
+    nextFollowupAt: followupAt,
+  })
+  await syncPendingCallTask(supabase, userId, contact.id, followupAt, {
+    type: 'follow-up',
+    priority: Number(contact.priority || 0) >= 3 ? 'high' : Number(contact.priority || 0) >= 2 ? 'medium' : 'low',
+    note: `Follow-up dopo email: ${subject}`,
+    overwriteNote: true,
+  })
+}
+
 async function refreshContactEmailSummary(supabase: any, contact: CRMContact, emails: Array<{ direction: string; subject?: string | null; sent_at?: string | null }>) {
   const latest = [...emails]
     .filter((item) => item.sent_at)
@@ -793,12 +906,10 @@ export async function syncContactGmailMessages(
     if (error) throw error
     stored = (data || []) as GmailMessage[]
 
-    await handleInboundReplies(
-      supabase,
-      userId,
-      contact,
-      normalized.filter((message) => !knownMessageIds.has(message.gmail_message_id))
-    )
+    const newMessages = normalized.filter((message) => !knownMessageIds.has(message.gmail_message_id))
+
+    await handleOutboundSyncedMessages(supabase, userId, contact, newMessages, normalized)
+    await handleInboundReplies(supabase, userId, contact, newMessages)
   }
 
   const profile = await fetchGmailProfile(accessToken).catch(() => null)
@@ -840,7 +951,15 @@ export async function sendContactEmail(
     signature
   )
   const raw = encodeMessageBody(input.subject, contact.email, signedInput.html, signedInput.text)
-  const effectiveFollowupAt = (contact.contact_scope || 'crm') === 'holding' ? null : (input.followupAt || null)
+  // Un contatto in holding non deve intasare la coda giornaliera, ma nemmeno
+  // sparire dal radar: prima l'invio azzerava next_followup_at e il contatto
+  // non veniva piu ripescato dall'orchestrator. Ora prende una cadenza lenta.
+  const isHolding = (contact.contact_scope || 'crm') === 'holding'
+  const effectiveFollowupAt = input.followupAt
+    ? isHolding
+      ? nextHoldingFollowup().toISOString()
+      : input.followupAt
+    : null
 
   const sendResult = await gmailApiRequest<{ id: string; threadId?: string }>(
     accessToken,

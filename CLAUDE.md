@@ -49,6 +49,7 @@ Copy `.env.local.example` to `.env.local`. Required keys:
 | `OPENAI_API_KEY` | OpenAI API key |
 | `OPENAI_MODEL` | Model ID (e.g. `gpt-5-mini`) |
 | `AUTOMATION_SECRET` | Auth secret for n8n automation endpoints |
+| `AUTOMATION_DAILY_SEND_CAP` | Max automated Gmail sends per sender per day (default 40) |
 | `SPEAQI_WEBHOOK_SECRET` | Auth secret for Acumbamail webhook |
 | `REMINDER_EMAIL` | From address for reminder emails |
 | `ACUMBAMAIL_WEBHOOK_USER_ID` | Acumbamail integration user ID |
@@ -255,6 +256,9 @@ Each stage has a `system_key` and `color`. Closed statuses: `closed`, `paid`, `l
 - Powered by `src/lib/server/email-drafts.ts`
 - User settings for email AI configuration at `/impostazioni/email-ai`
 - Model used: `OPENAI_MODEL` env var
+- Messaging baseline in `src/lib/email-ai-framework.ts` (`DEFAULT_EMAIL_AI_FRAMEWORK`); every field is overridable per user in `user_settings`
+- **Wine master message** (`email_wine_core_message`): the single concept behind every email to a cantina — "raccontate la cantina una volta, Speaqi la fa parlare con il mondo". Injected by `buildEmailSegmentGuidance` for both cold and high-interest wine contacts; QR, traduzioni, video e AI Concierge non sono mai il prodotto
+- `validateGeneratedDraft` (`src/lib/server/email-draft-context.ts`) runs the institutional checks (blocking) plus the Wine guardrails (correction pass only) on every generated draft
 
 ## Voice Commands
 
@@ -312,6 +316,10 @@ Located in `n8n/workflows/` — see `n8n/README.md` for the recommended re-enabl
 7. `07-weekly-recap.json` — weekly recap email (Monday 07:30)
 
 All use `APP_BASE_URL` and require `AUTOMATION_SECRET` for endpoint authentication (including `/api/email/reminder`). The n8n workflows are just schedulers: the logic lives in `/api/automation/*`.
+
+**Sending paths**: `/api/automation/send-draft` is session-authenticated (browser, human-in-the-loop). `/api/automation/send` is the machine-to-machine equivalent — `AUTOMATION_SECRET` + explicit `sender_user_id`, with guardrails (unsubscribed, closed stage, personal scope, marketing pause, per-sender daily cap). Automations must use the latter; the former will 401.
+
+**Follow-up cadence**: single source of truth in `src/lib/sla.ts` (`statusSlaHours`, `nextFollowupAfterEmail`, `nextHoldingFollowup`, `toCallableSlot`). Never re-inline the SLA table.
 
 ## Analytics Team (`/attivita`)
 

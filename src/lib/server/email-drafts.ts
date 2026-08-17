@@ -12,7 +12,7 @@ import {
   ensureDraftRequiredAssets,
   formatPublicOrganizationResearch,
   researchPublicOrganization,
-  validatePublicOrganizationDraft,
+  validateGeneratedDraft,
 } from '@/lib/server/email-draft-context'
 import { buildEmailAiPolicy } from '@/lib/email-ai-framework'
 import type { CRMContact, GmailMessage } from '@/types'
@@ -218,6 +218,8 @@ async function generateEmail(input: {
     .join('\n')
 
   let correction = ''
+  // Kept when only Wine guardrails remain: better a slightly off draft than none.
+  let bestEffort: GeneratedEmail | null = null
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -247,15 +249,16 @@ async function generateEmail(input: {
         input.contact,
         JSON.parse(text) as GeneratedEmail
       ) as GeneratedEmail
-      const issues = validatePublicOrganizationDraft(input.contact, generated, !!input.followupMode)
-      if (!issues.length) return generated
-      correction = issues.map((issue) => `- ${issue}`).join('\n')
+      const issues = validateGeneratedDraft(input.contact, generated, !!input.followupMode)
+      if (!issues.all.length) return generated
+      if (!issues.blocking.length) bestEffort = generated
+      correction = issues.all.map((issue) => `- ${issue}`).join('\n')
     } catch {
       return null
     }
   }
 
-  return null
+  return bestEffort
 }
 
 export async function createGeneratedContactDraft(

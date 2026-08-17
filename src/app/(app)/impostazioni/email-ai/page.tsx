@@ -22,6 +22,8 @@ type UserSettings = {
   email_do_not_say: string | null
   email_case_studies: string | null
   email_high_interest_segment: string | null
+  email_wine_core_message: string | null
+  email_public_sector_core_message: string | null
 }
 
 type SettingsField = {
@@ -34,6 +36,22 @@ type SettingsField = {
 }
 
 const SETTINGS_FIELDS: SettingsField[] = [
+  {
+    key: 'email_wine_core_message',
+    label: 'Messaggio centrale — Speaqi Wine',
+    hint: 'Il concetto master del verticale vino, usato in ogni email a una cantina (prima email e follow-up). Non e un modello di email: e l\u2019idea che ogni bozza deve far passare — raccontate la cantina una volta, Speaqi la fa parlare con il mondo.',
+    placeholder: 'Messaggio centrale, concetto da far passare, regole per le email wine...',
+    rows: 16,
+    wide: true,
+  },
+  {
+    key: 'email_public_sector_core_message',
+    label: 'Messaggio centrale — Comuni ed enti pubblici',
+    hint: 'Il concetto master del settore pubblico, usato in ogni email a Comuni, Regioni, Province ed enti. Come per il vino: non e un modello di email, e l\u2019idea che ogni bozza deve far passare — il territorio lo raccontate una volta, Speaqi lo fa parlare con chi arriva.',
+    placeholder: 'Messaggio centrale, concetto da far passare, regole per le email al settore pubblico...',
+    rows: 16,
+    wide: true,
+  },
   {
     key: 'email_case_studies',
     label: 'Casi studio e referenze',
@@ -159,6 +177,33 @@ const fieldStyle: React.CSSProperties = {
   fontFamily: 'inherit',
 }
 
+const resetLinkStyle: React.CSSProperties = {
+  border: 'none',
+  background: 'none',
+  padding: 0,
+  fontSize: 12,
+  color: 'var(--accent)',
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+}
+
+/** Framework baseline for a field, or null when the field has no baseline (firma). */
+function fieldDefault(key: keyof UserSettings): string | null {
+  const defaults = DEFAULT_EMAIL_AI_FRAMEWORK as Record<string, string>
+  return key in defaults ? defaults[key] : null
+}
+
+/**
+ * A field is "at default" when it matches the baseline or is empty:
+ * an empty field falls back to the framework at drafting time.
+ */
+function isFieldAtDefault(key: keyof UserSettings, value: string | null) {
+  const baseline = fieldDefault(key)
+  if (baseline === null) return false
+  const current = String(value || '').trim()
+  return !current || current === baseline.trim()
+}
+
 const hintStyle: React.CSSProperties = {
   fontSize: 13,
   color: 'var(--text3)',
@@ -184,6 +229,8 @@ export default function EmailAIPage() {
     email_do_not_say: '',
     email_case_studies: '',
     email_high_interest_segment: '',
+    email_wine_core_message: '',
+    email_public_sector_core_message: '',
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -207,6 +254,8 @@ export default function EmailAIPage() {
           email_do_not_say: s.email_do_not_say ?? '',
           email_case_studies: s.email_case_studies ?? '',
           email_high_interest_segment: s.email_high_interest_segment ?? '',
+          email_wine_core_message: s.email_wine_core_message ?? '',
+          email_public_sector_core_message: s.email_public_sector_core_message ?? '',
         })
       })
       .finally(() => setLoading(false))
@@ -254,7 +303,20 @@ export default function EmailAIPage() {
                 gridColumn: field.wide ? '1 / -1' : undefined,
               }}
             >
-              <label className="form-label" style={{ fontWeight: 600 }}>{field.label}</label>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+                <label className="form-label" style={{ fontWeight: 600 }}>{field.label}</label>
+                {fieldDefault(field.key) !== null && (
+                  <button
+                    type="button"
+                    style={resetLinkStyle}
+                    title="Riporta solo questo campo al testo del framework Speaqi"
+                    disabled={saving || isFieldAtDefault(field.key, settings[field.key])}
+                    onClick={() => setSettings((prev) => ({ ...prev, [field.key]: fieldDefault(field.key) }))}
+                  >
+                    {isFieldAtDefault(field.key, settings[field.key]) ? 'Framework Speaqi' : 'Ripristina campo'}
+                  </button>
+                )}
+              </div>
               <p style={hintStyle}>{field.hint}</p>
               <textarea
                 style={{ ...fieldStyle, minHeight: Math.max(96, field.rows * 26) }}
@@ -272,13 +334,24 @@ export default function EmailAIPage() {
             className="btn btn-ghost"
             type="button"
             style={{ marginRight: 10 }}
-            onClick={() => setSettings((previous) => ({
-              ...previous,
-              ...DEFAULT_EMAIL_AI_FRAMEWORK,
-            }))}
+            onClick={() => {
+              const customized = SETTINGS_FIELDS
+                .filter((field) => fieldDefault(field.key) !== null && !isFieldAtDefault(field.key, settings[field.key]))
+                .map((field) => field.label)
+              if (
+                customized.length &&
+                !window.confirm(
+                  `Questa azione sovrascrive TUTTI i campi con il testo del framework Speaqi.\n\nPerderai il testo personalizzato di:\n${customized.map((label) => `• ${label}`).join('\n')}\n\nPer riallineare un singolo campo usa “Ripristina campo” accanto al suo titolo.`
+                )
+              ) return
+              setSettings((previous) => ({
+                ...previous,
+                ...DEFAULT_EMAIL_AI_FRAMEWORK,
+              }))
+            }}
             disabled={saving}
           >
-            Ripristina framework Speaqi
+            Ripristina tutti i campi
           </button>
           <button
             className="btn btn-primary"

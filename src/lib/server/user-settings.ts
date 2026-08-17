@@ -16,6 +16,8 @@ export type UserSettings = {
   email_do_not_say?: string | null
   email_case_studies?: string | null
   email_high_interest_segment?: string | null
+  email_wine_core_message?: string | null
+  email_public_sector_core_message?: string | null
 }
 
 const BASE_COLUMNS = ['speaqi_context', 'email_tone', 'email_signature'] as const
@@ -33,14 +35,19 @@ const EXTENDED_COLUMNS = [
   'email_do_not_say',
   'email_case_studies',
   'email_high_interest_segment',
+  'email_wine_core_message',
+  'email_public_sector_core_message',
 ] as const
-const PRE_HIGH_INTEREST_EXTENDED_COLUMNS = EXTENDED_COLUMNS.filter(
+const PRE_WINE_EXTENDED_COLUMNS = EXTENDED_COLUMNS.filter(
+  (column) => column !== 'email_wine_core_message' && column !== 'email_public_sector_core_message'
+)
+const PRE_HIGH_INTEREST_EXTENDED_COLUMNS = PRE_WINE_EXTENDED_COLUMNS.filter(
   (column) => column !== 'email_high_interest_segment'
 )
 const PRE_CASE_STUDIES_EXTENDED_COLUMNS = PRE_HIGH_INTEREST_EXTENDED_COLUMNS.filter(
   (column) => column !== 'email_case_studies'
 )
-const PRE_POSITIONING_EXTENDED_COLUMNS = EXTENDED_COLUMNS.filter(
+const PRE_POSITIONING_EXTENDED_COLUMNS = PRE_HIGH_INTEREST_EXTENDED_COLUMNS.filter(
   (column) => column !== 'email_positioning' && column !== 'email_do_not_say' && column !== 'email_case_studies'
 )
 const PRE_GOAL_EXTENDED_COLUMNS = PRE_POSITIONING_EXTENDED_COLUMNS.filter(
@@ -63,6 +70,8 @@ export const EMPTY_USER_SETTINGS: UserSettings = {
   email_do_not_say: DEFAULT_EMAIL_AI_FRAMEWORK.email_do_not_say,
   email_case_studies: DEFAULT_EMAIL_AI_FRAMEWORK.email_case_studies,
   email_high_interest_segment: DEFAULT_EMAIL_AI_FRAMEWORK.email_high_interest_segment,
+  email_wine_core_message: DEFAULT_EMAIL_AI_FRAMEWORK.email_wine_core_message,
+  email_public_sector_core_message: DEFAULT_EMAIL_AI_FRAMEWORK.email_public_sector_core_message,
 }
 
 function errorMessage(error: unknown) {
@@ -87,7 +96,9 @@ function isMissingSettingsColumn(error: unknown) {
     message.includes('email_positioning') ||
     message.includes('email_do_not_say') ||
     message.includes('email_case_studies') ||
-    message.includes('email_high_interest_segment')
+    message.includes('email_high_interest_segment') ||
+    message.includes('email_wine_core_message') ||
+    message.includes('email_public_sector_core_message')
 
   return columnMissing &&
     (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
@@ -115,6 +126,8 @@ function normalizePayload(input: Partial<UserSettings>) {
     email_do_not_say: normalizeSetting(input.email_do_not_say),
     email_case_studies: normalizeSetting(input.email_case_studies),
     email_high_interest_segment: normalizeSetting(input.email_high_interest_segment),
+    email_wine_core_message: normalizeSetting(input.email_wine_core_message),
+    email_public_sector_core_message: normalizeSetting(input.email_public_sector_core_message),
   }
 }
 
@@ -140,6 +153,16 @@ export async function loadUserSettings(supabase: any, userId: string): Promise<U
   }
 
   if (!isMissingSettingsColumn(extended.error)) throw extended.error
+
+  const preWine = await supabase
+    .from('user_settings')
+    .select(PRE_WINE_EXTENDED_COLUMNS.join(', '))
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (!preWine.error) {
+    return mergeLoadedSettings(preWine.data)
+  }
 
   const preHighInterest = await supabase
     .from('user_settings')
@@ -205,6 +228,17 @@ export async function saveUserSettings(supabase: any, userId: string, input: Par
 
   if (!extended.error) return
   if (!isMissingSettingsColumn(extended.error)) throw extended.error
+
+  const preWinePayload = {
+    user_id: userId,
+    ...normalized,
+    email_wine_core_message: undefined,
+    email_public_sector_core_message: undefined,
+    updated_at: new Date().toISOString(),
+  }
+
+  const preWine = await supabase.from('user_settings').upsert(preWinePayload, { onConflict: 'user_id' })
+  if (!preWine.error) return
 
   const preHighInterestPayload = {
     user_id: userId,
