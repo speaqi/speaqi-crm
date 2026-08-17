@@ -45,6 +45,33 @@
         "specifyBody": "json",
         "jsonBody": "={\"since_minutes\":60}"
       }
+    },
+    {
+      "id": "call_reconcile_drafts",
+      "name": "Bozze inviate da Gmail",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [780, 260],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.APP_BASE_URL + '/api/automation/reconcile-drafts' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-automation-secret",
+              "value": "={{ $env.AUTOMATION_SECRET }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"lookback_days\":7}"
+      }
     }
   ],
   "connections": {
@@ -53,6 +80,17 @@
         [
           {
             "node": "Check Replies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Replies": {
+      "main": [
+        [
+          {
+            "node": "Bozze inviate da Gmail",
             "type": "main",
             "index": 0
           }

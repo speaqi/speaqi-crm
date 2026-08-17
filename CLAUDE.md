@@ -81,6 +81,7 @@ supabase migration up
 | `lead_memories` | AI-generated synthetic memory per lead |
 | `ai_decision_logs` | Audit trail of AI decisions |
 | `email_logs` | Email sending history |
+| `email_drafts` | AI drafts awaiting review (`sent_via` + `provider_message_id` link the row to what actually went out) |
 | `gmail_accounts` | Connected Gmail accounts (encrypted tokens) |
 | `gmail_messages` | Synced Gmail threads linked to contacts |
 | `team_members` | Multi-user team management (with `auth_user_id` linking) |
@@ -259,6 +260,7 @@ Each stage has a `system_key` and `color`. Closed statuses: `closed`, `paid`, `l
 - Messaging baseline in `src/lib/email-ai-framework.ts` (`DEFAULT_EMAIL_AI_FRAMEWORK`); every field is overridable per user in `user_settings`
 - **Wine master message** (`email_wine_core_message`): the single concept behind every email to a cantina — "raccontate la cantina una volta, Speaqi la fa parlare con il mondo". Injected by `buildEmailSegmentGuidance` for both cold and high-interest wine contacts; QR, traduzioni, video e AI Concierge non sono mai il prodotto
 - `validateGeneratedDraft` (`src/lib/server/email-draft-context.ts`) runs the institutional checks (blocking) plus the Wine guardrails (correction pass only) on every generated draft
+- **Sent-from-Gmail reconciliation** (`src/lib/server/draft-reconcile.ts`, `POST /api/automation/reconcile-drafts`): a draft saved to Gmail ("Salva in bozza") and then sent by hand from Gmail used to stay `pending` forever. The reconciler compares pending drafts with the account's sent mail — a message to that contact after the draft's `created_at` closes the draft as `sent` with `sent_via = 'gmail'` and `provider_message_id` = the Gmail message (unique index: one message can never close two drafts), copying the subject/body actually sent, then delegates activity + follow-up to `syncContactGmailMessages`. Runs automatically when `/email` loads, on the "Controlla invii Gmail" button, and every 30 min from `05-reply-monitor`. `email_drafts.sent_via` records the path: `crm` / `automation` / `gmail`
 
 ## Voice Commands
 
@@ -311,7 +313,7 @@ Located in `n8n/workflows/` — see `n8n/README.md` for the recommended re-enabl
 2. `02-stale-leads.json` — stale lead detection (daily 09:00)
 3. `03-speaqi-webhook.json` — inbound lead ingestion webhook
 4. `04-orchestrator.json` — morning AI email drafts (Mon–Fri 08:00, human sends)
-5. `05-reply-monitor.json` — Gmail reply sync + AI classification (every 30 min)
+5. `05-reply-monitor.json` — Gmail reply sync + AI classification, then draft reconciliation (every 30 min)
 6. `06-db-maintenance.json` — data hygiene (hourly)
 7. `07-weekly-recap.json` — weekly recap email (Monday 07:30)
 8. `08-backup.json` — nightly database backup (03:00)

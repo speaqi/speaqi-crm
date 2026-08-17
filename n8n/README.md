@@ -47,7 +47,8 @@ Riattiva un workflow alla volta e osserva per qualche giorno prima del successiv
 6. **02-stale-leads** (ogni giorno 09:00) — task "Riattiva X" sui contatti
    fermi da più di 5 giorni.
 7. **05-reply-monitor** (ogni 30 min) — sync Gmail + classificazione AI delle
-   risposte. Prima di attivarlo verifica che i token OAuth Gmail siano validi.
+   risposte, poi riconciliazione delle bozze `/email` spedite a mano da Gmail.
+   Prima di attivarlo verifica che i token OAuth Gmail siano validi.
 8. **03-speaqi-webhook** — solo se il form del sito è attivo.
 9. **04-orchestrator** (lun-ven 08:00) — bozze email AI del mattino.
 10. **09-score-leads** e **10-acumbamail-qualification** — endpoint orfani.
@@ -62,7 +63,7 @@ Riattiva un workflow alla volta e osserva per qualche giorno prima del successiv
 | 02-stale-leads | `POST /api/automation/stale-leads` | `0 9 * * *` |
 | 03-speaqi-webhook | `POST /api/speaqi/leads` (webhook inbound) | — |
 | 04-orchestrator | `POST /api/automation/orchestrator` | `0 8 * * 1-5` |
-| 05-reply-monitor | `POST /api/automation/reply-monitor` | `*/30 * * * *` |
+| 05-reply-monitor | `POST /api/automation/reply-monitor` + `POST /api/automation/reconcile-drafts` | `*/30 * * * *` |
 | 06-db-maintenance | `POST /api/automation/db-maintenance` | `0 * * * *` |
 | 07-weekly-recap | `POST /api/automation/weekly-recap` | `30 7 * * 1` |
 | 08-backup | `POST /api/automation/backup` | `0 3 * * *` |

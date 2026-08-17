@@ -1054,6 +1054,155 @@ export async function findSentGmailMessageByRfc822Id(
   return result.messages?.[0]?.id || null
 }
 
+export type SentGmailMessageInfo = {
+  id: string
+  threadId: string | null
+  subject: string | null
+  sentAt: string | null
+  recipients: string[]
+}
+
+function toSentMessageInfo(message: GmailApiMessage): SentGmailMessageInfo {
+  const headers = message.payload?.headers || []
+  return {
+    id: message.id,
+    threadId: message.threadId || null,
+    subject: getHeader(headers, 'subject') || null,
+    sentAt: getMessageTimestamp(message, headers),
+    recipients: uniqueEmails([
+      getHeader(headers, 'to'),
+      getHeader(headers, 'cc'),
+      getHeader(headers, 'bcc'),
+    ]),
+  }
+}
+
+async function getMessageMetadata(accessToken: string, messageId: string) {
+  const params = new URLSearchParams({ format: 'metadata' })
+  for (const header of ['To', 'Cc', 'Bcc', 'Subject', 'Date']) {
+    params.append('metadataHeaders', header)
+  }
+  return gmailApiRequest<GmailApiMessage>(
+    accessToken,
+    `/users/me/messages/${messageId}?${params.toString()}`
+  )
+}
+
+/** Le liste Gmail restituiscono solo gli id: i metadati vanno chiesti uno a uno. */
+async function fetchSentMessageInfos(accessToken: string, refs: GmailMessageRef[]) {
+  const out = new Array<SentGmailMessageInfo | null>(refs.length)
+  let next = 0
+
+  async function worker() {
+    while (next < refs.length) {
+      const index = next++
+      try {
+        out[index] = toSentMessageInfo(await getMessageMetadata(accessToken, refs[index].id))
+      } catch {
+        // Un messaggio illeggibile non deve far fallire l'intera scansione.
+        out[index] = null
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(5, refs.length) }, () => worker()))
+  return out.filter((item): item is SentGmailMessageInfo => item !== null)
+}
+
+/** Un solo token per tutte le chiamate di un batch (riconciliazione bozze). */
+export async function getGmailAccessToken(supabase: any, userId: string) {
+  const account = await getGmailAccount(supabase, userId)
+  if (!account) return null
+  const accessToken = await refreshAccessToken(account)
+  return { account, accessToken }
+}
+
+/** Posta inviata recente, con i destinatari: serve a capire cosa e' partito da Gmail. */
+export async function listRecentSentGmailMessages(
+  accessToken: string,
+  options: { newerThanDays?: number; maxResults?: number } = {}
+): Promise<SentGmailMessageInfo[]> {
+  const days = Math.min(30, Math.max(1, Math.floor(options.newerThanDays || 7)))
+  const maxResults = Math.min(200, Math.max(1, Math.floor(options.maxResults || 60)))
+  const params = new URLSearchParams({
+    q: `in:sent newer_than:${days}d`,
+    maxResults: String(maxResults),
+  })
+
+  const list = await gmailApiRequest<{ messages?: GmailMessageRef[] }>(
+    accessToken,
+    `/users/me/messages?${params.toString()}`
+  )
+
+  return fetchSentMessageInfos(accessToken, list.messages || [])
+}
+
+/** Fallback mirato quando l'invio e' fuori dalla finestra scansionata. */
+export async function findSentGmailMessageToRecipient(
+  accessToken: string,
+  recipientEmail: string,
+  afterEpochSeconds?: number
+): Promise<SentGmailMessageInfo | null> {
+  const email = normalizeEmail(recipientEmail)
+  if (!email) return null
+
+  const clauses = ['in:sent', `(to:"${email}" OR cc:"${email}" OR bcc:"${email}")`]
+  if (afterEpochSeconds && Number.isFinite(afterEpochSeconds)) {
+    clauses.push(`after:${Math.floor(afterEpochSeconds)}`)
+  }
+
+  const params = new URLSearchParams({ q: clauses.join(' '), maxResults: '5' })
+  const list = await gmailApiRequest<{ messages?: GmailMessageRef[] }>(
+    accessToken,
+    `/users/me/messages?${params.toString()}`
+  )
+
+  const messages = await fetchSentMessageInfos(accessToken, list.messages || [])
+
+  // Il piu vecchio: e' quello che ha "consumato" la bozza.
+  messages.sort(
+    (left, right) => new Date(left.sentAt || 0).getTime() - new Date(right.sentAt || 0).getTime()
+  )
+  return messages[0] || null
+}
+
+/** Testo realmente spedito, per allineare la bozza a quanto e' partito da Gmail. */
+export async function getSentGmailMessageContent(accessToken: string, messageId: string) {
+  const message = await getMessage(accessToken, messageId)
+  const headers = message.payload?.headers || []
+  const bodies = collectBodies(message.payload)
+  const html = bodies.html.join('\n\n').trim()
+  const text = bodies.plain.join('\n\n').trim() || stripHtml(html)
+
+  return {
+    ...toSentMessageInfo(message),
+    subject: getHeader(headers, 'subject') || null,
+    text: text || null,
+    html: html || null,
+  } satisfies SentGmailMessageInfo & { text: string | null; html: string | null }
+}
+
+/**
+ * `true` se la bozza esiste ancora in Gmail, `false` se e' sparita (inviata o
+ * cestinata), `null` se Gmail non risponde: nel dubbio non si tocca nulla.
+ */
+export async function gmailDraftExists(
+  accessToken: string,
+  gmailDraftId: string
+): Promise<boolean | null> {
+  const response = await fetch(
+    `${GMAIL_API_BASE_URL}/users/me/drafts/${encodeURIComponent(gmailDraftId)}?format=minimal`,
+    {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: 'no-store',
+    }
+  )
+
+  if (response.status === 404) return false
+  if (!response.ok) return null
+  return true
+}
+
 export async function createContactDraft(
   supabase: any,
   userId: string,

@@ -12,6 +12,7 @@ type EmailDraft = {
   body_text: string | null
   body_html: string | null
   gmail_draft_id: string | null
+  sent_via?: string | null
   status: string
   source: string
   created_at: string
@@ -71,9 +72,11 @@ export default function EmailPage() {
   const [recordingDraftId, setRecordingDraftId] = useState<string | null>(null)
   const [recordingSeconds, setRecordingSeconds] = useState(0)
   const [transcribingDraftId, setTranscribingDraftId] = useState<string | null>(null)
+  const [checkingGmail, setCheckingGmail] = useState(false)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const autoCheckedRef = useRef(false)
 
   const loadData = useCallback(async () => {
     try {
@@ -90,9 +93,61 @@ export default function EmailPage() {
     }
   }, [])
 
+  // Le bozze aperte e spedite direttamente da Gmail devono uscire dalla coda:
+  // si confrontano le pending con la posta inviata dell'account collegato.
+  const checkGmailSends = useCallback(
+    async (manual: boolean) => {
+      setCheckingGmail(true)
+      try {
+        const result = await apiFetch<{
+          gmail_connected: boolean
+          checked: number
+          marked_sent: number
+        }>('/api/automation/reconcile-drafts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        })
+
+        if (result.marked_sent > 0) {
+          await loadData()
+          refresh()
+          showToast(
+            result.marked_sent === 1
+              ? '1 bozza risultava già inviata da Gmail: spostata in Inviate'
+              : `${result.marked_sent} bozze risultavano già inviate da Gmail: spostate in Inviate`
+          )
+          return
+        }
+
+        if (!manual) return
+        if (!result.gmail_connected) {
+          showToast('Gmail non collegato: impossibile controllare la posta inviata')
+          return
+        }
+        showToast(
+          result.checked === 0
+            ? 'Nessuna bozza in attesa da controllare'
+            : 'Nessuna bozza inviata da Gmail'
+        )
+      } catch (err) {
+        if (manual) showToast(err instanceof Error ? err.message : 'Controllo Gmail fallito')
+      } finally {
+        setCheckingGmail(false)
+      }
+    },
+    [loadData, refresh, showToast]
+  )
+
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  useEffect(() => {
+    if (loading || autoCheckedRef.current) return
+    autoCheckedRef.current = true
+    void checkGmailSends(false)
+  }, [loading, checkGmailSends])
 
   useEffect(() => {
     return () => {
@@ -334,6 +389,15 @@ export default function EmailPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => checkGmailSends(true)}
+            disabled={checkingGmail}
+            title="Controlla se qualche bozza è stata inviata direttamente da Gmail"
+          >
+            {checkingGmail ? '⏳ Controllo Gmail...' : '📤 Controlla invii Gmail'}
+          </button>
           <Link href="/impostazioni/email-ai" className="btn btn-ghost btn-sm">
             ⚙️ Configura AI
           </Link>
@@ -608,6 +672,34 @@ export default function EmailPage() {
                           <span style={{ fontSize: 12, color: 'var(--text3)' }}>
                             {formatDate(draft.sent_at)}
                           </span>
+                          {draft.sent_via === 'gmail' && (
+                            <span
+                              style={{
+                                fontSize: 11,
+                                color: 'var(--text3)',
+                                background: 'var(--surface2)',
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                              }}
+                              title="Bozza aperta e inviata direttamente da Gmail"
+                            >
+                              da Gmail
+                            </span>
+                          )}
+                          {draft.sent_via === 'automation' && (
+                            <span
+                              style={{
+                                fontSize: 11,
+                                color: 'var(--text3)',
+                                background: 'var(--surface2)',
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                              }}
+                              title="Inviata da un'automazione"
+                            >
+                              auto
+                            </span>
+                          )}
                         </div>
                         <div style={{ fontSize: 13, color: 'var(--text2)' }}>
                           {draft.subject || '(nessun oggetto)'}

@@ -153,6 +153,8 @@ export async function POST(request: NextRequest) {
       .update({
         status: 'sent',
         sent_at: new Date().toISOString(),
+        sent_via: 'crm',
+        provider_message_id: result.message.gmail_message_id,
         gmail_draft_id: null, // no longer a draft, it's sent
       })
       .eq('id', draftId)

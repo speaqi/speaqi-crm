@@ -202,7 +202,13 @@ export async function POST(request: NextRequest) {
     if (draft) {
       const { error: updateError } = await supabase
         .from('email_drafts')
-        .update({ status: 'sent', sent_at: new Date().toISOString(), gmail_draft_id: null })
+        .update({
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+          sent_via: 'automation',
+          provider_message_id: result.message.gmail_message_id,
+          gmail_draft_id: null,
+        })
         .eq('id', draft.id)
 
       if (updateError) console.error('[automation/send] draft update failed', updateError)
