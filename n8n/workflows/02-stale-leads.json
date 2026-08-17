@@ -1,4 +1,5 @@
 {
+  "id": "BlINAxmYIwSNnF5E",
   "name": "SPEAQI Stale Leads",
   "nodes": [
     {
@@ -62,6 +63,7 @@
     }
   },
   "settings": {
+    "errorWorkflow": "0xqpUI1Kr7z0UJg2",
     "timezone": "Europe/Rome",
     "executionOrder": "v1"
   },

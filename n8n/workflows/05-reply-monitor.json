@@ -1,4 +1,5 @@
 {
+  "id": "15d2e5f2-2036-471f-be33-4dceaeece3ab",
   "name": "SPEAQI Reply Monitor",
   "nodes": [
     {
@@ -60,6 +61,7 @@
     }
   },
   "settings": {
+    "errorWorkflow": "0xqpUI1Kr7z0UJg2",
     "timezone": "Europe/Rome",
     "executionOrder": "v1"
   },

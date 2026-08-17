@@ -1,4 +1,5 @@
 {
+  "id": "0xqpUI1Kr7z0UJg2",
   "name": "SPEAQI Automation Error Handler",
   "nodes": [
     {
@@ -12,15 +13,17 @@
     {
       "id": "send_error_email",
       "name": "Send Error Email",
-      "type": "n8n-nodes-base.emailSend",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
       "position": [520, 260],
       "parameters": {
-        "fromEmail": "={{ $env.REMINDER_EMAIL }}",
-        "toEmail": "={{ $env.REMINDER_EMAIL }}",
-        "subject": "=SPEAQI automation failed: {{ $json.workflow.name }}",
-        "emailFormat": "text",
-        "text": "=Workflow: {{ $json.workflow.name }}\nExecution: {{ $json.execution.id }}\nNode: {{ $json.execution.lastNodeExecuted }}\nError: {{ $json.execution.error.message }}\nTime: {{ $now }}\nURL: {{ $json.execution.url || 'n/a' }}"
+        "method": "POST",
+        "url": "={{ $env.APP_BASE_URL + '/api/automation/error-alert' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "x-automation-secret", "value": "={{ $env.AUTOMATION_SECRET }}" }] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"workflow\":{{ JSON.stringify($json.workflow.name) }},\"execution_id\":{{ JSON.stringify($json.execution.id) }},\"node\":{{ JSON.stringify($json.execution.lastNodeExecuted) }},\"message\":{{ JSON.stringify($json.execution.error.message) }},\"timestamp\":{{ JSON.stringify($now) }},\"url\":{{ JSON.stringify($json.execution.url || '') }}}"
       }
     }
   ],

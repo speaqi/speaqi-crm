@@ -1,4 +1,5 @@
 {
+  "id": "62557649-8a9c-404b-9bd0-2d1207256832",
   "name": "SPEAQI Morning Orchestrator",
   "nodes": [
     {
@@ -60,6 +61,7 @@
     }
   },
   "settings": {
+    "errorWorkflow": "0xqpUI1Kr7z0UJg2",
     "timezone": "Europe/Rome",
     "executionOrder": "v1"
   },
