@@ -3,6 +3,7 @@ import { requireRouteUser } from '@/lib/server/supabase'
 import { errorMessage } from '@/lib/server/http'
 import { isWineSegmentContact } from '@/lib/server/email-draft-context'
 import { EMPTY_USER_SETTINGS, loadUserSettings } from '@/lib/server/user-settings'
+import { getGmailAccount } from '@/lib/server/gmail'
 import { getWineEmailTemplates } from '@/lib/email-wine-templates'
 import type { CRMContact } from '@/types'
 
@@ -48,12 +49,21 @@ export async function GET(request: NextRequest) {
     // I modelli sono modificabili da /impostazioni/email-ai: il selettore in
     // /email deve mostrare quelli del workspace, non quelli di default.
     const hasWineDraft = enriched.some((draft: any) => draft.wine_segment)
-    const settings = hasWineDraft
-      ? await loadUserSettings(auth.supabase, auth.workspaceUserId).catch(() => EMPTY_USER_SETTINGS)
-      : null
+    const [settings, gmailAccount] = await Promise.all([
+      hasWineDraft
+        ? loadUserSettings(auth.supabase, auth.workspaceUserId).catch(() => EMPTY_USER_SETTINGS)
+        : Promise.resolve(null),
+      // Serve a costruire il link che apre la bozza nella finestra di Gmail.
+      enriched.length
+        ? getGmailAccount(auth.supabase, auth.workspaceUserId, { tolerateMissingRelation: true }).catch(
+            () => null
+          )
+        : Promise.resolve(null),
+    ])
 
     return Response.json({
       drafts: enriched,
+      gmail_account_email: gmailAccount?.email || null,
       wine_templates: settings
         ? getWineEmailTemplates(settings.email_wine_templates).map(({ id, label }) => ({ id, label }))
         : [],

@@ -104,6 +104,7 @@ export async function POST(request: NextRequest) {
           body_text: bodyText,
           body_html: bodyHtml,
           gmail_draft_id: gmailDraft.draftId,
+          gmail_draft_message_id: gmailDraft.messageId,
         })
         .eq('id', draftId)
         .eq('user_id', auth.workspaceUserId)
@@ -114,6 +115,7 @@ export async function POST(request: NextRequest) {
         draft_id: draftId,
         status: 'pending',
         gmail_draft_id: gmailDraft.draftId,
+        gmail_draft_message_id: gmailDraft.messageId,
       })
     }
 
@@ -156,6 +158,7 @@ export async function POST(request: NextRequest) {
         sent_via: 'crm',
         provider_message_id: result.message.gmail_message_id,
         gmail_draft_id: null, // no longer a draft, it's sent
+        gmail_draft_message_id: null,
       })
       .eq('id', draftId)
 

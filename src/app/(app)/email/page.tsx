@@ -20,6 +20,7 @@ type EmailDraft = {
   body_text: string | null
   body_html: string | null
   gmail_draft_id: string | null
+  gmail_draft_message_id?: string | null
   sent_via?: string | null
   wine_template?: string | null
   wine_segment?: boolean
@@ -61,6 +62,12 @@ function urgencyLabel(nextFollowupAt?: string | null): { label: string; classNam
   return { label: `+${diffDays}gg`, className: 'urgency-later' }
 }
 
+/** Link alla finestra di composizione Gmail: e li che le estensioni di tracking agganciano il pixel. */
+function gmailComposeUrl(accountEmail: string | null, messageId?: string | null) {
+  if (!accountEmail || !messageId) return null
+  return `https://mail.google.com/mail/u/${encodeURIComponent(accountEmail)}/#drafts?compose=${encodeURIComponent(messageId)}`
+}
+
 function scoreBadge(score: number | null | undefined): string {
   if (score == null) return ''
   if (score >= 80) return '🔥'
@@ -86,6 +93,8 @@ export default function EmailPage() {
   const [wineTemplates, setWineTemplates] = useState<WineTemplateOption[]>(
     DEFAULT_WINE_TEMPLATE_OPTIONS
   )
+  const [gmailAccountEmail, setGmailAccountEmail] = useState<string | null>(null)
+  const [preparingGmail, setPreparingGmail] = useState(false)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -94,14 +103,17 @@ export default function EmailPage() {
   const loadData = useCallback(async () => {
     try {
       const [pendingRes, sentRes] = await Promise.all([
-        apiFetch<{ drafts: EmailDraft[]; wine_templates?: WineTemplateOption[] }>(
-          '/api/automation/drafts?status=pending'
-        ),
+        apiFetch<{
+          drafts: EmailDraft[]
+          wine_templates?: WineTemplateOption[]
+          gmail_account_email?: string | null
+        }>('/api/automation/drafts?status=pending'),
         apiFetch<{ drafts: EmailDraft[] }>('/api/automation/drafts?status=sent'),
       ])
       setDrafts(pendingRes.drafts || [])
       setSent(sentRes.drafts || [])
       if (pendingRes.wine_templates?.length) setWineTemplates(pendingRes.wine_templates)
+      setGmailAccountEmail(pendingRes.gmail_account_email || null)
     } catch {
       // silent
     } finally {
@@ -154,6 +166,43 @@ export default function EmailPage() {
     },
     [loadData, refresh, showToast]
   )
+
+  // Tutte le bozze dentro Gmail: da li si inviano a mano e il tracking aperture
+  // (MailSuite) funziona, cosa che non succede con l'invio via API dal CRM.
+  const prepareAllInGmail = useCallback(async () => {
+    setPreparingGmail(true)
+    try {
+      let total = 0
+      for (let round = 0; round < 5; round++) {
+        const result = await apiFetch<{
+          prepared: number
+          remaining: number
+          gmail_account_email?: string | null
+          errors?: string[]
+        }>('/api/automation/prepare-gmail-drafts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        })
+
+        total += result.prepared
+        if (result.gmail_account_email) setGmailAccountEmail(result.gmail_account_email)
+        if (result.errors?.length) showToast(result.errors[0])
+        if (!result.remaining || !result.prepared) break
+      }
+
+      if (total) await loadData()
+      showToast(
+        total === 0
+          ? 'Nessuna bozza da preparare: sono già tutte in Gmail'
+          : `${total} bozze pronte in Gmail: aprile da lì e inviale, il tracking parte da Gmail`
+      )
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Preparazione bozze Gmail fallita')
+    } finally {
+      setPreparingGmail(false)
+    }
+  }, [loadData, showToast])
 
   useEffect(() => {
     loadData()
@@ -408,6 +457,15 @@ export default function EmailPage() {
           <button
             type="button"
             className="btn btn-ghost btn-sm"
+            onClick={prepareAllInGmail}
+            disabled={preparingGmail}
+            title="Crea in Gmail la bozza di tutte le email in attesa: inviandole da Gmail il tracking aperture funziona"
+          >
+            {preparingGmail ? '⏳ Preparo in Gmail...' : '📥 Prepara tutte in Gmail'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
             onClick={() => checkGmailSends(true)}
             disabled={checkingGmail}
             title="Controlla se qualche bozza è stata inviata direttamente da Gmail"
@@ -472,6 +530,7 @@ export default function EmailPage() {
                 const isBusy = busyIds.has(draft.id)
                 const isRecording = recordingDraftId === draft.id
                 const isTranscribing = transcribingDraftId === draft.id
+                const composeUrl = gmailComposeUrl(gmailAccountEmail, draft.gmail_draft_message_id)
 
                 return (
                   <div
@@ -553,11 +612,23 @@ export default function EmailPage() {
                               ? '✓ Bozza Gmail'
                               : 'Salva in bozza'}
                         </button>
+                        {composeUrl && (
+                          <a
+                            className="btn btn-ghost btn-sm"
+                            href={composeUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Apri la bozza in Gmail e invia da lì: così il tracking delle aperture si attiva"
+                          >
+                            Apri in Gmail ↗
+                          </a>
+                        )}
                         <button
                           type="button"
                           className="btn btn-primary btn-sm"
                           onClick={() => handleSend(draft)}
                           disabled={isBusy}
+                          title="Invia subito dal CRM (senza tracking aperture: il pixel lo aggiunge Gmail)"
                         >
                           {isBusy ? '...' : 'Invia'}
                         </button>

@@ -1203,30 +1203,71 @@ export async function gmailDraftExists(
   return true
 }
 
+export type GmailDraftSession = {
+  account: GmailAccountRecord
+  accessToken: string
+  signature: EmailSignature | null
+}
+
+/**
+ * Token e firma una volta sola: preparare 50 bozze non deve rifare 50 refresh
+ * token e 50 letture della firma.
+ */
+export async function openGmailDraftSession(
+  supabase: any,
+  userId: string
+): Promise<GmailDraftSession | null> {
+  const account = await getGmailAccount(supabase, userId)
+  if (!account) return null
+
+  return {
+    account,
+    accessToken: await refreshAccessToken(account),
+    signature: await loadGmailSignatureForAccount(account),
+  }
+}
+
+/** Crea la bozza in Gmail, o aggiorna quella indicata. */
+export async function saveContactDraftWithSession(
+  session: GmailDraftSession,
+  contact: { email: string; name: string },
+  input: {
+    subject: string
+    html: string
+    text: string
+    appendSignature?: boolean
+    gmailDraftId?: string | null
+  }
+): Promise<{ draftId: string; messageId: string | null }> {
+  const signature = input.appendSignature === false ? null : session.signature
+  const signedInput = appendEmailSignature({ html: input.html, text: input.text }, signature)
+  const raw = encodeMessageBody(input.subject, contact.email, signedInput.html, signedInput.text)
+
+  const result = await gmailApiRequest<{ id: string; message?: { id?: string } }>(
+    session.accessToken,
+    input.gmailDraftId
+      ? `/users/me/drafts/${encodeURIComponent(input.gmailDraftId)}`
+      : '/users/me/drafts',
+    {
+      method: input.gmailDraftId ? 'PUT' : 'POST',
+      body: JSON.stringify({ message: { raw } }),
+    }
+  )
+
+  // L'id del messaggio serve al link diretto alla finestra di composizione Gmail.
+  return { draftId: result.id, messageId: result.message?.id || null }
+}
+
 export async function createContactDraft(
   supabase: any,
   userId: string,
   contact: { email: string; name: string },
   input: { subject: string; html: string; text: string; appendSignature?: boolean }
-): Promise<{ draftId: string } | null> {
-  const account = await getGmailAccount(supabase, userId)
-  if (!account) return null
+): Promise<{ draftId: string; messageId: string | null } | null> {
+  const session = await openGmailDraftSession(supabase, userId)
+  if (!session) return null
 
-  const accessToken = await refreshAccessToken(account)
-  const signature = input.appendSignature === false ? null : await loadGmailSignatureForAccount(account)
-  const signedInput = appendEmailSignature(
-    { html: input.html, text: input.text },
-    signature
-  )
-  const raw = encodeMessageBody(input.subject, contact.email, signedInput.html, signedInput.text)
-
-  const result = await gmailApiRequest<{ id: string; message: { id: string } }>(
-    accessToken,
-    '/users/me/drafts',
-    { method: 'POST', body: JSON.stringify({ message: { raw } }) }
-  )
-
-  return { draftId: result.id }
+  return saveContactDraftWithSession(session, contact, input)
 }
 
 export async function updateContactDraft(
@@ -1235,23 +1276,9 @@ export async function updateContactDraft(
   gmailDraftId: string,
   contact: { email: string; name: string },
   input: { subject: string; html: string; text: string; appendSignature?: boolean }
-): Promise<{ draftId: string }> {
-  const account = await getGmailAccount(supabase, userId)
-  if (!account) throw new Error('Gmail non collegato')
+): Promise<{ draftId: string; messageId: string | null }> {
+  const session = await openGmailDraftSession(supabase, userId)
+  if (!session) throw new Error('Gmail non collegato')
 
-  const accessToken = await refreshAccessToken(account)
-  const signature = input.appendSignature === false ? null : await loadGmailSignatureForAccount(account)
-  const signedInput = appendEmailSignature(
-    { html: input.html, text: input.text },
-    signature
-  )
-  const raw = encodeMessageBody(input.subject, contact.email, signedInput.html, signedInput.text)
-
-  const result = await gmailApiRequest<{ id: string; message: { id: string } }>(
-    accessToken,
-    `/users/me/drafts/${encodeURIComponent(gmailDraftId)}`,
-    { method: 'PUT', body: JSON.stringify({ message: { raw } }) }
-  )
-
-  return { draftId: result.id }
+  return saveContactDraftWithSession(session, contact, { ...input, gmailDraftId })
 }
