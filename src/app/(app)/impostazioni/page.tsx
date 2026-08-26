@@ -16,6 +16,12 @@ const SETTINGS_ITEMS = [
     description: 'Contesto commerciale, struttura, CTA e fallback firma per le bozze Gmail.',
   },
   {
+    href: '/impostazioni/wine-project',
+    icon: '🍷',
+    title: 'Wine Project',
+    description: 'Cadenza della sequenza, collegamento Acumbamail e stato dei contatti demo.',
+  },
+  {
     href: '/gmail',
     icon: '✉️',
     title: 'Gmail',

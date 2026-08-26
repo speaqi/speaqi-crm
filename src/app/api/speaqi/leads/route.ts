@@ -6,6 +6,11 @@ import {
   updateContactSummary,
 } from '@/lib/server/crm'
 import { createServiceRoleClient } from '@/lib/server/supabase'
+import {
+  loadWineProjectAutomationSettings,
+  planWineProjectFollowups,
+  wineFollowupDueAt,
+} from '@/lib/server/wine-project-automation'
 
 function unauthorized() {
   return Response.json({ error: 'Unauthorized webhook' }, { status: 401 })
@@ -64,12 +69,17 @@ export async function POST(request: NextRequest) {
     const company = text(body.company, 160) || null
     const category = text(body.category, 120) || (isWineDemo ? 'wine-project' : null)
     const responsible = text(body.responsible, 160) || null
-    const requestedFollowup = text(body.next_followup_at, 80)
-    const nextFollowupAt = requestedFollowup || nextDay()
     const priority = Math.max(0, Math.min(3, Number(body.priority ?? (isWineDemo ? 3 : 2))))
     const { summary, resultsCount, wines } = wineDemoSummary(body)
     const activityContent = isWineDemo ? summary : text(body.note, 4000) || 'Lead creato da integrazione inbound.'
     const supabase = createServiceRoleClient()
+    const wineSettings = isWineDemo
+      ? await loadWineProjectAutomationSettings(supabase, userId)
+      : null
+    const requestedFollowup = text(body.next_followup_at, 80)
+    const nextFollowupAt = requestedFollowup || (wineSettings
+      ? wineFollowupDueAt(wineSettings.first_followup_days)
+      : nextDay())
 
     await ensurePipelineStages(supabase, userId)
 
@@ -84,7 +94,9 @@ export async function POST(request: NextRequest) {
 
     const existing = matches?.[0] || null
     const isUnsubscribed = Boolean(existing?.email_unsubscribed_at)
-    const shouldScheduleFollowup = !isUnsubscribed && !['Closed', 'Paid'].includes(String(existing?.status || ''))
+    const shouldScheduleFollowup = !isUnsubscribed &&
+      !['Closed', 'Paid'].includes(String(existing?.status || '')) &&
+      (!wineSettings || wineSettings.enabled)
     const desiredStatus = isWineDemo && !isUnsubscribed ? 'Interested' : (existing?.status || 'New')
     const contactPayload = {
       name: name || existing?.name || email,
@@ -133,14 +145,17 @@ export async function POST(request: NextRequest) {
       created = true
     }
 
-    const task = shouldScheduleFollowup
+    const plan = isWineDemo && shouldScheduleFollowup && wineSettings
+      ? await planWineProjectFollowups(supabase, contact, wineSettings)
+      : null
+    const task = shouldScheduleFollowup && !isWineDemo
       ? await syncPendingCallTask(supabase, userId, contact.id, nextFollowupAt, {
         type: 'follow-up',
         priority: Number(contact.priority || 0) >= 3 ? 'high' : Number(contact.priority || 0) >= 2 ? 'medium' : 'low',
         note: isWineDemo
           ? 'Wine Project completato: contattare la cantina entro 24 ore.'
           : 'Primo contatto generato automaticamente dal canale inbound.',
-        overwriteNote: isWineDemo,
+        overwriteNote: false,
       })
       : null
 
@@ -166,7 +181,7 @@ export async function POST(request: NextRequest) {
       touchLastContactAt: isWineDemo,
     })
 
-    return Response.json({ contact, task, created, event_type: eventType }, { status: created ? 201 : 200 })
+    return Response.json({ contact, task, plan, created, event_type: eventType }, { status: created ? 201 : 200 })
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : 'Failed to ingest Speaqi lead' },
