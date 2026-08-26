@@ -1,0 +1,4 @@
+-- Marker di riconciliazione: questa versione esisteva già nella cronologia
+-- Supabase di produzione, ma il file sorgente non era stato committato.
+-- Non eseguire DDL qui: lo schema effettivo è stato verificato tramite le
+-- migrazioni idempotenti successive.

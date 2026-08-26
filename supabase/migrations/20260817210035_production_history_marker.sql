@@ -1,0 +1,2 @@
+-- Marker di riconciliazione per una migrazione storica già applicata in produzione.
+-- Nessuna modifica allo schema.
