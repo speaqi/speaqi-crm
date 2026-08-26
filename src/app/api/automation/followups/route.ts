@@ -5,7 +5,7 @@ import { applyPipelineScope } from '@/lib/server/scope-filters'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 import { statusSlaHours } from '@/lib/sla'
 import { validateAutomationSecret } from '@/lib/server/automation-auth'
-import { queueDueWineProjectFollowups } from '@/lib/server/wine-project-automation'
+import { backfillWineProjectFollowups, queueDueWineProjectFollowups } from '@/lib/server/wine-project-automation'
 
 function asDate(value?: string | null) {
   if (!value) return null
@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
     const slaMode = body.sla_mode !== false
     const quoteRecovery = body.quote_recovery !== false
     const supabase = createServiceRoleClient()
+    const wineProjectBackfill = await backfillWineProjectFollowups(supabase)
     const wineProject = await queueDueWineProjectFollowups(supabase)
 
     let contactsQuery = applyPipelineScope(
@@ -242,7 +243,7 @@ export async function POST(request: NextRequest) {
       contacts_due: contacts.length,
       sla_tasks: slaTaskPayload.length,
       quote_recovery_tasks: quoteTaskPayload.length,
-      wine_project: wineProject,
+      wine_project: { ...wineProject, backfill: wineProjectBackfill },
       created_tasks: createdTasks,
     })
   } catch (error) {

@@ -106,6 +106,30 @@ export async function planWineProjectFollowups(
   return { planned: rows.length, firstDueAt: rows[0].due_at }
 }
 
+export async function backfillWineProjectFollowups(supabase: any) {
+  const { data: contacts, error } = await supabase
+    .from('contacts')
+    .select('id, user_id, name, email, phone, status, email_unsubscribed_at')
+    .eq('event_tag', 'wine-project')
+    .is('email_unsubscribed_at', null)
+    .not('status', 'in', '(Closed,Paid,Lost)')
+    .limit(500)
+  if (error) throw error
+
+  const settingsByUser = new Map<string, WineProjectAutomationSettings>()
+  let planned = 0
+  for (const contact of contacts || []) {
+    let settings = settingsByUser.get(contact.user_id)
+    if (!settings) {
+      settings = await loadWineProjectAutomationSettings(supabase, contact.user_id)
+      settingsByUser.set(contact.user_id, settings)
+    }
+    const result = await planWineProjectFollowups(supabase, contact, settings)
+    planned += result.planned
+  }
+  return { contacts: contacts?.length || 0, planned }
+}
+
 function stoppedReason(contact: WineContact, hasReply: boolean) {
   if (contact.email_unsubscribed_at) return 'disiscritto'
   if (['Closed', 'Paid', 'Lost'].includes(String(contact.status || ''))) return 'trattativa chiusa'
