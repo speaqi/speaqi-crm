@@ -37,8 +37,10 @@ Riattiva un workflow alla volta e osserva per qualche giorno prima del successiv
    sicurezza sui dati, visto che il piano Free di Supabase non ha backup ne
    PITR. Non tocca nulla, legge soltanto.
 3. **01-followups** (ogni 10 min) — massimo impatto: rigenera i task dovuti,
-   gli SLA e il recupero preventivi. È quello che tiene piena la lista delle
-   cose da fare.
+   gli SLA, il recupero preventivi e la sequenza Wine Project. È quello che
+   tiene piena la lista delle cose da fare. Per Wine Project blocca in modo
+   automatico le azioni successive se il contatto ha risposto, si è disiscritto
+   o la trattativa è chiusa.
 4. **06-db-maintenance** (ogni ora) — igiene: riallinea follow-up e task,
    pulisce le bozze scartate. Evita che il disordine si riaccumuli.
 5. **07-weekly-recap** (lunedì 07:30) — email di recap settimanale:

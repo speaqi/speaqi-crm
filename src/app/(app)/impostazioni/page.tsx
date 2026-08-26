@@ -17,7 +17,7 @@ const SETTINGS_ITEMS = [
   },
   {
     href: '/impostazioni/wine-project',
-    icon: '🍷',
+    icon: 'WP',
     title: 'Wine Project',
     description: 'Cadenza della sequenza, collegamento Acumbamail e stato dei contatti demo.',
   },

@@ -55,7 +55,9 @@ Campi AI-ready aggiunti:
 - `POST /api/gmail/connect`
 - `POST /api/import/legacy`
 - `POST /api/speaqi/leads`
-- `POST /api/automation/followups`
+- `POST /api/automation/followups` (include anche la coda Wine Project: primo
+  contatto, secondo messaggio e ultimo messaggio; non procede dopo risposta,
+  disiscrizione o chiusura)
 - `POST /api/automation/stale-leads`
 - `POST /api/voice/command`
 

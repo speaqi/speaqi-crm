@@ -138,9 +138,16 @@ export async function queueDueWineProjectFollowups(supabase: any, userId?: strin
 
   let queued = 0
   let skipped = 0
+  const settingsByUser = new Map<string, WineProjectAutomationSettings>()
   for (const event of events || []) {
     const contact = Array.isArray(event.contacts) ? event.contacts[0] : event.contacts
     if (!contact) continue
+    let settings = settingsByUser.get(contact.user_id)
+    if (!settings) {
+      settings = await loadWineProjectAutomationSettings(supabase, contact.user_id)
+      settingsByUser.set(contact.user_id, settings)
+    }
+    if (!settings.enabled) continue
     const { count, error: replyError } = await supabase
       .from('gmail_messages')
       .select('id', { count: 'exact', head: true })
