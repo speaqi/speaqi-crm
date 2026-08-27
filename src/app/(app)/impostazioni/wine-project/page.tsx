@@ -13,6 +13,17 @@ type WineProjectSettings = {
   first_followup_days: number
   second_followup_days: number
   third_followup_days: number
+  fourth_followup_days: number
+  fifth_followup_days: number
+  sequence_templates: WineProjectSequenceTemplate[]
+}
+
+type WineProjectSequenceTemplate = {
+  sequence: number
+  label: string
+  condition: 'all' | 'unopened'
+  subject: string
+  body: string
 }
 
 type WineProjectStats = {
@@ -29,15 +40,14 @@ const EMPTY_SETTINGS: WineProjectSettings = {
   acumbamail_list_id: '1465520',
   acumbamail_campaign_id: null,
   first_followup_days: 1,
-  second_followup_days: 5,
-  third_followup_days: 12,
+  second_followup_days: 4,
+  third_followup_days: 9,
+  fourth_followup_days: 16,
+  fifth_followup_days: 28,
+  sequence_templates: [],
 }
 
 const EMPTY_STATS: WineProjectStats = { contacts: 0, scheduled: 0, queued: 0, stopped: 0, replies: 0 }
-
-function daysLabel(days: number) {
-  return days === 1 ? '1 giorno' : `${days} giorni`
-}
 
 export default function WineProjectSettingsPage() {
   const { isAdmin, showToast } = useCRMContext()
@@ -58,9 +68,18 @@ export default function WineProjectSettingsPage() {
       .finally(() => setLoading(false))
   }, [isAdmin])
 
-  function setDays(field: 'first_followup_days' | 'second_followup_days' | 'third_followup_days', value: string) {
+  function setDays(field: 'first_followup_days' | 'second_followup_days' | 'third_followup_days' | 'fourth_followup_days' | 'fifth_followup_days', value: string) {
     const number = Math.max(1, Math.floor(Number(value) || 1))
     setSettings((current) => ({ ...current, [field]: number }))
+  }
+
+  function updateTemplate(sequence: number, field: 'subject' | 'body', value: string) {
+    setSettings((current) => ({
+      ...current,
+      sequence_templates: current.sequence_templates.map((template) =>
+        template.sequence === sequence ? { ...template, [field]: value } : template
+      ),
+    }))
   }
 
   async function save() {
@@ -127,29 +146,69 @@ export default function WineProjectSettingsPage() {
           <div>
             <p className="wine-project-eyebrow">CADENZA</p>
             <h2>Quando il CRM deve riportare la cantina in coda</h2>
-            <p>Le azioni compaiono nel CRM alla data indicata. La bozza può essere preparata dall&apos;automazione; l&apos;invio promozionale resta una campagna Acumbamail, non SMTP.</p>
+            <p>Ogni contatto riceve fino a cinque messaggi. Il secondo viene preparato solo quando non risultano aperture o click; una risposta, disiscrizione o chiusura ferma tutta la sequenza.</p>
           </div>
         </div>
         <div className="wine-project-cadence-grid">
           <label htmlFor="wine-followup-1">
-            <span>Primo contatto</span>
+            <span>Email 1</span>
             <input id="wine-followup-1" type="number" min="1" max="14" inputMode="numeric" value={settings.first_followup_days} onChange={(event) => setDays('first_followup_days', event.target.value)} />
-            <small>Dopo la richiesta della demo</small>
+            <small>Primo messaggio</small>
           </label>
           <label htmlFor="wine-followup-2">
-            <span>Secondo messaggio</span>
+            <span>Email 2</span>
             <input id="wine-followup-2" type="number" min="2" max="30" inputMode="numeric" value={settings.second_followup_days} onChange={(event) => setDays('second_followup_days', event.target.value)} />
-            <small>Se non c&apos;è risposta</small>
+            <small>Solo senza aperture/click</small>
           </label>
           <label htmlFor="wine-followup-3">
-            <span>Ultimo messaggio</span>
+            <span>Email 3</span>
             <input id="wine-followup-3" type="number" min="3" max="60" inputMode="numeric" value={settings.third_followup_days} onChange={(event) => setDays('third_followup_days', event.target.value)} />
             <small>Se non c&apos;è risposta</small>
           </label>
+          <label htmlFor="wine-followup-4">
+            <span>Email 4</span>
+            <input id="wine-followup-4" type="number" min="4" max="75" inputMode="numeric" value={settings.fourth_followup_days} onChange={(event) => setDays('fourth_followup_days', event.target.value)} />
+            <small>Se non c&apos;è risposta</small>
+          </label>
+          <label htmlFor="wine-followup-5">
+            <span>Email 5</span>
+            <input id="wine-followup-5" type="number" min="5" max="90" inputMode="numeric" value={settings.fifth_followup_days} onChange={(event) => setDays('fifth_followup_days', event.target.value)} />
+            <small>Chiusura gentile</small>
+          </label>
         </div>
         <p className="wine-project-sequence-summary">
-          In pratica: primo contatto dopo <strong>{daysLabel(settings.first_followup_days)}</strong>, secondo messaggio dopo <strong>{daysLabel(settings.second_followup_days)}</strong>, ultimo messaggio dopo <strong>{daysLabel(settings.third_followup_days)}</strong>.
+          Cadenza: giorno <strong>{settings.first_followup_days}</strong>, <strong>{settings.second_followup_days}</strong>, <strong>{settings.third_followup_days}</strong>, <strong>{settings.fourth_followup_days}</strong> e <strong>{settings.fifth_followup_days}</strong> dopo l&apos;ingresso nel flusso.
         </p>
+      </section>
+
+      <section className="wine-project-settings-card">
+        <div className="wine-project-card-heading">
+          <div>
+            <p className="wine-project-eyebrow">CONTENUTO EMAIL</p>
+            <h2>I cinque messaggi della sequenza</h2>
+            <p>Qui sta il testo operativo. Viene usato come brief vincolante quando il CRM prepara la bozza; la firma testuale viene aggiunta dal mittente configurato.</p>
+          </div>
+        </div>
+        <div className="wine-project-template-list">
+          {settings.sequence_templates.map((template) => (
+            <article className="wine-project-template-card" key={template.sequence}>
+              <div className="wine-project-template-heading">
+                <div>
+                  <strong>Email {template.sequence}/5 — {template.label}</strong>
+                  <span>{template.condition === 'unopened' ? 'Invia solo senza aperture o click' : 'Invia se non arriva una risposta'}</span>
+                </div>
+              </div>
+              <label htmlFor={`wine-email-subject-${template.sequence}`}>
+                <span>Oggetto</span>
+                <input id={`wine-email-subject-${template.sequence}`} value={template.subject} onChange={(event) => updateTemplate(template.sequence, 'subject', event.target.value)} />
+              </label>
+              <label htmlFor={`wine-email-body-${template.sequence}`}>
+                <span>Testo</span>
+                <textarea id={`wine-email-body-${template.sequence}`} rows={9} value={template.body} onChange={(event) => updateTemplate(template.sequence, 'body', event.target.value)} />
+              </label>
+            </article>
+          ))}
+        </div>
       </section>
 
       <section className="wine-project-settings-card">

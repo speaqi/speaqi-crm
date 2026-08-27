@@ -6312,7 +6312,7 @@ textarea.form-input::placeholder { color: var(--text3); }
 .wine-project-stat-grid strong { font-size: 25px; line-height: 1; }
 .wine-project-stat-grid span { margin-top: 6px; color: var(--text2); font-size: 12px; }
 .wine-project-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
-.wine-project-cadence-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
+.wine-project-cadence-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
 .wine-project-cadence-grid label,
 .wine-project-fields-grid label { display: flex; flex-direction: column; gap: 7px; color: var(--text2); font-size: 12px; font-weight: 700; }
 .wine-project-cadence-grid input,
@@ -6321,12 +6321,25 @@ textarea.form-input::placeholder { color: var(--text3); }
 .wine-project-sequence-summary { margin: 16px 0 0; padding-top: 16px; border-top: 1px solid var(--border); color: var(--text2); }
 .wine-project-sequence-summary strong { color: var(--text); }
 .wine-project-fields-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin-top: 20px; }
+.wine-project-template-list { display: grid; gap: 14px; margin-top: 20px; }
+.wine-project-template-card { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(220px, 1fr) minmax(280px, 2fr); gap: 14px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface2); }
+.wine-project-template-heading { display: flex; align-items: flex-start; }
+.wine-project-template-heading strong { display: block; line-height: 1.35; }
+.wine-project-template-heading span { display: block; margin-top: 7px; color: var(--text3); font-size: 12px; line-height: 1.45; }
+.wine-project-template-card label { display: flex; flex-direction: column; gap: 7px; color: var(--text2); font-size: 12px; font-weight: 700; }
+.wine-project-template-card input,
+.wine-project-template-card textarea { width: 100%; padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; }
+.wine-project-template-card input { min-height: 42px; }
+.wine-project-template-card textarea { min-height: 182px; resize: vertical; line-height: 1.48; }
 .wine-project-save-bar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 0 8px; }
 .wine-project-save-bar p { margin: 0; color: var(--text2); font-size: 13px; }
 @media (max-width: 900px) {
   .wine-project-stat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .wine-project-cadence-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .wine-project-fields-grid { grid-template-columns: 1fr 1fr; }
   .wine-project-fields-grid label:first-child { grid-column: 1 / -1; }
+  .wine-project-template-card { grid-template-columns: 1fr 1fr; }
+  .wine-project-template-heading { grid-column: 1 / -1; }
 }
 @media (max-width: 640px) {
   .wine-project-settings-title,
@@ -6336,7 +6349,8 @@ textarea.form-input::placeholder { color: var(--text3); }
   .wine-project-settings-card { padding: 18px; }
   .wine-project-stat-grid,
   .wine-project-cadence-grid,
-  .wine-project-fields-grid { grid-template-columns: 1fr; }
+  .wine-project-fields-grid,
+  .wine-project-template-card { grid-template-columns: 1fr; }
   .wine-project-fields-grid label:first-child { grid-column: auto; }
   .wine-project-save-bar .btn { width: 100%; min-height: 44px; }
 }

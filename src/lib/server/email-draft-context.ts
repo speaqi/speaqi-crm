@@ -451,32 +451,39 @@ export function buildEmailSegmentGuidance(
 
   if (isWineOrEventSegment) {
     const framework = withEmailAiFramework(settings)
+    const sequenceBrief = String(contact.email_draft_note || '').trim()
+    const hasWineProjectSequenceBrief = sequenceBrief.startsWith('SEQUENZA WINE PROJECT')
 
     // The master Wine positioning applies to every wine draft: cold and high interest.
     guidance.push(
       `Messaggio centrale del settore vino (vale per ogni email a una cantina, prima o follow-up):\n${framework.email_wine_core_message}`
     )
 
-    if (isHighInterestContact) {
-      guidance.push(`Segmento contatti ad alto interesse:\n${framework.email_high_interest_segment}`)
-    } else {
+    if (hasWineProjectSequenceBrief) {
       guidance.push(
-        'Primo contatto con la cantina: parti dal risultato per la cantina, poi rendi concreto il concetto con lo scenario della bottiglia. Non elencare funzionalita e non vendere QR, traduzioni, video o AI come prodotti separati.',
-        'Non dire che il destinatario ha aperto o cliccato una precedente email e non fingere di averlo incontrato in fiera o a un evento.'
+        `Sequenza Wine Project pianificata dal CRM:\n${sequenceBrief}\n\nNon cambiare l’oggetto, non aggiungere una seconda CTA e non dire mai che hai osservato aperture o click.`
+      )
+    } else {
+      if (isHighInterestContact) {
+        guidance.push(`Segmento contatti ad alto interesse:\n${framework.email_high_interest_segment}`)
+      } else {
+        guidance.push(
+          'Primo contatto con la cantina: parti dal risultato per la cantina, poi rendi concreto il concetto con lo scenario della bottiglia. Non elencare funzionalita e non vendere QR, traduzioni, video o AI come prodotti separati.',
+          'Non dire che il destinatario ha aperto o cliccato una precedente email e non fingere di averlo incontrato in fiera o a un evento.'
+        )
+      }
+      // I modelli wine chiudono il segmento: sono l'ultima parola su struttura e CTA.
+      const template = pickWineEmailTemplate(
+        contact,
+        options.wineTemplateId,
+        getWineEmailTemplates(framework.email_wine_templates)
+      )
+      guidance.push(
+        formatWineEmailTemplateGuidance(template, {
+          hasPreviousContact: !!options.followupMode || isHighInterestContact,
+        })
       )
     }
-
-    // I modelli wine chiudono il segmento: sono l'ultima parola su struttura e CTA.
-    const template = pickWineEmailTemplate(
-      contact,
-      options.wineTemplateId,
-      getWineEmailTemplates(framework.email_wine_templates)
-    )
-    guidance.push(
-      formatWineEmailTemplateGuidance(template, {
-        hasPreviousContact: !!options.followupMode || isHighInterestContact,
-      })
-    )
   }
 
   const isPa =
