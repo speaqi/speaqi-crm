@@ -186,7 +186,7 @@ export default function WineProjectSettingsPage() {
           <div>
             <p className="wine-project-eyebrow">CONTENUTO EMAIL</p>
             <h2>I cinque messaggi della sequenza</h2>
-            <p>Qui sta il testo operativo. Viene usato come brief vincolante quando il CRM prepara la bozza; la firma testuale viene aggiunta dal mittente configurato.</p>
+            <p>Qui sta il testo operativo. Viene usato come brief vincolante quando il CRM prepara la bozza; per il grassetto scrivi <strong>**testo**</strong>. La firma testuale viene aggiunta dal mittente configurato.</p>
           </div>
         </div>
         <div className="wine-project-template-list">

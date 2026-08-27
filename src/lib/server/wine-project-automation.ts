@@ -30,13 +30,15 @@ export const DEFAULT_WINE_PROJECT_SEQUENCE_TEMPLATES: WineProjectSequenceTemplat
     subject: 'All’attenzione di {{azienda}} — una novità dopo Vinitaly',
     body: `Buongiorno {{nome}},
 
-Le avevamo scritto dopo Vinitaly per presentarLe Speaqi. Nel frattempo il progetto è cresciuto molto nel mondo del vino e oggi preferiamo farLe vedere un esempio concreto, invece di inviarLe un’altra presentazione.
+Vi avevamo contattato dopo Vinitaly. Da allora Speaqi è cresciuta molto nel mondo del vino: oggi non propone una semplice pagina informativa o un QR code, ma trasforma il sito, i vini e il racconto della vostra cantina in un sistema digitale internazionale.
 
-Partendo dal sito di {{azienda}}, trasformiamo vini, cantina e territorio in un’esperienza internazionale: un cliente può scoprire ogni vino, fare domande sull’azienda e ricevere risposte nella propria lingua.
+Visitatori, importatori e clienti possono fare domande sui vini, sull’azienda, sulle degustazioni e sul territorio. **L’AI Concierge risponde nella loro lingua**, rendendo le informazioni della cantina accessibili anche a chi arriva dall’estero.
 
-Stiamo già lavorando con realtà come San Salvatore, Dalibrà e Leonarda Tardi.
+Con Wine Project basta inserire il sito di {{azienda}}: il sistema importa le informazioni disponibili e prepara una demo personalizzata della cantina.
 
-Se vuole, Le prepariamo gratuitamente un esempio su uno dei vostri vini.`,
+**Stiamo già lavorando con realtà come San Salvatore, Dalibrà e Leonarda Tardi.** Speaqi è stato raccontato anche da **Rai 3 (Mezzogiorno Italia)**: https://www.youtube.com/watch?v=HMb5XQEY4cM
+
+Se Le fa piacere, Le prepariamo gratuitamente una demo completa di {{azienda}}.`,
   },
   {
     sequence: 2,
@@ -45,11 +47,13 @@ Se vuole, Le prepariamo gratuitamente un esempio su uno dei vostri vini.`,
     subject: 'Le posso mostrare {{azienda}} in pochi minuti?',
     body: `Buongiorno {{nome}},
 
-Le riscrivo solo per semplificare la proposta: non Le chiediamo di cambiare sito né di preparare materiale.
+Le riscrivo solo per semplificare la proposta: non chiediamo alla cantina di cambiare sito, preparare materiali o affrontare un progetto tecnico.
 
-Prendiamo ciò che {{azienda}} racconta già e lo trasformiamo in una demo dove clienti, visitatori e buyer possono scoprire vini e cantina in tutte le lingue, fare domande e ricevere risposte immediate.
+Partiamo da ciò che {{azienda}} racconta già online e lo trasformiamo in una demo dove clienti, visitatori e buyer possono scoprire vini e cantina in tutte le lingue, fare domande e ricevere risposte immediate.
 
-Se mi indica un vino da cui partire, Le mandiamo un esempio concreto.`,
+**L’obiettivo non è un QR isolato:** è rendere la cantina pronta per chi arriva dall’estero, cerca informazioni sui vini o vuole capire meglio azienda e territorio.
+
+Se Le fa piacere, Le prepariamo una demo completa della cantina {{azienda}}.`,
   },
   {
     sequence: 3,
@@ -58,11 +62,11 @@ Se mi indica un vino da cui partire, Le mandiamo un esempio concreto.`,
     subject: 'Partiamo da una bottiglia di {{azienda}}?',
     body: `Buongiorno {{nome}},
 
-Provo a renderlo molto concreto: un cliente prende una bottiglia di {{azienda}}, scansiona il QR e trova il vino, la sua storia, la cantina e il territorio nella propria lingua. Può anche fare una domanda e ottenere una risposta basata sui vostri contenuti.
+Provo a renderlo molto concreto: un cliente prende una bottiglia di {{azienda}}, scansiona il QR e trova il vino, la sua storia, la cantina e il territorio nella propria lingua. Può anche fare una domanda e ottenere una risposta basata sui contenuti della vostra azienda.
 
-Non è una traduzione o un QR isolato: è il vostro racconto, pronto per chiunque arrivi da qualsiasi Paese.
+Non è una traduzione o un QR isolato: è il racconto della cantina, pronto per chiunque arrivi da qualsiasi Paese. Lo stesso sistema può accompagnare una degustazione, una visita in cantina o la scelta di un importatore.
 
-Se vuole, scegliamo insieme un vino e Le facciamo vedere come apparirebbe.`,
+Se Le fa piacere, Le mostriamo la demo di {{azienda}} e come apparirebbe l’esperienza completa.`,
   },
   {
     sequence: 4,
@@ -71,11 +75,13 @@ Se vuole, scegliamo insieme un vino e Le facciamo vedere come apparirebbe.`,
     subject: 'Come stanno usando Speaqi le cantine',
     body: `Buongiorno {{nome}},
 
-Le riscrivo perché il progetto Wine di Speaqi è ormai molto concreto: stiamo lavorando con cantine come San Salvatore, Dalibrà e Leonarda Tardi per rendere vini, cantina e territorio accessibili a un pubblico internazionale.
+Le riscrivo perché il progetto Wine di Speaqi è ormai molto concreto: stiamo lavorando con cantine come **San Salvatore, Dalibrà e Leonarda Tardi** per rendere vini, cantina e territorio accessibili a un pubblico internazionale.
 
-Speaqi è stato raccontato anche da Rai 3, durante Mezzogiorno Italia: https://www.youtube.com/watch?v=HMb5XQEY4cM
+Speaqi è stato raccontato anche da **Rai 3, durante Mezzogiorno Italia**: https://www.youtube.com/watch?v=HMb5XQEY4cM
 
-Se Le fa piacere, posso farLe vedere una demo costruita su {{azienda}}, senza impegno.`,
+Il punto per noi è semplice: lasciare alla cantina il suo racconto e renderlo comprensibile, interrogabile e utile in ogni lingua, senza rifare il sito.
+
+Se Le fa piacere, posso farLe vedere una demo completa costruita su {{azienda}}, senza impegno.`,
   },
   {
     sequence: 5,
@@ -88,7 +94,7 @@ Chiudo qui i miei messaggi per non disturbarLa oltre.
 
 L’idea resta semplice: {{azienda}} racconta una volta vini, cantina e territorio; Speaqi li rende disponibili a clienti e visitatori in tutte le lingue, con un’esperienza che può rispondere anche alle loro domande.
 
-Se non è il momento, nessun problema. Se invece desidera vedere un esempio gratuito su un vostro vino, mi basta una Sua risposta e lo prepariamo.`,
+Se non è il momento, nessun problema. Se invece desidera vedere una demo gratuita della cantina {{azienda}}, mi basta una Sua risposta e la prepariamo.`,
   },
 ]
 
@@ -261,7 +267,7 @@ function eventNote(contact: WineContact, template: WineProjectSequenceTemplate) 
 function sequenceBrief(template: WineProjectSequenceTemplate) {
   return [
     `SEQUENZA WINE PROJECT — EMAIL ${template.sequence}/5`,
-    'Questo brief è vincolante: mantieni oggetto, messaggio e unica CTA. Personalizza solo nome e azienda; non aggiungere una firma, perché la firma viene aggiunta dal CRM.',
+    'Questo brief è vincolante: mantieni oggetto, messaggio e unica CTA. Personalizza solo nome e azienda; non aggiungere una firma, perché la firma viene aggiunta dal CRM. Quando il testo contiene **parole tra doppio asterisco**, rendile in grassetto solo nel body_html usando <strong>; nel body_text lasciale senza asterischi.',
     `Oggetto: ${template.subject}`,
     '',
     template.body,
