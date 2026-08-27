@@ -30,15 +30,23 @@ export const DEFAULT_WINE_PROJECT_SEQUENCE_TEMPLATES: WineProjectSequenceTemplat
     subject: 'All’attenzione di {{azienda}} — una novità dopo Vinitaly',
     body: `Buongiorno {{nome}},
 
-Vi avevamo contattato dopo Vinitaly. Da allora Speaqi è cresciuta molto nel mondo del vino: oggi non propone una semplice pagina informativa o un QR code, ma trasforma il sito, i vini e il racconto della vostra cantina in un sistema digitale internazionale.
+Vi avevamo contattato dopo Vinitaly. Da allora Speaqi si è evoluta molto.
 
-Visitatori, importatori e clienti possono fare domande sui vini, sull’azienda, sulle degustazioni e sul territorio. **L’AI Concierge risponde nella loro lingua**, rendendo le informazioni della cantina accessibili anche a chi arriva dall’estero.
+Oggi possiamo trasformare **l’intera cantina e il suo catalogo vini** in un’esperienza digitale multilingua, accessibile da web o QR code.
 
-Con Wine Project basta inserire il sito di {{azienda}}: il sistema importa le informazioni disponibili e prepara una demo personalizzata della cantina.
+Un cliente, un importatore o un turista può scoprire i vostri vini, ascoltarne il racconto nella propria lingua e chiedere direttamente all’**AI Concierge** informazioni su abbinamenti, vinificazione, azienda, degustazioni e territorio.
 
-**Stiamo già lavorando con realtà come San Salvatore, Dalibrà e Leonarda Tardi.** Speaqi è stato raccontato anche da **Rai 3 (Mezzogiorno Italia)**: https://www.youtube.com/watch?v=HMb5XQEY4cM
+La cosa interessante è che **non dovete caricare tutto manualmente**. Con Wine Project inseriamo il sito della cantina e Speaqi importa automaticamente azienda e vini, creando una prima versione del progetto da farvi vedere.
 
-Se Le fa piacere, Le prepariamo gratuitamente una demo completa di {{azienda}}.`,
+Il servizio avrà un costo di **300 €**, ma in questa fase stiamo selezionando alcune cantine a cui realizzare **gratuitamente l’intero progetto fino al 30 settembre**.
+
+Stanno già collaborando con Speaqi realtà come **San Salvatore 1988, Dalibrà e Leonarda Tardi**.
+
+Speaqi è stato raccontato anche da **Rai 3 – Mezzogiorno Italia**: https://www.youtube.com/watch?v=HMb5XQEY4cM
+
+**→ Scoprite come sarebbe la vostra cantina su Speaqi**
+
+Non serve acquistare nulla per vedere il risultato.`,
   },
   {
     sequence: 2,
