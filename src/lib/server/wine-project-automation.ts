@@ -27,7 +27,7 @@ export const DEFAULT_WINE_PROJECT_SEQUENCE_TEMPLATES: WineProjectSequenceTemplat
     sequence: 1,
     label: 'Ripresa dopo Vinitaly',
     condition: 'all',
-    subject: 'All’attenzione di {{azienda}} — una novità dopo Vinitaly',
+    subject: '{{azienda}} - All’attenzione di {{nome}}',
     body: `Buongiorno {{nome}},
 
 Vi avevamo contattato dopo Vinitaly. Da allora Speaqi si è evoluta molto.
@@ -275,7 +275,7 @@ function eventNote(contact: WineContact, template: WineProjectSequenceTemplate) 
 function sequenceBrief(template: WineProjectSequenceTemplate) {
   return [
     `SEQUENZA WINE PROJECT — EMAIL ${template.sequence}/5`,
-    'Questo brief è vincolante: mantieni oggetto, messaggio e unica CTA. Personalizza solo nome e azienda; non aggiungere una firma, perché la firma viene aggiunta dal CRM. Quando il testo contiene **parole tra doppio asterisco**, rendile in grassetto solo nel body_html usando <strong>; nel body_text lasciale senza asterischi.',
+    'Questo brief è vincolante: mantieni oggetto, messaggio e unica CTA. Personalizza solo nome e azienda; nell’oggetto usa il nome completo del contatto, mentre nel saluto usa solo il nome. Non aggiungere una firma, perché la firma viene aggiunta dal CRM. Quando il testo contiene **parole tra doppio asterisco**, rendile in grassetto solo nel body_html usando <strong>; nel body_text lasciale senza asterischi.',
     `Oggetto: ${template.subject}`,
     '',
     template.body,
