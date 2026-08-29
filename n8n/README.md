@@ -71,6 +71,7 @@ Riattiva un workflow alla volta e osserva per qualche giorno prima del successiv
 | 08-backup | `POST /api/automation/backup` | `0 3 * * *` |
 | 09-score-leads | `POST /api/automation/score-leads` | `0 6 * * *` |
 | 10-acumbamail-qualification | `POST /api/automation/acumbamail-qualification` | `0 7 * * *` |
+| 12-hospitality-commercial | `POST /api/automation/commercial-outreach`, poi reply monitor | ogni 30 minuti |
 | 11-send-holding | `POST /api/automation/send-batch` | `0 9 * * 1-5` |
 
 Il piano di test, shadow mode e rollout è in

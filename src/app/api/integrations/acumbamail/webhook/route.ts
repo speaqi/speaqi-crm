@@ -4,6 +4,7 @@ import { normalizeLeadRecord, logLeadActivity } from '@/lib/server/ai-ready'
 import { ensurePipelineStages } from '@/lib/server/crm'
 import { errorMessage } from '@/lib/server/http'
 import { createServiceRoleClient } from '@/lib/server/supabase'
+import { applyCommercialEmailEvent } from '@/lib/server/commercial-outreach'
 
 type AcumbamailEventName =
   | 'opens'
@@ -814,6 +815,7 @@ export async function POST(request: NextRequest) {
     let createdContacts = 0
     let skippedEvents = 0
     let skippedMissingScope = 0
+    let commercialEnrollmentsUpdated = 0
     const createEvents = readAcumbamailCreateEvents(request)
     const contactDefaults = readAcumbamailContactDefaults(request)
     const processed: Array<{
@@ -829,6 +831,9 @@ export async function POST(request: NextRequest) {
     }> = []
 
     for (const event of events) {
+      if (scopedUserId) {
+        commercialEnrollmentsUpdated += await applyCommercialEmailEvent(supabase, scopedUserId, event)
+      }
       if (event.event === 'unsubscribes' && scopedUserId && contactDefaults.eventTag) {
         const { error: engagementDeleteError } = await supabase
           .from('acumbamail_campaign_engagements')
@@ -913,6 +918,7 @@ export async function POST(request: NextRequest) {
       created_contacts: createdContacts,
       skipped_events: skippedEvents,
       skipped_missing_scope: skippedMissingScope,
+      commercial_enrollments_updated: commercialEnrollmentsUpdated,
       processed,
       skipped,
     })

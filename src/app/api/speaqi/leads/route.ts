@@ -29,18 +29,19 @@ function nextDay() {
   return new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
 }
 
-function wineDemoSummary(body: Record<string, unknown>) {
+function demoSummary(body: Record<string, unknown>, vertical: 'wine' | 'hospitality') {
   const resultsCount = Number.isFinite(Number(body.results_count))
     ? Math.max(0, Math.floor(Number(body.results_count)))
     : null
   const wines = Array.isArray(body.wine_names)
     ? body.wine_names.map((item) => text(item, 160)).filter(Boolean).slice(0, 8)
     : []
+  const isWine = vertical === 'wine'
   const details = [
-    'Wine Project completato: il contatto ha lasciato email e telefono.',
-    body.company ? `Cantina: ${text(body.company, 160)}.` : null,
+    `${isWine ? 'Wine' : 'Hospitality'} Project completato: il contatto ha lasciato email e telefono.`,
+    body.company ? `${isWine ? 'Cantina' : 'Struttura'}: ${text(body.company, 160)}.` : null,
     body.source_url ? `Sito analizzato: ${text(body.source_url, 1000)}.` : null,
-    resultsCount !== null ? `Vini importati: ${resultsCount}.` : null,
+    resultsCount !== null ? `${isWine ? 'Vini' : 'Informazioni'} importati: ${resultsCount}.` : null,
     wines.length ? `Vini rilevati: ${wines.join(', ')}.` : null,
     body.demo_project_url ? `Demo pronta: ${text(body.demo_project_url, 1000)}.` : null,
   ].filter(Boolean)
@@ -63,15 +64,18 @@ export async function POST(request: NextRequest) {
     if (!email) return Response.json({ error: 'email is required' }, { status: 400 })
 
     const isWineDemo = eventType === 'wine_demo_contact'
-    const source = text(body.source, 120) || (isWineDemo ? 'wine-project' : 'speaqi')
+    const isHospitalityDemo = eventType === 'hospitality_demo_contact'
+    const isProjectDemo = isWineDemo || isHospitalityDemo
+    const vertical = isWineDemo ? 'wine' : 'hospitality'
+    const source = text(body.source, 120) || (isProjectDemo ? `${vertical}-project` : 'speaqi')
     const name = text(body.name, 160) || email
     const phone = text(body.phone, 80) || null
     const company = text(body.company, 160) || null
-    const category = text(body.category, 120) || (isWineDemo ? 'wine-project' : null)
+    const category = text(body.category, 120) || (isProjectDemo ? `${vertical}-project` : null)
     const responsible = text(body.responsible, 160) || null
-    const priority = Math.max(0, Math.min(3, Number(body.priority ?? (isWineDemo ? 3 : 2))))
-    const { summary, resultsCount, wines } = wineDemoSummary(body)
-    const activityContent = isWineDemo ? summary : text(body.note, 4000) || 'Lead creato da integrazione inbound.'
+    const priority = Math.max(0, Math.min(3, Number(body.priority ?? (isProjectDemo ? 3 : 2))))
+    const { summary, resultsCount, wines } = demoSummary(body, vertical)
+    const activityContent = isProjectDemo ? summary : text(body.note, 4000) || 'Lead creato da integrazione inbound.'
     const supabase = createServiceRoleClient()
     const wineSettings = isWineDemo
       ? await loadWineProjectAutomationSettings(supabase, userId)
@@ -97,7 +101,7 @@ export async function POST(request: NextRequest) {
     const shouldScheduleFollowup = !isUnsubscribed &&
       !['Closed', 'Paid'].includes(String(existing?.status || '')) &&
       (!wineSettings || wineSettings.enabled)
-    const desiredStatus = isWineDemo && !isUnsubscribed ? 'Interested' : (existing?.status || 'New')
+    const desiredStatus = isProjectDemo && !isUnsubscribed ? 'Interested' : (existing?.status || 'New')
     const contactPayload = {
       name: name || existing?.name || email,
       email,
@@ -110,7 +114,8 @@ export async function POST(request: NextRequest) {
       priority: Math.max(Number(existing?.priority || 0), priority),
       responsible: responsible || existing?.responsible || null,
       assigned_agent: responsible || existing?.assigned_agent || null,
-      event_tag: isWineDemo ? 'wine-project' : (existing?.event_tag || null),
+      event_tag: isProjectDemo ? `${vertical}-project` : (existing?.event_tag || null),
+      list_name: isProjectDemo ? `${isWineDemo ? 'Wine' : 'Hospitality'} Demo` : (existing?.list_name || null),
       last_activity_summary: activityContent.slice(0, 180),
       next_action_at: shouldScheduleFollowup ? nextFollowupAt : existing?.next_action_at || null,
       next_followup_at: shouldScheduleFollowup ? nextFollowupAt : existing?.next_followup_at || null,
@@ -134,7 +139,7 @@ export async function POST(request: NextRequest) {
         .insert({
           user_id: userId,
           ...contactPayload,
-          status: isWineDemo ? 'Interested' : 'New',
+          status: isProjectDemo ? 'Interested' : 'New',
           source,
           note: text(body.note, 4000) || null,
         })
@@ -152,8 +157,8 @@ export async function POST(request: NextRequest) {
       ? await syncPendingCallTask(supabase, userId, contact.id, nextFollowupAt, {
         type: 'follow-up',
         priority: Number(contact.priority || 0) >= 3 ? 'high' : Number(contact.priority || 0) >= 2 ? 'medium' : 'low',
-        note: isWineDemo
-          ? 'Wine Project completato: contattare la cantina entro 24 ore.'
+        note: isHospitalityDemo
+          ? 'Hospitality Project completato: contattare la struttura entro 24 ore.'
           : 'Primo contatto generato automaticamente dal canale inbound.',
         overwriteNote: false,
       })
@@ -162,7 +167,7 @@ export async function POST(request: NextRequest) {
     await createActivities(supabase, [{
       user_id: userId,
       contact_id: contact.id,
-      type: isWineDemo ? 'wine_demo' : created ? 'import' : 'note',
+      type: isWineDemo ? 'wine_demo' : isHospitalityDemo ? 'hospitality_demo' : created ? 'import' : 'note',
       content: activityContent,
       metadata: {
         provider: 'speaqi',
@@ -173,12 +178,13 @@ export async function POST(request: NextRequest) {
         source_url: text(body.source_url, 1000) || null,
         results_count: resultsCount,
         wine_names: wines,
+        campaign: text(body.campaign, 160) || null,
       },
     }])
 
     await updateContactSummary(supabase, contact.id, activityContent, {
       nextFollowupAt: shouldScheduleFollowup ? nextFollowupAt : undefined,
-      touchLastContactAt: isWineDemo,
+      touchLastContactAt: isProjectDemo,
     })
 
     return Response.json({ contact, task, plan, created, event_type: eventType }, { status: created ? 201 : 200 })

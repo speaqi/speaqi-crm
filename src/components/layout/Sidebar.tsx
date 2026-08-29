@@ -75,6 +75,10 @@ export function Sidebar({ counts }: SidebarProps) {
           <span className="icon">📧</span>
           Acumbamail
         </Link>
+        <Link href="/hospitality" className="nav-item sidebar-footer-item">
+          <span className="icon">🏨</span>
+          Hospitality
+        </Link>
       </div>
     </aside>
   )
