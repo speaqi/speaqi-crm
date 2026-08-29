@@ -17,7 +17,8 @@ export async function GET() {
       },
       acumbamail: {
         api_sync_configured: !!process.env.ACUMBAMAIL_AUTH_TOKEN,
-        webhook_configured: !!process.env.ACUMBAMAIL_WEBHOOK_TOKEN,
+        inbound_webhook_configured: !!process.env.ACUMBAMAIL_WEBHOOK_TOKEN,
+        transactional_webhook_configured: !!process.env.ACUMBAMAIL_TRANSACTIONAL_WEBHOOK_URL,
       },
     },
   })

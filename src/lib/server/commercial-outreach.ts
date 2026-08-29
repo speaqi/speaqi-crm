@@ -81,10 +81,10 @@ function render(template: string, values: Record<string, string>) {
 }
 
 export function hospitalityStepTemplates() {
-  return steps.map((step) => ({
+  return steps.map(({ body, ...step }) => ({
     ...step,
-    body_text_template: step.body,
-    body_html_template: textToLeftAlignedHtml(step.body),
+    body_text_template: body,
+    body_html_template: textToLeftAlignedHtml(body),
   }))
 }
 
