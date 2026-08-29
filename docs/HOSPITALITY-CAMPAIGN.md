@@ -22,11 +22,18 @@ Checksum SHA-256: `1089e2898d87b4d6c7d312ce209223315795c496ba7133609215f368688de
 | Classificate ricettive | 52.522 |
 | Da revisionare | 2.118 |
 | Escluse per categoria | 1.780 |
-| Eleggibili dopo controllo email | 52.515 |
-| In revisione marketing | 2.117 |
+| Eleggibili dopo controllo email, categorie miste e mailbox condivise | 41.661 |
+| In revisione marketing | 12.971 |
 | Escluse marketing | 1.788 |
 
-Questi numeri derivano dalle regole versionate nell'importer e non sono stati forzati per coincidere con una stima precedente. I 2.118 record ambigui devono restare senza invio fino alla revisione.
+Controllo qualità aggiuntivo del 29 agosto 2026:
+
+- 778 righe appartengono a mailbox primarie condivise tra più strutture e sono state spostate in revisione;
+- le categorie miste restano `include` come classificazione ricettiva, ma non sono eleggibili all'invio senza revisione;
+- nessun `place_id` duplicato e nessuna struttura duplicata sulla chiave sorgente;
+- l'arruolamento richiede sia `marketing_legal_basis` sia `marketing_source_acquired_at` valorizzati.
+
+Questi numeri derivano dalle regole versionate nell'importer e non sono stati forzati per coincidere con una stima precedente. Tutti i record ambigui, misti o con mailbox condivisa devono restare senza invio fino alla revisione.
 
 ## Comandi
 

@@ -131,10 +131,11 @@ export async function ensureHospitalityCampaign(supabase: any, userId: string) {
 export async function enrollEligibleHospitalityContacts(supabase: any, campaign: any, limit = 500, dryRun = true) {
   const requested = Math.min(5000, Math.max(1, limit))
   const { data: existing, error: existingError } = await supabase.from('commercial_enrollments')
-    .select('contact_id,structure_key').eq('campaign_id', campaign.id)
+    .select('contact_id,structure_key,primary_email').eq('campaign_id', campaign.id)
   if (existingError) throw existingError
   const enrolled = new Set((existing || []).map((row: any) => row.contact_id))
   const enrolledStructures = new Set((existing || []).map((row: any) => row.structure_key).filter(Boolean))
+  const enrolledEmails = new Set((existing || []).map((row: any) => String(row.primary_email || '').toLowerCase()).filter(Boolean))
   const candidates: any[] = []
   let cursor = ''
 
@@ -147,6 +148,7 @@ export async function enrollEligibleHospitalityContacts(supabase: any, campaign:
       .eq('user_id', campaign.user_id).eq('event_tag', HOSPITALITY_EVENT_TAG)
       .eq('contact_scope', 'holding').eq('marketing_eligibility', 'eligible')
       .eq('hospitality_filter_decision', 'include').is('email_unsubscribed_at', null)
+      .not('marketing_legal_basis', 'is', null).not('marketing_source_acquired_at', 'is', null)
       .order('id', { ascending: true }).limit(500)
     if (cursor) query = query.gt('id', cursor)
     const { data: page, error } = await query
@@ -155,10 +157,13 @@ export async function enrollEligibleHospitalityContacts(supabase: any, campaign:
     cursor = page[page.length - 1].id
     for (const contact of page) {
       if (!contact.email || enrolled.has(contact.id)) continue
+      const email = String(contact.email).toLowerCase()
+      if (enrolledEmails.has(email)) continue
       const key = structureKey(contact)
       if (enrolledStructures.has(key)) continue
       candidates.push(contact)
       enrolledStructures.add(key)
+      enrolledEmails.add(email)
       if (candidates.length >= requested) break
     }
     if (page.length < 500) break

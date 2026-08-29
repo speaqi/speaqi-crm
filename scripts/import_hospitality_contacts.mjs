@@ -158,6 +158,10 @@ function buildRecord(row, userId, batchId) {
     eligibility = classification.decision === 'include' ? 'review' : eligibility
     reason = `${reason};email_dominio_non_collegato`
   }
+  if (classification.reason.startsWith('ricettiva_mista:') && eligibility === 'eligible') {
+    eligibility = 'review'
+    reason = `${reason};categoria_mista_da_verificare`
+  }
   const company = clean(row.name) || clean(row.name_for_emails) || 'Struttura ricettiva'
   const contactName = personalName(row.email_1_full_name)
   const placeId = clean(row.place_id)
@@ -193,7 +197,26 @@ function buildRecord(row, userId, batchId) {
   }
 }
 
-function summarize(records, checksum, file) {
+function applyCrossRecordGuards(records) {
+  const emailCounts = new Map()
+  for (const record of records) {
+    const email = record.contact.email
+    if (email) emailCounts.set(email, (emailCounts.get(email) || 0) + 1)
+  }
+  let sharedEmailRows = 0
+  for (const record of records) {
+    const email = record.contact.email
+    if (!email || (emailCounts.get(email) || 0) < 2) continue
+    sharedEmailRows += 1
+    if (record.contact.marketing_eligibility === 'eligible') {
+      record.contact.marketing_eligibility = 'review'
+      record.contact.marketing_reason = `${record.contact.marketing_reason};email_condivisa_tra_strutture`
+    }
+  }
+  return { shared_email_rows: sharedEmailRows }
+}
+
+function summarize(records, checksum, file, guardReport) {
   const byDecision = { include: 0, review: 0, exclude: 0 }
   const byEligibility = { eligible: 0, review: 0, excluded: 0, suppressed: 0 }
   const structures = new Set()
@@ -217,6 +240,7 @@ function summarize(records, checksum, file) {
     duplicate_structure_rows: duplicates,
     unique_primary_emails: primaryEmails.size,
     unique_alternative_emails: alternativeEmails.size,
+    ...guardReport,
     filter_decisions: byDecision,
     marketing_eligibility: byEligibility,
     assumptions: { list_name: DEFAULT_LIST, event_tag: DEFAULT_EVENT, source: DEFAULT_SOURCE },
@@ -267,7 +291,8 @@ const bytes = await readFile(args.file)
 const checksum = createHash('sha256').update(bytes).digest('hex')
 const rows = parseCsv(bytes.toString('utf8'))
 const records = rows.map((row) => buildRecord(row, args.userId || '00000000-0000-0000-0000-000000000000', null))
-let report = summarize(records, checksum, args.file)
+const guardReport = applyCrossRecordGuards(records)
+let report = summarize(records, checksum, args.file, guardReport)
 if (args.apply) report = await applyImport(args, records, checksum, report)
 const output = `${JSON.stringify(report, null, 2)}\n`
 if (args.report) await writeFile(args.report, output)
