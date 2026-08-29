@@ -10,8 +10,6 @@ import { errorMessage } from '@/lib/server/http'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 import { loadWineProjectAutomationSettings, type WineProjectSequenceTemplate } from '@/lib/server/wine-project-automation'
 
-const DEFAULT_DAILY_CAP = 150
-
 type QueuedEvent = {
   id: string
   user_id: string
@@ -74,9 +72,25 @@ function campaignSubject(template: WineProjectSequenceTemplate) {
     .replaceAll('{{azienda}}', '*|COMPANY|*')
 }
 
-function dailyCap() {
-  const value = Number(process.env.WINE_PROJECT_DAILY_SEND_CAP)
-  return Number.isFinite(value) && value > 0 ? Math.floor(value) : DEFAULT_DAILY_CAP
+function startOfRomeDay(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Rome',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now)
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || ''
+  const year = Number(value('year'))
+  const month = Number(value('month'))
+  const day = Number(value('day'))
+  const offset = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Rome', timeZoneName: 'longOffset' })
+    .formatToParts(now)
+    .find((part) => part.type === 'timeZoneName')?.value || 'GMT+00:00'
+  const offsetMatch = offset.match(/^GMT([+-])(\d{2}):(\d{2})$/)
+  const offsetMinutes = offsetMatch
+    ? (Number(offsetMatch[2]) * 60 + Number(offsetMatch[3])) * (offsetMatch[1] === '+' ? 1 : -1)
+    : 0
+  return new Date(Date.UTC(year, month - 1, day) - offsetMinutes * 60 * 1000).toISOString()
 }
 
 function projectUrl(contact: { name: string; company: string | null }) {
@@ -106,7 +120,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}))
     const dryRun = body.dry_run === true
-    const limit = Math.min(dailyCap(), Math.max(1, Number(body.limit) || dailyCap()))
+    const limit = Math.min(1000, Math.max(1, Number(body.limit) || 100))
     const supabase = createServiceRoleClient()
     const { data, error } = await supabase
       .from('wine_project_followup_events')
@@ -124,6 +138,7 @@ export async function POST(request: NextRequest) {
     }
 
     const results: Array<Record<string, unknown>> = []
+    const remainingByUser = new Map<string, number>()
     for (const [key, events] of grouped) {
       const contacts = events.map((event) => Array.isArray(event.contacts) ? event.contacts[0] : event.contacts).filter(Boolean)
       const eligible = events.filter((event, index) => !closed(contacts[index]))
@@ -146,7 +161,24 @@ export async function POST(request: NextRequest) {
         results.push({ key, sent: 0, skipped: ineligible.length, reason: 'sequenza non configurata o disattivata' })
         continue
       }
-      const eventIds = eligible.map((event) => event.id)
+      let remaining = remainingByUser.get(userId)
+      if (remaining === undefined) {
+        const { count: sentToday, error: sentTodayError } = await supabase
+          .from('wine_project_followup_events')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .eq('status', 'sent')
+          .gte('sent_at', startOfRomeDay())
+        if (sentTodayError) throw sentTodayError
+        remaining = Math.max(0, settings.daily_send_cap - (sentToday || 0))
+      }
+      if (remaining < 1) {
+        results.push({ key, sent: 0, skipped: ineligible.length, reason: 'limite giornaliero raggiunto' })
+        continue
+      }
+      const selected = eligible.slice(0, remaining)
+      const deferred = eligible.length - selected.length
+      const eventIds = selected.map((event) => event.id)
       if (!dryRun) {
         const { data: claimed, error: claimError } = await supabase
           .from('wine_project_followup_events')
@@ -162,13 +194,14 @@ export async function POST(request: NextRequest) {
       const campaignKey = `wine-project-e${template.sequence}-${new Date().toISOString().slice(0, 10)}-${Math.random().toString(36).slice(2, 7)}`
       const senderEmail = process.env.WINE_PROJECT_FROM_EMAIL || 'info@speaqi.com'
       const senderName = process.env.WINE_PROJECT_FROM_NAME || 'Massimo Morgante | Speaqi'
-      const recipients = eligible.map((event) => {
+      const recipients = selected.map((event) => {
         const contact = Array.isArray(event.contacts) ? event.contacts[0] : event.contacts
         return { email: String(contact.email), firstName: firstName(contact.name), company: String(contact.company || 'la vostra cantina'), wineUrl: projectUrl(contact) }
       })
 
       if (dryRun) {
-        results.push({ key, dry_run: true, recipients: recipients.length, subject: campaignSubject(template) })
+        remainingByUser.set(userId, remaining - recipients.length)
+        results.push({ key, dry_run: true, recipients: recipients.length, deferred, subject: campaignSubject(template), daily_cap: settings.daily_send_cap })
         continue
       }
 
@@ -201,15 +234,16 @@ export async function POST(request: NextRequest) {
           last_sync_error: null,
         }, { onConflict: 'user_id,campaign_key' })
         await supabase.from('contacts').update({ marketing_status: 'sent', last_contact_at: sentAt, updated_at: sentAt })
-          .in('id', eligible.map((event) => event.contact_id))
-        await createActivities(supabase, eligible.map((event) => ({
+          .in('id', selected.map((event) => event.contact_id))
+        await createActivities(supabase, selected.map((event) => ({
           user_id: event.user_id,
           contact_id: event.contact_id,
           type: 'wine_followup_sent',
           content: `Wine Project: inviata email ${template.sequence}/5 via Acumbamail (campagna ${campaignId}).`,
           metadata: { campaign_id: campaignId, campaign_key: campaignKey, sequence: template.sequence, provider: 'acumbamail' },
         })))
-        results.push({ key, sent: recipients.length, campaign_id: campaignId, campaign_key: campaignKey, skipped: ineligible.length })
+        remainingByUser.set(userId, remaining - recipients.length)
+        results.push({ key, sent: recipients.length, deferred, campaign_id: campaignId, campaign_key: campaignKey, skipped: ineligible.length, daily_cap: settings.daily_send_cap })
       } catch (campaignError) {
         await supabase.from('wine_project_followup_events')
           .update({ status: 'failed', delivery_error: errorMessage(campaignError, 'Invio Acumbamail non riuscito') })
