@@ -37,7 +37,7 @@ type QueuedEvent = {
 }
 
 function firstName(value: string) {
-  return String(value || '').trim().split(/\s+/)[0] || 'Gentile cliente'
+  return String(value || '').trim().split(/\s+/)[0] || ''
 }
 
 function escapeHtml(value: string) {
@@ -53,6 +53,7 @@ function paragraphHtml(text: string) {
 
 function campaignHtml(template: WineProjectSequenceTemplate) {
   const copy = template.body
+    .replaceAll('Buongiorno {{nome}},', '*|GREETING|*')
     .replaceAll('{{nome}}', '*|FIRST_NAME|*')
     .replaceAll('{{azienda}}', '*|COMPANY|*')
   const paragraphs = copy.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean)
@@ -68,7 +69,7 @@ function campaignHtml(template: WineProjectSequenceTemplate) {
 
 function campaignSubject(template: WineProjectSequenceTemplate) {
   return template.subject
-    .replaceAll('{{nome}}', '*|NAME|*')
+    .replaceAll('{{nome}}', '*|FULL_NAME|*')
     .replaceAll('{{azienda}}', '*|COMPANY|*')
 }
 
@@ -196,7 +197,16 @@ export async function POST(request: NextRequest) {
       const senderName = process.env.WINE_PROJECT_FROM_NAME || 'Massimo Morgante | Speaqi'
       const recipients = selected.map((event) => {
         const contact = Array.isArray(event.contacts) ? event.contacts[0] : event.contacts
-        return { email: String(contact.email), firstName: firstName(contact.name), company: String(contact.company || 'la vostra cantina'), wineUrl: projectUrl(contact) }
+        const first = firstName(contact.name)
+        const fullName = String(contact.name || '').trim() || first
+        return {
+          email: String(contact.email),
+          firstName: first,
+          fullName,
+          greeting: first ? `Buongiorno ${first},` : 'Buongiorno,',
+          company: String(contact.company || 'la vostra cantina'),
+          wineUrl: projectUrl(contact),
+        }
       })
 
       if (dryRun) {

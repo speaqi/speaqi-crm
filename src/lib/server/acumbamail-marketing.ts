@@ -47,8 +47,9 @@ export async function createWineProjectRecipientList(
   })
   const listId = responseId(payload)
 
-  // I tag diventano *|FIRST_NAME|*, *|COMPANY|* e *|WINE_URL|* nel contenuto.
-  for (const fieldName of ['first_name', 'company', 'wine_url']) {
+  // I tag vengono usati per saluto, oggetto e CTA senza dipendere da campi
+  // preesistenti nella lista Acumbamail.
+  for (const fieldName of ['first_name', 'full_name', 'greeting', 'company', 'wine_url']) {
     await callAcumbamailMarketing('addMergeTag', authToken, {
       list_id: listId,
       field_name: fieldName,
@@ -61,7 +62,7 @@ export async function createWineProjectRecipientList(
 export async function addCampaignRecipients(
   authToken: string,
   listId: string,
-  recipients: Array<{ email: string; firstName: string; company: string; wineUrl: string }>
+  recipients: Array<{ email: string; firstName: string; fullName: string; greeting: string; company: string; wineUrl: string }>
 ) {
   return callAcumbamailMarketing('batchAddSubscribers', authToken, {
     list_id: listId,
@@ -70,6 +71,8 @@ export async function addCampaignRecipients(
     subscribers_data: recipients.map((recipient) => ({
       email: recipient.email,
       first_name: recipient.firstName,
+      full_name: recipient.fullName,
+      greeting: recipient.greeting,
       company: recipient.company,
       wine_url: recipient.wineUrl,
     })),
