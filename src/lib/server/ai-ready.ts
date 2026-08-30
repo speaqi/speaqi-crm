@@ -30,6 +30,7 @@ type ContactRow = {
   updated_at?: string | null
   priority?: number | null
   next_followup_at?: string | null
+  event_tag?: string | null
 }
 
 function asDate(value?: string | Date | null) {
@@ -1108,7 +1109,7 @@ export async function applyReplyOutcome(supabase: any, userId: string, leadId: s
   }
 
   const memory = await upsertLeadMemory(supabase, userId, leadId, memoryUpdate)
-  const suggestion = await suggestNextActionWithAI({
+  const suggestedAction = await suggestNextActionWithAI({
     lead: {
       ...lead,
       status: normalizeLeadStatus(nextStatus),
@@ -1118,6 +1119,22 @@ export async function applyReplyOutcome(supabase: any, userId: string, leadId: s
     lastActivity: 'email_reply',
     history: emailText,
   })
+  const isWineProject = leadRow.event_tag === 'wine-project'
+  const suggestion = isWineProject && classification.intent !== 'interested'
+    ? classification.intent === 'info' || classification.intent === 'objection'
+      ? {
+          action: 'send_email' as const,
+          delay_hours: classification.intent === 'info' ? 4 : 24,
+          priority: classification.intent === 'info' ? 'high' as const : 'medium' as const,
+          reason: 'Risposta Wine Project da leggere e gestire via email: nessuna chiamata automatica senza interesse esplicito.',
+        }
+      : {
+          action: 'wait' as const,
+          delay_hours: 168,
+          priority: 'low' as const,
+          reason: 'Risposta Wine Project non interessata o non qualificata: sequenza chiusa, nessuna chiamata.',
+        }
+    : suggestedAction
 
   const dueAt = dueAtFromDelay(suggestion.action, suggestion.delay_hours)
   const task =

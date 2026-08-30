@@ -153,7 +153,7 @@ export default function WineProjectSettingsPage() {
           <div>
             <p className="wine-project-eyebrow">CADENZA</p>
             <h2>Quando il CRM deve riportare la cantina in coda</h2>
-            <p>Ogni contatto riceve fino a cinque messaggi. Il secondo viene preparato solo quando non risultano aperture o click; una risposta, disiscrizione o chiusura ferma tutta la sequenza.</p>
+            <p>Ogni contatto riceve fino a cinque messaggi. L&apos;apertura da sola non genera chiamate e non interrompe i rilanci; una risposta, disiscrizione o chiusura ferma tutta la sequenza.</p>
           </div>
         </div>
         <div className="wine-project-cadence-grid">

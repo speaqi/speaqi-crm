@@ -51,8 +51,8 @@ Non serve acquistare nulla per vedere il risultato.`,
   },
   {
     sequence: 2,
-    label: 'Promemoria essenziale',
-    condition: 'unopened',
+    label: 'Promemoria dopo il primo contatto',
+    condition: 'all',
     subject: 'Le posso mostrare {{azienda}} in pochi minuti?',
     body: `Buongiorno {{nome}},
 
@@ -271,8 +271,7 @@ function sequenceTemplate(settings: WineProjectAutomationSettings, sequence: num
 }
 
 function eventNote(contact: WineContact, template: WineProjectSequenceTemplate) {
-  const conditional = template.condition === 'unopened' ? ' Solo se non risultano aperture o click.' : ''
-  return `Wine Project — Email ${template.sequence}/5 “${template.label}” per ${contact.name}.${conditional}`
+  return `Wine Project — Email ${template.sequence}/5 “${template.label}” per ${contact.name}.`
 }
 
 function sequenceBrief(template: WineProjectSequenceTemplate) {
@@ -328,18 +327,6 @@ export async function queueDueWineProjectFollowups(supabase: any, userId?: strin
       const { error: skipError } = await supabase
         .from('wine_project_followup_events')
         .update({ status: 'skipped', skipped_at: new Date().toISOString(), skip_reason: reason })
-        .eq('id', event.id)
-        .eq('status', 'scheduled')
-      if (skipError) throw skipError
-      skipped += 1
-      continue
-    }
-
-    const hasEngagement = Number(contact.email_open_count || 0) > 0 || Number(contact.email_click_count || 0) > 0
-    if (template.condition === 'unopened' && hasEngagement) {
-      const { error: skipError } = await supabase
-        .from('wine_project_followup_events')
-        .update({ status: 'skipped', skipped_at: new Date().toISOString(), skip_reason: 'apertura o click rilevato' })
         .eq('id', event.id)
         .eq('status', 'scheduled')
       if (skipError) throw skipError
