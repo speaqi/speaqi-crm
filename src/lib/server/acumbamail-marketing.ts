@@ -74,7 +74,7 @@ export async function createWineProjectRecipientList(
     await callAcumbamailMarketing('addMergeTag', authToken, {
       list_id: listId,
       field_name: fieldName,
-      field_type: 'char',
+      field_type: 'text',
     })
   }
   return listId
@@ -91,7 +91,7 @@ export async function createHospitalityRecipientList(authToken: string, name: st
     await callAcumbamailMarketing('addMergeTag', authToken, {
       list_id: listId,
       field_name: fieldName,
-      field_type: 'char',
+      field_type: 'text',
     })
   }
   return listId
