@@ -133,7 +133,12 @@ export async function POST(request: NextRequest) {
     const wineSettings = isWineDemo
       ? await loadWineProjectAutomationSettings(supabase, userId)
       : null
-    const isWineConversion = isWineDemo && text(body.reason, 80) === 'demo_ready'
+    // L'API Speaqi invia wine_demo_contact SOLO quando la demo e' pronta, ma non
+    // propaga il campo reason: trattare il solo reason === 'demo_ready' come
+    // conversione lasciava la sequenza attiva per ogni form reale. Un reason
+    // esplicito diverso resta rispettato per eventuali mittenti futuri.
+    const wineDemoReason = text(body.reason, 80)
+    const isWineConversion = isWineDemo && (!wineDemoReason || wineDemoReason === 'demo_ready')
     const requestedFollowup = text(body.next_followup_at, 80)
     const nextFollowupAt = requestedFollowup || (wineSettings
       ? wineFollowupDueAt(wineSettings.first_followup_days)
