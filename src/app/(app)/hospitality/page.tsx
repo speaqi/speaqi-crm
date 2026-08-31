@@ -92,7 +92,7 @@ export default function HospitalityCampaignPage() {
       { done: data.campaign.approval_status === 'approved', title: 'Decisione registrata', detail: 'Autorizzazione del titolare salvata nel CRM.' },
       { done: ready.technically_eligible > 0 && ready.legally_attested === ready.technically_eligible && ready.source_dated === ready.technically_eligible, title: 'Dati attestati', detail: `${ready.legally_attested.toLocaleString('it-IT')} di ${ready.technically_eligible.toLocaleString('it-IT')} contatti tecnicamente idonei.` },
       { done: ready.acumbamail_api && Boolean(data.campaign.acumbamail_list_id), title: 'Acumbamail collegato', detail: data.campaign.acumbamail_list_id ? `Lista di riferimento ${data.campaign.acumbamail_list_id}.` : 'Token valido; manca la lista di riferimento.' },
-      { done: ready.acumbamail_webhook, title: 'Callback eventi disponibile', detail: 'Aperture, click, bounce, reclami e disiscrizioni possono rientrare nel CRM.' },
+      { done: ready.acumbamail_webhook, title: 'Webhook lista attivo', detail: ready.acumbamail_webhook ? 'Aperture, click, bounce, reclami e disiscrizioni rientrano nel CRM.' : 'In Acumbamail: lista 1226976 → Avanzato → Webhooks, incolla la callback e salva.' },
       { done: ready.n8n_reachable, title: 'n8n raggiungibile', detail: 'Scheduler online; il workflow resta in shadow mode durante i test.' },
       { done: !ready.send_enabled, title: 'Kill switch sotto controllo', detail: ready.send_enabled ? 'Invii abilitati: monitorare il cap.' : 'Invii reali disabilitati fino al pilot.' },
     ]

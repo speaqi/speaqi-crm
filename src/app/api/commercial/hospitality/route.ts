@@ -36,7 +36,8 @@ export async function GET(request: NextRequest) {
     }
     const webhookToken = process.env.ACUMBAMAIL_WEBHOOK_TOKEN
     const callbackUrl = webhookToken ? (() => {
-      const url = new URL('/api/integrations/acumbamail/webhook', request.nextUrl.origin)
+      const callbackOrigin = process.env.CRM_PUBLIC_URL || 'https://crm.speaqi.com'
+      const url = new URL('/api/integrations/acumbamail/webhook', callbackOrigin)
       url.searchParams.set('t', webhookToken)
       url.searchParams.set('u', auth.workspaceUserId)
       url.searchParams.set('s', 'holding')
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest) {
         legally_attested: legallyAttested.count || 0,
         source_dated: sourceDated.count || 0,
         acumbamail_api: Boolean(process.env.ACUMBAMAIL_AUTH_TOKEN),
-        acumbamail_webhook: Boolean(webhookToken),
+        acumbamail_webhook: process.env.ACUMBAMAIL_LIST_WEBHOOK_CONFIGURED === 'true',
         n8n_reachable: n8nReachable,
         send_enabled: process.env.COMMERCIAL_OUTREACH_SEND_ENABLED === 'true',
         callback_url: callbackUrl,

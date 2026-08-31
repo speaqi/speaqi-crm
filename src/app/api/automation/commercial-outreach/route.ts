@@ -8,7 +8,6 @@ import {
 } from '@/lib/server/commercial-outreach'
 import {
   addHospitalityCampaignRecipients,
-  configureAcumbamailListWebhook,
   createHospitalityRecipientList,
   createWineProjectCampaign,
 } from '@/lib/server/acumbamail-marketing'
@@ -84,20 +83,6 @@ function campaignContent(step: any) {
     subject,
     html: `<!doctype html><html><body style="margin:0;background:#ffffff;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr><td style="padding:30px 20px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:680px;margin:0;"><tr><td><p style="margin:0 0 22px;font:700 12px/1.3 Arial,Helvetica,sans-serif;letter-spacing:1.6px;color:#2949b8;">SPEAQI · HOSPITALITY EXPERIENCE</p>${body}<hr style="border:0;border-top:1px solid #dfe4ed;margin:28px 0 18px;"><p style="margin:0;font:13px/1.55 Arial,Helvetica,sans-serif;color:#536078;">Massimo Morgante<br>CEO · Speaqi<br><a href="mailto:info@speaqi.com" style="color:#2949b8;">info@speaqi.com</a> · +39 389 686 8162</p><p style="margin:22px 0 0;font:11px/1.5 Arial,Helvetica,sans-serif;color:#7b8495;">Non desidera ricevere altri messaggi? <a href="*|UNSUBSCRIBE_URL|*" style="color:#536078;text-decoration:underline;">Si disiscriva qui</a>.</p></td></tr></table></td></tr></table></body></html>`,
   }
-}
-
-function callbackUrl(userId: string) {
-  const token = process.env.ACUMBAMAIL_WEBHOOK_TOKEN
-  if (!token) throw new Error('ACUMBAMAIL_WEBHOOK_TOKEN is required')
-  const url = new URL('/api/integrations/acumbamail/webhook', process.env.CRM_PUBLIC_URL || 'https://crm.speaqi.com')
-  url.searchParams.set('t', token)
-  url.searchParams.set('u', userId)
-  url.searchParams.set('s', 'holding')
-  url.searchParams.set('e', 'opens,clicks,unsubscribes,hard_bounces,soft_bounces,complaints')
-  url.searchParams.set('l', 'Hospitality Italia 2026')
-  url.searchParams.set('tag', 'hospitality-project')
-  url.searchParams.set('m', '1')
-  return url.toString()
 }
 
 async function advance(supabase: any, campaign: any, message: any, enrollment: any, sent: boolean, error?: string, provider?: ProviderMetadata) {
@@ -189,7 +174,6 @@ export async function POST(request: NextRequest) {
         const listId = await createHospitalityRecipientList(token!, `Hospitality · Email ${stepNumber}/5 · ${batchKey}`, campaign.sender_email)
         const recipients = deliveries.map((item) => personalization(item.contact))
         await addHospitalityCampaignRecipients(token!, listId, recipients)
-        await configureAcumbamailListWebhook(token!, listId, callbackUrl(campaign.user_id))
         const content = campaignContent(deliveries[0].step)
         const campaignId = await createWineProjectCampaign(token!, {
           name: `Hospitality · Email ${stepNumber}/5 · ${new Date().toISOString().slice(0, 16)}`,
