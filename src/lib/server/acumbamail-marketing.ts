@@ -1,100 +1,47 @@
-const ACUMBAMAIL_API_URL = 'https://acumbamail.com/api/1'
+/**
+ * Wrapper specifici di Speaqi sopra il client Acumbamail.
+ *
+ * Il trasporto e le primitive vivono in `@/lib/acumbamail`, che non dipende da
+ * questo progetto ed è pensato per essere riusato altrove. Qui restano solo i
+ * nomi dei campi e le descrizioni delle sequenze Wine e Hospitality.
+ */
+import {
+  addSubscribers,
+  callAcumbamail,
+  configureListWebhook,
+  createCampaign,
+  createRecipientList,
+  type AcumbamailResponse,
+} from '@/lib/acumbamail'
 
-type ApiResponse = Record<string, unknown> | unknown[] | string | number
+export type { AcumbamailResponse }
 
-function responseId(payload: ApiResponse) {
-  if (typeof payload === 'string' || typeof payload === 'number') {
-    const value = String(payload).trim()
-    if (value) return value
-  }
-  if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
-    const record = payload as Record<string, unknown>
-    const value = record.id || record.campaign_id || record.list_id
-    if (value !== undefined && value !== null && String(value).trim()) return String(value)
-    for (const key of ['data', 'result', 'response']) {
-      const nested = record[key]
-      if (nested && (typeof nested === 'object' || typeof nested === 'string' || typeof nested === 'number')) {
-        try { return responseId(nested as ApiResponse) } catch {}
-      }
-    }
-    const keys = Object.keys(record)
-    if (keys.length === 1 && /^\d+$/.test(keys[0])) return keys[0]
-  }
-  if (Array.isArray(payload) && payload.length === 1) {
-    try { return responseId(payload[0] as ApiResponse) } catch {}
-  }
-  throw new Error('Acumbamail non ha restituito l’identificativo dell’operazione.')
-}
+/** @deprecated Usa `callAcumbamail` da `@/lib/acumbamail`. */
+export const callAcumbamailMarketing = callAcumbamail
 
-export async function callAcumbamailMarketing(
-  functionName: string,
-  authToken: string,
-  data: Record<string, unknown> = {}
-): Promise<ApiResponse> {
-  const form = new URLSearchParams()
-  const inputPayload = { ...data, auth_token: authToken, response_type: 'json' }
-  for (const [key, value] of Object.entries(inputPayload)) {
-    form.set(key, value && typeof value === 'object' ? JSON.stringify(value) : String(value ?? ''))
-  }
-  const response = await fetch(`${ACUMBAMAIL_API_URL}/${functionName}/`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: form,
-    cache: 'no-store',
-  })
-  const raw = await response.text()
-  let payload: ApiResponse = {}
-  try {
-    payload = raw ? JSON.parse(raw) : {}
-  } catch {
-    payload = { raw }
-  }
-  if (!response.ok) {
-    const message = typeof payload === 'object' ? JSON.stringify(payload).slice(0, 500) : raw.slice(0, 500)
-    throw new Error(`Acumbamail ${functionName} (${response.status}): ${message}`)
-  }
-  return payload
-}
+const WINE_MERGE_TAGS = ['first_name', 'full_name', 'greeting', 'company', 'wine_url']
+const HOSPITALITY_MERGE_TAGS = ['first_name', 'full_name', 'greeting', 'company', 'demo_url']
 
 export async function createWineProjectRecipientList(
   authToken: string,
   name: string,
   senderEmail: string
 ) {
-  const payload = await callAcumbamailMarketing('createList', authToken, {
+  return createRecipientList(authToken, {
     name,
-    sender_email: senderEmail,
+    senderEmail,
     description: 'Destinatari temporanei della sequenza automatica Wine Project. Gestita da Speaqi CRM.',
+    mergeTags: WINE_MERGE_TAGS,
   })
-  const listId = responseId(payload)
-
-  // I tag vengono usati per saluto, oggetto e CTA senza dipendere da campi
-  // preesistenti nella lista Acumbamail.
-  for (const fieldName of ['first_name', 'full_name', 'greeting', 'company', 'wine_url']) {
-    await callAcumbamailMarketing('addMergeTag', authToken, {
-      list_id: listId,
-      field_name: fieldName,
-      field_type: 'text',
-    })
-  }
-  return listId
 }
 
 export async function createHospitalityRecipientList(authToken: string, name: string, senderEmail: string) {
-  const payload = await callAcumbamailMarketing('createList', authToken, {
+  return createRecipientList(authToken, {
     name,
-    sender_email: senderEmail,
+    senderEmail,
     description: 'Lotto isolato della sequenza Hospitality Speaqi. Gestito automaticamente dal CRM.',
+    mergeTags: HOSPITALITY_MERGE_TAGS,
   })
-  const listId = responseId(payload)
-  for (const fieldName of ['first_name', 'full_name', 'greeting', 'company', 'demo_url']) {
-    await callAcumbamailMarketing('addMergeTag', authToken, {
-      list_id: listId,
-      field_name: fieldName,
-      field_type: 'text',
-    })
-  }
-  return listId
 }
 
 export async function addCampaignRecipients(
@@ -102,19 +49,18 @@ export async function addCampaignRecipients(
   listId: string,
   recipients: Array<{ email: string; firstName: string; fullName: string; greeting: string; company: string; wineUrl: string }>
 ) {
-  return callAcumbamailMarketing('batchAddSubscribers', authToken, {
-    list_id: listId,
-    update_subscriber: 1,
-    complete_json: 1,
-    subscribers_data: recipients.map((recipient) => ({
+  return addSubscribers(
+    authToken,
+    listId,
+    recipients.map((recipient) => ({
       email: recipient.email,
       first_name: recipient.firstName,
       full_name: recipient.fullName,
       greeting: recipient.greeting,
       company: recipient.company,
       wine_url: recipient.wineUrl,
-    })),
-  })
+    }))
+  )
 }
 
 export async function addHospitalityCampaignRecipients(
@@ -122,19 +68,18 @@ export async function addHospitalityCampaignRecipients(
   listId: string,
   recipients: Array<{ email: string; firstName: string; fullName: string; greeting: string; company: string; demoUrl: string }>
 ) {
-  return callAcumbamailMarketing('batchAddSubscribers', authToken, {
-    list_id: listId,
-    update_subscriber: 1,
-    complete_json: 1,
-    subscribers_data: recipients.map((recipient) => ({
+  return addSubscribers(
+    authToken,
+    listId,
+    recipients.map((recipient) => ({
       email: recipient.email,
       first_name: recipient.firstName,
       full_name: recipient.fullName,
       greeting: recipient.greeting,
       company: recipient.company,
       demo_url: recipient.demoUrl,
-    })),
-  })
+    }))
+  )
 }
 
 export async function createWineProjectCampaign(
@@ -148,18 +93,7 @@ export async function createWineProjectCampaign(
     fromEmail: string
   }
 ) {
-  const payload = await callAcumbamailMarketing('createCampaign', authToken, {
-    name: input.name,
-    from_name: input.fromName,
-    from_email: input.fromEmail,
-    lists: [Number(input.listId)],
-    content: input.html,
-    subject: input.subject,
-    tracking_urls: 1,
-    https: 1,
-    complete_json: 1,
-  })
-  return responseId(payload)
+  return createCampaign(authToken, input)
 }
 
 export async function configureAcumbamailListWebhook(
@@ -167,16 +101,5 @@ export async function configureAcumbamailListWebhook(
   listId: string,
   callbackUrl: string
 ) {
-  return callAcumbamailMarketing('configListWebhook', authToken, {
-    list_id: listId,
-    callback_url: callbackUrl,
-    subscribes: 1,
-    unsubscribes: 1,
-    hard_bounce: 1,
-    soft_bounce: 1,
-    complain: 1,
-    opens: 1,
-    click: 1,
-    active: 1,
-  })
+  return configureListWebhook(authToken, listId, callbackUrl)
 }
