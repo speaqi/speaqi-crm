@@ -11,6 +11,7 @@ type WineProjectSettings = {
   acumbamail_list_id: string | null
   acumbamail_campaign_id: string | null
   daily_send_cap: number
+  daily_enrollment_cap: number
   first_followup_days: number
   second_followup_days: number
   third_followup_days: number
@@ -47,6 +48,7 @@ const EMPTY_SETTINGS: WineProjectSettings = {
   acumbamail_list_id: '1465520',
   acumbamail_campaign_id: null,
   daily_send_cap: 100,
+  daily_enrollment_cap: 30,
   first_followup_days: 1,
   second_followup_days: 4,
   third_followup_days: 9,
@@ -84,6 +86,11 @@ export default function WineProjectSettingsPage() {
   function setDailySendCap(value: string) {
     const number = Math.min(5000, Math.max(1, Math.floor(Number(value) || 1)))
     setSettings((current) => ({ ...current, daily_send_cap: number }))
+  }
+
+  function setDailyEnrollmentCap(value: string) {
+    const number = Math.min(5000, Math.max(1, Math.floor(Number(value) || 1)))
+    setSettings((current) => ({ ...current, daily_enrollment_cap: number }))
   }
 
   function updateTemplate(sequence: number, field: 'subject' | 'body', value: string) {
@@ -240,7 +247,8 @@ export default function WineProjectSettingsPage() {
         </div>
         <div className="wine-project-fields-grid">
           <label htmlFor="wine-campaign-name"><span>Nome campagna nel CRM</span><input id="wine-campaign-name" value={settings.campaign_name} onChange={(event) => setSettings((current) => ({ ...current, campaign_name: event.target.value }))} /></label>
-          <label htmlFor="wine-daily-send-cap"><span>Invii massimi al giorno</span><input id="wine-daily-send-cap" type="number" min="1" max="5000" inputMode="numeric" value={settings.daily_send_cap} onChange={(event) => setDailySendCap(event.target.value)} onBlur={(event) => setDailySendCap(event.target.value)} /><small>Per il primo test: 100 contatti al giorno.</small></label>
+          <label htmlFor="wine-daily-enrollment-cap"><span>Nuovi contatti al giorno</span><input id="wine-daily-enrollment-cap" type="number" min="1" max="5000" inputMode="numeric" value={settings.daily_enrollment_cap} onChange={(event) => setDailyEnrollmentCap(event.target.value)} onBlur={(event) => setDailyEnrollmentCap(event.target.value)} /><small>Quante cantine entrano ogni giorno in sequenza, pescate dai contatti con tag wine-project.</small></label>
+          <label htmlFor="wine-daily-send-cap"><span>Invii massimi al giorno</span><input id="wine-daily-send-cap" type="number" min="1" max="5000" inputMode="numeric" value={settings.daily_send_cap} onChange={(event) => setDailySendCap(event.target.value)} onBlur={(event) => setDailySendCap(event.target.value)} /><small>Tetto sulle email totali, follow-up inclusi.</small></label>
           <label htmlFor="wine-list-id"><span>ID lista Acumbamail</span><input id="wine-list-id" inputMode="numeric" value={settings.acumbamail_list_id || ''} onChange={(event) => setSettings((current) => ({ ...current, acumbamail_list_id: event.target.value.replace(/\D/g, '') || null }))} placeholder="1465520" /></label>
           <label htmlFor="wine-campaign-id"><span>ID campagna Acumbamail</span><input id="wine-campaign-id" inputMode="numeric" value={settings.acumbamail_campaign_id || ''} onChange={(event) => setSettings((current) => ({ ...current, acumbamail_campaign_id: event.target.value.replace(/\D/g, '') || null }))} placeholder="Lo inserisci dopo l'invio" /></label>
         </div>

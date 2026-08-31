@@ -15,6 +15,7 @@ export type WineProjectAutomationSettings = {
   acumbamail_list_id: string | null
   acumbamail_campaign_id: string | null
   daily_send_cap: number
+  daily_enrollment_cap: number
   first_followup_days: number
   second_followup_days: number
   third_followup_days: number
@@ -113,6 +114,7 @@ export const DEFAULT_WINE_PROJECT_AUTOMATION_SETTINGS: WineProjectAutomationSett
   acumbamail_list_id: '1465520',
   acumbamail_campaign_id: null,
   daily_send_cap: 100,
+  daily_enrollment_cap: 30,
   first_followup_days: 1,
   second_followup_days: 4,
   third_followup_days: 9,
@@ -180,6 +182,7 @@ export function normalizeWineProjectAutomationSettings(input: Partial<WineProjec
     acumbamail_list_id: text(input.acumbamail_list_id, 80) || null,
     acumbamail_campaign_id: text(input.acumbamail_campaign_id, 80) || null,
     daily_send_cap: integer(input.daily_send_cap, DEFAULT_WINE_PROJECT_AUTOMATION_SETTINGS.daily_send_cap, 1, 5000),
+    daily_enrollment_cap: integer(input.daily_enrollment_cap, DEFAULT_WINE_PROJECT_AUTOMATION_SETTINGS.daily_enrollment_cap, 1, 5000),
     first_followup_days: first,
     second_followup_days: second,
     third_followup_days: third,
@@ -192,7 +195,7 @@ export function normalizeWineProjectAutomationSettings(input: Partial<WineProjec
 export async function loadWineProjectAutomationSettings(supabase: any, userId: string) {
   const { data, error } = await supabase
     .from('wine_project_automation_settings')
-    .select('enabled, campaign_name, acumbamail_list_id, acumbamail_campaign_id, daily_send_cap, first_followup_days, second_followup_days, third_followup_days, fourth_followup_days, fifth_followup_days, sequence_templates')
+    .select('enabled, campaign_name, acumbamail_list_id, acumbamail_campaign_id, daily_send_cap, daily_enrollment_cap, first_followup_days, second_followup_days, third_followup_days, fourth_followup_days, fifth_followup_days, sequence_templates')
     .eq('user_id', userId)
     .maybeSingle()
 
@@ -307,28 +310,132 @@ export async function stopWineProjectFollowups(
   return { stopped: data?.length || 0, events: (data || []) as Array<{ id: string; sequence: number }> }
 }
 
-export async function backfillWineProjectFollowups(supabase: any) {
-  const { data: contacts, error } = await supabase
-    .from('contacts')
-    .select('id, user_id, name, email, phone, status, email_unsubscribed_at')
-    .eq('event_tag', 'wine-project')
-    .is('email_unsubscribed_at', null)
-    .not('status', 'in', '(Closed,Paid,Lost)')
-    .limit(500)
-  if (error) throw error
+const ENROLLMENT_PAGE = 500
 
-  const settingsByUser = new Map<string, WineProjectAutomationSettings>()
-  let planned = 0
-  for (const contact of contacts || []) {
-    let settings = settingsByUser.get(contact.user_id)
-    if (!settings) {
-      settings = await loadWineProjectAutomationSettings(supabase, contact.user_id)
-      settingsByUser.set(contact.user_id, settings)
-    }
-    const result = await planWineProjectFollowups(supabase, contact, settings)
-    planned += result.planned
+/** Mezzanotte di Roma in ISO, per contare gli arruolamenti della giornata. */
+function startOfRomeDay(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Rome',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now)
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || ''
+  const offset = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Rome', timeZoneName: 'longOffset' })
+    .formatToParts(now)
+    .find((part) => part.type === 'timeZoneName')?.value || 'GMT+00:00'
+  const offsetMatch = offset.match(/^GMT([+-])(\d{2}):(\d{2})$/)
+  const offsetMinutes = offsetMatch
+    ? (Number(offsetMatch[2]) * 60 + Number(offsetMatch[3])) * (offsetMatch[1] === '+' ? 1 : -1)
+    : 0
+  return new Date(
+    Date.UTC(Number(value('year')), Number(value('month')) - 1, Number(value('day'))) - offsetMinutes * 60 * 1000
+  ).toISOString()
+}
+
+/**
+ * Immette in sequenza al massimo `daily_enrollment_cap` contatti nuovi al
+ * giorno, pescandoli dal bacino `event_tag = 'wine-project'` in ordine di id.
+ *
+ * Il tag dice soltanto chi fa parte del bacino: prima questa funzione
+ * arruolava tutti i taggati a ogni giro, quindi taggare 3.300 cantine
+ * significava creare 3.300 email 1 nello stesso istante, e l'unico freno era
+ * un tetto sugli invii totali condiviso con i follow-up.
+ *
+ * In caso di errore arruola ZERO e lo dichiara nel risultato: ripiegare sul
+ * comportamento precedente immetterebbe l'intero bacino per una lettura
+ * fallita, che è esattamente il danno da evitare.
+ */
+export async function backfillWineProjectFollowups(supabase: any, userId?: string) {
+  const owners: string[] = []
+  if (userId) owners.push(userId)
+  else {
+    const { data: distinct, error: distinctError } = await supabase
+      .from('contacts')
+      .select('user_id')
+      .eq('event_tag', 'wine-project')
+      .limit(1000)
+    if (distinctError) throw distinctError
+    for (const row of distinct || []) if (!owners.includes(row.user_id)) owners.push(row.user_id)
   }
-  return { contacts: contacts?.length || 0, planned }
+
+  let planned = 0
+  let scanned = 0
+  const blocked: Array<{ user_id: string; reason: string }> = []
+
+  for (const owner of owners) {
+    let settings: WineProjectAutomationSettings
+    try {
+      settings = await loadWineProjectAutomationSettings(supabase, owner)
+    } catch (settingsError) {
+      blocked.push({ user_id: owner, reason: `impostazioni non leggibili: ${(settingsError as Error).message}` })
+      continue
+    }
+    if (!settings.enabled) continue
+
+    const { count: enrolledToday, error: countError } = await supabase
+      .from('wine_project_followup_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', owner)
+      .eq('sequence', 1)
+      .gte('created_at', startOfRomeDay())
+    if (countError) {
+      blocked.push({ user_id: owner, reason: `conteggio arruolamenti non riuscito: ${countError.message}` })
+      continue
+    }
+
+    let remaining = Math.max(0, settings.daily_enrollment_cap - (enrolledToday || 0))
+    if (remaining < 1) continue
+
+    const { data: existing, error: existingError } = await supabase
+      .from('wine_project_followup_events')
+      .select('contact_id')
+      .eq('user_id', owner)
+    if (existingError) {
+      blocked.push({ user_id: owner, reason: `elenco arruolati non leggibile: ${existingError.message}` })
+      continue
+    }
+    const alreadyEnrolled = new Set((existing || []).map((row: { contact_id: string }) => row.contact_id))
+
+    // Paginazione keyset: con una semplice limit, appena le prime pagine sono
+    // tutte di già arruolati il sistema continuerebbe a ripescarle e non
+    // arruolerebbe mai i contatti successivi.
+    let cursor = ''
+    while (remaining > 0) {
+      let query = supabase
+        .from('contacts')
+        .select('id, user_id, name, email, phone, status, email_unsubscribed_at')
+        .eq('user_id', owner)
+        .eq('event_tag', 'wine-project')
+        .is('email_unsubscribed_at', null)
+        .not('status', 'in', '(Closed,Paid,Lost)')
+        .order('id', { ascending: true })
+        .limit(ENROLLMENT_PAGE)
+      if (cursor) query = query.gt('id', cursor)
+
+      const { data: page, error: pageError } = await query
+      if (pageError) {
+        blocked.push({ user_id: owner, reason: `lettura bacino non riuscita: ${pageError.message}` })
+        break
+      }
+      if (!page?.length) break
+      cursor = page[page.length - 1].id
+      scanned += page.length
+
+      for (const contact of page) {
+        if (remaining < 1) break
+        if (!contact.email || alreadyEnrolled.has(contact.id)) continue
+        const result = await planWineProjectFollowups(supabase, contact, settings)
+        if (result.planned > 0) {
+          alreadyEnrolled.add(contact.id)
+          planned += result.planned
+          remaining -= 1
+        }
+      }
+    }
+  }
+
+  return { contacts: scanned, planned, blocked }
 }
 
 function stoppedReason(contact: WineContact, hasReply: boolean) {
