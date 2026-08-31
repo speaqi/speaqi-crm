@@ -207,6 +207,26 @@ export function wineFollowupDueAt(days: number, from = new Date()) {
   return toCallableSlot(new Date(from.getTime() + days * 24 * 60 * 60 * 1000)).toISOString()
 }
 
+/** Giorni dall'arruolamento previsti per ciascuna email della sequenza. */
+export function wineSequenceOffsets(settings: WineProjectAutomationSettings) {
+  return [
+    settings.first_followup_days,
+    settings.second_followup_days,
+    settings.third_followup_days,
+    settings.fourth_followup_days,
+    settings.fifth_followup_days,
+  ]
+}
+
+export const WINE_SEQUENCE_LAST = 5
+
+/**
+ * Arruola il contatto creando SOLO la prima email. Le successive nascono a
+ * catena dopo ogni invio riuscito (scheduleNextWineProjectFollowup): creare
+ * tutte e cinque le scadenze in anticipo le ancorava alla data di
+ * arruolamento, così l'email 2 partiva al suo giorno di calendario anche se
+ * la 1 non era mai uscita.
+ */
 export async function planWineProjectFollowups(
   supabase: any,
   contact: WineContact,
@@ -215,22 +235,49 @@ export async function planWineProjectFollowups(
 ) {
   if (!settings.enabled) return { planned: 0, firstDueAt: null }
 
-  const rows = [
-    { sequence: 1, due_at: wineFollowupDueAt(settings.first_followup_days, from) },
-    { sequence: 2, due_at: wineFollowupDueAt(settings.second_followup_days, from) },
-    { sequence: 3, due_at: wineFollowupDueAt(settings.third_followup_days, from) },
-    { sequence: 4, due_at: wineFollowupDueAt(settings.fourth_followup_days, from) },
-    { sequence: 5, due_at: wineFollowupDueAt(settings.fifth_followup_days, from) },
-  ].map((item) => ({ ...item, user_id: contact.user_id, contact_id: contact.id }))
+  const firstDueAt = wineFollowupDueAt(settings.first_followup_days, from)
+  const rows = [{ sequence: 1, due_at: firstDueAt, user_id: contact.user_id, contact_id: contact.id }]
 
   const { error } = await supabase
     .from('wine_project_followup_events')
     .upsert(rows, { onConflict: 'contact_id,sequence', ignoreDuplicates: true })
   if (error) {
-    if (isMissingTable(error)) return { planned: 0, firstDueAt: rows[0].due_at }
+    if (isMissingTable(error)) return { planned: 0, firstDueAt }
     throw error
   }
-  return { planned: rows.length, firstDueAt: rows[0].due_at }
+  return { planned: rows.length, firstDueAt }
+}
+
+/**
+ * Crea l'email successiva partendo dall'invio appena riuscito: la distanza è
+ * quella prevista fra le due tappe, ma contata dall'invio reale e non
+ * dall'arruolamento. Se il contatto ha già un evento per quella sequenza
+ * (ritentativo, doppio worker) l'upsert lo lascia intatto.
+ */
+export async function scheduleNextWineProjectFollowup(
+  supabase: any,
+  input: { userId: string; contactId: string; sequence: number },
+  settings: WineProjectAutomationSettings,
+  sentAt = new Date()
+) {
+  const current = Number(input.sequence)
+  if (!Number.isFinite(current) || current < 1 || current >= WINE_SEQUENCE_LAST) return { planned: 0, dueAt: null }
+
+  const offsets = wineSequenceOffsets(settings)
+  const gapDays = Math.max(1, offsets[current] - offsets[current - 1])
+  const dueAt = wineFollowupDueAt(gapDays, sentAt)
+
+  const { error } = await supabase
+    .from('wine_project_followup_events')
+    .upsert(
+      [{ user_id: input.userId, contact_id: input.contactId, sequence: current + 1, due_at: dueAt, status: 'scheduled' }],
+      { onConflict: 'contact_id,sequence', ignoreDuplicates: true }
+    )
+  if (error) {
+    if (isMissingTable(error)) return { planned: 0, dueAt }
+    throw error
+  }
+  return { planned: 1, dueAt }
 }
 
 /**

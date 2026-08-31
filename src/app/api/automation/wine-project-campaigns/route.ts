@@ -8,7 +8,7 @@ import {
 } from '@/lib/server/acumbamail-marketing'
 import { errorMessage } from '@/lib/server/http'
 import { createServiceRoleClient } from '@/lib/server/supabase'
-import { loadWineProjectAutomationSettings, type WineProjectSequenceTemplate } from '@/lib/server/wine-project-automation'
+import { loadWineProjectAutomationSettings, scheduleNextWineProjectFollowup, type WineProjectSequenceTemplate } from '@/lib/server/wine-project-automation'
 import { createWineProjectCampaignToken } from '@/lib/server/wine-project-campaign-token'
 
 type QueuedEvent = {
@@ -272,8 +272,21 @@ export async function POST(request: NextRequest) {
           content: `Wine Project: inviata email ${template.sequence}/5 via Acumbamail (campagna ${campaignId}).`,
           metadata: { campaign_id: campaignId, campaign_key: campaignKey, sequence: template.sequence, provider: 'acumbamail' },
         })))
+        // La tappa successiva nasce ora, contata da questo invio: se una email
+        // non parte, quelle dopo non esistono nemmeno.
+        let chained = 0
+        for (const event of selected) {
+          const next = await scheduleNextWineProjectFollowup(
+            supabase,
+            { userId: event.user_id, contactId: event.contact_id, sequence: Number(event.sequence) },
+            settings,
+            new Date(sentAt)
+          )
+          chained += next.planned
+        }
+
         remainingByUser.set(userId, remaining - recipients.length)
-        results.push({ key, sent: recipients.length, deferred, campaign_id: campaignId, campaign_key: campaignKey, skipped: ineligible.length, daily_cap: settings.daily_send_cap })
+        results.push({ key, sent: recipients.length, deferred, chained, campaign_id: campaignId, campaign_key: campaignKey, skipped: ineligible.length, daily_cap: settings.daily_send_cap })
       } catch (campaignError) {
         await supabase.from('wine_project_followup_events')
           .update({ status: 'failed', delivery_error: errorMessage(campaignError, 'Invio Acumbamail non riuscito') })
