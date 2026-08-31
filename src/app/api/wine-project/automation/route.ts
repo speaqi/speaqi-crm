@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const settings = await loadWineProjectAutomationSettings(auth.supabase, auth.workspaceUserId)
     const { data: wineContacts, error: contactsError } = await auth.supabase
       .from('contacts')
-      .select('id')
+      .select('id,email_open_count,email_click_count')
       .eq('user_id', auth.workspaceUserId)
       .eq('event_tag', 'wine-project')
     if (contactsError) throw contactsError
@@ -42,8 +42,32 @@ export async function GET(request: NextRequest) {
         : ['00000000-0000-0000-0000-000000000000'])
     if (repliesError) throw repliesError
 
+    const contactIds = (wineContacts || []).map((row: { id: string }) => row.id)
+    const ids = contactIds.length ? contactIds : ['00000000-0000-0000-0000-000000000000']
+    const [{ data: activities, error: activitiesError }, { count: calls, error: callsError }] = await Promise.all([
+      auth.supabase
+        .from('activities')
+        .select('type')
+        .eq('user_id', auth.workspaceUserId)
+        .in('contact_id', ids)
+        .in('type', ['landing_clicked', 'demo_form_submitted', 'demo_ready', 'reply_interested']),
+      auth.supabase
+        .from('tasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', auth.workspaceUserId)
+        .eq('status', 'pending')
+        .eq('action', 'call')
+        .in('contact_id', ids),
+    ])
+    if (activitiesError) throw activitiesError
+    if (callsError) throw callsError
+
     const summary = (events || []).reduce((acc: Record<string, number>, event: { status: string }) => {
       acc[event.status] = (acc[event.status] || 0) + 1
+      return acc
+    }, {})
+    const activitySummary = (activities || []).reduce((acc: Record<string, number>, activity: { type: string }) => {
+      acc[activity.type] = (acc[activity.type] || 0) + 1
       return acc
     }, {})
 
@@ -55,6 +79,15 @@ export async function GET(request: NextRequest) {
         queued: summary.queued || 0,
         stopped: summary.skipped || 0,
         replies: replies || 0,
+        opens: (wineContacts || []).reduce((total: number, contact: { email_open_count?: number | null }) => total + Number(contact.email_open_count || 0), 0),
+        clicks: Math.max(
+          (wineContacts || []).reduce((total: number, contact: { email_click_count?: number | null }) => total + Number(contact.email_click_count || 0), 0),
+          activitySummary.landing_clicked || 0,
+        ),
+        forms: activitySummary.demo_form_submitted || 0,
+        demos: activitySummary.demo_ready || 0,
+        interested_replies: activitySummary.reply_interested || 0,
+        calls: calls || 0,
       },
     })
   } catch (error) {

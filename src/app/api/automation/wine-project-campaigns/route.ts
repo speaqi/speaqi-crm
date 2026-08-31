@@ -9,6 +9,7 @@ import {
 import { errorMessage } from '@/lib/server/http'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 import { loadWineProjectAutomationSettings, type WineProjectSequenceTemplate } from '@/lib/server/wine-project-automation'
+import { createWineProjectCampaignToken } from '@/lib/server/wine-project-campaign-token'
 
 type QueuedEvent = {
   id: string
@@ -94,7 +95,7 @@ function startOfRomeDay(now = new Date()) {
   return new Date(Date.UTC(year, month - 1, day) - offsetMinutes * 60 * 1000).toISOString()
 }
 
-function projectUrl(contact: { name: string; company: string | null }) {
+function projectUrl(contact: { name: string; company: string | null }, event: Pick<QueuedEvent, 'id' | 'user_id' | 'contact_id'>) {
   const url = new URL('/demo/wine-project', process.env.WINE_PROJECT_URL || 'https://speaqi.com')
   url.searchParams.set('first_name', firstName(contact.name))
   if (contact.company) url.searchParams.set('company_name', contact.company)
@@ -103,6 +104,11 @@ function projectUrl(contact: { name: string; company: string | null }) {
   url.searchParams.set('utm_source', 'acumbamail')
   url.searchParams.set('utm_medium', 'email')
   url.searchParams.set('utm_campaign', 'wine-project-followup')
+  url.searchParams.set('campaign_token', createWineProjectCampaignToken({
+    user_id: event.user_id,
+    contact_id: event.contact_id,
+    event_id: event.id,
+  }))
   return url.toString()
 }
 
@@ -190,6 +196,20 @@ export async function POST(request: NextRequest) {
           results.push({ key, sent: 0, skipped: ineligible.length, reason: 'coda modificata da un altro worker' })
           continue
         }
+
+        // Un form o una risposta possono aver fermato la sequenza mentre
+        // questa automazione stava selezionando la coda. Non creare una
+        // campagna per eventi che non sono piu effettivamente inviabili.
+        const { count: stillSending, error: stillSendingError } = await supabase
+          .from('wine_project_followup_events')
+          .select('id', { count: 'exact', head: true })
+          .in('id', eventIds)
+          .eq('status', 'sending')
+        if (stillSendingError) throw stillSendingError
+        if ((stillSending || 0) !== eventIds.length) {
+          results.push({ key, sent: 0, skipped: ineligible.length, reason: 'sequenza interrotta durante la preparazione' })
+          continue
+        }
       }
 
       const campaignKey = `wine-project-e${template.sequence}-${new Date().toISOString().slice(0, 10)}-${Math.random().toString(36).slice(2, 7)}`
@@ -205,7 +225,7 @@ export async function POST(request: NextRequest) {
           fullName,
           greeting: first ? `Buongiorno ${first},` : 'Buongiorno,',
           company: String(contact.company || 'la vostra cantina'),
-          wineUrl: projectUrl(contact),
+          wineUrl: projectUrl(contact, event),
         }
       })
 

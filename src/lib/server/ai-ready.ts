@@ -1,5 +1,6 @@
 import { isClosedStatus } from '@/lib/data'
 import { syncDealWithContactStatus } from '@/lib/server/deal-ops'
+import { stopWineProjectFollowups } from '@/lib/server/wine-project-automation'
 import { isCallTaskType } from '@/lib/schedule'
 import type { LeadMemory, NextActionSuggestion, SpecLead } from '@/types'
 
@@ -1084,6 +1085,7 @@ export async function applyReplyOutcome(supabase: any, userId: string, leadId: s
   const memoryUpdate = await updateMemoryWithAI(currentMemory?.summary, emailText)
   const leadRow = await readLeadRecord(supabase, userId, leadId)
   const lead = normalizeLeadRecord(leadRow)
+  const isWineProject = leadRow.event_tag === 'wine-project'
 
   let nextStatus = leadRow.status || 'New'
   if (classification.intent === 'interested') nextStatus = 'Interested'
@@ -1108,6 +1110,21 @@ export async function applyReplyOutcome(supabase: any, userId: string, leadId: s
     await syncDealWithContactStatus(supabase, userId, leadId, nextStatus)
   }
 
+  if (isWineProject) {
+    await stopWineProjectFollowups(supabase, userId, leadId, 'risposta email ricevuta')
+    const eventType = classification.intent === 'interested'
+      ? 'reply_interested'
+      : classification.intent === 'not_interested'
+        ? 'reply_not_interested'
+        : 'reply_info'
+    await logLeadActivity(supabase, userId, {
+      leadId,
+      type: eventType,
+      content: `Wine Project: risposta classificata come ${classification.intent}.`,
+      metadata: { source: 'ai_reply_classification', intent: classification.intent },
+    })
+  }
+
   const memory = await upsertLeadMemory(supabase, userId, leadId, memoryUpdate)
   const suggestedAction = await suggestNextActionWithAI({
     lead: {
@@ -1119,26 +1136,41 @@ export async function applyReplyOutcome(supabase: any, userId: string, leadId: s
     lastActivity: 'email_reply',
     history: emailText,
   })
-  const isWineProject = leadRow.event_tag === 'wine-project'
-  const suggestion = isWineProject && classification.intent !== 'interested'
-    ? classification.intent === 'info' || classification.intent === 'objection'
+  const suggestion = isWineProject
+    ? classification.intent === 'interested'
+      ? {
+          action: 'call' as const,
+          delay_hours: 24,
+          priority: 'high' as const,
+          reason: 'Risposta Wine Project con interesse esplicito: chiamare entro il primo giorno lavorativo utile.',
+        }
+      : classification.intent === 'info' || classification.intent === 'objection'
       ? {
           action: 'send_email' as const,
           delay_hours: classification.intent === 'info' ? 4 : 24,
           priority: classification.intent === 'info' ? 'high' as const : 'medium' as const,
           reason: 'Risposta Wine Project da leggere e gestire via email: nessuna chiamata automatica senza interesse esplicito.',
         }
-      : {
+      : classification.intent === 'not_interested'
+      ? {
           action: 'wait' as const,
           delay_hours: 168,
           priority: 'low' as const,
-          reason: 'Risposta Wine Project non interessata o non qualificata: sequenza chiusa, nessuna chiamata.',
+          reason: 'Risposta Wine Project non interessata: sequenza chiusa, nessuna chiamata.',
+        }
+      : {
+          action: 'send_email' as const,
+          delay_hours: 24,
+          priority: 'medium' as const,
+          reason: 'Risposta Wine Project ambigua: leggere e rispondere via email, senza chiamata automatica.',
         }
     : suggestedAction
 
   const dueAt = dueAtFromDelay(suggestion.action, suggestion.delay_hours)
   const task =
-    suggestion.action === 'wait'
+    isWineProject && classification.intent === 'not_interested'
+      ? null
+      : suggestion.action === 'wait'
       ? await createLeadTask(supabase, userId, {
           leadId,
           action: 'wait',

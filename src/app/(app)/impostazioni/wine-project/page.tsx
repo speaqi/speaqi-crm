@@ -33,6 +33,12 @@ type WineProjectStats = {
   queued: number
   stopped: number
   replies: number
+  opens: number
+  clicks: number
+  forms: number
+  demos: number
+  interested_replies: number
+  calls: number
 }
 
 const EMPTY_SETTINGS: WineProjectSettings = {
@@ -49,7 +55,7 @@ const EMPTY_SETTINGS: WineProjectSettings = {
   sequence_templates: [],
 }
 
-const EMPTY_STATS: WineProjectStats = { contacts: 0, scheduled: 0, queued: 0, stopped: 0, replies: 0 }
+const EMPTY_STATS: WineProjectStats = { contacts: 0, scheduled: 0, queued: 0, stopped: 0, replies: 0, opens: 0, clicks: 0, forms: 0, demos: 0, interested_replies: 0, calls: 0 }
 
 export default function WineProjectSettingsPage() {
   const { isAdmin, showToast } = useCRMContext()
@@ -126,7 +132,7 @@ export default function WineProjectSettingsPage() {
         <div>
           <p className="wine-project-eyebrow">SEQUENZA CONTROLLATA</p>
           <h2>Ogni demo entra nel CRM, senza fogli o passaggi manuali.</h2>
-          <p>Quando una cantina completa Wine Project, viene registrata con sito, vini, email e telefono. Il CRM prepara le azioni successive e ferma la sequenza se riceve una risposta, una disiscrizione o una chiusura della trattativa.</p>
+          <p>Quando una cantina completa Wine Project, viene registrata con sito, vini, email e telefono. Il CRM ferma subito la sequenza e crea una chiamata prioritaria; aperture e click senza form restano invece nella sequenza.</p>
         </div>
         <label className="wine-project-toggle" htmlFor="wine-project-enabled">
           <input
@@ -141,10 +147,15 @@ export default function WineProjectSettingsPage() {
       </section>
 
       <section className="wine-project-stat-grid" aria-label="Stato Wine Project">
-        <div><strong>{stats.contacts}</strong><span>demo nel CRM</span></div>
+        <div><strong>{stats.contacts}</strong><span>cantine nel flusso</span></div>
+        <div><strong>{stats.opens}</strong><span>aperture email</span></div>
+        <div><strong>{stats.clicks}</strong><span>click landing</span></div>
+        <div><strong>{stats.forms}</strong><span>form completati</span></div>
+        <div><strong>{stats.demos}</strong><span>demo pronte</span></div>
+        <div><strong>{stats.interested_replies}</strong><span>risposte interessate</span></div>
+        <div><strong>{stats.calls}</strong><span>chiamate da fare</span></div>
         <div><strong>{stats.scheduled}</strong><span>azioni programmate</span></div>
         <div><strong>{stats.queued}</strong><span>azioni già in coda</span></div>
-        <div><strong>{stats.replies}</strong><span>risposte Gmail rilevate</span></div>
         <div><strong>{stats.stopped}</strong><span>azioni fermate</span></div>
       </section>
 
@@ -153,7 +164,7 @@ export default function WineProjectSettingsPage() {
           <div>
             <p className="wine-project-eyebrow">CADENZA</p>
             <h2>Quando il CRM deve riportare la cantina in coda</h2>
-            <p>Ogni contatto riceve fino a cinque messaggi. L&apos;apertura da sola non genera chiamate e non interrompe i rilanci; una risposta, disiscrizione o chiusura ferma tutta la sequenza.</p>
+            <p>Ogni contatto riceve fino a cinque messaggi. Aperture e click senza form non generano chiamate e non interrompono i rilanci; una risposta, una demo completata, disiscrizione o chiusura fermano tutta la sequenza.</p>
           </div>
         </div>
         <div className="wine-project-cadence-grid">
@@ -165,7 +176,7 @@ export default function WineProjectSettingsPage() {
           <label htmlFor="wine-followup-2">
             <span>Email 2</span>
             <input id="wine-followup-2" type="number" min="2" max="30" inputMode="numeric" value={settings.second_followup_days} onChange={(event) => setDays('second_followup_days', event.target.value)} />
-            <small>Solo senza aperture/click</small>
+            <small>Promemoria per completare la demo</small>
           </label>
           <label htmlFor="wine-followup-3">
             <span>Email 3</span>
@@ -202,7 +213,7 @@ export default function WineProjectSettingsPage() {
               <div className="wine-project-template-heading">
                 <div>
                   <strong>Email {template.sequence}/5 — {template.label}</strong>
-                  <span>{template.condition === 'unopened' ? 'Invia solo senza aperture o click' : 'Invia se non arriva una risposta'}</span>
+                  <span>Invia se non arriva una risposta né viene completata la demo</span>
                 </div>
               </div>
               <label htmlFor={`wine-email-subject-${template.sequence}`}>

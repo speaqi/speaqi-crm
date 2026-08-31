@@ -56,7 +56,7 @@ Non serve acquistare nulla per vedere il risultato.`,
     subject: 'Le posso mostrare {{azienda}} in pochi minuti?',
     body: `Buongiorno {{nome}},
 
-Le riscrivo solo per semplificare la proposta: non chiediamo alla cantina di cambiare sito, preparare materiali o affrontare un progetto tecnico.
+Le riscrivo solo per rendere il passaggio più semplice: per vedere la demo della cantina bastano il sito, un indirizzo email e un recapito. Non chiediamo di cambiare sito, preparare materiali o affrontare un progetto tecnico.
 
 Partiamo da ciò che {{azienda}} racconta già online e lo trasformiamo in una demo dove clienti, visitatori e buyer possono scoprire vini e cantina in tutte le lingue, fare domande e ricevere risposte immediate.
 
@@ -231,6 +231,33 @@ export async function planWineProjectFollowups(
     throw error
   }
   return { planned: rows.length, firstDueAt: rows[0].due_at }
+}
+
+/**
+ * Ferma in un solo aggiornamento gli invii Wine non ancora consegnati. Gli
+ * invii gia marcati come sent restano nello storico; gli elementi in sending
+ * vengono annullati prima della pubblicazione della campagna quando possibile.
+ */
+export async function stopWineProjectFollowups(
+  supabase: any,
+  userId: string,
+  contactId: string,
+  reason: string
+) {
+  const now = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('wine_project_followup_events')
+    .update({ status: 'skipped', skipped_at: now, skip_reason: reason })
+    .eq('user_id', userId)
+    .eq('contact_id', contactId)
+    .in('status', ['scheduled', 'queued', 'sending'])
+    .select('id, sequence')
+
+  if (error) {
+    if (isMissingTable(error)) return { stopped: 0, events: [] as Array<{ id: string; sequence: number }> }
+    throw error
+  }
+  return { stopped: data?.length || 0, events: (data || []) as Array<{ id: string; sequence: number }> }
 }
 
 export async function backfillWineProjectFollowups(supabase: any) {
