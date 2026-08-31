@@ -129,8 +129,11 @@ export async function GET(request: NextRequest) {
       // Partner è un attributo trasversale (is_partner), non più uno scope.
       if (scope === 'partner') query = query.eq('is_partner', true)
 
-      // Filtro assegnatario per tutti (admin incluso) quando non è richiesto workspace completo.
-      if (auth.memberName && !workspaceAll) {
+      // L'admin del workspace vede sempre tutti i contatti: filtrarlo per
+      // assegnatario nascondeva i 600+ contatti senza responsabile, che non
+      // corrispondono a nessun nome e quindi sparivano per chiunque.
+      // Il filtro resta per i collaboratori.
+      if (auth.memberName && !auth.isAdmin && !workspaceAll) {
         const assigneeOr = contactAssigneeMatchOrFilter(auth.memberName)
         if (assigneeOr) query = query.or(assigneeOr)
         else query = query.eq('responsible', '__no_member__')
