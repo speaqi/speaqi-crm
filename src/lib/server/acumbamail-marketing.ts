@@ -1,11 +1,27 @@
 const ACUMBAMAIL_API_URL = 'https://acumbamail.com/api/1'
 
-type ApiResponse = Record<string, unknown> | unknown[]
+type ApiResponse = Record<string, unknown> | unknown[] | string | number
 
 function responseId(payload: ApiResponse) {
+  if (typeof payload === 'string' || typeof payload === 'number') {
+    const value = String(payload).trim()
+    if (value) return value
+  }
   if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
-    const value = (payload as Record<string, unknown>).id || (payload as Record<string, unknown>).campaign_id
+    const record = payload as Record<string, unknown>
+    const value = record.id || record.campaign_id || record.list_id
     if (value !== undefined && value !== null && String(value).trim()) return String(value)
+    for (const key of ['data', 'result', 'response']) {
+      const nested = record[key]
+      if (nested && (typeof nested === 'object' || typeof nested === 'string' || typeof nested === 'number')) {
+        try { return responseId(nested as ApiResponse) } catch {}
+      }
+    }
+    const keys = Object.keys(record)
+    if (keys.length === 1 && /^\d+$/.test(keys[0])) return keys[0]
+  }
+  if (Array.isArray(payload) && payload.length === 1) {
+    try { return responseId(payload[0] as ApiResponse) } catch {}
   }
   throw new Error('Acumbamail non ha restituito l’identificativo dell’operazione.')
 }
@@ -15,10 +31,15 @@ export async function callAcumbamailMarketing(
   authToken: string,
   data: Record<string, unknown> = {}
 ): Promise<ApiResponse> {
+  const form = new URLSearchParams()
+  const inputPayload = { ...data, auth_token: authToken, response_type: 'json' }
+  for (const [key, value] of Object.entries(inputPayload)) {
+    form.set(key, value && typeof value === 'object' ? JSON.stringify(value) : String(value ?? ''))
+  }
   const response = await fetch(`${ACUMBAMAIL_API_URL}/${functionName}/`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...data, auth_token: authToken, response_type: 'json' }),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: form,
     cache: 'no-store',
   })
   const raw = await response.text()
@@ -59,6 +80,23 @@ export async function createWineProjectRecipientList(
   return listId
 }
 
+export async function createHospitalityRecipientList(authToken: string, name: string, senderEmail: string) {
+  const payload = await callAcumbamailMarketing('createList', authToken, {
+    name,
+    sender_email: senderEmail,
+    description: 'Lotto isolato della sequenza Hospitality Speaqi. Gestito automaticamente dal CRM.',
+  })
+  const listId = responseId(payload)
+  for (const fieldName of ['first_name', 'full_name', 'greeting', 'company', 'demo_url']) {
+    await callAcumbamailMarketing('addMergeTag', authToken, {
+      list_id: listId,
+      field_name: fieldName,
+      field_type: 'char',
+    })
+  }
+  return listId
+}
+
 export async function addCampaignRecipients(
   authToken: string,
   listId: string,
@@ -75,6 +113,26 @@ export async function addCampaignRecipients(
       greeting: recipient.greeting,
       company: recipient.company,
       wine_url: recipient.wineUrl,
+    })),
+  })
+}
+
+export async function addHospitalityCampaignRecipients(
+  authToken: string,
+  listId: string,
+  recipients: Array<{ email: string; firstName: string; fullName: string; greeting: string; company: string; demoUrl: string }>
+) {
+  return callAcumbamailMarketing('batchAddSubscribers', authToken, {
+    list_id: listId,
+    update_subscriber: 1,
+    complete_json: 1,
+    subscribers_data: recipients.map((recipient) => ({
+      email: recipient.email,
+      first_name: recipient.firstName,
+      full_name: recipient.fullName,
+      greeting: recipient.greeting,
+      company: recipient.company,
+      demo_url: recipient.demoUrl,
     })),
   })
 }

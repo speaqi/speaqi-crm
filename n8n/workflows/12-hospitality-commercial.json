@@ -1,4 +1,5 @@
 {
+  "id": "HpCommAuto20260831",
   "name": "SPEAQI Hospitality Commercial",
   "nodes": [
     {
@@ -22,7 +23,7 @@
         "headerParameters": { "parameters": [{ "name": "x-automation-secret", "value": "={{ $env.AUTOMATION_SECRET }}" }] },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { dry_run: false, limit: 100 } }}"
+        "jsonBody": "={{ { dry_run: true, limit: 100 } }}"
       }
     },
     {
@@ -46,7 +47,6 @@
     "Every 30 minutes": { "main": [[{ "node": "Plan and send due Hospitality messages", "type": "main", "index": 0 }]] },
     "Plan and send due Hospitality messages": { "main": [[{ "node": "Sync Gmail replies", "type": "main", "index": 0 }]] }
   },
-  "settings": { "executionOrder": "v1" },
-  "active": false,
-  "versionId": "hospitality-commercial-v1"
+  "settings": { "executionOrder": "v1", "timezone": "Europe/Rome" },
+  "active": false
 }

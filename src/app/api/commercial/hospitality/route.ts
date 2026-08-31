@@ -15,16 +15,50 @@ export async function GET(request: NextRequest) {
   if ('error' in auth) return auth.error
   try {
     const campaign = await ensureHospitalityCampaign(auth.supabase, auth.workspaceUserId)
-    const [{ data: steps, error: stepsError }, { data: batches, error: batchesError }, { data: enrollments, error: enrollmentError }, { data: messages, error: messageError }] = await Promise.all([
+    const [{ data: steps, error: stepsError }, { data: batches, error: batchesError }, { data: enrollments, error: enrollmentError }, { data: messages, error: messageError }, technicallyEligible, legallyAttested, sourceDated] = await Promise.all([
       auth.supabase.from('commercial_campaign_steps').select('*').eq('campaign_id', campaign.id).order('step_number'),
       auth.supabase.from('commercial_import_batches').select('*').eq('user_id', auth.workspaceUserId).eq('vertical', 'hospitality').order('created_at', { ascending: false }).limit(10),
       auth.supabase.from('commercial_enrollments').select('status,stop_reason,opened_at,clicked_at,replied_at,hard_bounced_at,unsubscribed_at,complained_at').eq('campaign_id', campaign.id),
       auth.supabase.from('commercial_messages').select('status,sent_at,opened_at,clicked_at,commercial_enrollments!inner(campaign_id)').eq('commercial_enrollments.campaign_id', campaign.id),
+      auth.supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('user_id', auth.workspaceUserId).eq('event_tag', 'hospitality-project').eq('marketing_eligibility', 'eligible').eq('hospitality_filter_decision', 'include'),
+      auth.supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('user_id', auth.workspaceUserId).eq('event_tag', 'hospitality-project').eq('marketing_eligibility', 'eligible').eq('hospitality_filter_decision', 'include').not('marketing_legal_basis', 'is', null),
+      auth.supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('user_id', auth.workspaceUserId).eq('event_tag', 'hospitality-project').eq('marketing_eligibility', 'eligible').eq('hospitality_filter_decision', 'include').not('marketing_source_acquired_at', 'is', null),
     ])
-    if (stepsError || batchesError || enrollmentError || messageError) throw stepsError || batchesError || enrollmentError || messageError
+    if (stepsError || batchesError || enrollmentError || messageError || technicallyEligible.error || legallyAttested.error || sourceDated.error) throw stepsError || batchesError || enrollmentError || messageError || technicallyEligible.error || legallyAttested.error || sourceDated.error
+    let n8nReachable = false
+    const n8nHost = process.env.RAILWAY_SERVICE_N8N_URL
+    if (n8nHost) {
+      const n8nUrl = /^https?:\/\//i.test(n8nHost) ? n8nHost : `https://${n8nHost}`
+      try {
+        const response = await fetch(`${n8nUrl.replace(/\/$/, '')}/healthz`, { cache: 'no-store', signal: AbortSignal.timeout(2500) })
+        n8nReachable = response.ok
+      } catch {}
+    }
+    const webhookToken = process.env.ACUMBAMAIL_WEBHOOK_TOKEN
+    const callbackUrl = webhookToken ? (() => {
+      const url = new URL('/api/integrations/acumbamail/webhook', request.nextUrl.origin)
+      url.searchParams.set('t', webhookToken)
+      url.searchParams.set('u', auth.workspaceUserId)
+      url.searchParams.set('s', 'holding')
+      url.searchParams.set('e', 'opens,clicks,unsubscribes,hard_bounces,soft_bounces,complaints')
+      url.searchParams.set('l', campaign.list_name)
+      url.searchParams.set('tag', 'hospitality-project')
+      url.searchParams.set('m', '1')
+      return url.toString()
+    })() : null
     const count = (rows: any[], key: string, value?: string) => rows.filter((row) => value === undefined ? Boolean(row[key]) : row[key] === value).length
     return Response.json({
       campaign, steps, batches,
+      readiness: {
+        technically_eligible: technicallyEligible.count || 0,
+        legally_attested: legallyAttested.count || 0,
+        source_dated: sourceDated.count || 0,
+        acumbamail_api: Boolean(process.env.ACUMBAMAIL_AUTH_TOKEN),
+        acumbamail_webhook: Boolean(webhookToken),
+        n8n_reachable: n8nReachable,
+        send_enabled: process.env.COMMERCIAL_OUTREACH_SEND_ENABLED === 'true',
+        callback_url: callbackUrl,
+      },
       metrics: {
         enrollments: enrollments.length,
         active: count(enrollments, 'status', 'active') + count(enrollments, 'status', 'pending'),
