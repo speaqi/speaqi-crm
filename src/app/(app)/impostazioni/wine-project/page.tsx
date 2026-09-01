@@ -150,33 +150,39 @@ export default function WineProjectSettingsPage() {
       </div>
 
       <section className="wine-project-settings-card wine-project-settings-intro">
-        <div>
+        <div className="wine-project-intro-copy">
           <p className="wine-project-eyebrow">SEQUENZA CONTROLLATA</p>
           <h2>Ogni demo entra nel CRM, senza fogli o passaggi manuali.</h2>
           <p>Quando una cantina completa Wine Project, viene registrata con sito, vini, email e telefono. Il CRM ferma subito la sequenza e crea una chiamata prioritaria; aperture e click senza form restano invece nella sequenza.</p>
         </div>
-        <label className="wine-project-toggle" htmlFor="wine-project-enabled">
-          <input
-            id="wine-project-enabled"
-            type="checkbox"
-            checked={settings.enabled}
-            onChange={(event) => setSettings((current) => ({ ...current, enabled: event.target.checked }))}
-          />
-          <span aria-hidden="true" />
-          <strong>{settings.enabled ? 'Sequenza attiva' : 'Sequenza in pausa'}</strong>
-        </label>
-        <p className="wine-project-pause-note">In pausa nessun nuovo arruolamento né invio parte, nemmeno per chi è già in coda; riattivando riprende esattamente da dove si era fermata, senza perdite né duplicati.</p>
-        <label className="wine-project-toggle wine-project-toggle-danger" htmlFor="wine-project-campaign-send-enabled">
-          <input
-            id="wine-project-campaign-send-enabled"
-            type="checkbox"
-            checked={settings.campaign_send_enabled}
-            onChange={(event) => setSettings((current) => ({ ...current, campaign_send_enabled: event.target.checked }))}
-          />
-          <span aria-hidden="true" />
-          <strong>{settings.campaign_send_enabled ? 'Invio email reali ATTIVO' : 'Invio email reali disattivato'}</strong>
-        </label>
-        <p className="wine-project-pause-note wine-project-danger-note">Interruttore separato dalla pausa qui sopra: governa solo se il passo di invio può davvero spedire via Acumbamail. Da qui, non serve più Railway.</p>
+        <div className="wine-project-intro-controls">
+          <div className="wine-project-control-row">
+            <label className="wine-project-toggle" htmlFor="wine-project-enabled">
+              <input
+                id="wine-project-enabled"
+                type="checkbox"
+                checked={settings.enabled}
+                onChange={(event) => setSettings((current) => ({ ...current, enabled: event.target.checked }))}
+              />
+              <span aria-hidden="true" />
+              <strong>{settings.enabled ? 'Sequenza attiva' : 'Sequenza in pausa'}</strong>
+            </label>
+            <p className="wine-project-pause-note">In pausa nessun nuovo arruolamento né invio parte, nemmeno per chi è già in coda; riattivando riprende esattamente da dove si era fermata, senza perdite né duplicati.</p>
+          </div>
+          <div className="wine-project-control-row">
+            <label className="wine-project-toggle wine-project-toggle-danger" htmlFor="wine-project-campaign-send-enabled">
+              <input
+                id="wine-project-campaign-send-enabled"
+                type="checkbox"
+                checked={settings.campaign_send_enabled}
+                onChange={(event) => setSettings((current) => ({ ...current, campaign_send_enabled: event.target.checked }))}
+              />
+              <span aria-hidden="true" />
+              <strong>{settings.campaign_send_enabled ? 'Invio email reali ATTIVO' : 'Invio email reali disattivato'}</strong>
+            </label>
+            <p className="wine-project-pause-note wine-project-danger-note">Interruttore separato dalla pausa qui sopra: governa solo se il passo di invio può davvero spedire via Acumbamail. Da qui, non serve più Railway.</p>
+          </div>
+        </div>
       </section>
 
       <section className="wine-project-stat-grid" aria-label="Stato Wine Project">
