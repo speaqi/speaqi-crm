@@ -6387,7 +6387,7 @@ textarea.form-input::placeholder { color: var(--text3); }
 .wine-project-toggle input:checked + span { background: var(--green); }
 .wine-project-toggle input:checked + span::after { transform: translateX(20px); }
 .wine-project-toggle input:focus-visible + span { outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 3px; }
-.wine-project-stat-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
+.wine-project-stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 18px; }
 .wine-project-stat-grid > div { display: flex; min-width: 0; flex-direction: column; padding: 15px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 .wine-project-stat-grid strong { font-size: 25px; line-height: 1; }
 .wine-project-stat-grid span { margin-top: 6px; color: var(--text2); font-size: 12px; }
@@ -6413,6 +6413,13 @@ textarea.form-input::placeholder { color: var(--text3); }
 .wine-project-template-card textarea { min-height: 182px; resize: vertical; line-height: 1.48; }
 .wine-project-save-bar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 0 8px; }
 .wine-project-save-bar p { margin: 0; color: var(--text2); font-size: 13px; }
+.wine-project-pause-note { margin: 10px 0 0; color: var(--text3); font-size: 12px; line-height: 1.5; }
+.wine-project-empty-state { margin: 18px 0 0; padding: 16px; border: 1px dashed var(--border); border-radius: var(--radius); color: var(--text3); font-size: 13px; text-align: center; }
+.wine-project-sends-table { width: 100%; margin-top: 18px; border-collapse: collapse; font-size: 13px; }
+.wine-project-sends-table th { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text3); font-size: 11px; font-weight: 800; letter-spacing: .04em; text-align: left; text-transform: uppercase; }
+.wine-project-sends-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text2); }
+.wine-project-sends-table tr:last-child td { border-bottom: none; }
+.wine-project-sends-table tr:hover td { background: var(--surface2); }
 @media (max-width: 900px) {
   .wine-project-stat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .wine-project-cadence-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }

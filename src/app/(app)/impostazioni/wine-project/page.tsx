@@ -60,22 +60,31 @@ const EMPTY_SETTINGS: WineProjectSettings = {
   sequence_templates: [],
 }
 
+type WineProjectSend = {
+  sent_at: string
+  sequence: number | null
+  company: string | null
+  email: string | null
+}
+
 const EMPTY_STATS: WineProjectStats = { contacts: 0, enrolled: 0, not_enrolled: 0, sent: 0, scheduled: 0, queued: 0, stopped: 0, replies: 0, opens: 0, clicks: 0, forms: 0, demos: 0, interested_replies: 0, calls: 0 }
 
 export default function WineProjectSettingsPage() {
   const { isAdmin, showToast } = useCRMContext()
   const [settings, setSettings] = useState<WineProjectSettings>(EMPTY_SETTINGS)
   const [stats, setStats] = useState<WineProjectStats>(EMPTY_STATS)
+  const [recentSends, setRecentSends] = useState<WineProjectSend[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     if (!isAdmin) return
-    apiFetch<{ settings: WineProjectSettings; stats: WineProjectStats }>('/api/wine-project/automation')
+    apiFetch<{ settings: WineProjectSettings; stats: WineProjectStats; recent_sends: WineProjectSend[] }>('/api/wine-project/automation')
       .then((result) => {
         setSettings(result.settings)
         setStats(result.stats)
+        setRecentSends(result.recent_sends || [])
       })
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : 'Caricamento non riuscito'))
       .finally(() => setLoading(false))
@@ -171,6 +180,40 @@ export default function WineProjectSettingsPage() {
         <div><strong>{stats.scheduled}</strong><span>azioni programmate</span></div>
         <div><strong>{stats.queued}</strong><span>azioni già in coda</span></div>
         <div><strong>{stats.stopped}</strong><span>azioni fermate</span></div>
+      </section>
+
+      <section className="wine-project-settings-card">
+        <div className="wine-project-card-heading">
+          <div>
+            <p className="wine-project-eyebrow">TRACCIABILITÀ</p>
+            <h2>Ultimi invii</h2>
+            <p>Le ultime {recentSends.length} email realmente uscite, cantina per cantina. Vuota finché nessun invio è partito.</p>
+          </div>
+        </div>
+        {recentSends.length === 0 ? (
+          <p className="wine-project-empty-state">Nessuna email inviata finora.</p>
+        ) : (
+          <table className="wine-project-sends-table">
+            <thead>
+              <tr>
+                <th>Cantina</th>
+                <th>Email</th>
+                <th>Sequenza</th>
+                <th>Inviata il</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentSends.map((send, index) => (
+                <tr key={index}>
+                  <td>{send.company || '—'}</td>
+                  <td>{send.email || '—'}</td>
+                  <td>{send.sequence ? `Email ${send.sequence}/5` : '—'}</td>
+                  <td>{new Date(send.sent_at).toLocaleString('it-IT')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
 
       <section className="wine-project-settings-card">

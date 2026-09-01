@@ -77,8 +77,28 @@ export async function GET(request: NextRequest) {
       return acc
     }, {})
 
+    const { data: recentSendRows, error: recentSendError } = await auth.supabase
+      .from('activities')
+      .select('created_at,metadata,contact:contacts(name,company,email)')
+      .eq('user_id', auth.workspaceUserId)
+      .eq('type', 'wine_followup_sent')
+      .order('created_at', { ascending: false })
+      .limit(50)
+    if (recentSendError) throw recentSendError
+
+    const recentSends = (recentSendRows || []).map((row: any) => {
+      const contact = Array.isArray(row.contact) ? row.contact[0] : row.contact
+      return {
+        sent_at: row.created_at,
+        sequence: Number(row.metadata?.sequence) || null,
+        company: contact?.company || contact?.name || null,
+        email: contact?.email || null,
+      }
+    })
+
     return Response.json({
       settings,
+      recent_sends: recentSends,
       stats: {
         contacts: totalContacts,
         enrolled,
