@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     const { data: events, error: eventsError } = await auth.supabase
       .from('wine_project_followup_events')
-      .select('status')
+      .select('status,contact_id')
       .eq('user_id', auth.workspaceUserId)
     if (eventsError && !missingTable(eventsError)) throw eventsError
 
@@ -66,6 +66,12 @@ export async function GET(request: NextRequest) {
       acc[event.status] = (acc[event.status] || 0) + 1
       return acc
     }, {})
+    // Progresso dell'arruolamento: quante cantine del bacino sono già entrate
+    // in sequenza (hanno almeno un evento) e quante restano fuori in attesa
+    // del prossimo giro di daily_enrollment_cap.
+    const enrolledContactIds = new Set((events || []).map((event: { contact_id: string }) => event.contact_id))
+    const enrolled = enrolledContactIds.size
+    const totalContacts = wineContacts?.length || 0
     const activitySummary = (activities || []).reduce((acc: Record<string, number>, activity: { type: string }) => {
       acc[activity.type] = (acc[activity.type] || 0) + 1
       return acc
@@ -74,7 +80,10 @@ export async function GET(request: NextRequest) {
     return Response.json({
       settings,
       stats: {
-        contacts: wineContacts?.length || 0,
+        contacts: totalContacts,
+        enrolled,
+        not_enrolled: Math.max(0, totalContacts - enrolled),
+        sent: summary.sent || 0,
         scheduled: summary.scheduled || 0,
         queued: summary.queued || 0,
         stopped: summary.skipped || 0,

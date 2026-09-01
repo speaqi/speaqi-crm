@@ -30,6 +30,9 @@ type WineProjectSequenceTemplate = {
 
 type WineProjectStats = {
   contacts: number
+  enrolled: number
+  not_enrolled: number
+  sent: number
   scheduled: number
   queued: number
   stopped: number
@@ -57,7 +60,7 @@ const EMPTY_SETTINGS: WineProjectSettings = {
   sequence_templates: [],
 }
 
-const EMPTY_STATS: WineProjectStats = { contacts: 0, scheduled: 0, queued: 0, stopped: 0, replies: 0, opens: 0, clicks: 0, forms: 0, demos: 0, interested_replies: 0, calls: 0 }
+const EMPTY_STATS: WineProjectStats = { contacts: 0, enrolled: 0, not_enrolled: 0, sent: 0, scheduled: 0, queued: 0, stopped: 0, replies: 0, opens: 0, clicks: 0, forms: 0, demos: 0, interested_replies: 0, calls: 0 }
 
 export default function WineProjectSettingsPage() {
   const { isAdmin, showToast } = useCRMContext()
@@ -151,10 +154,14 @@ export default function WineProjectSettingsPage() {
           <span aria-hidden="true" />
           <strong>{settings.enabled ? 'Sequenza attiva' : 'Sequenza in pausa'}</strong>
         </label>
+        <p className="wine-project-pause-note">In pausa nessun nuovo arruolamento né invio parte, nemmeno per chi è già in coda; riattivando riprende esattamente da dove si era fermata, senza perdite né duplicati.</p>
       </section>
 
       <section className="wine-project-stat-grid" aria-label="Stato Wine Project">
         <div><strong>{stats.contacts}</strong><span>cantine nel flusso</span></div>
+        <div><strong>{stats.enrolled}</strong><span>già arruolate</span></div>
+        <div><strong>{stats.not_enrolled}</strong><span>in attesa di partire</span></div>
+        <div><strong>{stats.sent}</strong><span>email inviate</span></div>
         <div><strong>{stats.opens}</strong><span>aperture email</span></div>
         <div><strong>{stats.clicks}</strong><span>click landing</span></div>
         <div><strong>{stats.forms}</strong><span>form completati</span></div>
