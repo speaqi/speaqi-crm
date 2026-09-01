@@ -19,6 +19,21 @@ function signature(value: string, tokenSecret: string) {
   return createHmac('sha256', tokenSecret).update(value).digest('base64url')
 }
 
+export function createWineProjectShortLinkToken(eventId: string) {
+  const tokenSecret = secret()
+  if (!tokenSecret) throw new Error('WINE_PROJECT_LINK_SECRET non configurato')
+  return `${eventId}.${signature(`link:${eventId}`, tokenSecret).slice(0, 22)}`
+}
+
+export function verifyWineProjectShortLinkToken(token?: string | null) {
+  const tokenSecret = secret()
+  const [eventId, suppliedSignature] = String(token || '').split('.')
+  if (!tokenSecret || !/^[0-9a-f-]{36}$/i.test(eventId) || !suppliedSignature) return null
+  const expected = signature(`link:${eventId}`, tokenSecret).slice(0, 22)
+  if (expected.length !== suppliedSignature.length || !timingSafeEqual(Buffer.from(expected), Buffer.from(suppliedSignature))) return null
+  return eventId
+}
+
 export function createWineProjectCampaignToken(input: Omit<WineProjectCampaignTokenPayload, 'scope' | 'exp'>, expiresAt = Date.now() + 90 * 24 * 60 * 60 * 1000) {
   const tokenSecret = secret()
   if (!tokenSecret) throw new Error('WINE_PROJECT_LINK_SECRET non configurato')
