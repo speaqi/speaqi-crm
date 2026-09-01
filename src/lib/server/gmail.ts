@@ -442,7 +442,11 @@ export function buildGmailConnectUrl(state: string) {
     redirect_uri: redirectUri,
     response_type: 'code',
     access_type: 'offline',
-    prompt: 'consent',
+    // select_account forza sempre la scelta dell'account: senza, se il browser
+    // ha gia' una sessione Google attiva Google procede con quella senza dare
+    // la possibilita' di sceglierne un'altra, ed e' facile collegare per
+    // sbaglio l'account personale invece di quello aziendale.
+    prompt: 'select_account consent',
     include_granted_scopes: 'true',
     scope: GMAIL_SCOPES.join(' '),
     state,
