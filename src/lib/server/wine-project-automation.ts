@@ -16,6 +16,7 @@ export type WineProjectAutomationSettings = {
   acumbamail_campaign_id: string | null
   daily_send_cap: number
   daily_enrollment_cap: number
+  campaign_send_enabled: boolean
   first_followup_days: number
   second_followup_days: number
   third_followup_days: number
@@ -115,6 +116,7 @@ export const DEFAULT_WINE_PROJECT_AUTOMATION_SETTINGS: WineProjectAutomationSett
   acumbamail_campaign_id: null,
   daily_send_cap: 100,
   daily_enrollment_cap: 30,
+  campaign_send_enabled: false,
   first_followup_days: 1,
   second_followup_days: 4,
   third_followup_days: 9,
@@ -183,6 +185,7 @@ export function normalizeWineProjectAutomationSettings(input: Partial<WineProjec
     acumbamail_campaign_id: text(input.acumbamail_campaign_id, 80) || null,
     daily_send_cap: integer(input.daily_send_cap, DEFAULT_WINE_PROJECT_AUTOMATION_SETTINGS.daily_send_cap, 1, 5000),
     daily_enrollment_cap: integer(input.daily_enrollment_cap, DEFAULT_WINE_PROJECT_AUTOMATION_SETTINGS.daily_enrollment_cap, 1, 5000),
+    campaign_send_enabled: input.campaign_send_enabled === true,
     first_followup_days: first,
     second_followup_days: second,
     third_followup_days: third,
@@ -195,7 +198,7 @@ export function normalizeWineProjectAutomationSettings(input: Partial<WineProjec
 export async function loadWineProjectAutomationSettings(supabase: any, userId: string) {
   const { data, error } = await supabase
     .from('wine_project_automation_settings')
-    .select('enabled, campaign_name, acumbamail_list_id, acumbamail_campaign_id, daily_send_cap, daily_enrollment_cap, first_followup_days, second_followup_days, third_followup_days, fourth_followup_days, fifth_followup_days, sequence_templates')
+    .select('enabled, campaign_name, acumbamail_list_id, acumbamail_campaign_id, daily_send_cap, daily_enrollment_cap, campaign_send_enabled, first_followup_days, second_followup_days, third_followup_days, fourth_followup_days, fifth_followup_days, sequence_templates')
     .eq('user_id', userId)
     .maybeSingle()
 

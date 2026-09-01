@@ -115,13 +115,12 @@ export async function GET(request: NextRequest) {
     const supabase = auth.supabase
 
     function buildQuery() {
+      // Nessun order-by qui: la paginazione usa un cursore su id (sotto),
+      // l'ordine di visualizzazione si applica in memoria a fetch completato.
       let query = supabase
         .from('contacts')
         .select('*')
         .eq('user_id', auth.workspaceUserId)
-        .order('updated_at', { ascending: false })
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false })
 
       if (scope === 'crm') query = query.eq('contact_scope', 'crm')
       if (scope === 'holding') query = query.eq('contact_scope', 'holding')
@@ -142,18 +141,35 @@ export async function GET(request: NextRequest) {
       return query
     }
 
-    // Senza range esplicito PostgREST tronca a 1000 righe: una campagna che
-    // aggiorna in massa i contatti li porta in cima all'ordinamento e spinge
-    // fuori risposta tutti i contatti più vecchi, che spariscono dalla UI.
+    // Paginazione keyset su id, non su OFFSET: con decine di migliaia di righe
+    // (import Wine Project incluso) l'OFFSET costringe Postgres a scandire e
+    // scartare ogni riga precedente a ogni pagina, un costo che cresce col
+    // numero di pagine fino a superare lo statement timeout. Il cursore su id
+    // costa uguale a ogni pagina qualunque sia la dimensione della tabella.
     const pageSize = 1000
-    const contacts: unknown[] = []
-    for (let from = 0; ; from += pageSize) {
-      const { data, error } = await buildQuery().range(from, from + pageSize - 1)
+    const contacts: any[] = []
+    let cursor: string | null = null
+    for (;;) {
+      let query = buildQuery().order('id', { ascending: true }).limit(pageSize)
+      if (cursor) query = query.gt('id', cursor)
+      const { data, error } = await query
       if (error) throw error
       const page = data || []
       contacts.push(...page)
       if (page.length < pageSize) break
+      cursor = page[page.length - 1].id
     }
+
+    // L'ordine di visualizzazione (più recenti in cima) si applica qui, sui
+    // dati già in memoria, invece che nella query: evita l'OFFSET costoso e
+    // mantiene lo stesso risultato per la UI.
+    contacts.sort((a, b) => {
+      const au = a.updated_at || '', bu = b.updated_at || ''
+      if (au !== bu) return au < bu ? 1 : -1
+      const ac = a.created_at || '', bc = b.created_at || ''
+      if (ac !== bc) return ac < bc ? 1 : -1
+      return a.id < b.id ? 1 : -1
+    })
 
     return Response.json({ contacts })
   } catch (error) {

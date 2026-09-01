@@ -12,6 +12,7 @@ type WineProjectSettings = {
   acumbamail_campaign_id: string | null
   daily_send_cap: number
   daily_enrollment_cap: number
+  campaign_send_enabled: boolean
   first_followup_days: number
   second_followup_days: number
   third_followup_days: number
@@ -52,6 +53,7 @@ const EMPTY_SETTINGS: WineProjectSettings = {
   acumbamail_campaign_id: null,
   daily_send_cap: 100,
   daily_enrollment_cap: 30,
+  campaign_send_enabled: false,
   first_followup_days: 1,
   second_followup_days: 4,
   third_followup_days: 9,
@@ -164,6 +166,17 @@ export default function WineProjectSettingsPage() {
           <strong>{settings.enabled ? 'Sequenza attiva' : 'Sequenza in pausa'}</strong>
         </label>
         <p className="wine-project-pause-note">In pausa nessun nuovo arruolamento né invio parte, nemmeno per chi è già in coda; riattivando riprende esattamente da dove si era fermata, senza perdite né duplicati.</p>
+        <label className="wine-project-toggle wine-project-toggle-danger" htmlFor="wine-project-campaign-send-enabled">
+          <input
+            id="wine-project-campaign-send-enabled"
+            type="checkbox"
+            checked={settings.campaign_send_enabled}
+            onChange={(event) => setSettings((current) => ({ ...current, campaign_send_enabled: event.target.checked }))}
+          />
+          <span aria-hidden="true" />
+          <strong>{settings.campaign_send_enabled ? 'Invio email reali ATTIVO' : 'Invio email reali disattivato'}</strong>
+        </label>
+        <p className="wine-project-pause-note wine-project-danger-note">Interruttore separato dalla pausa qui sopra: governa solo se il passo di invio può davvero spedire via Acumbamail. Da qui, non serve più Railway.</p>
       </section>
 
       <section className="wine-project-stat-grid" aria-label="Stato Wine Project">

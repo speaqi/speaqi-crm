@@ -6414,6 +6414,10 @@ textarea.form-input::placeholder { color: var(--text3); }
 .wine-project-save-bar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 0 8px; }
 .wine-project-save-bar p { margin: 0; color: var(--text2); font-size: 13px; }
 .wine-project-pause-note { margin: 10px 0 0; color: var(--text3); font-size: 12px; line-height: 1.5; }
+.wine-project-toggle-danger { margin-top: 14px; }
+.wine-project-toggle-danger span { background: var(--text3); }
+.wine-project-toggle-danger input:checked + span { background: var(--red, #d64545); }
+.wine-project-danger-note { color: var(--red, #d64545); font-weight: 600; }
 .wine-project-empty-state { margin: 18px 0 0; padding: 16px; border: 1px dashed var(--border); border-radius: var(--radius); color: var(--text3); font-size: 13px; text-align: center; }
 .wine-project-sends-table { width: 100%; margin-top: 18px; border-collapse: collapse; font-size: 13px; }
 .wine-project-sends-table th { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text3); font-size: 11px; font-weight: 800; letter-spacing: .04em; text-align: left; text-transform: uppercase; }

@@ -19,12 +19,41 @@ export async function GET(request: NextRequest) {
 
   try {
     const settings = await loadWineProjectAutomationSettings(auth.supabase, auth.workspaceUserId)
-    const { data: wineContacts, error: contactsError } = await auth.supabase
+
+    // Il bacino wine-project è nell'ordine delle migliaia (import Acumbamail
+    // incluso): niente id raccolti e passati con .in(), che a quella scala
+    // supera il limite di lunghezza URL del gateway (verificato: 400 nudo
+    // oltre ~1000 id). Le query sotto usano un join filtrato lato Postgres.
+    const { count: totalContacts, error: contactsCountError } = await auth.supabase
       .from('contacts')
-      .select('id,email_open_count,email_click_count')
+      .select('id', { count: 'exact', head: true })
       .eq('user_id', auth.workspaceUserId)
       .eq('event_tag', 'wine-project')
-    if (contactsError) throw contactsError
+    if (contactsCountError) throw contactsCountError
+
+    // Somma di aperture/click: paginazione keyset su id, non su OFFSET, così
+    // il costo resta lineare qualunque sia la dimensione del bacino.
+    let opens = 0
+    let clicksFromContacts = 0
+    let cursor: string | null = null
+    for (;;) {
+      let query = auth.supabase
+        .from('contacts')
+        .select('id,email_open_count,email_click_count')
+        .eq('user_id', auth.workspaceUserId)
+        .eq('event_tag', 'wine-project')
+        .order('id', { ascending: true })
+        .limit(1000)
+      if (cursor) query = query.gt('id', cursor)
+      const { data: page, error: pageError } = await query
+      if (pageError) throw pageError
+      for (const row of page || []) {
+        opens += Number(row.email_open_count || 0)
+        clicksFromContacts += Number(row.email_click_count || 0)
+      }
+      if (!page || page.length < 1000) break
+      cursor = page[page.length - 1].id
+    }
 
     const { data: events, error: eventsError } = await auth.supabase
       .from('wine_project_followup_events')
@@ -34,30 +63,26 @@ export async function GET(request: NextRequest) {
 
     const { count: replies, error: repliesError } = await auth.supabase
       .from('gmail_messages')
-      .select('id', { count: 'exact', head: true })
+      .select('id, contacts!inner(event_tag)', { count: 'exact', head: true })
       .eq('user_id', auth.workspaceUserId)
       .eq('direction', 'inbound')
-      .in('contact_id', (wineContacts || []).map((row: { id: string }) => row.id).length
-        ? (wineContacts || []).map((row: { id: string }) => row.id)
-        : ['00000000-0000-0000-0000-000000000000'])
+      .eq('contacts.event_tag', 'wine-project')
     if (repliesError) throw repliesError
 
-    const contactIds = (wineContacts || []).map((row: { id: string }) => row.id)
-    const ids = contactIds.length ? contactIds : ['00000000-0000-0000-0000-000000000000']
     const [{ data: activities, error: activitiesError }, { count: calls, error: callsError }] = await Promise.all([
       auth.supabase
         .from('activities')
-        .select('type')
+        .select('type, contacts!inner(event_tag)')
         .eq('user_id', auth.workspaceUserId)
-        .in('contact_id', ids)
+        .eq('contacts.event_tag', 'wine-project')
         .in('type', ['landing_clicked', 'demo_form_submitted', 'demo_ready', 'reply_interested']),
       auth.supabase
         .from('tasks')
-        .select('id', { count: 'exact', head: true })
+        .select('id, contacts!inner(event_tag)', { count: 'exact', head: true })
         .eq('user_id', auth.workspaceUserId)
         .eq('status', 'pending')
         .eq('action', 'call')
-        .in('contact_id', ids),
+        .eq('contacts.event_tag', 'wine-project'),
     ])
     if (activitiesError) throw activitiesError
     if (callsError) throw callsError
@@ -71,7 +96,6 @@ export async function GET(request: NextRequest) {
     // del prossimo giro di daily_enrollment_cap.
     const enrolledContactIds = new Set((events || []).map((event: { contact_id: string }) => event.contact_id))
     const enrolled = enrolledContactIds.size
-    const totalContacts = wineContacts?.length || 0
     const activitySummary = (activities || []).reduce((acc: Record<string, number>, activity: { type: string }) => {
       acc[activity.type] = (acc[activity.type] || 0) + 1
       return acc
@@ -100,19 +124,16 @@ export async function GET(request: NextRequest) {
       settings,
       recent_sends: recentSends,
       stats: {
-        contacts: totalContacts,
+        contacts: totalContacts || 0,
         enrolled,
-        not_enrolled: Math.max(0, totalContacts - enrolled),
+        not_enrolled: Math.max(0, (totalContacts || 0) - enrolled),
         sent: summary.sent || 0,
         scheduled: summary.scheduled || 0,
         queued: summary.queued || 0,
         stopped: summary.skipped || 0,
         replies: replies || 0,
-        opens: (wineContacts || []).reduce((total: number, contact: { email_open_count?: number | null }) => total + Number(contact.email_open_count || 0), 0),
-        clicks: Math.max(
-          (wineContacts || []).reduce((total: number, contact: { email_click_count?: number | null }) => total + Number(contact.email_click_count || 0), 0),
-          activitySummary.landing_clicked || 0,
-        ),
+        opens,
+        clicks: Math.max(clicksFromContacts, activitySummary.landing_clicked || 0),
         forms: activitySummary.demo_form_submitted || 0,
         demos: activitySummary.demo_ready || 0,
         interested_replies: activitySummary.reply_interested || 0,

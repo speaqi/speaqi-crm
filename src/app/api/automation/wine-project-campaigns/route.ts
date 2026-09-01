@@ -118,9 +118,6 @@ function closed(contact: { status: string | null; email_unsubscribed_at: string 
 
 export async function POST(request: NextRequest) {
   if (!validateAutomationSecret(request)) return Response.json({ error: 'Unauthorized automation' }, { status: 401 })
-  if (process.env.WINE_PROJECT_CAMPAIGN_SEND_ENABLED !== 'true') {
-    return Response.json({ error: 'Wine Project campaign sending disabled' }, { status: 503 })
-  }
   const token = process.env.ACUMBAMAIL_AUTH_TOKEN
   if (!token) return Response.json({ error: 'ACUMBAMAIL_AUTH_TOKEN non configurato' }, { status: 500 })
 
@@ -166,6 +163,12 @@ export async function POST(request: NextRequest) {
       const template = settings.sequence_templates.find((item) => item.sequence === Number(eligible[0].sequence))
       if (!template || !settings.enabled) {
         results.push({ key, sent: 0, skipped: ineligible.length, reason: 'sequenza non configurata o disattivata' })
+        continue
+      }
+      // Master switch per gli invii reali, distinto dalla pausa "enabled":
+      // controllabile dalla dashboard, non serve piu' toccare Railway.
+      if (!settings.campaign_send_enabled) {
+        results.push({ key, sent: 0, skipped: ineligible.length, reason: 'invio reale non abilitato dalle impostazioni' })
         continue
       }
       let remaining = remainingByUser.get(userId)
