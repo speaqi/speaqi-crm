@@ -361,6 +361,12 @@ export async function stopWineProjectFollowups(
 
 const ENROLLMENT_PAGE = 500
 
+/** Vero se a Roma e' sabato o domenica. */
+function isRomeWeekend(now = new Date()) {
+  const weekday = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Rome', weekday: 'short' }).format(now)
+  return weekday === 'Sat' || weekday === 'Sun'
+}
+
 /** Mezzanotte di Roma in ISO, per contare gli arruolamenti della giornata. */
 function startOfRomeDay(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -435,6 +441,12 @@ export async function backfillWineProjectFollowups(supabase: any, userId?: strin
 
     let remaining = Math.max(0, settings.daily_enrollment_cap - (enrolledToday || 0))
     if (remaining < 1) continue
+
+    // Nel weekend non si arruola. Le scadenze saltano sabato e domenica, quindi
+    // arruolare in quei due giorni non anticipa nulla: accumula soltanto, e il
+    // lunedi' si presentano insieme gli arruolati di venerdi', sabato e
+    // domenica, tre volte la capacita' di invio giornaliera.
+    if (isRomeWeekend()) continue
 
     const { data: existing, error: existingError } = await supabase
       .from('wine_project_followup_events')
