@@ -1,5 +1,4 @@
 import { createActivities } from '@/lib/server/crm'
-import { toCallableSlot } from '@/lib/sla'
 
 export type WineProjectSequenceTemplate = {
   sequence: number
@@ -209,8 +208,55 @@ export async function loadWineProjectAutomationSettings(supabase: any, userId: s
   return normalizeWineProjectAutomationSettings(data || DEFAULT_WINE_PROJECT_AUTOMATION_SETTINGS)
 }
 
+/** Ora fissa di partenza: la sequenza esce sempre alle 10:00 italiane. */
+const SEND_HOUR_ROME = 10
+
+/** Scarto in minuti fra Roma e UTC nell'istante dato (gestisce l'ora legale). */
+function romeOffsetMinutes(at: Date) {
+  const name = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Rome', timeZoneName: 'longOffset' })
+    .formatToParts(at)
+    .find((part) => part.type === 'timeZoneName')?.value || 'GMT+00:00'
+  const match = name.match(/^GMT([+-])(\d{2}):(\d{2})$/)
+  return match ? (Number(match[2]) * 60 + Number(match[3])) * (match[1] === '+' ? 1 : -1) : 0
+}
+
+/** Istante UTC corrispondente alle SEND_HOUR_ROME di Roma in una data data. */
+function romeSendSlot(year: number, month: number, day: number) {
+  const wall = new Date(Date.UTC(year, month - 1, day, SEND_HOUR_ROME, 0, 0, 0))
+  const first = new Date(wall.getTime() - romeOffsetMinutes(wall) * 60 * 1000)
+  // Ricontrolla con lo scarto valido nell'istante calcolato: nei giorni di
+  // cambio ora il primo tentativo puo' cadere dalla parte sbagliata.
+  const second = romeOffsetMinutes(first)
+  return new Date(wall.getTime() - second * 60 * 1000).toISOString()
+}
+
+/**
+ * Restituisce le 10:00 di Roma del giorno che cade `days` giorni dopo `from`,
+ * saltando sabato e domenica.
+ *
+ * Non usa toCallableSlot: quello corregge l'orario solo quando cade a
+ * mezzanotte nell'ora del server, che in produzione e' UTC. Un arruolamento
+ * alle 22:00 UTC passava indisturbato e l'email finiva a mezzanotte italiana,
+ * l'orario peggiore per una campagna B2B.
+ */
 export function wineFollowupDueAt(days: number, from = new Date()) {
-  return toCallableSlot(new Date(from.getTime() + days * 24 * 60 * 60 * 1000)).toISOString()
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Rome',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(from)
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || ''
+
+  // Calendario di Roma, non UTC: chi viene arruolato a mezzanotte italiana
+  // deve contare i giorni dal giorno italiano, non da quello precedente.
+  const cursor = new Date(Date.UTC(Number(value('year')), Number(value('month')) - 1, Number(value('day'))))
+  cursor.setUTCDate(cursor.getUTCDate() + Math.max(0, Math.round(days)))
+  while (cursor.getUTCDay() === 0 || cursor.getUTCDay() === 6) {
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
+  }
+
+  return romeSendSlot(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, cursor.getUTCDate())
 }
 
 /** Giorni dall'arruolamento previsti per ciascuna email della sequenza. */
