@@ -258,14 +258,11 @@ export function fromDatetimeLocalValue(value?: string | null) {
   return new Date(value).toISOString()
 }
 
+/** Status che chiudono il contatto (confronto case-insensitive). */
+export const CLOSED_STATUSES = ['closed', 'paid', 'lost', 'not_interested'] as const
+
 export function isClosedStatus(status: string) {
-  const normalized = status.toLowerCase()
-  return (
-    normalized === 'closed' ||
-    normalized === 'paid' ||
-    normalized === 'lost' ||
-    normalized === 'not_interested'
-  )
+  return (CLOSED_STATUSES as readonly string[]).includes(status.toLowerCase())
 }
 
 /** Status che escludono il contatto da code priorità e griglia settimanale (Waiting + closed). */

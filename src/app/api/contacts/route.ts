@@ -7,6 +7,7 @@ import {
   workspaceContactsAllFromRequest,
 } from '@/lib/server/collaborator-filters'
 import { requireRouteUser } from '@/lib/server/supabase'
+import { applyCrmScope } from '@/lib/server/scope-filters'
 import { isClosedStatus, normalizeContactScope } from '@/lib/data'
 
 function normalizeText(value: unknown) {
@@ -104,29 +105,94 @@ function buildContactInsertFallbackPayload(payload: Record<string, unknown>, err
   return changed ? fallback : null
 }
 
+/** Scope validi per il filtro `scope` (lista separata da virgole). */
+const CONTACT_SCOPES = ['crm', 'holding', 'personal'] as const
+type ContactScopeKey = (typeof CONTACT_SCOPES)[number]
+
+function parseScopeList(raw: string): ContactScopeKey[] | null {
+  // 'all' (o vuoto) = nessun filtro di scope.
+  if (!raw || raw === 'all') return null
+  const wanted = raw
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter((value): value is ContactScopeKey => (CONTACT_SCOPES as readonly string[]).includes(value))
+  return wanted.length ? Array.from(new Set(wanted)) : null
+}
+
+/**
+ * PostgREST interpreta virgole, parentesi e virgolette dentro `or=(...)`:
+ * un termine di ricerca non sanificato rompe la query o cambia il filtro.
+ */
+function sanitizeSearchTerm(raw: string) {
+  return raw
+    .trim()
+    .replace(/[,()"\\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Stessi campi della ricerca client in /contacts: i risultati coincidono. */
+const SEARCH_COLUMNS = [
+  'name',
+  'company',
+  'email',
+  'phone',
+  'category',
+  'event_tag',
+  'list_name',
+  'billing_tax_id',
+  'billing_pec',
+  'billing_sdi',
+  'billing_address',
+  'billing_zip',
+  'billing_city',
+]
+
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
 
   try {
-    const scope = String(request.nextUrl.searchParams.get('scope') || 'all').trim().toLowerCase()
+    const params = request.nextUrl.searchParams
+    const scopeParam = String(params.get('scope') || 'all').trim().toLowerCase()
+    const scopeList = parseScopeList(scopeParam)
+    const partnerOnly = scopeParam === 'partner'
+    const listFilter = String(params.get('list') || '').trim()
+    const search = sanitizeSearchTerm(String(params.get('search') || ''))
+    const rawLimit = Number(params.get('limit'))
+    // Nessun limite = tutto il set filtrato (comportamento storico).
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.floor(rawLimit) : null
+    const wantsCount = params.get('count') === '1'
 
     const workspaceAll = workspaceContactsAllFromRequest(request, auth.isAdmin)
     const supabase = auth.supabase
 
-    function buildQuery() {
+    function buildQuery(options: { head?: boolean } = {}) {
       // Nessun order-by qui: la paginazione usa un cursore su id (sotto),
       // l'ordine di visualizzazione si applica in memoria a fetch completato.
       let query = supabase
         .from('contacts')
-        .select('*')
+        .select('*', options.head ? { count: 'exact', head: true } : undefined)
         .eq('user_id', auth.workspaceUserId)
 
-      if (scope === 'crm') query = query.eq('contact_scope', 'crm')
-      if (scope === 'holding') query = query.eq('contact_scope', 'holding')
-      if (scope === 'personal') query = query.eq('contact_scope', 'personal')
+      if (scopeList) {
+        if (scopeList.length === 1) {
+          // Le righe legacy hanno contact_scope null e valgono come 'crm'.
+          query =
+            scopeList[0] === 'crm' ? applyCrmScope(query) : query.eq('contact_scope', scopeList[0])
+        } else {
+          const values = scopeList.join(',')
+          query = scopeList.includes('crm')
+            ? query.or(`contact_scope.is.null,contact_scope.in.(${values})`)
+            : query.in('contact_scope', scopeList)
+        }
+      }
       // Partner è un attributo trasversale (is_partner), non più uno scope.
-      if (scope === 'partner') query = query.eq('is_partner', true)
+      if (partnerOnly) query = query.eq('is_partner', true)
+      if (listFilter) query = query.eq('list_name', listFilter)
+      if (search) {
+        query = query.or(SEARCH_COLUMNS.map((column) => `${column}.ilike.%${search}%`).join(','))
+      }
 
       // L'admin del workspace vede sempre tutti i contatti: filtrarlo per
       // assegnatario nascondeva i 600+ contatti senza responsabile, che non
@@ -150,13 +216,15 @@ export async function GET(request: NextRequest) {
     const contacts: any[] = []
     let cursor: string | null = null
     for (;;) {
-      let query = buildQuery().order('id', { ascending: true }).limit(pageSize)
+      const remaining = limit === null ? pageSize : Math.min(pageSize, limit - contacts.length)
+      if (remaining <= 0) break
+      let query = buildQuery().order('id', { ascending: true }).limit(remaining)
       if (cursor) query = query.gt('id', cursor)
       const { data, error } = await query
       if (error) throw error
       const page = data || []
       contacts.push(...page)
-      if (page.length < pageSize) break
+      if (page.length < remaining) break
       cursor = page[page.length - 1].id
     }
 
@@ -171,7 +239,17 @@ export async function GET(request: NextRequest) {
       return a.id < b.id ? 1 : -1
     })
 
-    return Response.json({ contacts })
+    let total: number | null = null
+    if (wantsCount) {
+      const { count, error } = await buildQuery({ head: true })
+      if (error) throw error
+      total = count ?? null
+    }
+
+    return Response.json(
+      wantsCount ? { contacts, total } : { contacts },
+      { headers: { 'Cache-Control': 'no-store' } }
+    )
   } catch (error) {
     return Response.json(
       { error: errorMessage(error, 'Failed to load contacts') },

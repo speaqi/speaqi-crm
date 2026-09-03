@@ -153,6 +153,52 @@ async function resolveTeamMemberWithServiceRole(
   return null
 }
 
+/**
+ * Cache in-process delle risoluzioni di identità.
+ *
+ * Ogni chiamata a `requireRouteUser` costava 1 round-trip verso GoTrue
+ * (`auth.getUser`) più 1-3 query su `team_members`, in sequenza. Con 5-6
+ * chiamate API per apertura pagina erano ~25 round-trip di puro overhead
+ * prima ancora di leggere un contatto. Il TTL è corto apposta: un token
+ * revocato smette di funzionare entro pochi secondi.
+ */
+type CachedEntry<T> = { value: T; expiresAt: number }
+
+const AUTH_USER_TTL_MS = 30_000
+const MEMBER_TTL_MS = 60_000
+const MAX_CACHE_ENTRIES = 500
+
+function cacheGet<T>(store: Map<string, CachedEntry<T>>, key: string): T | null {
+  const hit = store.get(key)
+  if (!hit) return null
+  if (hit.expiresAt <= Date.now()) {
+    store.delete(key)
+    return null
+  }
+  return hit.value
+}
+
+function cacheSet<T>(store: Map<string, CachedEntry<T>>, key: string, value: T, ttlMs: number) {
+  if (store.size >= MAX_CACHE_ENTRIES) {
+    // Mappa ordinata per inserimento: la chiave più vecchia è la prima.
+    const oldest = store.keys().next()
+    if (!oldest.done) store.delete(oldest.value)
+  }
+  store.set(key, { value, expiresAt: Date.now() + ttlMs })
+}
+
+type AuthUser = Awaited<ReturnType<ReturnType<typeof createPublicServerClient>['auth']['getUser']>>['data']['user']
+type ResolvedIdentity = { workspaceUserId: string; isAdmin: boolean; memberName: string | null }
+
+const authUserCache = new Map<string, CachedEntry<AuthUser>>()
+const identityCache = new Map<string, CachedEntry<ResolvedIdentity>>()
+
+/** Invalida le cache di identità (es. dopo una modifica al team). */
+export function invalidateRouteUserCaches() {
+  authUserCache.clear()
+  identityCache.clear()
+}
+
 export async function requireRouteUser(request: NextRequest) {
   const token = getBearerToken(request)
   if (!token) {
@@ -161,23 +207,38 @@ export async function requireRouteUser(request: NextRequest) {
     }
   }
 
-  const authClient = createPublicServerClient()
-  const {
-    data: { user },
-    error,
-  } = await authClient.auth.getUser(token)
+  let user = cacheGet(authUserCache, token)
+  if (!user) {
+    const authClient = createPublicServerClient()
+    const { data, error } = await authClient.auth.getUser(token)
+    if (error || !data.user) {
+      return {
+        error: Response.json({ error: 'Unauthorized' }, { status: 401 }),
+      }
+    }
+    user = data.user
+    cacheSet(authUserCache, token, user, AUTH_USER_TTL_MS)
+  }
 
-  if (error || !user) {
+  const emailLc = String(user.email || '').trim().toLowerCase()
+  const userSb = createUserClient(token)
+  const identityKey = `${user.id}|${emailLc}`
+
+  const cachedIdentity = cacheGet(identityCache, identityKey)
+  if (cachedIdentity) {
     return {
-      error: Response.json({ error: 'Unauthorized' }, { status: 401 }),
+      token,
+      user,
+      supabase: userSb,
+      workspaceUserId: cachedIdentity.workspaceUserId,
+      isAdmin: cachedIdentity.isAdmin,
+      memberName: cachedIdentity.memberName,
     }
   }
 
   let workspaceUserId = user.id
   let isAdmin = true
   let memberName: string | null = null
-  const emailLc = String(user.email || '').trim().toLowerCase()
-  const userSb = createUserClient(token)
 
   try {
     let resolvedMember =
@@ -223,6 +284,8 @@ export async function requireRouteUser(request: NextRequest) {
     const fromMeta = String(meta?.full_name || meta?.name || meta?.display_name || '').trim()
     if (fromMeta) memberName = fromMeta
   }
+
+  cacheSet(identityCache, identityKey, { workspaceUserId, isAdmin, memberName }, MEMBER_TTL_MS)
 
   return {
     token,

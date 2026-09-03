@@ -3,7 +3,7 @@
 import { apiFetch } from '@/lib/api'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { MouseEvent, Suspense, useEffect, useMemo, useState } from 'react'
+import { MouseEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ContactDrawer } from '@/components/crm/ContactDrawer'
 import { ContactModal } from '@/components/crm/ContactModal'
 import { QuickDismissMenu } from '@/components/crm/QuickDismissMenu'
@@ -38,6 +38,9 @@ const FOCUS_CHIPS: Array<{ key: string; label: string }> = [
   { key: 'tomorrow', label: 'Domani' },
   { key: 'missing', label: 'Senza next step' },
 ]
+
+/** Righe aggiunte al DOM per volta mentre si scorre l'elenco. */
+const CONTACTS_PAGE_SIZE = 60
 
 type ScopeTab = 'crm' | 'holding' | 'inbound' | 'personal' | 'partner' | 'all'
 
@@ -100,6 +103,12 @@ function ContactsPageInner() {
     scheduledCalls,
     stages,
     holdingContacts,
+    holdingLoading,
+    holdingTruncated,
+    loadHoldingContacts,
+    loadMoreHoldingContacts,
+    holdingFolders,
+    contactCounts,
     personalContacts,
     partnerContacts,
     teamMembers,
@@ -232,6 +241,34 @@ function ContactsPageInner() {
     return toLocalDateKey(tomorrow)
   }, [])
 
+  /** Le tab che leggono le liste separate: quelle righe stanno sul server. */
+  const scopeNeedsHolding = scope === 'holding' || scope === 'all'
+
+  // Ricerca lato database per le liste separate: sono decine di migliaia di
+  // righe, restano sul server finché non si apre la loro tab e poi si cercano
+  // lì. Il debounce evita una query per ogni tasto premuto.
+  useEffect(() => {
+    if (!scopeNeedsHolding) return
+    const term = search.trim()
+    const timer = setTimeout(() => {
+      void loadHoldingContacts({ search: term, list: listFilter })
+    }, term ? 300 : 0)
+    return () => clearTimeout(timer)
+  }, [scopeNeedsHolding, search, listFilter, loadHoldingContacts])
+
+  /**
+   * Le liste separate vivono in uno stato separato (sono caricate dal server
+   * su richiesta): dopo una modifica vanno ricaricate insieme al resto,
+   * altrimenti la riga toccata resta come prima finché non si cambia tab.
+   */
+  const refreshAll = useCallback(async () => {
+    const jobs: Array<Promise<unknown>> = [refresh()]
+    if (scopeNeedsHolding) {
+      jobs.push(loadHoldingContacts({ search: search.trim(), list: listFilter }))
+    }
+    await Promise.all(jobs)
+  }, [refresh, scopeNeedsHolding, loadHoldingContacts, search, listFilter])
+
   const searchableContacts = useMemo(() => {
     switch (scope) {
       case 'holding':
@@ -242,27 +279,34 @@ function ContactsPageInner() {
         return personalContacts
       case 'partner':
         return partnerContacts
-      case 'all':
-        return allContacts.filter((contact) => (contact.contact_scope || 'crm') !== 'personal')
+      case 'all': {
+        // Set di lavoro (in memoria) + risultati liste separate (dal server).
+        const workspace = allContacts.filter(
+          (contact) => (contact.contact_scope || 'crm') !== 'personal'
+        )
+        if (!holdingContacts.length) return workspace
+        const seen = new Set(workspace.map((contact) => contact.id))
+        return [...workspace, ...holdingContacts.filter((contact) => !seen.has(contact.id))]
+      }
       case 'crm':
       default:
         return contacts
     }
   }, [scope, holdingContacts, contacts, personalContacts, partnerContacts, allContacts])
 
-  const contactSearchStats = useMemo(() => {
-    const scopeOf = (contact: CRMContact) => contact.contact_scope || 'crm'
-    return {
-      all: allContacts.filter((contact) => scopeOf(contact) !== 'personal').length,
-      crm: allContacts.filter((contact) => scopeOf(contact) === 'crm').length,
-      holding: allContacts.filter((contact) => scopeOf(contact) === 'holding').length,
-      inbound: allContacts.filter(
-        (contact) => scopeOf(contact) === 'crm' && contact.source === 'speaqi'
-      ).length,
-      personal: allContacts.filter((contact) => scopeOf(contact) === 'personal').length,
-      partner: allContacts.filter((contact) => Boolean(contact.is_partner)).length,
-    }
-  }, [allContacts])
+  // I totali per tab arrivano da /api/contacts/summary: contarli in memoria
+  // richiedeva di avere in RAM anche le decine di migliaia di righe holding.
+  const contactSearchStats = useMemo(
+    () => ({
+      all: contactCounts.crm + contactCounts.holding,
+      crm: contactCounts.crm,
+      holding: contactCounts.holding,
+      inbound: contactCounts.inbound,
+      personal: contactCounts.personal,
+      partner: contactCounts.partner,
+    }),
+    [contactCounts]
+  )
 
   const scopeCount = (key: ScopeTab) => {
     switch (key) {
@@ -293,21 +337,27 @@ function ContactsPageInner() {
     [searchableContacts]
   )
 
-  const folderOptions = useMemo(
-    () => Array.from(new Set(holdingContacts.map((contact) => holdingListLabel(contact)).filter(Boolean))).sort(),
-    [holdingContacts]
-  )
-
+  // Cartelle: aggregazione calcolata dal database (contact_scope_folder_counts),
+  // non contando righe che il browser non ha più.
   const folderSummary = useMemo(() => {
     const grouped = new Map<string, number>()
-    holdingContacts.forEach((contact) => {
-      const folderName = holdingListLabel(contact)
-      grouped.set(folderName, (grouped.get(folderName) || 0) + 1)
+    holdingFolders.forEach((folder) => {
+      const folderName = holdingListLabel({
+        list_name: folder.list_name,
+        event_tag: folder.event_tag,
+        source: folder.source,
+      })
+      grouped.set(folderName, (grouped.get(folderName) || 0) + folder.count)
     })
     return Array.from(grouped.entries())
       .map(([name, count]) => ({ name, count }))
       .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name))
-  }, [holdingContacts])
+  }, [holdingFolders])
+
+  const folderOptions = useMemo(
+    () => folderSummary.map((folder) => folder.name).sort(),
+    [folderSummary]
+  )
 
   const sources = useMemo(
     () =>
@@ -407,25 +457,69 @@ function ContactsPageInner() {
     (urlTag ? 1 : 0)
 
   const filteredIds = useMemo(() => filtered.map((contact) => contact.id), [filtered])
-  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.includes(id))
+
+  // Finestra di render: il DOM cresce con le righe mostrate, non con quelle
+  // filtrate. Con migliaia di contatti il browser impiegava secondi a
+  // costruire (e ricostruire a ogni tasto) una lista che nessuno scorre tutta.
+  // Selezione, intervalli e azioni di massa continuano a lavorare su
+  // `filtered`, cioè su tutti i risultati.
+  const [visibleCount, setVisibleCount] = useState(CONTACTS_PAGE_SIZE)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    setVisibleCount(CONTACTS_PAGE_SIZE)
+  }, [scope, search, statusFilter, listFilter, assigneeFilter, sourceFilter, priorityFilter, dataCompletenessFilter, focusFilter, sectionFilter, showHidden, urlTag])
+
+  const visibleContacts = useMemo(
+    () => filtered.slice(0, visibleCount),
+    [filtered, visibleCount]
+  )
+  const hasMoreToRender = filtered.length > visibleContacts.length
+
+  useEffect(() => {
+    const sentinel = loadMoreRef.current
+    if (!sentinel || !hasMoreToRender) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setVisibleCount((previous) => previous + CONTACTS_PAGE_SIZE)
+        }
+      },
+      { rootMargin: '600px' }
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [hasMoreToRender])
+  // Set invece di `Array.includes`: "seleziona tutti" su migliaia di righe
+  // rendeva ogni confronto una scansione dell'intera selezione, cioè milioni
+  // di operazioni a ogni tasto premuto nella ricerca.
+  const filteredIdSet = useMemo(() => new Set(filteredIds), [filteredIds])
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
+
+  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIdSet.has(id))
   const hasSelected = selectedIds.length > 0
   const selectedContacts = useMemo(
-    () => searchableContacts.filter((contact) => selectedIds.includes(contact.id)),
-    [searchableContacts, selectedIds]
+    () => searchableContacts.filter((contact) => selectedIdSet.has(contact.id)),
+    [searchableContacts, selectedIdSet]
   )
   const selectedWithEmailCount = selectedContacts.filter((contact) => Boolean(contact.email?.trim())).length
   const canRemoveSelectedFromList = selectedContacts.some((contact) => Boolean(contact.list_name?.trim()))
   const canShowSelectedInPipeline = selectedContacts.some((contact) => Boolean(contact.hidden))
 
   useEffect(() => {
-    setSelectedIds((previous) => previous.filter((id) => filteredIds.includes(id)))
-  }, [filteredIds])
+    setSelectedIds((previous) => {
+      const kept = previous.filter((id) => filteredIdSet.has(id))
+      // Stessa selezione: non creare un array nuovo, o l'effetto si
+      // ri-innescherebbe a ogni render.
+      return kept.length === previous.length ? previous : kept
+    })
+  }, [filteredIdSet])
 
   useEffect(() => {
-    if (lastSelectedId && !filteredIds.includes(lastSelectedId)) {
+    if (lastSelectedId && !filteredIdSet.has(lastSelectedId)) {
       setLastSelectedId(null)
     }
-  }, [filteredIds, lastSelectedId])
+  }, [filteredIdSet, lastSelectedId])
 
   function resetFilters() {
     setSearch('')
@@ -462,7 +556,8 @@ function ContactsPageInner() {
             return Array.from(new Set([...previous, ...rangeIds]))
           }
 
-          return previous.filter((id) => !rangeIds.includes(id))
+          const rangeIdSet = new Set(rangeIds)
+          return previous.filter((id) => !rangeIdSet.has(id))
         }
       }
 
@@ -475,7 +570,7 @@ function ContactsPageInner() {
 
   function toggleSelectAllFiltered() {
     setSelectedIds((previous) => {
-      if (allFilteredSelected) return previous.filter((id) => !filteredIds.includes(id))
+      if (allFilteredSelected) return previous.filter((id) => !filteredIdSet.has(id))
       return Array.from(new Set([...previous, ...filteredIds]))
     })
     setLastSelectedId(filteredIds[0] || null)
@@ -521,7 +616,7 @@ function ContactsPageInner() {
           patch,
         }),
       })
-      await refresh()
+      await refreshAll()
       showToast(successMessage)
       setSelectedIds([])
     } catch (error) {
@@ -763,7 +858,7 @@ function ContactsPageInner() {
                   const result = await apiFetch<{ updated: number }>('/api/contacts/repair-names', {
                     method: 'POST',
                   })
-                  await refresh()
+                  await refreshAll()
                   showToast(
                     result.updated > 0
                       ? `${result.updated} nomi corretti da email`
@@ -807,7 +902,23 @@ function ContactsPageInner() {
         <span>
           <strong>{filtered.length}</strong> contatti
           {showAllContactsSearch ? ' in tutti gli archivi' : ' in pipeline'}
+          {hasMoreToRender && <> · {visibleContacts.length} mostrati</>}
         </span>
+        {scopeNeedsHolding && holdingLoading && (
+          <span className="contacts-summary-chip">Cerco nelle liste separate…</span>
+        )}
+        {scopeNeedsHolding && !holdingLoading && holdingTruncated && (
+          <span className="contacts-summary-chip" title="Cerca per restringere, oppure carica altre righe">
+            Primi {holdingContacts.length} dalle liste separate
+            <button
+              type="button"
+              onClick={() => void loadMoreHoldingContacts()}
+              aria-label="Carica altri contatti dalle liste separate"
+            >
+              +
+            </button>
+          </span>
+        )}
         {showAllContactsSearch && (
           <span className="contacts-summary-chip contacts-summary-chip-strong">
             Tutti i contatti
@@ -1273,7 +1384,7 @@ function ContactsPageInner() {
             )}
           </div>
         ) : (
-          filtered.map((contact) => {
+          visibleContacts.map((contact) => {
             const call = scheduledCallsByContactId.get(contact.id) || null
             const holdingTag = isHoldingContact(contact) ? holdingListLabel(contact) : null
             const isToday = toLocalDateKey(call?.due_at) === todayKey
@@ -1300,7 +1411,7 @@ function ContactsPageInner() {
                 >
                   <input
                     type="checkbox"
-                    checked={selectedIds.includes(contact.id)}
+                    checked={selectedIdSet.has(contact.id)}
                     onClick={(event) => handleCheckboxClick(contact.id, event)}
                     onChange={() => {}}
                   />
@@ -1372,7 +1483,7 @@ function ContactsPageInner() {
                             patch: { priority: makeTop ? 3 : 0 },
                           }),
                         })
-                        await refresh()
+                        await refreshAll()
                         showToast(makeTop ? `${contact.name} segnato Supertop` : `${contact.name} tolto da Supertop`)
                       } catch (error) {
                         window.alert(error instanceof Error ? error.message : 'Aggiornamento priorità non riuscito')
@@ -1402,7 +1513,7 @@ function ContactsPageInner() {
                             patch: { is_partner: makePartner },
                           }),
                         })
-                        await refresh()
+                        await refreshAll()
                         showToast(makePartner ? `${contact.name} segnato come partner` : `${contact.name} non è più partner`)
                       } catch (error) {
                         window.alert(error instanceof Error ? error.message : 'Aggiornamento partner non riuscito')
@@ -1460,6 +1571,18 @@ function ContactsPageInner() {
             )
           })
         )}
+
+        {hasMoreToRender && (
+          <div ref={loadMoreRef} className="contacts-load-more">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => setVisibleCount((previous) => previous + CONTACTS_PAGE_SIZE * 5)}
+            >
+              Mostra altri ({filtered.length - visibleContacts.length} rimanenti)
+            </button>
+          </div>
+        )}
       </div>
 
       <ContactDrawer
@@ -1467,7 +1590,12 @@ function ContactsPageInner() {
         anchorPoint={drawerAnchor}
         onClose={closeDrawer}
         onEdit={(id) => {
-          const target = allContacts.find((contact) => contact.id === id) || null
+          // Le righe delle liste separate non stanno in allContacts: senza
+          // questo la modifica di un contatto holding apriva un form vuoto.
+          const target =
+            searchableContacts.find((contact) => contact.id === id) ||
+            allContacts.find((contact) => contact.id === id) ||
+            null
           setEditingContact(target)
           setModalOpen(true)
         }}

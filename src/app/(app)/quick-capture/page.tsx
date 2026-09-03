@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { apiFetch } from '@/lib/api'
 import { PRIORITY_OPTIONS, fromDatetimeLocalValue, toDatetimeLocalValue } from '@/lib/data'
 import { useCRMContext } from '../layout'
+import type { CRMContact } from '@/types'
 
 const SESSION_COUNT_KEY = 'speaqi_quick_capture_count_v1'
 const CAPTURE_DEFAULTS_KEY = 'speaqi_quick_capture_defaults_v1'
@@ -158,6 +160,35 @@ export default function QuickCapturePage() {
     noteRef.current?.focus()
   }, [])
 
+  // I duplicati si cercano sul server: l'archivio completo (liste separate
+  // comprese) non sta più in memoria, e cercarlo lì è comunque più veloce che
+  // scandire decine di migliaia di righe a ogni tasto.
+  const [remoteCandidates, setRemoteCandidates] = useState<CRMContact[]>([])
+
+  useEffect(() => {
+    const term = normalizeText(form.email) || normalizeText(form.phone) || normalizeText(form.name)
+    if (!term || term.length < 3) {
+      setRemoteCandidates([])
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(() => {
+      apiFetch<{ contacts: CRMContact[] }>(
+        `/api/contacts?limit=20&search=${encodeURIComponent(term)}`
+      )
+        .then((response) => {
+          if (!cancelled) setRemoteCandidates(response.contacts || [])
+        })
+        .catch(() => {
+          if (!cancelled) setRemoteCandidates([])
+        })
+    }, 350)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [form.email, form.phone, form.name])
+
   const duplicateMatches = useMemo(() => {
     const email = normalizeText(form.email)
     const phone = digitsOnly(form.phone)
@@ -166,7 +197,10 @@ export default function QuickCapturePage() {
 
     if (!email && !phone && !name) return []
 
-    return allContacts
+    const pool = new Map<string, CRMContact>()
+    ;[...allContacts, ...remoteCandidates].forEach((contact) => pool.set(contact.id, contact))
+
+    return Array.from(pool.values())
       .filter((contact) => {
         const sameEmail = email && normalizeText(contact.email || '') === email
         const samePhone = phone && digitsOnly(contact.phone || '') === phone
@@ -179,7 +213,7 @@ export default function QuickCapturePage() {
         return !!(sameEmail || samePhone || sameNameCompany)
       })
       .slice(0, 4)
-  }, [allContacts, form.company, form.email, form.name, form.phone])
+  }, [allContacts, remoteCandidates, form.company, form.email, form.name, form.phone])
 
   function handleSmartPaste(text: string) {
     const parsed = parsePastedContact(text)

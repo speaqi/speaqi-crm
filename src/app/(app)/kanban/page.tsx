@@ -67,6 +67,9 @@ const BUCKET_ORDER: Array<keyof typeof BUCKET_LABELS> = ['overdue', 'today', 'to
 
 const COLD_STAGES = new Set(['New', 'Waiting', 'Lost'])
 
+/** Card montate per colonna prima di chiedere "mostra altre". */
+const COLUMN_PAGE_SIZE = 25
+
 function initialViewMode(): ViewMode {
   if (typeof window === 'undefined') return 'board'
   return new URLSearchParams(window.location.search).get('view') === 'list' ? 'list' : 'board'
@@ -133,6 +136,26 @@ export default function KanbanPage() {
   const filteredIds = useMemo(() => new Set(filtered.map((contact) => contact.id)), [filtered])
   const now = useMemo(() => new Date(), [])
 
+  // Una sola passata per raggruppare invece di rifiltrare l'elenco per ogni
+  // colonna della board.
+  const contactsByStage = useMemo(() => {
+    const grouped = new Map<string, CRMContact[]>()
+    for (const contact of filtered) {
+      const bucket = grouped.get(contact.status)
+      if (bucket) bucket.push(contact)
+      else grouped.set(contact.status, [contact])
+    }
+    return grouped
+  }, [filtered])
+
+  // La colonna "New" da sola può contenere migliaia di lead: montarli tutti
+  // significa decine di migliaia di nodi DOM ricostruiti a ogni tasto della
+  // ricerca. Si montano a scaglioni, il conteggio in testata resta quello vero.
+  const [columnLimits, setColumnLimits] = useState<Record<string, number>>({})
+  useEffect(() => {
+    setColumnLimits({})
+  }, [search, priorityFilter, sourceFilter, categoryFilter, comuneFilter])
+
   const listBuckets = useMemo(() => {
     const buckets: Record<string, typeof scheduledCalls> = {
       overdue: [],
@@ -142,14 +165,18 @@ export default function KanbanPage() {
       later: [],
       none: [],
     }
+    // Set invece di `scheduledCalls.some(...)` dentro il ciclo: erano
+    // contatti × chiamate confronti a ogni render (milioni sul workspace reale).
+    const queuedContactIds = new Set<string>()
     for (const call of scheduledCalls) {
+      queuedContactIds.add(call.contact.id)
       if (!filteredIds.has(call.contact.id)) continue
       const bucket = bucketFor(call.due_at, now)
       buckets[bucket].push(call)
     }
     for (const contact of filtered) {
       if (contact.next_followup_at) continue
-      if (scheduledCalls.some((call) => call.contact.id === contact.id)) continue
+      if (queuedContactIds.has(contact.id)) continue
       buckets.none.push({
         contact,
         task: null,
@@ -274,6 +301,9 @@ export default function KanbanPage() {
           {BUCKET_ORDER.map((bucket) => {
             const items = listBuckets[bucket]
             if (!items || items.length === 0) return null
+            const bucketLimit = columnLimits[bucket] ?? COLUMN_PAGE_SIZE * 2
+            const visibleItems = items.slice(0, bucketLimit)
+            const hiddenItems = items.length - visibleItems.length
             return (
               <section key={bucket} className="pipeline-bucket">
                 <div className="pipeline-bucket-head">
@@ -281,7 +311,7 @@ export default function KanbanPage() {
                   <span className="pipeline-bucket-count">{items.length}</span>
                 </div>
                 <div className="pipeline-bucket-list">
-                  {items.map((call) => (
+                  {visibleItems.map((call) => (
                     <div key={call.contact.id} className="pipeline-list-row">
                       <Link
                         href={`/contacts?id=${call.contact.id}`}
@@ -323,6 +353,20 @@ export default function KanbanPage() {
                       )}
                     </div>
                   ))}
+                  {hiddenItems > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm col-more"
+                      onClick={() =>
+                        setColumnLimits((previous) => ({
+                          ...previous,
+                          [bucket]: (previous[bucket] ?? COLUMN_PAGE_SIZE * 2) + COLUMN_PAGE_SIZE * 8,
+                        }))
+                      }
+                    >
+                      Mostra altri {hiddenItems}
+                    </button>
+                  )}
                 </div>
               </section>
             )
@@ -335,7 +379,10 @@ export default function KanbanPage() {
             {stages
               .filter((stage) => !collapsedColumns || !COLD_STAGES.has(stage.name))
               .map((stage) => {
-              const stageContacts = filtered.filter((contact) => contact.status === stage.name)
+              const stageContacts = contactsByStage.get(stage.name) || []
+              const stageLimit = columnLimits[stage.name] ?? COLUMN_PAGE_SIZE
+              const visibleStageContacts = stageContacts.slice(0, stageLimit)
+              const hiddenStageCount = stageContacts.length - visibleStageContacts.length
               return (
                 <div key={stage.id} className="col">
                   <div className="col-head">
@@ -357,7 +404,7 @@ export default function KanbanPage() {
                         Vuoto
                       </div>
                     ) : (
-                      stageContacts.map((contact) => (
+                      visibleStageContacts.map((contact) => (
                         <div
                           key={contact.id}
                           className="card"
@@ -410,6 +457,20 @@ export default function KanbanPage() {
                           </div>
                         </div>
                       ))
+                    )}
+                    {hiddenStageCount > 0 && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm col-more"
+                        onClick={() =>
+                          setColumnLimits((previous) => ({
+                            ...previous,
+                            [stage.name]: (previous[stage.name] ?? COLUMN_PAGE_SIZE) + COLUMN_PAGE_SIZE * 4,
+                          }))
+                        }
+                      >
+                        Mostra altre {hiddenStageCount}
+                      </button>
                     )}
                   </div>
                 </div>
