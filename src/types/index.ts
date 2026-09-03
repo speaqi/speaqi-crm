@@ -102,6 +102,10 @@ export interface ActivityWithContact extends Activity {
   contact?: ActivityContactSnapshot | null
 }
 
+export type TodoArea = 'speaqi' | 'personale' | 'altro'
+
+export type TodoProgressState = 'todo' | 'in_progress' | 'blocked' | 'done'
+
 export interface Task {
   id: string
   contact_id?: string | null
@@ -117,6 +121,11 @@ export interface Task {
   started_at?: string | null
   rescheduled_at?: string | null
   reschedule_count?: number
+  /** Solo task standalone (/todo): ambito, avanzamento e inizio previsto. */
+  area?: TodoArea | null
+  progress_state?: TodoProgressState | null
+  progress_percent?: number | null
+  start_date?: string | null
   calendar_event_id?: string | null
   calendar_event_link?: string | null
   calendar_synced_at?: string | null
@@ -391,8 +400,27 @@ export interface TaskInput {
 export interface StandaloneTaskInput {
   title: string
   note?: string
-  due_date?: string
+  due_date?: string | null
+  start_date?: string | null
   priority?: 'low' | 'medium' | 'high'
+  area?: TodoArea
+  progress_state?: TodoProgressState
+  progress_percent?: number
+}
+
+/** Campi aggiornabili di un task standalone via PATCH /api/tasks/standalone. */
+export interface StandaloneTaskPatch {
+  title?: string
+  note?: string | null
+  priority?: 'low' | 'medium' | 'high'
+  status?: 'pending' | 'done'
+  due_date?: string | null
+  start_date?: string | null
+  started_at?: string | null
+  area?: TodoArea
+  progress_state?: TodoProgressState
+  progress_percent?: number
+  calendar_action?: 'sync' | 'unsync'
 }
 
 export interface GmailAccountStatus {

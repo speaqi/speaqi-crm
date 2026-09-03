@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase'
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard': '🏠 Oggi',
+  '/todo': '✅ To Do',
   '/operativo': '◎ Centro Operativo',
   '/contacts': '👥 Contatti',
   '/marketing': '✉️ Marketing',

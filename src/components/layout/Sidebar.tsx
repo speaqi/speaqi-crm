@@ -14,6 +14,7 @@ interface SidebarProps {
     speaqi: number
     marketing: number
     oggi: number
+    todo: number
     tasks: number
   }
 }
@@ -21,8 +22,11 @@ interface SidebarProps {
 // Menu ridotto al core loop quotidiano. Le altre pagine (progetti, finanza,
 // marketing, acumbamail, email, voice, ...) restano raggiungibili via URL:
 // partner e personali vivono come tab dentro /contacts.
+// "To Do" sta subito dopo "Oggi" perché è la lista che si guarda per prima la
+// mattina, e raccoglie anche le cose che con Speaqi non c'entrano.
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Oggi', icon: '🏠', badgeKey: 'oggi' as const, badgeRed: true },
+  { href: '/todo', label: 'To Do', icon: '✅', badgeKey: 'todo' as const, badgeRed: true },
   { href: '/kanban', label: 'Pipeline', icon: '🔀', badgeKey: 'kanban' as const },
   { href: '/contacts', label: 'Contatti', icon: '👥', badgeKey: 'contacts' as const },
   { href: '/calendario', label: 'Follow-up', icon: '📅', badgeKey: 'tasks' as const, badgeRed: true },
