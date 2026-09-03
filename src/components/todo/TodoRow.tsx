@@ -98,6 +98,7 @@ export function TodoRow({ task, today, expanded, onToggleExpanded, onPatch, onDe
               className="fi"
               type="text"
               value={title}
+              disabled={busy}
               onChange={(e) => setTitle(e.target.value)}
               onBlur={() => {
                 const next = title.trim()
@@ -197,6 +198,7 @@ export function TodoRow({ task, today, expanded, onToggleExpanded, onPatch, onDe
               className="fi"
               rows={2}
               value={note}
+              disabled={busy}
               placeholder="Dettagli, link, contesto…"
               onChange={(e) => setNote(e.target.value)}
               onBlur={() => {

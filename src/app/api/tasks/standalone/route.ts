@@ -71,8 +71,33 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Inserisci un titolo' }, { status: 400 })
     }
 
-    const progressState = normalizeProgressState(body.progress_state) || 'todo'
-    const progressPercent = normalizePercent(body.progress_percent) ?? (progressState === 'done' ? 100 : 0)
+    const area = normalizeArea(body.area)
+    if (body.area !== undefined && !area) {
+      return Response.json({ error: 'Area non valida' }, { status: 400 })
+    }
+
+    // Stesse leve del PATCH, stessa riconciliazione: creare un'attività già
+    // "fatta" allo 0% (o al 100% ma "da fare") deve essere impossibile anche
+    // da qui, non solo dagli aggiornamenti.
+    const levers: ProgressLevers = {}
+
+    if (body.progress_percent !== undefined) {
+      const value = normalizePercent(body.progress_percent)
+      if (value === null) return Response.json({ error: 'Percentuale non valida' }, { status: 400 })
+      levers.progress_percent = value
+    }
+
+    if (body.progress_state !== undefined) {
+      const value = normalizeProgressState(body.progress_state)
+      if (!value) return Response.json({ error: 'Stato di avanzamento non valido' }, { status: 400 })
+      levers.progress_state = value
+    }
+
+    const progress = resolveProgress(
+      { status: 'pending', progress_state: 'todo', progress_percent: 0 },
+      levers
+    )
+    const now = new Date().toISOString()
 
     const { data, error } = await auth.supabase
       .from('tasks')
@@ -85,10 +110,12 @@ export async function POST(request: NextRequest) {
         due_date: body.due_date || null,
         start_date: body.start_date || null,
         priority: body.priority || 'medium',
-        area: normalizeArea(body.area) || 'speaqi',
-        progress_state: progressState,
-        progress_percent: progressPercent,
-        status: progressState === 'done' ? 'done' : 'pending',
+        area: area || 'speaqi',
+        progress_state: progress.progress_state,
+        progress_percent: progress.progress_percent,
+        status: progress.status,
+        started_at: progress.progress_state === 'in_progress' ? now : null,
+        completed_at: progress.status === 'done' ? now : null,
       })
       .select('*')
       .single()
