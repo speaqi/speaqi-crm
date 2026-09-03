@@ -3458,6 +3458,12 @@ textarea.form-input::placeholder { color: var(--text3); }
   gap: 12px;
   align-items: center;
 }
+.contacts-load-more {
+  padding: 16px;
+  display: flex;
+  justify-content: center;
+  border-top: 1px solid #f3f4f6;
+}
 .contacts-row {
   width: 100%;
   display: flex;
@@ -6394,4 +6400,10 @@ textarea.form-input::placeholder { color: var(--text3); }
   .todo-counter { flex: 1; min-width: 0; }
   .todo-row-detail { grid-template-columns: minmax(0, 1fr); padding-left: 12px; }
   .todo-row-meta { margin-left: 0; }
+}
+
+.col-more {
+  width: 100%;
+  justify-content: center;
+  margin-top: 6px;
 }

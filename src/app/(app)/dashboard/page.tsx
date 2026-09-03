@@ -82,6 +82,7 @@ export default function OggiPage() {
     viewerMemberName,
     authEmail,
     partnerContacts,
+    contactCounts,
     adminDashboardShowAllContacts,
     setAdminDashboardShowAllContacts,
     completeTask,
@@ -460,7 +461,9 @@ export default function OggiPage() {
   }
 
   // ─── Onboarding per workspace vuoto ───
-  if (allContacts.length === 0) {
+  // Il totale arriva dal server: `allContacts` è solo il set di lavoro, e un
+  // workspace fatto di sole liste separate non è un workspace vuoto.
+  if (contactCounts.total === 0) {
     return (
       <div className="oggi-page oggi-v2">
         <DashboardHero overdueCount={0} todayCount={0} hotCount={0} />

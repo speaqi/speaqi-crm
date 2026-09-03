@@ -97,10 +97,56 @@ function extractMessage(error: unknown, fallback: string) {
   return fallback
 }
 
-const ROUTES_WORKSPACE_ALL =
-  /^\/(contacts|kanban|preventivi|calendario|attivita|import|vinitaly|speaqi|partner|personali)(\/|$)/
+/**
+ * Set di lavoro caricato in memoria: pipeline + area personale.
+ *
+ * Le liste separate (`holding`) sono decine di migliaia di righe di import
+ * evento che nessuna schermata del ciclo di lavoro guarda: restano sul
+ * server e si caricano solo quando si apre la loro tab, con ricerca lato
+ * database. Prima venivano scaricate tutte a ogni apertura di /contacts e
+ * /kanban.
+ */
+const WORKING_SET_QUERY = '/api/contacts?scope=crm,personal'
 
-export function useCRM(pathname = '') {
+/**
+ * Righe caricate per volta dalle liste separate.
+ *
+ * Una pagina piena = una sola andata e ritorno verso PostgREST (che tronca a
+ * 1000). Abbastanza generosa da lasciar funzionare selezione multipla e
+ * operazioni di massa come prima, senza trascinarsi dietro l'intero archivio.
+ */
+export const HOLDING_PAGE_SIZE = 1000
+
+export type ContactCounts = {
+  total: number
+  crm: number
+  crm_visible: number
+  holding: number
+  personal: number
+  partner: number
+  inbound: number
+  marketing: number
+}
+
+export type ContactFolderCount = {
+  list_name: string | null
+  event_tag: string | null
+  source: string | null
+  count: number
+}
+
+const EMPTY_COUNTS: ContactCounts = {
+  total: 0,
+  crm: 0,
+  crm_visible: 0,
+  holding: 0,
+  personal: 0,
+  partner: 0,
+  inbound: 0,
+  marketing: 0,
+}
+
+export function useCRM(_pathname = '') {
   const [state, setState] = useState<CRMState>({
     stages: [],
     contacts: [],
@@ -117,8 +163,19 @@ export function useCRM(pathname = '') {
   const [error, setError] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [authEmail, setAuthEmail] = useState<string | null>(null)
+  const [contactCounts, setContactCounts] = useState<ContactCounts>(EMPTY_COUNTS)
+  const [holdingFolders, setHoldingFolders] = useState<ContactFolderCount[]>([])
+  /** Liste separate: caricate su richiesta, mai insieme al set di lavoro. */
+  const [holdingContacts, setHoldingContacts] = useState<CRMContact[]>([])
+  const [holdingLoading, setHoldingLoading] = useState(false)
+  const [holdingTruncated, setHoldingTruncated] = useState(false)
+  const holdingQueryRef = useRef<{ search: string; list: string; limit: number }>({
+    search: '',
+    list: '',
+    limit: HOLDING_PAGE_SIZE,
+  })
   const hasLoadedRef = useRef(false)
-  const lastFetchScopeKeyRef = useRef<string | null>(null)
+  const holdingRequestRef = useRef(0)
   /** Solo dashboard: false = solo i tuoi / non assegnati ai colleghi (default). True = tutto il workspace come Kanban. */
   const [adminDashboardShowAllContacts, setAdminDashboardShowAllContacts] = useState(false)
 
@@ -133,11 +190,6 @@ export function useCRM(pathname = '') {
     [state.contacts]
   )
 
-  const holdingContacts = useMemo(
-    () => state.contacts.filter((contact) => isHoldingContact(contact)),
-    [state.contacts]
-  )
-
   const personalContacts = useMemo(
     () => state.contacts.filter((contact) => isPersonalContact(contact)),
     [state.contacts]
@@ -146,11 +198,6 @@ export function useCRM(pathname = '') {
   const partnerContacts = useMemo(
     () => state.contacts.filter((contact) => isPartnerContact(contact)),
     [state.contacts]
-  )
-
-  const holdingContactIds = useMemo(
-    () => new Set(holdingContacts.map((contact) => contact.id)),
-    [holdingContacts]
   )
 
   const personalContactIds = useMemo(
@@ -170,12 +217,11 @@ export function useCRM(pathname = '') {
       state.tasks.filter(
         (task) =>
           task.contact_id &&
-          !holdingContactIds.has(task.contact_id) &&
           !personalContactIds.has(task.contact_id) &&
           !isHoldingContact({ contact_scope: task.contact?.contact_scope || 'crm' }) &&
           !isPersonalContact({ contact_scope: task.contact?.contact_scope || 'crm' })
       ),
-    [holdingContactIds, personalContactIds, state.tasks]
+    [personalContactIds, state.tasks]
   )
 
   const personalTasks = useMemo(
@@ -222,91 +268,140 @@ export function useCRM(pathname = '') {
     return scheduledCalls.filter((item) => dueAtLocalDateKey(item.due_at) === todayKey).length
   }, [scheduledCalls])
 
+  const loadHoldingContacts = useCallback(
+    async ({
+      search = '',
+      list = '',
+      limit = HOLDING_PAGE_SIZE,
+    }: { search?: string; list?: string; limit?: number } = {}) => {
+      holdingQueryRef.current = { search, list, limit }
+      const params = new URLSearchParams({ scope: 'holding', limit: String(limit) })
+      if (search.trim()) params.set('search', search.trim())
+      if (list.trim()) params.set('list', list.trim())
+
+      const requestId = ++holdingRequestRef.current
+      setHoldingLoading(true)
+      try {
+        const response = await apiFetch<{ contacts: CRMContact[] }>(
+          `/api/contacts?${params.toString()}`
+        )
+        // Una risposta più vecchia non deve sovrascrivere una ricerca più recente.
+        if (requestId !== holdingRequestRef.current) return
+        const rows = response.contacts || []
+        setHoldingContacts(rows)
+        setHoldingTruncated(rows.length >= limit)
+      } catch (holdingError) {
+        if (requestId !== holdingRequestRef.current) return
+        setError(extractMessage(holdingError, 'Errore caricando le liste separate'))
+      } finally {
+        if (requestId === holdingRequestRef.current) setHoldingLoading(false)
+      }
+    },
+    []
+  )
+
+  /** Allarga la finestra caricata dalle liste separate (bottone "carica altri"). */
+  const loadMoreHoldingContacts = useCallback(() => {
+    const current = holdingQueryRef.current
+    return loadHoldingContacts({ ...current, limit: current.limit + HOLDING_PAGE_SIZE })
+  }, [loadHoldingContacts])
+
   const loadAll = useCallback(async ({ background = false }: { background?: boolean } = {}) => {
     const shouldBlockUI = !background && !hasLoadedRef.current
     if (shouldBlockUI) setLoading(true)
     setError(null)
 
-    let nextStages: PipelineStage[] | null = null
-    let nextContacts: CRMContact[] | null = null
-    let nextTasks: TaskWithContact[] | null = null
     const warnings: string[] = []
 
     try {
-      let teamIsAdmin = true
-      try {
-        const teamResponse = await apiFetch<{
-          members: TeamMember[]
-          is_admin?: boolean
-          member_name?: string | null
-        }>('/api/team-members')
-        setTeamMembers(teamResponse.members || [])
-        teamIsAdmin = Boolean(teamResponse.is_admin ?? true)
-        setIsAdmin(teamIsAdmin)
-        setViewerMemberName(
-          teamResponse.member_name != null && String(teamResponse.member_name).trim()
-            ? String(teamResponse.member_name).trim()
-            : null
-        )
-      } catch (teamError) {
-        warnings.push(`Team: ${extractMessage(teamError, 'Errore caricando il team')}`)
-      }
-
-      const routeWantsWorkspaceAll = ROUTES_WORKSPACE_ALL.test(pathname)
-      const useWorkspaceAll =
-        teamIsAdmin &&
-        (routeWantsWorkspaceAll ||
-          (pathname === '/dashboard' && adminDashboardShowAllContacts))
-
-      const contactsQuery = useWorkspaceAll ? '/api/contacts?workspace=all' : '/api/contacts'
-      const tasksQuery = useWorkspaceAll ? '/api/tasks?status=pending&workspace=all' : '/api/tasks?status=pending'
-
-      const [stagesResult, contactsResult] = await Promise.allSettled([
+      // Tutto in parallelo: prima erano quattro round-trip in sequenza
+      // (team → stage+contatti → task → to-do) e il tempo di apertura era la
+      // loro somma. Nessuna di queste richieste dipende dalle altre: il
+      // filtro per assegnatario lo applica già il server sul token.
+      const [
+        teamResult,
+        stagesResult,
+        contactsResult,
+        countsResult,
+        tasksResult,
+        standaloneResult,
+      ] = await Promise.allSettled([
+        apiFetch<{ members: TeamMember[]; is_admin?: boolean; member_name?: string | null }>(
+          '/api/team-members'
+        ),
         apiFetch<{ stages: PipelineStage[] }>('/api/pipeline-stages'),
-        apiFetch<{ contacts: CRMContact[] }>(contactsQuery),
+        apiFetch<{ contacts: CRMContact[] }>(WORKING_SET_QUERY),
+        apiFetch<{ counts: ContactCounts; folders?: ContactFolderCount[] }>('/api/contacts/summary'),
+        apiFetch<{ tasks: TaskWithContact[] }>('/api/tasks?status=pending'),
+        Promise.all([
+          apiFetch<{ tasks: Task[] }>('/api/tasks/standalone?status=pending'),
+          apiFetch<{ tasks: Task[] }>('/api/tasks/standalone?status=done'),
+        ]),
       ])
 
+      if (teamResult.status === 'fulfilled') {
+        setTeamMembers(teamResult.value.members || [])
+        setIsAdmin(Boolean(teamResult.value.is_admin ?? true))
+        setViewerMemberName(
+          teamResult.value.member_name != null && String(teamResult.value.member_name).trim()
+            ? String(teamResult.value.member_name).trim()
+            : null
+        )
+      } else {
+        warnings.push(`Team: ${extractMessage(teamResult.reason, 'Errore caricando il team')}`)
+      }
+
+      let nextStages: PipelineStage[] | null = null
       if (stagesResult.status === 'fulfilled') {
         nextStages = stagesResult.value.stages || []
       } else {
         warnings.push(`Stage: ${extractMessage(stagesResult.reason, 'Errore caricando gli stage')}`)
       }
 
+      let nextContacts: CRMContact[] | null = null
       if (contactsResult.status === 'fulfilled') {
         nextContacts = contactsResult.value.contacts || []
       } else {
         warnings.push(`Contatti: ${extractMessage(contactsResult.reason, 'Errore caricando i contatti')}`)
       }
 
-      if (nextContacts && !nextContacts.length) {
+      if (countsResult.status === 'fulfilled') {
+        setContactCounts({ ...EMPTY_COUNTS, ...(countsResult.value.counts || {}) })
+        setHoldingFolders(countsResult.value.folders || [])
+      }
+
+      let nextTasks: TaskWithContact[] | null = null
+      if (tasksResult.status === 'fulfilled') {
+        nextTasks = tasksResult.value.tasks || []
+      } else {
+        warnings.push(`Task: ${extractMessage(tasksResult.reason, 'Errore caricando i task')}`)
+      }
+
+      if (standaloneResult.status === 'fulfilled') {
+        const [pendingRes, doneRes] = standaloneResult.value
+        setStandaloneTasks(pendingRes.tasks || [])
+        setCompletedStandaloneTasks(doneRes.tasks || [])
+      }
+
+      // Il workspace vuoto è l'unico caso che giustifica l'import legacy:
+      // controllarlo sul conteggio evita di scambiare un errore di rete per
+      // "nessun contatto" e reimportare tutto.
+      const workspaceIsEmpty =
+        contactsResult.status === 'fulfilled' &&
+        !(nextContacts || []).length &&
+        countsResult.status === 'fulfilled' &&
+        (countsResult.value.counts?.total ?? 0) === 0
+
+      if (workspaceIsEmpty) {
         try {
           await apiFetch<{ migrated_contacts: number; migrated_tasks: number }>('/api/import/legacy', {
             method: 'POST',
           })
-          const reloadedContacts = await apiFetch<{ contacts: CRMContact[] }>(contactsQuery)
-          nextContacts = reloadedContacts.contacts || []
+          const reloaded = await apiFetch<{ contacts: CRMContact[] }>(WORKING_SET_QUERY)
+          nextContacts = reloaded.contacts || []
         } catch (legacyError) {
           warnings.push(`Import legacy: ${extractMessage(legacyError, 'Errore importando i dati legacy')}`)
         }
-      }
-
-      try {
-        const tasksResponse = await apiFetch<{ tasks: TaskWithContact[] }>(tasksQuery)
-        nextTasks = tasksResponse.tasks || []
-      } catch (tasksError) {
-        warnings.push(`Task: ${extractMessage(tasksError, 'Errore caricando i task')}`)
-      }
-
-      // Load standalone to-do tasks (pending + done)
-      try {
-        const [pendingRes, doneRes] = await Promise.all([
-          apiFetch<{ tasks: Task[] }>('/api/tasks/standalone?status=pending'),
-          apiFetch<{ tasks: Task[] }>('/api/tasks/standalone?status=done'),
-        ])
-        setStandaloneTasks(pendingRes.tasks || [])
-        setCompletedStandaloneTasks(doneRes.tasks || [])
-      } catch {
-        // standalone tasks are optional, don't block
       }
 
       setState((previous) => ({
@@ -321,16 +416,8 @@ export function useCRM(pathname = '') {
     } finally {
       hasLoadedRef.current = true
       if (shouldBlockUI) setLoading(false)
-      lastFetchScopeKeyRef.current = `${pathname}|${adminDashboardShowAllContacts}`
     }
-  }, [pathname, adminDashboardShowAllContacts])
-
-  useEffect(() => {
-    if (!hasLoadedRef.current) return
-    const key = `${pathname}|${adminDashboardShowAllContacts}`
-    if (lastFetchScopeKeyRef.current === key) return
-    void loadAll({ background: true })
-  }, [pathname, adminDashboardShowAllContacts, loadAll])
+  }, [])
 
   useEffect(() => {
     const supabase = createClient()
@@ -799,6 +886,12 @@ export function useCRM(pathname = '') {
     contacts: crmContacts,
     allContacts: state.contacts,
     holdingContacts,
+    holdingLoading,
+    holdingTruncated,
+    loadHoldingContacts,
+    loadMoreHoldingContacts,
+    contactCounts,
+    holdingFolders,
     personalContacts,
     partnerContacts,
     tasks: visibleTasks,
