@@ -314,15 +314,24 @@ Each stage has a `system_key` and `color`. Closed statuses: `closed`, `paid`, `l
 
 ## n8n Workflows
 
-Located in `n8n/workflows/` — see `n8n/README.md` for the recommended re-enable order. Seven workflows (all exported with `"active": false`):
-1. `01-followups.json` — due/SLA/quote-recovery task generation (every 10 min)
-2. `02-stale-leads.json` — stale lead detection (daily 09:00)
-3. `03-speaqi-webhook.json` — inbound lead ingestion webhook
-4. `04-orchestrator.json` — morning AI email drafts (Mon–Fri 08:00, human sends)
-5. `05-reply-monitor.json` — Gmail reply sync + AI classification, then draft reconciliation (every 30 min)
-6. `06-db-maintenance.json` — data hygiene (hourly)
-7. `07-weekly-recap.json` — weekly recap email (Monday 07:30)
-8. `08-backup.json` — nightly database backup (03:00)
+Located in `n8n/workflows/` — see `n8n/README.md` for the recommended re-enable order. Fifteen workflows (all exported with `"active": false`):
+- `00-error-handler.json` — Error Trigger → `/api/automation/error-alert`; import it first and set it as Error Workflow on every other one
+- `01-followups.json` — due/SLA/quote-recovery task generation + Wine Project sequence (every 10 min)
+- `02-stale-leads.json` — stale lead detection (daily 09:00)
+- `03-speaqi-webhook.json` — inbound lead ingestion webhook
+- `04-orchestrator.json` — morning AI email drafts (Mon–Fri 08:00, human sends)
+- `05-reply-monitor.json` — Gmail reply sync + AI classification, then draft reconciliation (every 30 min)
+- `06-db-maintenance.json` — data hygiene (hourly)
+- `07-weekly-recap.json` — weekly recap email (Monday 07:30)
+- `08-backup.json` — nightly database backup (03:00)
+- `09-score-leads.json` — lead score recalculation (daily 06:00)
+- `10-acumbamail-qualification.json` — holding → CRM promotion (daily 07:00)
+- `11-send-holding.json` — autonomous holding sends (Mon–Fri 09:00); shipped in shadow mode with `dry_run: true` and gated by `AUTOMATION_SEND_ENABLED`
+- `12-hospitality-commercial.json` — Hospitality outreach + reply sync (every 30 min); shipped with `dry_run: true`
+- `12-wine-project-automation.json` — Wine Project follow-ups, campaign groups, engagement and replies (every 30 min)
+- `13-reconcile-sends.json` — resolves `unknown` send attempts against Gmail (hourly at :20); must be active **before** `11-send-holding`
+
+> Two files share the `12-` prefix (`12-hospitality-commercial`, `12-wine-project-automation`). The number is only a filename convention — n8n keys workflows by `id` — but keep it in mind when reading the list.
 
 **Backup**: the Supabase Free plan has no daily backups and no PITR. `POST /api/automation/backup` (logic in `src/lib/server/backup.ts`) dumps every table in `BACKUP_TABLES`, gzips it, uploads it to the private `backups` Storage bucket and emails a copy via Resend — two copies, one outside Supabase. Paginates at 1000 rows (PostgREST truncates there), aborts if `contacts` fails, and only prunes old backups after an intact run. `send_email: false` in the body verifies dump + Storage without sending. Local equivalent: `npm run backup`.
 

@@ -54,7 +54,12 @@ Riattiva un workflow alla volta e osserva per qualche giorno prima del successiv
 8. **03-speaqi-webhook** — solo se il form del sito è attivo.
 9. **04-orchestrator** (lun-ven 08:00) — bozze email AI del mattino.
 10. **09-score-leads** e **10-acumbamail-qualification** — endpoint orfani.
-11. **11-send-holding** — soltanto dopo sette giorni di osservazione; è
+11. **13-reconcile-sends** (ogni ora al minuto :20) — va acceso **prima** di
+    11-send-holding, non dopo: e l'unico processo che chiude i tentativi di
+    invio rimasti `unknown`. Senza di lui un timeout di Gmail lascia la bozza
+    in sospeso e lo slot di quota prenotato per sempre. Finche 11 e spento non
+    ha niente da riconciliare, quindi accenderlo prima non costa nulla.
+12. **11-send-holding** — soltanto dopo sette giorni di osservazione; è
     esportato in shadow mode con `dry_run: true`.
 
 ## Endpoint chiamati
@@ -71,8 +76,14 @@ Riattiva un workflow alla volta e osserva per qualche giorno prima del successiv
 | 08-backup | `POST /api/automation/backup` | `0 3 * * *` |
 | 09-score-leads | `POST /api/automation/score-leads` | `0 6 * * *` |
 | 10-acumbamail-qualification | `POST /api/automation/acumbamail-qualification` | `0 7 * * *` |
-| 12-hospitality-commercial | `POST /api/automation/commercial-outreach`, poi reply monitor | ogni 30 minuti |
 | 11-send-holding | `POST /api/automation/send-batch` | `0 9 * * 1-5` |
+| 12-hospitality-commercial | `POST /api/automation/commercial-outreach`, poi reply monitor | ogni 30 minuti |
+| 12-wine-project-automation | `POST /api/automation/wine-project-followups`, `-campaigns`, `-engagement`, `-replies` | `*/30 * * * *` |
+| 13-reconcile-sends | `POST /api/automation/reconcile-sends` | `20 * * * *` |
+
+Due file condividono il prefisso `12-` (`12-hospitality-commercial`,
+`12-wine-project-automation`): il numero e solo una convenzione di nome, n8n
+identifica i workflow per `id`.
 
 Il piano di test, shadow mode e rollout è in
 [`docs/AUTOMAZIONE-CRM-N8N.md`](../docs/AUTOMAZIONE-CRM-N8N.md).

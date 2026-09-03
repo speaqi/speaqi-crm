@@ -369,6 +369,19 @@ Creare `n8n/workflows/11-send-holding.json`:
 
 L'orario del cron non sostituisce il controllo server-side sull'età della bozza.
 
+Creare anche `n8n/workflows/13-reconcile-sends.json`:
+
+- cron orario al minuto `:20`, sfalsato rispetto a `06-db-maintenance`;
+- chiamata a `reconcile-sends` con `limit: 20`, senza identificatori di workspace;
+- timeout ampio: ogni tentativo comporta una ricerca su Gmail;
+- Error Workflow configurato.
+
+Questo workflow va attivato **prima** di `11-send-holding`. La Fase C stabilisce
+che un tentativo `unknown` non torna mai `pending` da solo: senza riconciliazione
+schedulata, il primo timeout di Gmail lascia la bozza sospesa e lo slot di quota
+prenotato a tempo indeterminato. `06-db-maintenance` conta quei tentativi ma per
+progetto non li tocca.
+
 ### E1. Shadow mode
 
 Per almeno cinque giorni lavorativi:
