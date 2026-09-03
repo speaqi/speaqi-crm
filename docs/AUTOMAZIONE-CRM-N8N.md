@@ -17,16 +17,47 @@ Vincoli non negoziabili:
 
 ## 2. Stato attuale
 
-- Gli 8 workflow in `n8n/workflows/` sono esportati con `"active": false`.
-- Non esiste un Error Workflow condiviso.
-- `/api/automation/score-leads` e `/api/automation/acumbamail-qualification` non sono schedulati.
-- Il dry run di `followups` può inviare la reminder email.
-- `05-reply-monitor.json` passa `since_minutes`, ma la route non lo usa.
-- Alcuni endpoint possono restituire `200` nonostante errori interni.
-- `/api/automation/send` invia una sola bozza e usa una sequenza non atomica: legge `pending`, invia, poi aggiorna `sent`.
-- `email_drafts.status` ammette soltanto `pending`, `sent`, `dismissed`.
-- `email_logs` non contiene `draft_id`, `send_attempt_id` o una chiave univoca di idempotenza.
-- Le route automation usano il service role e devono quindi applicare esplicitamente il perimetro workspace.
+Aggiornato al 3 settembre 2026. Le Fasi A, C e D sono implementate; la Fase B
+(accensione progressiva) e la Fase E (rollout dell'invio) non sono ancora state
+eseguite sull'istanza n8n.
+
+### Risolto
+
+- Error Workflow condiviso: `00-error-handler` invia a `/api/automation/error-alert`
+  ed e referenziato da tutti gli altri workflow.
+- `score-leads` e `acumbamail-qualification` sono schedulati (`09-`, `10-`).
+- Il dry run di `followups` non chiama piu `sendReminderEmail`.
+- `reply-monitor` rispetta `since_minutes` (default 60, cap 14 giorni) e lo
+  riporta nella risposta.
+- `/api/automation/send` e `/api/automation/send-batch` usano lo stesso motore
+  (`src/lib/server/automation-send.ts`): claim atomico via RPC, quota giornaliera
+  transazionale, stato `unknown` mai riciclato.
+- `email_drafts.status` ammette `pending | sending | sent | failed | unknown | dismissed`;
+  `automation_send_attempts` e `automation_send_daily_counters` esistono con i
+  vincoli di unicita previsti dalla Fase C.
+- La riconciliazione degli invii incerti e schedulata (`13-reconcile-sends`).
+
+### Ancora aperto
+
+- I 15 workflow in `n8n/workflows/` sono tutti esportati con `"active": false`:
+  nessuna automazione gira finche non vengono accesi uno alla volta.
+- Cinque endpoint restituiscono ancora `200` sul ramo di successo anche quando
+  un'operazione interna fallisce: `followups`, `stale-leads`, `db-maintenance`,
+  `weekly-recap`, `acumbamail-qualification`. In `stale-leads` l'errore di insert
+  dei task e esplicitamente silenziato (`if (!insertError)`), quindi un run che
+  non crea nulla resta verde. La Fase A3 e stata applicata solo a `orchestrator`
+  e `reply-monitor`.
+- La Fase D4 non e soddisfatta: `/api/automation/send` ha ancora due percorsi con
+  garanzie diverse. Con `draft_id` usa il motore sicuro; con `contact_id` accetta
+  `sender_user_id` dal body, verifica il cap con un conteggio non atomico e
+  onora `ignore_cap`. Finche non convergono, le automazioni devono usare
+  `draft_id` o `send-batch`.
+- `email_logs` non contiene `draft_id`, `send_attempt_id` ne una chiave univoca
+  di idempotenza. L'idempotenza vive interamente in `automation_send_attempts`:
+  e una scelta di design, ma significa che `email_logs` da solo non permette di
+  risalire alla bozza che ha generato un invio.
+- Le route automation usano il service role e devono quindi continuare ad
+  applicare esplicitamente il perimetro workspace.
 
 ---
 
@@ -368,6 +399,19 @@ Creare `n8n/workflows/11-send-holding.json`:
 - retry automatico disabilitato nella fase iniziale.
 
 L'orario del cron non sostituisce il controllo server-side sull'età della bozza.
+
+Creare anche `n8n/workflows/13-reconcile-sends.json`:
+
+- cron orario al minuto `:20`, sfalsato rispetto a `06-db-maintenance`;
+- chiamata a `reconcile-sends` con `limit: 20`, senza identificatori di workspace;
+- timeout ampio: ogni tentativo comporta una ricerca su Gmail;
+- Error Workflow configurato.
+
+Questo workflow va attivato **prima** di `11-send-holding`. La Fase C stabilisce
+che un tentativo `unknown` non torna mai `pending` da solo: senza riconciliazione
+schedulata, il primo timeout di Gmail lascia la bozza sospesa e lo slot di quota
+prenotato a tempo indeterminato. `06-db-maintenance` conta quei tentativi ma per
+progetto non li tocca.
 
 ### E1. Shadow mode
 

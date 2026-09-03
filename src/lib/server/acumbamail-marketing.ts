@@ -102,19 +102,14 @@ export async function addCampaignRecipients(
   listId: string,
   recipients: Array<{ email: string; firstName: string; fullName: string; greeting: string; company: string; wineUrl: string }>
 ) {
-  return callAcumbamailMarketing('batchAddSubscribers', authToken, {
-    list_id: listId,
-    update_subscriber: 1,
-    complete_json: 1,
-    subscribers_data: recipients.map((recipient) => ({
+  return addRecipientsAndWait(authToken, listId, recipients.map((recipient) => ({
       email: recipient.email,
       first_name: recipient.firstName,
       full_name: recipient.fullName,
       greeting: recipient.greeting,
       company: recipient.company,
       wine_url: recipient.wineUrl,
-    })),
-  })
+    })))
 }
 
 export async function addHospitalityCampaignRecipients(
@@ -122,19 +117,51 @@ export async function addHospitalityCampaignRecipients(
   listId: string,
   recipients: Array<{ email: string; firstName: string; fullName: string; greeting: string; company: string; demoUrl: string }>
 ) {
-  return callAcumbamailMarketing('batchAddSubscribers', authToken, {
-    list_id: listId,
-    update_subscriber: 1,
-    complete_json: 1,
-    subscribers_data: recipients.map((recipient) => ({
+  return addRecipientsAndWait(authToken, listId, recipients.map((recipient) => ({
       email: recipient.email,
       first_name: recipient.firstName,
       full_name: recipient.fullName,
       greeting: recipient.greeting,
       company: recipient.company,
       demo_url: recipient.demoUrl,
-    })),
+    })))
+}
+
+function subscriberCount(payload: ApiResponse) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return 0
+  const value = (payload as Record<string, unknown>).total_subscribers
+  const count = Number(value)
+  return Number.isFinite(count) ? count : 0
+}
+
+function wait(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds))
+}
+
+async function addRecipientsAndWait(
+  authToken: string,
+  listId: string,
+  subscribers: Array<Record<string, string>>
+) {
+  const add = () => callAcumbamailMarketing('batchAddSubscribers', authToken, {
+    list_id: listId,
+    update_subscriber: 1,
+    complete_json: 1,
+    subscribers_data: subscribers,
   })
+
+  let result = await add()
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const stats = await callAcumbamailMarketing('getListStats', authToken, { list_id: listId })
+    if (subscriberCount(stats) >= subscribers.length) return result
+
+    // L'API puo rispondere 200 al batch prima di aver persistito le righe.
+    // Un secondo batch e idempotente (update_subscriber=1) e sblocca il caso.
+    if (attempt === 1) result = await add()
+    await wait(1000)
+  }
+
+  throw new Error(`Acumbamail: lista ${listId} ancora vuota dopo il caricamento di ${subscribers.length} destinatari`)
 }
 
 export async function createWineProjectCampaign(

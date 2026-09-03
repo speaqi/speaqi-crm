@@ -48,8 +48,15 @@ Copy `.env.local.example` to `.env.local`. Required keys:
 | `GMAIL_TOKEN_ENCRYPTION_KEY` | 32+ char secret for token encryption |
 | `OPENAI_API_KEY` | OpenAI API key |
 | `OPENAI_MODEL` | Model ID (e.g. `gpt-5-mini`) |
+| `APP_BASE_URL` | Base URL the n8n workflows call (e.g. `https://crm.speaqi.it`) |
 | `AUTOMATION_SECRET` | Auth secret for n8n automation endpoints |
+| `AUTOMATION_WORKSPACE_USER_ID` | Workspace owner the automations act as — server-side only, never accepted from a request body |
+| `AUTOMATION_SENDER_USER_ID` | Gmail account used to send; defaults to the workspace owner |
+| `AUTOMATION_TIMEZONE` | Timezone for the daily cap window (default `Europe/Rome`) |
+| `AUTOMATION_SEND_ENABLED` | Kill switch for autonomous sending; anything but `true` makes `/send` and `/send-batch` return 503 |
 | `AUTOMATION_DAILY_SEND_CAP` | Max automated Gmail sends per sender per day (default 40) |
+| `AUTOMATION_SEND_DELAY_MS` | Optional pause between sends inside a batch |
+| `AUTOMATION_RECONCILE_FAIL_HOURS` | How long an `unknown` attempt may stay unresolved before it is failed (minimum 24) |
 | `SPEAQI_WEBHOOK_SECRET` | Auth secret for Acumbamail webhook |
 | `REMINDER_EMAIL` | From address for reminder emails |
 | `ACUMBAMAIL_WEBHOOK_USER_ID` | Acumbamail integration user ID |
@@ -82,6 +89,8 @@ supabase migration up
 | `ai_decision_logs` | Audit trail of AI decisions |
 | `email_logs` | Email sending history |
 | `email_drafts` | AI drafts awaiting review (`sent_via` + `provider_message_id` link the row to what actually went out) |
+| `automation_send_attempts` | One row per autonomous send attempt: atomic claim, RFC `Message-ID`, terminal outcome |
+| `automation_send_daily_counters` | Per-sender per-local-day reserved/sent counters backing the atomic daily cap |
 | `gmail_accounts` | Connected Gmail accounts (encrypted tokens) |
 | `gmail_messages` | Synced Gmail threads linked to contacts |
 | `team_members` | Multi-user team management (with `auth_user_id` linking) |
@@ -126,7 +135,7 @@ src/
 │   │   ├── gmail/              # Gmail connect, callback
 │   │   ├── analytics/          # Team analytics: breakdown per agente + giorno
 │   │   ├── ai/                 # score, classify-reply, next-action, update-memory, generate-drafts
-│   │   ├── automation/         # followups, stale-leads
+│   │   ├── automation/         # n8n endpoints: orchestrator, followups, send-batch, reconcile-sends, …
 │   │   ├── email/              # Email sending + reminder
 │   │   ├── import/             # csv, legacy, ocr
 │   │   ├── integrations/       # Acumbamail webhook
@@ -159,6 +168,11 @@ src/
 │   │   ├── quotes.ts           # Quote normalization, calculation, tokens
 │   │   ├── collaborator-filters.ts  # Workspace access & assignee filtering
 │   │   ├── user-settings.ts    # Per-user settings helpers
+│   │   ├── automation-auth.ts  # x-automation-secret check + server-side AutomationContext
+│   │   ├── automation-send.ts  # Autonomous send engine: guardrails, atomic claim, quota
+│   │   ├── draft-reconcile.ts  # Closes drafts sent by hand from Gmail
+│   │   ├── scope-filters.ts    # applyPipelineScope / applyCrmScope
+│   │   ├── backup.ts           # Database dump → Storage + email
 │   │   ├── gcal.ts             # Google Calendar integration
 │   │   ├── http.ts             # HTTP client utilities
 │   │   └── supabase.ts         # Supabase server helpers
@@ -326,21 +340,33 @@ Each stage has a `system_key` and `color`. Closed statuses: `closed`, `paid`, `l
 
 ## n8n Workflows
 
-Located in `n8n/workflows/` — see `n8n/README.md` for the recommended re-enable order. Seven workflows (all exported with `"active": false`):
-1. `01-followups.json` — due/SLA/quote-recovery task generation (every 10 min)
-2. `02-stale-leads.json` — stale lead detection (daily 09:00)
-3. `03-speaqi-webhook.json` — inbound lead ingestion webhook
-4. `04-orchestrator.json` — morning AI email drafts (Mon–Fri 08:00, human sends)
-5. `05-reply-monitor.json` — Gmail reply sync + AI classification, then draft reconciliation (every 30 min)
-6. `06-db-maintenance.json` — data hygiene (hourly)
-7. `07-weekly-recap.json` — weekly recap email (Monday 07:30)
-8. `08-backup.json` — nightly database backup (03:00)
+Located in `n8n/workflows/` — see `n8n/README.md` for the recommended re-enable order. Fifteen workflows (all exported with `"active": false`):
+- `00-error-handler.json` — Error Trigger → `/api/automation/error-alert`; import it first and set it as Error Workflow on every other one
+- `01-followups.json` — due/SLA/quote-recovery task generation + Wine Project sequence (every 10 min)
+- `02-stale-leads.json` — stale lead detection (daily 09:00)
+- `03-speaqi-webhook.json` — inbound lead ingestion webhook
+- `04-orchestrator.json` — morning AI email drafts (Mon–Fri 08:00, human sends)
+- `05-reply-monitor.json` — Gmail reply sync + AI classification, then draft reconciliation (every 30 min)
+- `06-db-maintenance.json` — data hygiene (hourly)
+- `07-weekly-recap.json` — weekly recap email (Monday 07:30)
+- `08-backup.json` — nightly database backup (03:00)
+- `09-score-leads.json` — lead score recalculation (daily 06:00)
+- `10-acumbamail-qualification.json` — holding → CRM promotion (daily 07:00)
+- `11-send-holding.json` — autonomous holding sends (Mon–Fri 09:00); shipped in shadow mode with `dry_run: true` and gated by `AUTOMATION_SEND_ENABLED`
+- `12-hospitality-commercial.json` — Hospitality outreach + reply sync (every 30 min); shipped with `dry_run: true`
+- `12-wine-project-automation.json` — Wine Project follow-ups, campaign groups, engagement and replies (every 30 min)
+- `13-reconcile-sends.json` — resolves `unknown` send attempts against Gmail (hourly at :20); must be active **before** `11-send-holding`
+
+> Two files share the `12-` prefix (`12-hospitality-commercial`, `12-wine-project-automation`). The number is only a filename convention — n8n keys workflows by `id` — but keep it in mind when reading the list.
 
 **Backup**: the Supabase Free plan has no daily backups and no PITR. `POST /api/automation/backup` (logic in `src/lib/server/backup.ts`) dumps every table in `BACKUP_TABLES`, gzips it, uploads it to the private `backups` Storage bucket and emails a copy via Resend — two copies, one outside Supabase. Paginates at 1000 rows (PostgREST truncates there), aborts if `contacts` fails, and only prunes old backups after an intact run. `send_email: false` in the body verifies dump + Storage without sending. Local equivalent: `npm run backup`.
 
 All use `APP_BASE_URL` and require `AUTOMATION_SECRET` for endpoint authentication (including `/api/email/reminder`). The n8n workflows are just schedulers: the logic lives in `/api/automation/*`.
 
-**Sending paths**: `/api/automation/send-draft` is session-authenticated (browser, human-in-the-loop). `/api/automation/send` is the machine-to-machine equivalent — `AUTOMATION_SECRET` + explicit `sender_user_id`, with guardrails (unsubscribed, closed stage, personal scope, marketing pause, per-sender daily cap). Automations must use the latter; the former will 401.
+**Sending paths**: `/api/automation/send-draft` is session-authenticated (browser, human-in-the-loop). The machine-to-machine surface is `AUTOMATION_SECRET`-authenticated and has **two paths with different guarantees**:
+
+- `POST /api/automation/send` with `draft_id`, and `POST /api/automation/send-batch`, both go through `src/lib/server/automation-send.ts`: workspace and sender come from env (a body that carries `workspace_user_id`/`sender_user_id`/`scopes` is rejected 400), scope must be `holding`, and the send is an atomic RPC claim + transactional daily quota. A failure of uncertain outcome becomes `unknown` and is never re-queued — only `/api/automation/reconcile-sends` may resolve it.
+- `POST /api/automation/send` with `contact_id` is the older ad-hoc path: it accepts `sender_user_id` from the body, checks the cap with a non-atomic count, and honours `ignore_cap`. Phase D4 of `docs/AUTOMAZIONE-CRM-N8N.md` requires the two to converge on one engine; until they do, **automations must use `draft_id` or `send-batch`**, never `contact_id`.
 
 **Follow-up cadence**: single source of truth in `src/lib/sla.ts` (`statusSlaHours`, `nextFollowupAfterEmail`, `nextHoldingFollowup`, `toCallableSlot`). Never re-inline the SLA table.
 

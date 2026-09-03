@@ -9,7 +9,7 @@ import {
 import { errorMessage } from '@/lib/server/http'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 import { loadWineProjectAutomationSettings, scheduleNextWineProjectFollowup, type WineProjectSequenceTemplate } from '@/lib/server/wine-project-automation'
-import { createWineProjectCampaignToken } from '@/lib/server/wine-project-campaign-token'
+import { createWineProjectShortLinkToken } from '@/lib/server/wine-project-campaign-token'
 
 type QueuedEvent = {
   id: string
@@ -96,20 +96,12 @@ function startOfRomeDay(now = new Date()) {
 }
 
 function projectUrl(contact: { name: string; company: string | null }, event: Pick<QueuedEvent, 'id' | 'user_id' | 'contact_id'>) {
-  const url = new URL('/demo/wine-project', process.env.WINE_PROJECT_URL || 'https://speaqi.com')
-  url.searchParams.set('first_name', firstName(contact.name))
-  if (contact.company) url.searchParams.set('company_name', contact.company)
-  url.searchParams.set('source', 'acumbamail')
-  url.searchParams.set('campaign', 'wine-project-followup')
-  url.searchParams.set('utm_source', 'acumbamail')
-  url.searchParams.set('utm_medium', 'email')
-  url.searchParams.set('utm_campaign', 'wine-project-followup')
-  url.searchParams.set('campaign_token', createWineProjectCampaignToken({
-    user_id: event.user_id,
-    contact_id: event.contact_id,
-    event_id: event.id,
-  }))
-  return url.toString()
+  void contact
+  const url = new URL('/api/wine-project/campaign-link', process.env.CRM_PUBLIC_URL || 'https://crm.speaqi.com')
+  url.searchParams.set('t', createWineProjectShortLinkToken(event.id))
+  const value = url.toString()
+  if (value.length > 128) throw new Error(`Link Wine Project troppo lungo (${value.length} caratteri)`)
+  return value
 }
 
 function closed(contact: { status: string | null; email_unsubscribed_at: string | null; email: string | null }) {
