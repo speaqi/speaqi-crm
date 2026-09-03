@@ -77,13 +77,17 @@ Riattiva un workflow alla volta e osserva per qualche giorno prima del successiv
 | 09-score-leads | `POST /api/automation/score-leads` | `0 6 * * *` |
 | 10-acumbamail-qualification | `POST /api/automation/acumbamail-qualification` | `0 7 * * *` |
 | 11-send-holding | `POST /api/automation/send-batch` | `0 9 * * 1-5` |
-| 12-hospitality-commercial | `POST /api/automation/commercial-outreach`, poi reply monitor | ogni 30 minuti |
+| 12-hospitality-commercial (SPEAQI Commercial Campaigns) | `POST /api/automation/commercial-outreach` su **tutte** le campagne attive, poi reply monitor | ogni 30 minuti |
 | 12-wine-project-automation | `POST /api/automation/wine-project-followups`, `-campaigns`, `-engagement`, `-replies` | `*/30 * * * *` |
 | 13-reconcile-sends | `POST /api/automation/reconcile-sends` | `20 * * * *` |
 
 Due file condividono il prefisso `12-` (`12-hospitality-commercial`,
 `12-wine-project-automation`): il numero e solo una convenzione di nome, n8n
 identifica i workflow per `id`.
+
+`12-hospitality-commercial` non e piu legato a Hospitality: il suo endpoint gira
+su tutte le campagne attive di `commercial_campaigns` con fallimento isolato per
+campagna. Il file conserva il nome per non perdere l'`id` del workflow.
 
 Il piano di test, shadow mode e rollout è in
 [`docs/AUTOMAZIONE-CRM-N8N.md`](../docs/AUTOMAZIONE-CRM-N8N.md).

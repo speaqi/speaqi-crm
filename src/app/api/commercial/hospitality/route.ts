@@ -1,3 +1,11 @@
+/**
+ * Alias temporaneo per la pagina `/hospitality`.
+ *
+ * Hospitality e ora una campagna come le altre su `commercial_campaigns`: la
+ * rotta generica e `/api/commercial/campaigns/[id]` e l'area e `/campagne`.
+ * Questa rotta resta finche la pagina dedicata non viene ritirata; non
+ * aggiungere qui logica nuova.
+ */
 import { NextRequest } from 'next/server'
 import { ensureHospitalityCampaign } from '@/lib/server/commercial-outreach'
 import { errorMessage } from '@/lib/server/http'

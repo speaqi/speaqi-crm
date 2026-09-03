@@ -207,3 +207,64 @@ export async function configureAcumbamailListWebhook(
     active: 1,
   })
 }
+
+type ListSubscriber = { email: string; name?: string | null; company?: string | null; country?: string | null }
+
+function subscriberField(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key]
+    if (value !== null && value !== undefined && String(value).trim()) return String(value).trim()
+  }
+  return null
+}
+
+/**
+ * Scarica gli iscritti di una lista Acumbamail.
+ *
+ * `getSubscribers` risponde a blocchi; la paginazione continua finche un blocco
+ * torna vuoto o piu corto della pagina. Una lista da 3.000 iscritti si legge in
+ * uno o due secondi: sostenibile a ogni giro di cron, senza cache.
+ */
+export async function fetchAcumbamailListSubscribers(
+  authToken: string,
+  listId: string,
+  options: { pageSize?: number; maxSubscribers?: number } = {}
+): Promise<ListSubscriber[]> {
+  const pageSize = Math.min(2000, Math.max(100, options.pageSize || 1000))
+  const maxSubscribers = Math.min(50000, Math.max(pageSize, options.maxSubscribers || 20000))
+  const out: ListSubscriber[] = []
+
+  for (let block = 0; out.length < maxSubscribers; block += 1) {
+    const payload = await callAcumbamailMarketing('getSubscribers', authToken, {
+      list_id: listId,
+      status: 1,
+      all_fields: 1,
+      complete_json: 1,
+      block_index: block,
+      block_size: pageSize,
+    })
+
+    // L'API restituisce ora un array, ora un dizionario indicizzato per id.
+    const records: Array<Record<string, unknown>> = Array.isArray(payload)
+      ? (payload as Array<Record<string, unknown>>)
+      : payload && typeof payload === 'object'
+        ? Object.values(payload as Record<string, unknown>).filter(
+            (value): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+          )
+        : []
+
+    for (const record of records) {
+      const email = subscriberField(record, ['email', 'Email', 'correo'])
+      if (!email) continue
+      out.push({
+        email: email.toLowerCase(),
+        name: subscriberField(record, ['full_name', 'name', 'nombre', 'first_name']),
+        company: subscriberField(record, ['company', 'empresa', 'azienda', 'organization']),
+        country: subscriberField(record, ['country', 'pais', 'paese', 'nazione']),
+      })
+    }
+
+    if (records.length < pageSize) break
+  }
+  return out.slice(0, maxSubscribers)
+}

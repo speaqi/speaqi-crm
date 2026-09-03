@@ -107,6 +107,11 @@ export function structureKey(contact: { source_place_id?: string | null; source_
   return `email:${String(contact.email || '').trim().toLowerCase()}`
 }
 
+/**
+ * Campagna Hospitality: resta come alias del motore generico finche la pagina
+ * dedicata non viene ritirata. La riga vive su `commercial_campaigns` come
+ * qualunque altra campagna; qui restano solo i suoi testi e il suo slug.
+ */
 export async function ensureHospitalityCampaign(supabase: any, userId: string) {
   const { data: existing, error: readError } = await supabase.from('commercial_campaigns').select('*')
     .eq('user_id', userId).eq('vertical', 'hospitality').eq('name', HOSPITALITY_CAMPAIGN_NAME).maybeSingle()
@@ -118,12 +123,17 @@ export async function ensureHospitalityCampaign(supabase: any, userId: string) {
       list_name: 'Hospitality Italia 2026', event_tag: HOSPITALITY_EVENT_TAG,
       status: 'paused', approval_status: 'analysis', daily_cap: 100,
       sender_name: 'Massimo Morgante', sender_email: 'info@speaqi.com',
+      slug: 'hospitality', brand_eyebrow: 'SPEAQI · HOSPITALITY EXPERIENCE',
+      landing_url: DEMO_URL, require_marketing_attestation: true,
     }).select('*').single()
     if (created.error) throw created.error
     campaign = created.data
   }
+  // Solo gli step mancanti: uno step gia inviato e immutabile, e riscriverne il
+  // testo renderebbe la cronologia bugiarda.
   const rows = hospitalityStepTemplates().map((step) => ({ campaign_id: campaign.id, ...step }))
-  const upsert = await supabase.from('commercial_campaign_steps').upsert(rows, { onConflict: 'campaign_id,step_number' })
+  const upsert = await supabase.from('commercial_campaign_steps')
+    .upsert(rows, { onConflict: 'campaign_id,step_number', ignoreDuplicates: true })
   if (upsert.error) throw upsert.error
   return campaign
 }

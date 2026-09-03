@@ -31,6 +31,7 @@ const NAV_ITEMS = [
   { href: '/contacts', label: 'Contatti', icon: '👥', badgeKey: 'contacts' as const },
   { href: '/calendario', label: 'Follow-up', icon: '📅', badgeKey: 'tasks' as const, badgeRed: true },
   { href: '/preventivi', label: 'Preventivi', icon: '💶' },
+  { href: '/campagne', label: 'Campagne', icon: '📣' },
   { href: '/attivita', label: 'Analytics', icon: '📊' },
   { href: '/impostazioni', label: 'Impostazioni', icon: '⚙️' },
 ]

@@ -10,7 +10,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "node start.cjs",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "npm run test:unit && npm run test:db",
+    "test:unit": "tsx --test tests/campaigns.unit.test.ts",
+    "test:db": "tsx --test tests/campaigns.db.test.ts"
   },
   "engines": {
     "node": "20.x"
@@ -30,6 +33,7 @@
     "@types/node": "^20.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "tsx": "^4.23.13",
     "typescript": "^5.0.0"
   }
 }

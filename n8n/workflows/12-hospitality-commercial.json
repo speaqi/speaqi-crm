@@ -1,26 +1,48 @@
 {
   "id": "HpCommAuto20260831",
-  "name": "SPEAQI Hospitality Commercial",
+  "name": "SPEAQI Commercial Campaigns",
   "nodes": [
     {
       "id": "hospitality_schedule",
       "name": "Every 30 minutes",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [240, 280],
-      "parameters": { "rule": { "interval": [{ "field": "minutes", "minutesInterval": 30 }] } }
+      "position": [
+        240,
+        280
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      }
     },
     {
       "id": "hospitality_outreach",
-      "name": "Plan and send due Hospitality messages",
+      "name": "Plan and send due campaign messages",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [520, 280],
+      "position": [
+        520,
+        280
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $env.APP_BASE_URL + '/api/automation/commercial-outreach' }}",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "x-automation-secret", "value": "={{ $env.AUTOMATION_SECRET }}" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-automation-secret",
+              "value": "={{ $env.AUTOMATION_SECRET }}"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { dry_run: true, limit: 100 } }}"
@@ -31,12 +53,22 @@
       "name": "Sync Gmail replies",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [800, 280],
+      "position": [
+        800,
+        280
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $env.APP_BASE_URL + '/api/automation/reply-monitor' }}",
         "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "x-automation-secret", "value": "={{ $env.AUTOMATION_SECRET }}" }] },
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-automation-secret",
+              "value": "={{ $env.AUTOMATION_SECRET }}"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ { dry_run: false, since_minutes: 60 } }}"
@@ -44,9 +76,32 @@
     }
   ],
   "connections": {
-    "Every 30 minutes": { "main": [[{ "node": "Plan and send due Hospitality messages", "type": "main", "index": 0 }]] },
-    "Plan and send due Hospitality messages": { "main": [[{ "node": "Sync Gmail replies", "type": "main", "index": 0 }]] }
+    "Every 30 minutes": {
+      "main": [
+        [
+          {
+            "node": "Plan and send due campaign messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan and send due campaign messages": {
+      "main": [
+        [
+          {
+            "node": "Sync Gmail replies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1", "timezone": "Europe/Rome" },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Rome"
+  },
   "active": false
 }

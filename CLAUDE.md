@@ -96,6 +96,12 @@ supabase migration up
 | `team_members` | Multi-user team management (with `auth_user_id` linking) |
 | `quotes` | Preventivi/preventivi with Stripe integration |
 | `user_settings` | Per-user settings (e.g. email AI configuration) |
+| `commercial_campaigns` | Motore campagne generico: un verticale = una riga (`slug`, `event_tag`, mittente, `landing_url`, filtri import, tetti) |
+| `commercial_campaign_steps` | Fino a 20 email per campagna; uno step gia inviato e immutabile (trigger) |
+| `commercial_enrollments` | Un contatto in sequenza per campagna |
+| `commercial_messages` | Un messaggio programmato/inviato per step |
+| `commercial_suppressions` | Disiscrizioni, reclami e blacklist (per struttura o per email) |
+| `commercial_campaign_daily_counters` | Contatore giornaliero per campagna dietro il tetto arruolamenti atomico |
 
 Migrations live in `supabase/migrations/` (timestamped SQL files).
 
@@ -119,6 +125,7 @@ src/
 │   │   ├── import/
 │   │   ├── speaqi/
 │   │   ├── personali/          # Personal contacts area
+│   │   ├── campagne/           # Area Campagne: elenco per verticale + /campagne/[id]
 │   │   ├── preventivi/         # Quotes management (CRUD)
 │   │   └── impostazioni/       # Settings & team admin
 │   │       ├── email-ai/       # Email AI configuration
@@ -139,6 +146,7 @@ src/
 │   │   ├── email/              # Email sending + reminder
 │   │   ├── import/             # csv, legacy, ocr
 │   │   ├── integrations/       # Acumbamail webhook
+│   │   ├── commercial/         # campaigns (CRUD + [id] + [id]/steps) + hospitality (alias)
 │   │   ├── quotes/             # CRUD + [id]/checkout
 │   │   │   └── public/         # Public quote access + checkout + accept-contract
 │   │   ├── mcp/                # Model Context Protocol server
@@ -166,6 +174,7 @@ src/
 │   │   ├── gmail.ts            # Gmail API, token encryption, sync
 │   │   ├── email-drafts.ts     # AI email draft generation
 │   │   ├── quotes.ts           # Quote normalization, calculation, tokens
+│   │   ├── commercial-campaigns.ts  # Motore campagne generico: step, arruolamento, filtri import
 │   │   ├── collaborator-filters.ts  # Workspace access & assignee filtering
 │   │   ├── user-settings.ts    # Per-user settings helpers
 │   │   ├── automation-auth.ts  # x-automation-secret check + server-side AutomationContext
@@ -216,7 +225,7 @@ Il workspace contiene decine di migliaia di contatti (quasi tutti `holding`, imp
 - Vinitaly/Acumbamail leads enter as `holding` scope until engaged
 - Every status change also syncs the contact's open deal (`syncDealWithContactStatus`); closed contacts re-enter the pipeline via "Nuova opportunità" (`POST /api/deals`)
 - Dashboard "Da recuperare" panel surfaces open contacts with no next step (including Waiting contacts whose recall date has passed) with quick reschedule/dismiss actions
-- Sidebar shows only the core loop (Oggi, To Do, Pipeline, Contatti, Follow-up, Preventivi, Analytics, Impostazioni); other pages stay reachable by URL
+- Sidebar shows only the core loop (Oggi, To Do, Pipeline, Contatti, Follow-up, Preventivi, Campagne, Analytics, Impostazioni); other pages stay reachable by URL
 - **To Do board** (`/todo`): standalone tasks (`tasks.contact_id is null`, `type = 'todo'`) are the one place for everything to do, Speaqi and non-Speaqi. They carry `area` (`speaqi` / `personale` / `altro`), `progress_state` (`todo` / `in_progress` / `blocked` / `done`), `progress_percent` and `start_date` (with `due_date` it draws the Gantt bar). `status` stays the binary flag the rest of the CRM reads: `/api/tasks/standalone` is the only place where the two are kept in sync. Standalone tasks are visible **only to the workspace owner** — the `tasks_workspace` RLS policy joins through `contacts`, which they don't have
 - **Admin collaborator filter**: Admin can toggle `workspace=all` to see all contacts, otherwise sees only assigned contacts (matching `responsible` or `assigned_agent` via `contactMatchesAssigneeName`)
 
@@ -406,3 +415,58 @@ Main page for sales team monitoring. Structure:
 | `scripts/restore_dmo_contacts.py` | Restore DMO contacts |
 | `scripts/sql/` | Diagnostic SQL queries (collaborator visibility, legacy ID audit) |
 | `scripts/csv/` | CSV data files for import |
+
+## Campagne commerciali (motore generico)
+
+Aggiungere un verticale (consorzi, GAL, comuni, aree SNAI) e un atto di
+**configurazione**, non di sviluppo: nome, verticale, tag contatti, mittente,
+testi, cadenza, lista sorgente, filtri e tetti vivono sulla riga di
+`commercial_campaigns`. Wine Project resta sulle sue tabelle e sulla sua pagina:
+migrarlo e un lavoro separato, da fare a motore collaudato.
+
+- **UI**: `/campagne` (elenco per verticale, "Nuova campagna") e `/campagne/[id]`
+  (email, cadenza, lista sorgente e filtri, tetti, interruttori, statistiche,
+  ultimi invii). Voce **Campagne** in `NAV_ITEMS`.
+- **API**: `GET|POST /api/commercial/campaigns`, `GET|PATCH
+  /api/commercial/campaigns/[id]`, `PUT /api/commercial/campaigns/[id]/steps`.
+  `/api/commercial/hospitality` resta come alias sottile finche la pagina
+  `/hospitality` non viene ritirata.
+- **Motore**: `src/lib/server/commercial-campaigns.ts` —
+  `ensureCampaignSteps()` (crea solo gli step mancanti, mai riscrive) e
+  `enrollCampaignContacts()` (prima i contatti CRM col tag della campagna, poi
+  la lista Acumbamail).
+- **Due tetti distinti**: `daily_enrollment_cap` limita gli arruolamenti nuovi,
+  `daily_cap` gli invii. Il primo e prenotato atomicamente da
+  `reserve_commercial_enrollment_slots` / `settle_commercial_enrollment_slots`
+  su `commercial_campaign_daily_counters`; il secondo da
+  `claim_commercial_messages`.
+- **Filtri import per campagna**: `import_exclude_keyword` e
+  `import_required_country`, entrambi `NULL` di default (nessun filtro). Chi non
+  supera il filtro paese viene creato col tag `<event_tag>_en` e senza
+  iscrizione — parcheggiato, non perso.
+- **Immutabilita**: `slug` non cambia una volta assegnato (entra nelle chiavi
+  Acumbamail e negli UTM gia inviati); uno step gia inviato non si riscrive ne
+  si cancella. Entrambe imposte da trigger, non solo dal codice.
+- **Sicurezza**: campagna nuova nasce `paused`; l'attivazione richiede
+  `approval_status = 'approved'`; `COMMERCIAL_OUTREACH_SEND_ENABLED` resta il
+  kill switch. Disiscritti, reclami, hard bounce e blacklist (per struttura o
+  per email) sono esclusi in `claim_commercial_messages`, non solo lato codice.
+- **Cron**: `POST /api/automation/commercial-outreach` gira su tutte le campagne
+  attive del workspace con **fallimento isolato per campagna** — un errore su
+  una non ferma le altre e viene riportato in `results[].error`. Accetta
+  `campaign_id` o `vertical` per limitare il giro. Workflow n8n:
+  `12-hospitality-commercial.json` (SPEAQI Commercial Campaigns, ogni 30 min,
+  `dry_run: true`).
+
+### Test
+
+Nessuna dipendenza di test oltre `tsx`: si usa `node:test`.
+
+```bash
+npm run test:unit   # motore campagne su client Supabase finto
+npm run test:db     # integrazione e concorrenza su un Postgres locale usa-e-getta
+npm test            # entrambi
+```
+
+`tests/db.sh` crea il cluster (`initdb`), applica `tests/sql/fixture.sql` e le
+migration `commercial_*`. `tests/db.sh stop` lo spegne.

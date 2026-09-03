@@ -1,7 +1,7 @@
 # Motore campagne generico
 
 Data: 2026-09-02
-Stato: approvato, da implementare
+Stato: implementato (motore, API, area /campagne, test)
 
 ## Problema
 
