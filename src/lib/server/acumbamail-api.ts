@@ -1,3 +1,5 @@
+import { fetchCampaignStats } from '@/lib/acumbamail'
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export type EngagementSummary = {
@@ -160,32 +162,9 @@ export function collectEmailEvents(
   return out
 }
 
+/** @deprecated Usa `fetchCampaignStats` da `@/lib/acumbamail`. */
 export async function fetchAcumbamailFunction(functionName: string, authToken: string, campaignId: string) {
-  const params = new URLSearchParams()
-  params.set('auth_token', authToken)
-  params.set('campaign_id', campaignId)
-  params.set('response_type', 'json')
-
-  const response = await fetch(`https://acumbamail.com/api/1/${functionName}/`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params,
-    cache: 'no-store',
-  })
-
-  const text = await response.text()
-  let payload: unknown = null
-  try {
-    payload = text ? JSON.parse(text) : null
-  } catch {
-    payload = text
-  }
-
-  if (!response.ok) {
-    throw new Error(`Acumbamail ${functionName} failed (${response.status})`)
-  }
-
-  return payload
+  return fetchCampaignStats(functionName, authToken, campaignId)
 }
 
 export function inferContactName(email: string) {
