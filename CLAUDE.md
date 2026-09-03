@@ -97,6 +97,7 @@ src/
 ├── app/
 │   ├── (app)/                  # Authenticated routes
 │   │   ├── dashboard/
+│   │   ├── todo/              # To Do board: attività personali/extra, avanzamento + Gantt
 │   │   ├── contacts/
 │   │   │   └── [id]/           # Contact detail page
 │   │   ├── kanban/
@@ -118,7 +119,7 @@ src/
 │   │   ├── contacts/           # CRUD + [id] + bulk + repair-names
 │   │   │   └── [id]/activities, emails, emails/sync, tasks
 │   │   ├── leads/              # AI-ready lead API + [id]/memory, status
-│   │   ├── tasks/              # CRUD + create + pending + [id]/complete
+│   │   ├── tasks/              # CRUD + create + pending + standalone + [id]/complete
 │   │   ├── activities/         # Activity log
 │   │   ├── activity/log        # Activity logging
 │   │   ├── pipeline-stages/
@@ -146,6 +147,7 @@ src/
 ├── components/
 │   ├── crm/                    # ContactDrawer, ContactModal, CallOutcomeModal, EmailDraftPanel
 │   ├── layout/                 # Sidebar, Topbar, BrandLockup
+│   ├── todo/                   # TodoRow, TodoGantt (pagina /todo)
 │   └── ui/                     # Modal, Toast
 ├── lib/
 │   ├── server/                 # Server-only utilities
@@ -168,6 +170,7 @@ src/
 │   ├── quote-defaults.ts       # Default contract terms & bank instructions
 │   ├── speaqi-quote-packages.ts # START/EXPERIENCE/SIGNATURE package definitions
 │   ├── schedule.ts             # Scheduling utilities
+│   ├── todo.ts                 # Aree, stati di avanzamento e span Gantt per /todo
 │   ├── openapi/speaqi-call.ts  # OpenAPI spec
 │   ├── supabase.ts             # Supabase browser client
 │   └── db.ts                   # DB utilities
@@ -187,7 +190,8 @@ Path alias: `@/*` → `./src/*`
 - Vinitaly/Acumbamail leads enter as `holding` scope until engaged
 - Every status change also syncs the contact's open deal (`syncDealWithContactStatus`); closed contacts re-enter the pipeline via "Nuova opportunità" (`POST /api/deals`)
 - Dashboard "Da recuperare" panel surfaces open contacts with no next step (including Waiting contacts whose recall date has passed) with quick reschedule/dismiss actions
-- Sidebar shows only the core loop (Oggi, Pipeline, Contatti, Follow-up, Preventivi, Analytics, Impostazioni); other pages stay reachable by URL
+- Sidebar shows only the core loop (Oggi, To Do, Pipeline, Contatti, Follow-up, Preventivi, Analytics, Impostazioni); other pages stay reachable by URL
+- **To Do board** (`/todo`): standalone tasks (`tasks.contact_id is null`, `type = 'todo'`) are the one place for everything to do, Speaqi and non-Speaqi. They carry `area` (`speaqi` / `personale` / `altro`), `progress_state` (`todo` / `in_progress` / `blocked` / `done`), `progress_percent` and `start_date` (with `due_date` it draws the Gantt bar). `status` stays the binary flag the rest of the CRM reads: `/api/tasks/standalone` is the only place where the two are kept in sync. Standalone tasks are visible **only to the workspace owner** — the `tasks_workspace` RLS policy joins through `contacts`, which they don't have
 - **Admin collaborator filter**: Admin can toggle `workspace=all` to see all contacts, otherwise sees only assigned contacts (matching `responsible` or `assigned_agent` via `contactMatchesAssigneeName`)
 
 ## Pipeline Stages

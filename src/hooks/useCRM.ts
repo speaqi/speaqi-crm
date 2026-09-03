@@ -16,6 +16,7 @@ import type {
   Task,
   TaskInput,
   TaskWithContact,
+  StandaloneTaskPatch,
   TeamMember,
   VoiceNote,
 } from '@/types'
@@ -700,16 +701,37 @@ export function useCRM(pathname = '') {
     setStandaloneTasks((previous) => [...previous, { ...task, ...response.task }])
   }, [completedStandaloneTasks])
 
-  const updateStandaloneTask = useCallback(async (taskId: string, payload: { title?: string; note?: string | null; priority?: string; due_date?: string | null; started_at?: string | null; status?: 'pending' | 'done'; calendar_action?: 'sync' | 'unsync' }) => {
+  const updateStandaloneTask = useCallback(async (taskId: string, payload: StandaloneTaskPatch) => {
     const response = await apiFetch<{ task: Task }>('/api/tasks/standalone', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: taskId, ...payload }),
     })
-    setStandaloneTasks((previous) =>
-      previous.map((t) => (t.id === taskId ? { ...t, ...response.task } : t))
-    )
-    return response.task
+    // Lo stato di avanzamento può chiudere o riaprire l'attività: la riga va
+    // spostata nella lista giusta, non solo aggiornata dov'era.
+    const task = response.task
+    const upsert = (previous: Task[]) =>
+      previous.some((t) => t.id === taskId)
+        ? previous.map((t) => (t.id === taskId ? { ...t, ...task } : t))
+        : [...previous, task]
+    const drop = (previous: Task[]) => previous.filter((t) => t.id !== taskId)
+
+    if (task.status === 'done') {
+      setStandaloneTasks(drop)
+      setCompletedStandaloneTasks(upsert)
+    } else {
+      setCompletedStandaloneTasks(drop)
+      setStandaloneTasks(upsert)
+    }
+    return task
+  }, [])
+
+  const deleteStandaloneTask = useCallback(async (taskId: string) => {
+    await apiFetch<{ ok: boolean }>(`/api/tasks/standalone?id=${encodeURIComponent(taskId)}`, {
+      method: 'DELETE',
+    })
+    setStandaloneTasks((previous) => previous.filter((t) => t.id !== taskId))
+    setCompletedStandaloneTasks((previous) => previous.filter((t) => t.id !== taskId))
   }, [])
 
   const loadContactDetail = useCallback(async (id: string) => {
@@ -802,6 +824,7 @@ export function useCRM(pathname = '') {
     completeStandaloneTask,
     reopenStandaloneTask,
     updateStandaloneTask,
+    deleteStandaloneTask,
     refresh: () => loadAll({ background: true }),
     adminDashboardShowAllContacts,
     setAdminDashboardShowAllContacts,

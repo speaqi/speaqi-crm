@@ -64,6 +64,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     )
   }
 
+  // Badge To Do: solo quello che è già scaduto o scade oggi, così il rosso
+  // significa "queste ti stanno addosso adesso" e non "hai una lista lunga".
+  const todoDueCount = crm.standaloneTasks.filter((task) => {
+    if (!task.due_date) return false
+    const due = new Date(task.due_date)
+    if (Number.isNaN(due.getTime())) return false
+    const endOfToday = new Date()
+    endOfToday.setHours(23, 59, 59, 999)
+    return due <= endOfToday
+  }).length
+
   const counts = {
     kanban: crm.contacts.filter(isPipelineVisible).length,
     contacts: crm.contacts.length,
@@ -78,6 +89,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         (contact.email || contact.email_draft_note || contact.next_followup_at || contact.email_unsubscribed_at)
     ).length,
     oggi: crm.dueTodayCount,
+    todo: todoDueCount,
     tasks: crm.tasks.length,
   }
 
