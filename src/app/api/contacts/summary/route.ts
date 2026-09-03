@@ -85,6 +85,7 @@ export async function GET(request: NextRequest) {
     // resta usabile senza chip invece di fallire.
     const { data: folderRows } = await supabase.rpc('contact_scope_folder_counts', {
       p_scope: 'holding',
+      p_user_id: auth.workspaceUserId,
     })
 
     return Response.json(
