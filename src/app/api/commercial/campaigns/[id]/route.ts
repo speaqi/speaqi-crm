@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { ensureCampaignSteps, type CommercialCampaign } from '@/lib/server/commercial-campaigns'
+import { applyEnrollableContactFilter, ensureCampaignSteps, type CommercialCampaign } from '@/lib/server/commercial-campaigns'
 import { errorMessage } from '@/lib/server/http'
 import { requireRouteUser } from '@/lib/server/supabase'
 
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const campaign = await loadCampaign(auth.supabase, auth.workspaceUserId, id)
     if (!campaign) return Response.json({ error: 'Campagna non trovata' }, { status: 404 })
 
-    const [steps, enrollments, messages, counter, taggedContacts] = await Promise.all([
+    const [steps, enrollments, messages, counter, taggedContacts, enrollableContacts, pendingContacts] = await Promise.all([
       ensureCampaignSteps(auth.supabase, campaign),
       auth.supabase
         .from('commercial_enrollments')
@@ -65,11 +65,30 @@ export async function GET(request: NextRequest, context: RouteContext) {
         .select('id', { count: 'exact', head: true })
         .eq('user_id', auth.workspaceUserId)
         .eq('event_tag', campaign.event_tag),
+      // Quanti di quelli col tag il motore riuscirebbe davvero ad arruolare.
+      // Lo stesso filtro che usa l'arruolamento, cosi la pagina non puo
+      // promettere un bacino che poi resta fermo.
+      applyEnrollableContactFilter(
+        auth.supabase.from('contacts').select('id', { count: 'exact', head: true }),
+        campaign
+      ),
+      // Contatti col tag fermi in "review": sono la differenza fra il bacino
+      // e gli arruolabili, e si sbloccano solo con una decisione esplicita.
+      auth.supabase
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', auth.workspaceUserId)
+        .eq('event_tag', campaign.event_tag)
+        .eq('marketing_eligibility', 'review')
+        .is('email_unsubscribed_at', null)
+        .not('email', 'is', null),
     ])
     if (enrollments.error) throw enrollments.error
     if (messages.error) throw messages.error
     if (counter.error) throw counter.error
     if (taggedContacts.error) throw taggedContacts.error
+    if (enrollableContacts.error) throw enrollableContacts.error
+    if (pendingContacts.error) throw pendingContacts.error
 
     const rows = enrollments.data || []
     const count = (key: string, value?: string) =>
@@ -81,6 +100,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
       recent_messages: messages.data || [],
       metrics: {
         pool: taggedContacts.count || 0,
+        enrollable: enrollableContacts.count || 0,
+        pending_marketing: pendingContacts.count || 0,
         enrollments: rows.length,
         active: count('status', 'pending') + count('status', 'active'),
         stopped: count('status', 'stopped'),

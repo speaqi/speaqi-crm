@@ -50,7 +50,6 @@ type Detail = {
 }
 
 const METRIC_LABELS: Array<[string, string]> = [
-  ['pool', 'Contatti col tag'],
   ['enrollments', 'Iscritti'],
   ['active', 'In sequenza'],
   ['enrolled_today', 'Arruolati oggi'],
@@ -99,6 +98,20 @@ export default function ProgettoCommercialeDetailPage() {
       showToast('Campagna aggiornata')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Aggiornamento non riuscito')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function enableAudience(pending: number) {
+    if (!window.confirm(`Abilitare al marketing ${pending} contatti col tag "${campaign.event_tag}"? Dichiari che a questi indirizzi puoi scrivere.`)) return
+    setSaving(true)
+    try {
+      const result = await apiFetch<{ enabled: number }>(`/api/commercial/campaigns/${params.id}/audience`, { method: 'POST' })
+      await load()
+      showToast(`${result.enabled} contatti abilitati al marketing`)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Abilitazione non riuscita')
     } finally {
       setSaving(false)
     }
@@ -193,12 +206,17 @@ export default function ProgettoCommercialeDetailPage() {
           {field('reply_to', 'Reply-to')}
           {field('brand_eyebrow', 'Intestazione email')}
           {field('landing_url', 'URL della CTA')}
-          {field('acumbamail_list_id', 'Lista Acumbamail (id)')}
+          {field('acumbamail_list_id', 'Lista Acumbamail — id di una lista esistente')}
           {field('daily_enrollment_cap', 'Tetto arruolamenti / giorno', 'number')}
           {field('daily_cap', 'Tetto invii / giorno', 'number')}
           {field('import_exclude_keyword', 'Import · parola da escludere')}
           {field('import_required_country', 'Import · paese richiesto')}
         </div>
+        <p className="campaigns-muted">
+          La lista Acumbamail non si carica da qui: creala su acumbamail.com, caricaci il CSV e incolla qui il suo id
+          numerico. Il motore la rilegge a ogni giro, salta chi ha gia quella email nel CRM e crea contatto e
+          iscrizione solo per chi entra davvero in sequenza.
+        </p>
         <p className="campaigns-muted">
           I due filtri di import sono vuoti di default: senza valore nessun record viene scartato. Chi non supera il
           filtro paese entra col tag <strong>{campaign.event_tag}_en</strong> e senza iscrizione — parcheggiato, non perso.
@@ -226,6 +244,41 @@ export default function ProgettoCommercialeDetailPage() {
             <input type="checkbox" checked={campaign.require_marketing_attestation} disabled={saving} onChange={(event) => void patch({ require_marketing_attestation: event.target.checked })} /> Richiedi attestazione marketing
           </label>
         </div>
+      </section>
+
+      <section className="card">
+        <h2 className="campaigns-section-title">Bacino</h2>
+        <p className="campaigns-muted">
+          Il motore arruola dai contatti che portano il tag <strong>{campaign.event_tag}</strong>. Per caricarne di
+          nuovi: <Link href="/import">Importa</Link> un CSV impostando <strong>Tag evento = {campaign.event_tag}</strong>.
+          In alternativa indica qui sotto una lista Acumbamail gia esistente e il motore la legge da solo.
+        </p>
+        <div className="campaigns-metrics">
+          <div className="campaigns-metric">
+            <strong>{(data.metrics.pool || 0).toLocaleString('it-IT')}</strong>
+            <span>Col tag</span>
+          </div>
+          <div className="campaigns-metric">
+            <strong>{(data.metrics.enrollable || 0).toLocaleString('it-IT')}</strong>
+            <span>Arruolabili</span>
+          </div>
+          <div className="campaigns-metric">
+            <strong>{(data.metrics.pending_marketing || 0).toLocaleString('it-IT')}</strong>
+            <span>Da abilitare</span>
+          </div>
+        </div>
+        {data.metrics.pending_marketing ? (
+          <>
+            <p className="campaigns-muted">
+              {data.metrics.pending_marketing.toLocaleString('it-IT')} contatti hanno il tag ma sono ancora da
+              verificare: il motore non li arruola. Abilitarli e una tua dichiarazione — a questi indirizzi puoi
+              scrivere — e resta scritta sul contatto. Chi e escluso o disiscritto non viene toccato.
+            </p>
+            <button className="btn primary" disabled={saving || !isAdmin} onClick={() => void enableAudience(data.metrics.pending_marketing)}>
+              Abilita al marketing {data.metrics.pending_marketing.toLocaleString('it-IT')} contatti
+            </button>
+          </>
+        ) : null}
       </section>
 
       <section className="card">

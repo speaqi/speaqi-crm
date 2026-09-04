@@ -458,6 +458,19 @@ migrarlo e un lavoro separato, da fare a motore collaudato.
   `reserve_commercial_enrollment_slots` / `settle_commercial_enrollment_slots`
   su `commercial_campaign_daily_counters`; il secondo da
   `claim_commercial_messages`.
+- **Da dove arrivano i contatti**: due strade che convivono. (1) `/import` con
+  **Tag evento** uguale all'`event_tag` della campagna: i contatti entrano nel
+  CRM e il motore li pesca da li. (2) `acumbamail_list_id` sulla campagna: l'id
+  di una lista **gia esistente** su Acumbamail, che il motore rilegge a ogni
+  giro. Il CRM le liste Acumbamail le legge, non le crea.
+- **Idoneita al marketing**: `applyEnrollableContactFilter()` e la definizione
+  unica di "contatto arruolabile" — la usano sia il motore sia la scheda, cosi
+  la pagina non puo mostrare un bacino che il motore non riconosce. L'import CSV
+  **non** imposta `marketing_eligibility`, quindi i contatti nascono `review` e
+  non vengono arruolati: la scheda mostra *col tag / arruolabili / da abilitare*
+  e `POST /api/commercial/campaigns/[id]/audience` fa il passaggio a `eligible`
+  su richiesta esplicita, scrivendo il motivo sul contatto. Non tocca mai chi e
+  `excluded` o `suppressed`.
 - **Filtri import per campagna**: `import_exclude_keyword` e
   `import_required_country`, entrambi `NULL` di default (nessun filtro). Chi non
   supera il filtro paese viene creato col tag `<event_tag>_en` e senza

@@ -42,7 +42,36 @@ export type CommercialCampaign = {
 }
 
 /** Stati contatto che chiudono la trattativa: non si arruolano e non ricevono. */
-const CLOSED_CONTACT_STATUSES = ['Closed', 'Paid', 'Lost']
+export const CLOSED_CONTACT_STATUSES = ['Closed', 'Paid', 'Lost']
+
+/**
+ * Definizione unica di "contatto arruolabile in questa campagna".
+ *
+ * La usano sia il motore, per pescare i candidati, sia la scheda della
+ * campagna, per dire quanti sono. Se vivessero in due posti diversi, la
+ * pagina finirebbe prima o poi a mostrare un numero che il motore non
+ * riconosce — ed e esattamente il caso in cui l'utente non capisce perche
+ * il bacino e pieno e gli arruolamenti sono zero.
+ */
+export function applyEnrollableContactFilter(
+  query: any,
+  campaign: Pick<CommercialCampaign, 'user_id' | 'event_tag' | 'require_marketing_attestation'>
+) {
+  let filtered = query
+    .eq('user_id', campaign.user_id)
+    .eq('event_tag', campaign.event_tag)
+    .eq('marketing_eligibility', 'eligible')
+    .is('email_unsubscribed_at', null)
+    .not('email', 'is', null)
+    .not('status', 'in', `(${CLOSED_CONTACT_STATUSES.join(',')})`)
+  if (campaign.require_marketing_attestation) {
+    filtered = filtered
+      .eq('hospitality_filter_decision', 'include')
+      .not('marketing_legal_basis', 'is', null)
+      .not('marketing_source_acquired_at', 'is', null)
+  }
+  return filtered
+}
 
 const CONTACT_PAGE_SIZE = 500
 
@@ -353,23 +382,14 @@ async function collectCrmCandidates(
   let cursor = ''
 
   while (picked.length < wanted) {
-    let query = supabase
-      .from('contacts')
-      .select('id,email,name,company,alternative_emails,source_place_id,source_google_id,normalized_website')
-      .eq('user_id', campaign.user_id)
-      .eq('event_tag', campaign.event_tag)
-      .eq('marketing_eligibility', 'eligible')
-      .is('email_unsubscribed_at', null)
-      .not('email', 'is', null)
-      .not('status', 'in', `(${CLOSED_CONTACT_STATUSES.join(',')})`)
+    let query = applyEnrollableContactFilter(
+      supabase
+        .from('contacts')
+        .select('id,email,name,company,alternative_emails,source_place_id,source_google_id,normalized_website'),
+      campaign
+    )
       .order('id', { ascending: true })
       .limit(CONTACT_PAGE_SIZE)
-    if (campaign.require_marketing_attestation) {
-      query = query
-        .eq('hospitality_filter_decision', 'include')
-        .not('marketing_legal_basis', 'is', null)
-        .not('marketing_source_acquired_at', 'is', null)
-    }
     if (cursor) query = query.gt('id', cursor)
 
     const { data: page, error } = await query

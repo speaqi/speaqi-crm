@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { beforeEach, describe, mock, test } from 'node:test'
 import { FakeSupabase } from './fake-supabase'
 import {
+  applyEnrollableContactFilter,
   campaignSlug,
   classifyImportCandidate,
   defaultCampaignSteps,
@@ -115,6 +116,50 @@ describe('step predefiniti', () => {
     const steps = await ensureCampaignSteps(db, target)
     assert.equal(steps.length, 5)
     assert.equal(steps[0].subject_template, 'Scritto a mano')
+  })
+})
+
+describe('definizione di contatto arruolabile', () => {
+  // La scheda della campagna conta gli arruolabili con lo stesso filtro che usa
+  // il motore per pescarli. Se i due divergessero, la pagina mostrerebbe un
+  // bacino pieno accanto a zero arruolamenti, senza spiegare perche.
+  test('la scheda conta esattamente i contatti che il motore arruolerebbe', async () => {
+    const rows = [
+      contact(1),
+      contact(2, { marketing_eligibility: 'review' }),
+      contact(3, { email_unsubscribed_at: '2026-01-01T00:00:00Z' }),
+      contact(4, { status: 'Paid' }),
+      contact(5, { email: null }),
+      contact(6, { event_tag: 'altra-campagna' }),
+    ]
+    const target = campaign()
+    const state = { cap: 30, used: 0 }
+
+    const counter = new FakeSupabase({ contacts: rows }, capRpcs(state))
+    const counted = await applyEnrollableContactFilter(
+      counter.from('contacts').select('id', { count: 'exact', head: true }),
+      target
+    )
+
+    const engine = new FakeSupabase({ contacts: rows.map((row) => ({ ...row })) }, capRpcs(state))
+    const report = await enrollCampaignContacts(engine, target, { limit: 30, dryRun: false })
+
+    assert.equal(counted.count, 1)
+    assert.equal(report.inserted, counted.count)
+  })
+
+  test('con attestazione richiesta il conteggio si stringe come l arruolamento', async () => {
+    const rows = [
+      contact(1),
+      contact(2, { hospitality_filter_decision: 'include', marketing_legal_basis: 'legittimo interesse', marketing_source_acquired_at: '2026-01-01' }),
+    ]
+    const target = campaign({ require_marketing_attestation: true })
+    const db = new FakeSupabase({ contacts: rows }, capRpcs({ cap: 30, used: 0 }))
+    const counted = await applyEnrollableContactFilter(
+      db.from('contacts').select('id', { count: 'exact', head: true }),
+      target
+    )
+    assert.equal(counted.count, 1)
   })
 })
 
