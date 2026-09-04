@@ -134,6 +134,7 @@ function ContactsPageInner() {
   const [showMore, setShowMore] = useState(false)
   const [sourceFilter, setSourceFilter] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
+  const [engagementFilter, setEngagementFilter] = useState('')
   const [dataCompletenessFilter, setDataCompletenessFilter] = useState('')
   const [showHidden, setShowHidden] = useState(false)
   const [scope, setScope] = useState<ScopeTab>(() => parseScopeTab(searchParams.get('scope')))
@@ -416,6 +417,13 @@ function ContactsPageInner() {
       if (urlTag && contact.event_tag !== urlTag) return false
       if (sourceFilter && contact.source !== sourceFilter) return false
       if (priorityFilter && String(contact.priority) !== priorityFilter) return false
+      if (engagementFilter) {
+        const opens = Number(contact.email_open_count || 0)
+        const clicks = Number(contact.email_click_count || 0)
+        if (engagementFilter === 'opened' && opens < 1) return false
+        if (engagementFilter === 'clicked' && clicks < 1) return false
+        if (engagementFilter === 'silent' && (opens > 0 || clicks > 0)) return false
+      }
       if (dataCompletenessFilter === 'missing_phone' && contact.phone?.trim()) return false
       if (dataCompletenessFilter === 'missing_email' && contact.email?.trim()) return false
       if (focusFilter === 'new' && !isNeverContacted(contact)) return false
@@ -427,6 +435,7 @@ function ContactsPageInner() {
     })
   }, [
     assigneeFilter,
+    engagementFilter,
     focusFilter,
     listFilter,
     priorityFilter,
@@ -451,6 +460,7 @@ function ContactsPageInner() {
     (assigneeFilter ? 1 : 0) +
     (sourceFilter ? 1 : 0) +
     (priorityFilter ? 1 : 0) +
+    (engagementFilter ? 1 : 0) +
     (dataCompletenessFilter ? 1 : 0) +
     (focusFilter ? 1 : 0) +
     (showHidden && !showAllContactsSearch ? 1 : 0) +
@@ -468,7 +478,7 @@ function ContactsPageInner() {
 
   useEffect(() => {
     setVisibleCount(CONTACTS_PAGE_SIZE)
-  }, [scope, search, statusFilter, listFilter, assigneeFilter, sourceFilter, priorityFilter, dataCompletenessFilter, focusFilter, sectionFilter, showHidden, urlTag])
+  }, [scope, search, statusFilter, listFilter, assigneeFilter, sourceFilter, priorityFilter, engagementFilter, dataCompletenessFilter, focusFilter, sectionFilter, showHidden, urlTag])
 
   const visibleContacts = useMemo(
     () => filtered.slice(0, visibleCount),
@@ -528,6 +538,7 @@ function ContactsPageInner() {
     setAssigneeFilter('')
     setSourceFilter('')
     setPriorityFilter('')
+    setEngagementFilter('')
     setDataCompletenessFilter('')
     setFocusFilter('')
     setSectionFilter('')
@@ -818,6 +829,16 @@ function ContactsPageInner() {
               <option value="2">Media</option>
               <option value="1">Bassa</option>
               <option value="0">Nessuna</option>
+            </select>
+            <select
+              className="filter-select"
+              value={engagementFilter}
+              onChange={(event) => setEngagementFilter(event.target.value)}
+            >
+              <option value="">Email: qualsiasi reazione</option>
+              <option value="opened">Ha aperto</option>
+              <option value="clicked">Ha cliccato</option>
+              <option value="silent">Nessuna reazione</option>
             </select>
             <button
               type="button"
