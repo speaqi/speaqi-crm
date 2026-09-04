@@ -6487,7 +6487,21 @@ textarea.form-input::placeholder { color: var(--text3); }
 }
 
 /* Area Campagne: elenco per verticale e pagina di configurazione. */
-.campaigns-page { padding: 20px 22px 40px; max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.campaigns-page {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px 22px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+/* Il contenitore scorre a tutta larghezza (barra al bordo finestra); la
+   colonna da 1400px resta centrata sui figli. */
+.campaigns-page > * { width: 100%; max-width: 1400px; margin-inline: auto; flex-shrink: 0; }
 .campaigns-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .campaigns-head h1 { margin: 4px 0 2px; font-size: clamp(21px, 2.2vw, 28px); letter-spacing: -.03em; }
 .campaigns-muted { color: var(--text2); font-size: 12.5px; line-height: 1.5; margin: 0; }
