@@ -64,7 +64,7 @@ const METRIC_LABELS: Array<[string, string]> = [
   ['stopped', 'Fermati'],
 ]
 
-export default function CampagnaDetailPage() {
+export default function ProgettoCommercialeDetailPage() {
   const params = useParams<{ id: string }>()
   const { isAdmin, showToast } = useCRMContext()
   const [data, setData] = useState<Detail | null>(null)
@@ -147,7 +147,7 @@ export default function CampagnaDetailPage() {
     <main className="campaigns-page">
       <header className="campaigns-head">
         <div>
-          <Link href="/campagne" className="campaigns-muted">← Campagne</Link>
+          <Link href="/commerciale" className="campaigns-muted">← Commerciale</Link>
           <h1>{campaign.name}</h1>
           <p className="campaigns-muted">
             {campaign.vertical} · tag <strong>{campaign.event_tag}</strong> · slug <strong>{campaign.slug}</strong> (non modificabile)

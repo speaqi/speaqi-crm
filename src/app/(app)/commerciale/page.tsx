@@ -17,13 +17,29 @@ type CampaignRow = {
   daily_enrollment_cap: number
   acumbamail_list_id: string | null
   progress: { enrollments: number; active: number; sent: number; replied: number }
+  legacy_page: string | null
+}
+
+/**
+ * Progetto commerciale che gira su tabelle proprie (oggi solo Wine Project).
+ * Compare nell'elenco coi suoi numeri, ma si apre sulla sua pagina.
+ */
+type ExternalProject = {
+  key: string
+  vertical: string
+  name: string
+  href: string
+  status: string
+  note: string
+  progress: { enrollments: number; active: number; sent: number; pool: number }
 }
 
 const EMPTY_FORM = { name: '', vertical: '', event_tag: '', sender_name: '', sender_email: '' }
 
-export default function CampagnePage() {
+export default function CommercialePage() {
   const { isAdmin, showToast } = useCRMContext()
   const [campaigns, setCampaigns] = useState<CampaignRow[] | null>(null)
+  const [externals, setExternals] = useState<ExternalProject[]>([])
   const [error, setError] = useState('')
   const [form, setForm] = useState(EMPTY_FORM)
   const [creating, setCreating] = useState(false)
@@ -31,11 +47,12 @@ export default function CampagnePage() {
 
   const load = useCallback(async () => {
     try {
-      const data = await apiFetch<{ campaigns: CampaignRow[] }>('/api/commercial/campaigns')
+      const data = await apiFetch<{ campaigns: CampaignRow[]; external_projects?: ExternalProject[] }>('/api/commercial/campaigns')
       setCampaigns(data.campaigns)
+      setExternals(data.external_projects || [])
       setError('')
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Campagne non disponibili')
+      setError(reason instanceof Error ? reason.message : 'Progetti commerciali non disponibili')
       setCampaigns([])
     }
   }, [])
@@ -76,10 +93,10 @@ export default function CampagnePage() {
     <main className="campaigns-page">
       <header className="campaigns-head">
         <div>
-          <h1>Campagne</h1>
+          <h1>Commerciale</h1>
           <p className="campaigns-muted">
-            Un verticale nuovo si aggiunge configurando una campagna: nome, tag contatti, mittente e testi. Nasce
-            sempre in pausa.
+            Tutti i progetti commerciali in un posto solo: Wine Project, Hospitality e i verticali che verranno.
+            Aggiungerne uno e configurare una campagna — nome, tag contatti, mittente e testi — e nasce sempre in pausa.
           </p>
         </div>
         {isAdmin ? (
@@ -135,8 +152,46 @@ export default function CampagnePage() {
       ) : null}
 
       {campaigns === null ? <div className="card">Caricamento…</div> : null}
-      {campaigns !== null && !campaigns.length ? (
-        <div className="card">Nessuna campagna. Creane una per iniziare.</div>
+      {campaigns !== null && !campaigns.length && !externals.length ? (
+        <div className="card">Nessun progetto. Creane uno per iniziare.</div>
+      ) : null}
+
+      {externals.length ? (
+        <section className="card">
+          <h2 className="campaigns-section-title">Progetti su motore proprio</h2>
+          <div className="campaigns-table-wrap">
+            <table className="campaigns-table">
+              <thead>
+                <tr>
+                  <th>Progetto</th>
+                  <th>Stato</th>
+                  <th>Bacino</th>
+                  <th>In sequenza</th>
+                  <th>In coda</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {externals.map((project) => (
+                  <tr key={project.key}>
+                    <td>
+                      <Link href={project.href}>{project.name}</Link>
+                    </td>
+                    <td>
+                      <span className={`status-badge ${project.status === 'active' ? 'success' : 'warning'}`}>
+                        {project.status === 'active' ? 'Attivo' : 'In pausa'}
+                      </span>
+                    </td>
+                    <td>{project.progress.pool}</td>
+                    <td>{project.progress.active}</td>
+                    <td>{project.progress.sent}</td>
+                    <td className="campaigns-muted">{project.note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       ) : null}
 
       {byVertical.map(([vertical, rows]) => (
@@ -159,7 +214,15 @@ export default function CampagnePage() {
               {rows.map((campaign) => (
                 <tr key={campaign.id}>
                   <td>
-                    <Link href={`/campagne/${campaign.id}`}>{campaign.name}</Link>
+                    <Link href={`/commerciale/${campaign.id}`}>{campaign.name}</Link>
+                    {campaign.legacy_page ? (
+                      <>
+                        {' '}
+                        <Link href={campaign.legacy_page} className="campaigns-muted">
+                          (scheda dedicata)
+                        </Link>
+                      </>
+                    ) : null}
                   </td>
                   <td>
                     <span className={`status-badge ${campaign.status === 'active' ? 'success' : 'warning'}`}>

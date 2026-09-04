@@ -122,7 +122,7 @@ export default function HospitalityCampaignPage() {
     <main className="hospitality-page">
       <header className="hospitality-hero">
         <div>
-          <span className="hospitality-kicker">SPEAQI · COMMERCIAL CONTROL</span>
+          <a className="hospitality-kicker" href="/commerciale">← SPEAQI · COMMERCIALE</a>
           <h1>Hospitality Italia</h1>
           <p>Import, autorizzazione, sequenza e risultati in un unico percorso verificabile.</p>
         </div>

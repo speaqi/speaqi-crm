@@ -20,8 +20,10 @@ interface SidebarProps {
 }
 
 // Menu ridotto al core loop quotidiano. Le altre pagine (progetti, finanza,
-// marketing, acumbamail, email, voice, ...) restano raggiungibili via URL:
+// marketing, email, voice, ...) restano raggiungibili via URL:
 // partner e personali vivono come tab dentro /contacts.
+// "Commerciale" e l'unica porta ai progetti commerciali: Wine Project,
+// Hospitality e i verticali che verranno stanno tutti li dentro.
 // "To Do" sta subito dopo "Oggi" perché è la lista che si guarda per prima la
 // mattina, e raccoglie anche le cose che con Speaqi non c'entrano.
 const NAV_ITEMS = [
@@ -31,7 +33,7 @@ const NAV_ITEMS = [
   { href: '/contacts', label: 'Contatti', icon: '👥', badgeKey: 'contacts' as const },
   { href: '/calendario', label: 'Follow-up', icon: '📅', badgeKey: 'tasks' as const, badgeRed: true },
   { href: '/preventivi', label: 'Preventivi', icon: '💶' },
-  { href: '/campagne', label: 'Campagne', icon: '📣' },
+  { href: '/commerciale', label: 'Commerciale', icon: '📣' },
   { href: '/attivita', label: 'Analytics', icon: '📊' },
   { href: '/impostazioni', label: 'Impostazioni', icon: '⚙️' },
 ]
@@ -79,10 +81,6 @@ export function Sidebar({ counts }: SidebarProps) {
         <Link href="/acumbamail" className="nav-item sidebar-footer-item">
           <span className="icon">📧</span>
           Acumbamail
-        </Link>
-        <Link href="/hospitality" className="nav-item sidebar-footer-item">
-          <span className="icon">🏨</span>
-          Hospitality
         </Link>
       </div>
     </aside>

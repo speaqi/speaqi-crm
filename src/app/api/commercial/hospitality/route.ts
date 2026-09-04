@@ -2,7 +2,7 @@
  * Alias temporaneo per la pagina `/hospitality`.
  *
  * Hospitality e ora una campagna come le altre su `commercial_campaigns`: la
- * rotta generica e `/api/commercial/campaigns/[id]` e l'area e `/campagne`.
+ * rotta generica e `/api/commercial/campaigns/[id]` e l'area e `/commerciale`.
  * Questa rotta resta finche la pagina dedicata non viene ritirata; non
  * aggiungere qui logica nuova.
  */

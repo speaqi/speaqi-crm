@@ -30,7 +30,11 @@ export async function GET(request: NextRequest) {
       campaigns: (campaigns || []).map((campaign: any) => ({
         ...campaign,
         progress: progress.get(campaign.id) || { enrollments: 0, active: 0, sent: 0, replied: 0 },
+        // Hospitality ha ancora la sua scheda dedicata accanto a quella
+        // generica, finche non viene ritirata.
+        legacy_page: campaign.vertical === 'hospitality' ? '/hospitality' : null,
       })),
+      external_projects: vertical ? [] : await loadExternalProjects(auth.supabase, auth.workspaceUserId),
     })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Elenco campagne non disponibile') }, { status: 500 })
@@ -86,6 +90,47 @@ export async function POST(request: NextRequest) {
     return Response.json({ campaign, steps }, { status: 201 })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Creazione campagna non riuscita') }, { status: 500 })
+  }
+}
+
+/**
+ * Progetti commerciali che girano su tabelle proprie e non su
+ * `commercial_campaigns`.
+ *
+ * Oggi solo Wine Project, che resta sul suo motore finche non lo si migra.
+ * Compare comunque qui, coi suoi numeri veri, perche l'area Commerciale deve
+ * essere l'unico posto dove si vede tutto il commerciale: un progetto
+ * raggiungibile solo digitando l'URL e un progetto che prima o poi si dimentica.
+ */
+async function loadExternalProjects(supabase: any, userId: string) {
+  try {
+    const [settings, pool, scheduled, queued] = await Promise.all([
+      supabase.from('wine_project_automation_settings').select('enabled,campaign_name').eq('user_id', userId).maybeSingle(),
+      supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('event_tag', 'wine-project'),
+      supabase.from('wine_project_followup_events').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'scheduled'),
+      supabase.from('wine_project_followup_events').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'queued'),
+    ])
+    if (settings.error && String(settings.error.code) !== 'PGRST116') throw settings.error
+    return [
+      {
+        key: 'wine-project',
+        vertical: 'wine',
+        name: settings.data?.campaign_name || 'Wine Project',
+        href: '/impostazioni/wine-project',
+        status: settings.data?.enabled ? 'active' : 'paused',
+        note: 'Motore proprio: la migrazione su commercial_* e un lavoro separato.',
+        progress: {
+          enrollments: scheduled.count || 0,
+          active: scheduled.count || 0,
+          sent: queued.count || 0,
+          pool: pool.count || 0,
+        },
+      },
+    ]
+  } catch {
+    // Un progetto esterno non leggibile non deve far sparire l'elenco delle
+    // campagne vere.
+    return []
   }
 }
 

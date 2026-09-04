@@ -125,7 +125,7 @@ src/
 │   │   ├── import/
 │   │   ├── speaqi/
 │   │   ├── personali/          # Personal contacts area
-│   │   ├── campagne/           # Area Campagne: elenco per verticale + /campagne/[id]
+│   │   ├── commerciale/        # Area Commerciale: tutti i progetti + /commerciale/[id]
 │   │   ├── preventivi/         # Quotes management (CRUD)
 │   │   └── impostazioni/       # Settings & team admin
 │   │       ├── email-ai/       # Email AI configuration
@@ -225,7 +225,7 @@ Il workspace contiene decine di migliaia di contatti (quasi tutti `holding`, imp
 - Vinitaly/Acumbamail leads enter as `holding` scope until engaged
 - Every status change also syncs the contact's open deal (`syncDealWithContactStatus`); closed contacts re-enter the pipeline via "Nuova opportunità" (`POST /api/deals`)
 - Dashboard "Da recuperare" panel surfaces open contacts with no next step (including Waiting contacts whose recall date has passed) with quick reschedule/dismiss actions
-- Sidebar shows only the core loop (Oggi, To Do, Pipeline, Contatti, Follow-up, Preventivi, Campagne, Analytics, Impostazioni); other pages stay reachable by URL
+- Sidebar shows only the core loop (Oggi, To Do, Pipeline, Contatti, Follow-up, Preventivi, Commerciale, Analytics, Impostazioni); other pages stay reachable by URL
 - **To Do board** (`/todo`): standalone tasks (`tasks.contact_id is null`, `type = 'todo'`) are the one place for everything to do, Speaqi and non-Speaqi. They carry `area` (`speaqi` / `personale` / `altro`), `progress_state` (`todo` / `in_progress` / `blocked` / `done`), `progress_percent` and `start_date` (with `due_date` it draws the Gantt bar). `status` stays the binary flag the rest of the CRM reads: `/api/tasks/standalone` is the only place where the two are kept in sync. Standalone tasks are visible **only to the workspace owner** — the `tasks_workspace` RLS policy joins through `contacts`, which they don't have
 - **Admin collaborator filter**: Admin can toggle `workspace=all` to see all contacts, otherwise sees only assigned contacts (matching `responsible` or `assigned_agent` via `contactMatchesAssigneeName`)
 
@@ -416,17 +416,33 @@ Main page for sales team monitoring. Structure:
 | `scripts/sql/` | Diagnostic SQL queries (collaborator visibility, legacy ID audit) |
 | `scripts/csv/` | CSV data files for import |
 
-## Campagne commerciali (motore generico)
+## Commerciale (motore campagne generico)
 
-Aggiungere un verticale (consorzi, GAL, comuni, aree SNAI) e un atto di
+`/commerciale` e l'unica area del commerciale: dentro ci stanno tutti i
+progetti — Wine Project, Hospitality e i verticali che verranno.
+
+Aggiungerne uno (consorzi, GAL, comuni, aree SNAI) e un atto di
 **configurazione**, non di sviluppo: nome, verticale, tag contatti, mittente,
 testi, cadenza, lista sorgente, filtri e tetti vivono sulla riga di
 `commercial_campaigns`. Wine Project resta sulle sue tabelle e sulla sua pagina:
 migrarlo e un lavoro separato, da fare a motore collaudato.
 
-- **UI**: `/campagne` (elenco per verticale, "Nuova campagna") e `/campagne/[id]`
-  (email, cadenza, lista sorgente e filtri, tetti, interruttori, statistiche,
-  ultimi invii). Voce **Campagne** in `NAV_ITEMS`.
+- **UI**: `/commerciale` e la porta unica al commerciale — elenco per verticale,
+  "Nuova campagna" e la sezione **Progetti su motore proprio** — e
+  `/commerciale/[id]` la scheda del singolo progetto (email, cadenza, lista
+  sorgente e filtri, tetti, interruttori, statistiche, ultimi invii). Voce
+  **Commerciale** in `NAV_ITEMS`.
+- **Progetti fuori da `commercial_*`**: `GET /api/commercial/campaigns`
+  restituisce anche `external_projects[]`. Oggi contiene solo Wine Project, coi
+  suoi numeri veri (bacino, eventi programmati, eventi in coda) e un
+  collegamento a `/impostazioni/wine-project`: il progetto resta sul suo motore
+  ma si vede dall'area, perche una pagina raggiungibile solo via URL prima o poi
+  si dimentica. Se le sue tabelle non si leggono, l'elenco delle campagne resta
+  comunque in piedi.
+- **Hospitality**: e una riga di `commercial_campaigns` come le altre, quindi
+  ha la sua scheda in `/commerciale/[id]`; la pagina storica `/hospitality`
+  (checklist di attivazione, batch di import) resta raggiungibile dal link
+  "scheda dedicata" nell'elenco, non piu dalla sidebar.
 - **API**: `GET|POST /api/commercial/campaigns`, `GET|PATCH
   /api/commercial/campaigns/[id]`, `PUT /api/commercial/campaigns/[id]/steps`.
   `/api/commercial/hospitality` resta come alias sottile finche la pagina
