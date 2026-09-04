@@ -1,4 +1,5 @@
 import { createActivities } from '@/lib/server/crm'
+import { ensureSenderIntroInText } from '@/lib/email-ai-framework'
 
 export type WineProjectSequenceTemplate = {
   sequence: number
@@ -32,6 +33,8 @@ export const DEFAULT_WINE_PROJECT_SEQUENCE_TEMPLATES: WineProjectSequenceTemplat
     subject: '{{azienda}} - All’attenzione di {{nome}}',
     body: `Buongiorno {{nome}},
 
+sono Massimo Morgante, fondatore di Speaqi.
+
 Vi avevamo contattato dopo Vinitaly. Da allora Speaqi si è evoluta molto.
 
 Oggi possiamo trasformare **l’intera cantina e il suo catalogo vini** in un’esperienza digitale multilingua, accessibile da web o QR code.
@@ -57,6 +60,8 @@ Non serve acquistare nulla per vedere il risultato.`,
     subject: 'Le posso mostrare {{azienda}} in pochi minuti?',
     body: `Buongiorno {{nome}},
 
+sono Massimo Morgante, fondatore di Speaqi.
+
 Le riscrivo solo per rendere il passaggio più semplice: per vedere la demo della cantina bastano il sito, un indirizzo email e un recapito. Non chiediamo di cambiare sito, preparare materiali o affrontare un progetto tecnico.
 
 Partiamo da ciò che {{azienda}} racconta già online e lo trasformiamo in una demo dove clienti, visitatori e buyer possono scoprire vini e cantina in tutte le lingue, fare domande e ricevere risposte immediate.
@@ -72,6 +77,8 @@ Se Le fa piacere, Le prepariamo una demo completa della cantina {{azienda}}.`,
     subject: 'Partiamo da una bottiglia di {{azienda}}?',
     body: `Buongiorno {{nome}},
 
+sono Massimo Morgante, fondatore di Speaqi.
+
 Provo a renderlo molto concreto: un cliente prende una bottiglia di {{azienda}}, scansiona il QR e trova il vino, la sua storia, la cantina e il territorio nella propria lingua. Può anche fare una domanda e ottenere una risposta basata sui contenuti della vostra azienda.
 
 Non è una traduzione o un QR isolato: è il racconto della cantina, pronto per chiunque arrivi da qualsiasi Paese. Lo stesso sistema può accompagnare una degustazione, una visita in cantina o la scelta di un importatore.
@@ -84,6 +91,8 @@ Se Le fa piacere, Le mostriamo la demo di {{azienda}} e come apparirebbe l’esp
     condition: 'all',
     subject: 'Come stanno usando Speaqi le cantine',
     body: `Buongiorno {{nome}},
+
+sono Massimo Morgante, fondatore di Speaqi.
 
 Le riscrivo perché il progetto Wine di Speaqi è ormai molto concreto: stiamo lavorando con cantine come **San Salvatore, Dalibrà e Leonarda Tardi** per rendere vini, cantina e territorio accessibili a un pubblico internazionale.
 
@@ -99,6 +108,8 @@ Se Le fa piacere, posso farLe vedere una demo completa costruita su {{azienda}},
     condition: 'all',
     subject: 'Chiudo qui, ma Le lascio un esempio?',
     body: `Buongiorno {{nome}},
+
+sono Massimo Morgante, fondatore di Speaqi.
 
 Chiudo qui i miei messaggi per non disturbarLa oltre.
 
@@ -151,6 +162,12 @@ function isMissingTable(error: unknown) {
     (message.includes('schema cache') || message.includes('does not exist') || message.includes('column'))
 }
 
+/**
+ * I modelli salvati in impostazioni vincono sui default, quindi cambiare i
+ * default non basta a far dire a queste email chi le scrive: la presentazione
+ * viene garantita qui, su ogni lettura e su ogni salvataggio, qualunque testo
+ * ci sia in `wine_project_automation_settings.sequence_templates`.
+ */
 function normalizeSequenceTemplates(input: unknown) {
   const supplied = Array.isArray(input) ? input : []
   return DEFAULT_WINE_PROJECT_SEQUENCE_TEMPLATES.map((defaultTemplate) => {
@@ -160,7 +177,7 @@ function normalizeSequenceTemplates(input: unknown) {
       label: text(candidate?.label, 100) || defaultTemplate.label,
       condition: defaultTemplate.condition,
       subject: text(candidate?.subject, 240) || defaultTemplate.subject,
-      body: text(candidate?.body, 5000) || defaultTemplate.body,
+      body: ensureSenderIntroInText(text(candidate?.body, 5000) || defaultTemplate.body),
     } satisfies WineProjectSequenceTemplate
   })
 }
@@ -519,7 +536,7 @@ function eventNote(contact: WineContact, template: WineProjectSequenceTemplate) 
 function sequenceBrief(template: WineProjectSequenceTemplate) {
   return [
     `SEQUENZA WINE PROJECT — EMAIL ${template.sequence}/5`,
-    'Questo brief è vincolante: mantieni oggetto, messaggio e unica CTA. Personalizza solo nome e azienda; nell’oggetto usa il nome completo del contatto, mentre nel saluto usa solo il nome. Non aggiungere una firma, perché la firma viene aggiunta dal CRM. Quando il testo contiene **parole tra doppio asterisco**, rendile in grassetto solo nel body_html usando <strong>; nel body_text lasciale senza asterischi.',
+    'Questo brief è vincolante: mantieni oggetto, messaggio, riga di presentazione iniziale (“sono Massimo Morgante, fondatore di Speaqi.”) e unica CTA. Personalizza solo nome e azienda; nell’oggetto usa il nome completo del contatto, mentre nel saluto usa solo il nome. Non aggiungere una firma, perché la firma viene aggiunta dal CRM. Quando il testo contiene **parole tra doppio asterisco**, rendile in grassetto solo nel body_html usando <strong>; nel body_text lasciale senza asterischi.',
     `Oggetto: ${template.subject}`,
     '',
     template.body,

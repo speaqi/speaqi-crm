@@ -62,6 +62,28 @@ const EMPTY_SETTINGS: WineProjectSettings = {
   sequence_templates: [],
 }
 
+type WineProjectEngagement = 'all' | 'opened' | 'clicked' | 'silent'
+
+type WineProjectContact = {
+  id: string
+  name: string | null
+  company: string | null
+  email: string | null
+  status: string | null
+  email_open_count: number | null
+  email_click_count: number | null
+  last_email_open_at: string | null
+  last_email_click_at: string | null
+  last_contact_at: string | null
+}
+
+const ENGAGEMENT_TABS: { id: WineProjectEngagement; label: string; hint: string }[] = [
+  { id: 'opened', label: 'Ha aperto', hint: 'Cantine che hanno aperto almeno una email della sequenza.' },
+  { id: 'clicked', label: 'Ha cliccato', hint: 'Cantine che hanno cliccato un link: la coda più calda.' },
+  { id: 'silent', label: 'Nessuna reazione', hint: 'Nessuna apertura e nessun click tracciati.' },
+  { id: 'all', label: 'Tutte', hint: 'Tutte le cantine con tag wine-project.' },
+]
+
 type WineProjectSend = {
   sent_at: string
   sequence: number | null
@@ -76,8 +98,14 @@ export default function WineProjectSettingsPage() {
   const [settings, setSettings] = useState<WineProjectSettings>(EMPTY_SETTINGS)
   const [stats, setStats] = useState<WineProjectStats>(EMPTY_STATS)
   const [recentSends, setRecentSends] = useState<WineProjectSend[]>([])
+  const [engagement, setEngagement] = useState<WineProjectEngagement>('opened')
+  const [engagementContacts, setEngagementContacts] = useState<WineProjectContact[]>([])
+  const [engagementTotal, setEngagementTotal] = useState(0)
+  const [engagementLoading, setEngagementLoading] = useState(true)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [savingTemplate, setSavingTemplate] = useState<number | null>(null)
+  const [savedTemplate, setSavedTemplate] = useState<number | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -91,6 +119,27 @@ export default function WineProjectSettingsPage() {
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : 'Caricamento non riuscito'))
       .finally(() => setLoading(false))
   }, [isAdmin])
+
+  useEffect(() => {
+    if (!isAdmin) return
+    let cancelled = false
+    setEngagementLoading(true)
+    apiFetch<{ contacts: WineProjectContact[]; total: number }>(`/api/wine-project/contacts?engagement=${engagement}`)
+      .then((result) => {
+        if (cancelled) return
+        setEngagementContacts(result.contacts || [])
+        setEngagementTotal(result.total || 0)
+      })
+      .catch((loadError) => {
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : 'Caricamento cantine non riuscito')
+      })
+      .finally(() => {
+        if (!cancelled) setEngagementLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isAdmin, engagement])
 
   function setDays(field: 'first_followup_days' | 'second_followup_days' | 'third_followup_days' | 'fourth_followup_days' | 'fifth_followup_days', value: string) {
     const number = Math.max(1, Math.floor(Number(value) || 1))
@@ -108,12 +157,44 @@ export default function WineProjectSettingsPage() {
   }
 
   function updateTemplate(sequence: number, field: 'subject' | 'body', value: string) {
+    setSavedTemplate((current) => (current === sequence ? null : current))
     setSettings((current) => ({
       ...current,
       sequence_templates: current.sequence_templates.map((template) =>
         template.sequence === sequence ? { ...template, [field]: value } : template
       ),
     }))
+  }
+
+  // Salva solo la card su cui si sta lavorando: il salvataggio completo in
+  // fondo alla pagina resta, ma non e' piu' l'unico modo per fissare un testo.
+  async function saveTemplate(sequence: number) {
+    const template = settings.sequence_templates.find((item) => item.sequence === sequence)
+    if (!template) return
+    setSavingTemplate(sequence)
+    setSavedTemplate(null)
+    setError('')
+    try {
+      const result = await apiFetch<{ template: WineProjectSequenceTemplate }>('/api/wine-project/automation', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sequence, subject: template.subject, body: template.body }),
+      })
+      if (result.template) {
+        setSettings((current) => ({
+          ...current,
+          sequence_templates: current.sequence_templates.map((item) =>
+            item.sequence === sequence ? result.template : item
+          ),
+        }))
+      }
+      setSavedTemplate(sequence)
+      showToast(`Email ${sequence}/5 salvata`)
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Salvataggio non riuscito')
+    } finally {
+      setSavingTemplate(null)
+    }
   }
 
   async function save() {
@@ -204,6 +285,65 @@ export default function WineProjectSettingsPage() {
       <section className="wine-project-settings-card">
         <div className="wine-project-card-heading">
           <div>
+            <p className="wine-project-eyebrow">CHI HA REAGITO</p>
+            <h2>Le cantine dietro i numeri</h2>
+            <p>{ENGAGEMENT_TABS.find((tab) => tab.id === engagement)?.hint}</p>
+          </div>
+        </div>
+        <div className="wine-project-engagement-tabs" role="group" aria-label="Filtro reazione email">
+          {ENGAGEMENT_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={`wine-project-engagement-tab${engagement === tab.id ? ' is-active' : ''}`}
+              onClick={() => setEngagement(tab.id)}
+              aria-pressed={engagement === tab.id}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        {engagementLoading ? (
+          <p className="wine-project-empty-state">Caricamento cantine…</p>
+        ) : engagementContacts.length === 0 ? (
+          <p className="wine-project-empty-state">Nessuna cantina in questo gruppo.</p>
+        ) : (
+          <>
+            <p className="wine-project-engagement-count">
+              <strong>{engagementTotal}</strong> cantine{engagementContacts.length < engagementTotal ? ` · ne vedi le prime ${engagementContacts.length}` : ''}
+            </p>
+            <table className="wine-project-sends-table">
+              <thead>
+                <tr>
+                  <th>Cantina</th>
+                  <th>Email</th>
+                  <th>Aperture</th>
+                  <th>Click</th>
+                  <th>Ultima reazione</th>
+                </tr>
+              </thead>
+              <tbody>
+                {engagementContacts.map((contact) => {
+                  const lastReaction = contact.last_email_click_at || contact.last_email_open_at || contact.last_contact_at
+                  return (
+                    <tr key={contact.id}>
+                      <td><Link href={`/contacts/${contact.id}`}>{contact.company || contact.name || '—'}</Link></td>
+                      <td>{contact.email || '—'}</td>
+                      <td>{contact.email_open_count || 0}</td>
+                      <td>{contact.email_click_count || 0}</td>
+                      <td>{lastReaction ? new Date(lastReaction).toLocaleDateString('it-IT') : '—'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </>
+        )}
+      </section>
+
+      <section className="wine-project-settings-card">
+        <div className="wine-project-card-heading">
+          <div>
             <p className="wine-project-eyebrow">TRACCIABILITÀ</p>
             <h2>Ultimi invii</h2>
             <p>Le ultime {recentSends.length} email realmente uscite, cantina per cantina. Vuota finché nessun invio è partito.</p>
@@ -280,7 +420,7 @@ export default function WineProjectSettingsPage() {
           <div>
             <p className="wine-project-eyebrow">CONTENUTO EMAIL</p>
             <h2>I cinque messaggi della sequenza</h2>
-            <p>Qui sta il testo operativo. Viene usato come brief vincolante quando il CRM prepara la bozza; per il grassetto scrivi <strong>**testo**</strong>. La firma testuale viene aggiunta dal mittente configurato.</p>
+            <p>Qui sta il testo operativo. Viene usato come brief vincolante quando il CRM prepara la bozza; per il grassetto scrivi <strong>**testo**</strong>. Ogni email si salva da sola con il pulsante in fondo alla sua card; la firma testuale viene aggiunta dal mittente configurato.</p>
           </div>
         </div>
         <div className="wine-project-template-list">
@@ -300,6 +440,17 @@ export default function WineProjectSettingsPage() {
                 <span>Testo</span>
                 <textarea id={`wine-email-body-${template.sequence}`} rows={9} value={template.body} onChange={(event) => updateTemplate(template.sequence, 'body', event.target.value)} />
               </label>
+              <div className="wine-project-template-actions">
+                {savedTemplate === template.sequence && <span className="wine-project-template-saved">Salvata ✓</span>}
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => saveTemplate(template.sequence)}
+                  disabled={savingTemplate === template.sequence}
+                >
+                  {savingTemplate === template.sequence ? 'Salvataggio…' : `Salva email ${template.sequence}`}
+                </button>
+              </div>
             </article>
           ))}
         </div>

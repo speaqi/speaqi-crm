@@ -6194,6 +6194,14 @@ textarea.form-input::placeholder { color: var(--text3); }
 .wine-project-template-card textarea { width: 100%; padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; }
 .wine-project-template-card input { min-height: 42px; }
 .wine-project-template-card textarea { min-height: 182px; resize: vertical; line-height: 1.48; }
+.wine-project-engagement-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.wine-project-engagement-tab { padding: 7px 14px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text2); font-size: 13px; font-weight: 600; cursor: pointer; }
+.wine-project-engagement-tab:hover { border-color: var(--accent); color: var(--text); }
+.wine-project-engagement-tab.is-active { border-color: var(--accent); background: var(--accent); color: #fff; }
+.wine-project-engagement-count { margin: 14px 0 0; color: var(--text2); font-size: 13px; }
+.wine-project-engagement-count strong { color: var(--text); }
+.wine-project-template-actions { grid-column: 1 / -1; display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+.wine-project-template-saved { color: var(--green); font-size: 12px; font-weight: 700; }
 .wine-project-save-bar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 0 8px; }
 .wine-project-save-bar p { margin: 0; color: var(--text2); font-size: 13px; }
 .wine-project-pause-note { margin: 0; color: var(--text3); font-size: 12px; line-height: 1.5; }

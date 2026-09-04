@@ -9,6 +9,8 @@
  * la stessa email.
  *
  * Le firme non compaiono nei modelli: il CRM aggiunge la firma Gmail reale.
+ * Nome e ruolo di chi scrive compaiono invece sempre in apertura, subito dopo
+ * il saluto: la firma in fondo arriva troppo tardi per dire chi sta scrivendo.
  */
 import type { CRMContact } from '@/types'
 
@@ -29,12 +31,14 @@ export const WINE_EMAIL_TEMPLATES: WineEmailTemplate[] = [
     id: 'A',
     label: 'Esempio gratuito',
     angle:
-      'Ripresa del contatto che salta la presentazione e propone subito di preparare gratuitamente un esempio su un loro vino. E il modello di riferimento preferito.',
+      'Ripresa del contatto che va dritta al punto e propone subito di preparare gratuitamente un esempio su un loro vino. E il modello di riferimento preferito.',
     subject: 'Ti faccio vedere Speaqi su un vostro vino?',
     body: [
       'Buongiorno {{nome}},',
       '',
-      'ti avevo già scritto qualche tempo fa per presentarti Speaqi.',
+      'sono Massimo Morgante, fondatore di Speaqi.',
+      '',
+      'Ti avevo già scritto qualche tempo fa per presentarti il progetto.',
       '',
       'Nel frattempo abbiamo fatto evolvere molto il progetto per il mondo del vino e, invece di mandarti un’altra presentazione, preferisco fartelo vedere direttamente.',
       '',
@@ -54,7 +58,9 @@ export const WINE_EMAIL_TEMPLATES: WineEmailTemplate[] = [
     body: [
       'Buongiorno {{nome}},',
       '',
-      'qualche tempo fa ti avevo scritto per parlarti di Speaqi.',
+      'sono Massimo Morgante, fondatore di Speaqi.',
+      '',
+      'Qualche tempo fa ti avevo scritto per parlarti del progetto.',
       '',
       'Da allora il progetto è cresciuto molto, soprattutto nel settore wine.',
       '',
@@ -76,7 +82,9 @@ export const WINE_EMAIL_TEMPLATES: WineEmailTemplate[] = [
     body: [
       'Buongiorno {{nome}},',
       '',
-      'riprendo il contatto dopo la mia precedente email su Speaqi con una proposta molto più concreta.',
+      'sono Massimo Morgante, fondatore di Speaqi.',
+      '',
+      'Riprendo il contatto dopo la mia precedente email con una proposta molto più concreta.',
       '',
       'Dammi una vostra bottiglia e ti faccio vedere cosa può diventare.',
       '',
@@ -98,7 +106,9 @@ export const WINE_EMAIL_TEMPLATES: WineEmailTemplate[] = [
     body: [
       'Buongiorno {{nome}},',
       '',
-      'ti avevo già contattato qualche tempo fa per Speaqi.',
+      'sono Massimo Morgante, fondatore di Speaqi.',
+      '',
+      'Ti avevo già contattato qualche tempo fa per il progetto.',
       '',
       'Nel frattempo siamo passati dalla presentazione ai progetti concreti e stiamo lavorando con cantine come San Salvatore 1988 e Leonarda Tardi per raccontare vini, cantina e territorio a un pubblico internazionale.',
       '',
@@ -239,10 +249,11 @@ export function formatWineEmailTemplateGuidance(
     '- Riscrivi il testo con i dati reali del contatto: {{nome}} e {{azienda}} sono segnaposto, vanno sostituiti con nome e cantina reali (se il nome non e affidabile usa solo “Buongiorno,”). Non lasciare mai un segnaposto nell’email.',
     '- Non copiare il modello parola per parola: cambia la formulazione mantenendo il senso, e adatta l’esempio se hai informazioni reali su un vino o sulla cantina.',
     '- Il modello ha la precedenza sulle indicazioni generiche di struttura e di CTA: qui la CTA e offrire un esempio gratuito, non una call di 15 minuti.',
-    '- Non aggiungere il blocco firma finale (nome e ruolo): lo aggiunge il CRM con la firma Gmail.',
+    '- Tieni sempre la riga di presentazione subito dopo il saluto (“sono Massimo Morgante, fondatore di Speaqi.”): e obbligatoria anche quando il modello viene riscritto.',
+    '- Non aggiungere il blocco firma finale (nome e ruolo): lo aggiunge il CRM con la firma Gmail. Nome e ruolo compaiono solo nella presentazione iniziale.',
     '- Cita come prova sociale solo cantine reali gia indicate nel contesto (San Salvatore, Dalibra, Leonarda Tardi) e non attribuire loro numeri o risultati.',
     options.hasPreviousContact
       ? '- Il richiamo a una comunicazione precedente e corretto: c’e gia stato un contatto scritto. Restane generico (“ti avevo scritto qualche tempo fa”), senza citare aperture, click o date precise che non hai.'
-      : '- ATTENZIONE: con questo contatto non risulta nessuna comunicazione precedente. Elimina ogni riferimento a email passate (“ti avevo già scritto”, “riprendo il contatto”) e apri presentandoti in una riga; tutto il resto del modello resta valido.',
+      : '- ATTENZIONE: con questo contatto non risulta nessuna comunicazione precedente. Elimina ogni riferimento a email passate (“ti avevo già scritto”, “riprendo il contatto”) e resta alla sola presentazione iniziale; tutto il resto del modello resta valido.',
   ].join('\n')
 }

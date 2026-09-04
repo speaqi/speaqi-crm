@@ -162,3 +162,54 @@ export async function PUT(request: NextRequest) {
     return Response.json({ error: errorMessage(error, 'Impossibile salvare Wine Project') }, { status: 500 })
   }
 }
+
+/**
+ * Salvataggio di una singola email della sequenza. Il PUT sopra riscrive tutte
+ * le impostazioni: con cinque testi lunghi in pagina serviva un salvataggio per
+ * card, cosi si puo' correggere un messaggio senza rimandare (o rischiare di
+ * perdere) tutto il resto.
+ */
+export async function PATCH(request: NextRequest) {
+  const auth = await requireRouteUser(request)
+  if ('error' in auth) return auth.error
+  if (!auth.isAdmin) return Response.json({ error: 'Solo admin' }, { status: 403 })
+
+  try {
+    const body = await request.json()
+    const sequence = Number(body?.sequence)
+    if (!Number.isInteger(sequence)) {
+      return Response.json({ error: 'Sequenza non valida' }, { status: 400 })
+    }
+
+    const current = await loadWineProjectAutomationSettings(auth.supabase, auth.workspaceUserId)
+    const target = current.sequence_templates.find((template) => template.sequence === sequence)
+    if (!target) {
+      return Response.json({ error: `Email ${sequence} non trovata nella sequenza` }, { status: 404 })
+    }
+
+    const settings = normalizeWineProjectAutomationSettings({
+      ...current,
+      sequence_templates: current.sequence_templates.map((template) =>
+        template.sequence === sequence
+          ? {
+              ...template,
+              subject: typeof body?.subject === 'string' ? body.subject : template.subject,
+              body: typeof body?.body === 'string' ? body.body : template.body,
+            }
+          : template
+      ),
+    })
+
+    const { error } = await auth.supabase
+      .from('wine_project_automation_settings')
+      .upsert({ user_id: auth.workspaceUserId, ...settings }, { onConflict: 'user_id' })
+    if (error) throw error
+
+    return Response.json({
+      ok: true,
+      template: settings.sequence_templates.find((template) => template.sequence === sequence),
+    })
+  } catch (error) {
+    return Response.json({ error: errorMessage(error, 'Impossibile salvare questa email') }, { status: 500 })
+  }
+}

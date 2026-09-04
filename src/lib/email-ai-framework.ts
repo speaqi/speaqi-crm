@@ -21,6 +21,54 @@ export type EmailAiFrameworkSettings = {
 }
 
 /**
+ * Chi firma le email commerciali. Ogni email — bozza AI, sequenza Wine Project o
+ * outreach Hospitality — si apre presentando chi scrive: senza questa riga il
+ * destinatario riceve un messaggio senza volto e la firma arriva solo in fondo.
+ */
+export const EMAIL_SENDER_NAME = 'Massimo Morgante'
+export const EMAIL_SENDER_ROLE = 'fondatore di Speaqi'
+
+/** Riga di presentazione da usare subito dopo il saluto. */
+export const EMAIL_SENDER_INTRO_AFTER_GREETING = `sono ${EMAIL_SENDER_NAME}, ${EMAIL_SENDER_ROLE}.`
+
+/** Variante autonoma, quando l'email non ha un saluto davanti. */
+export const EMAIL_SENDER_INTRO_STANDALONE = `Salve, ${EMAIL_SENDER_INTRO_AFTER_GREETING}`
+
+const GREETING_PATTERN = /^(buongiorno|buonasera|salve|gentil|egregi|spettabil|ciao)/i
+
+/** True se il testo dice gia chi scrive. */
+export function hasSenderIntroduction(text: string) {
+  return new RegExp(EMAIL_SENDER_NAME.replace(/\s+/g, '\\s+'), 'i').test(String(text || ''))
+}
+
+/**
+ * Inserisce la presentazione dopo il saluto (o in testa, se il saluto manca)
+ * quando il testo non dice chi scrive. Vale per i testi generati dall'AI e per
+ * i modelli salvati in impostazioni: la presentazione non deve dipendere da chi
+ * ha scritto il testo.
+ */
+export function ensureSenderIntroInText(bodyText: string) {
+  const body = String(bodyText || '')
+  if (hasSenderIntroduction(body)) return body
+
+  const lines = body.split('\n')
+  const greetingIndex = lines.findIndex((line) => line.trim())
+  if (greetingIndex >= 0 && GREETING_PATTERN.test(lines[greetingIndex].trim())) {
+    lines.splice(greetingIndex + 1, 0, '', EMAIL_SENDER_INTRO_AFTER_GREETING)
+    return lines.join('\n')
+  }
+
+  return body.trim() ? `${EMAIL_SENDER_INTRO_STANDALONE}\n\n${body}` : EMAIL_SENDER_INTRO_STANDALONE
+}
+
+export const EMAIL_SENDER_IDENTITY_POLICY = [
+  `Chi scrive e ${EMAIL_SENDER_NAME}, ${EMAIL_SENDER_ROLE}.`,
+  `Subito dopo il saluto presentati sempre in una riga breve: “${EMAIL_SENDER_INTRO_AFTER_GREETING}”. Vale per ogni email, prima o follow-up, a qualsiasi segmento: il destinatario deve sapere chi gli scrive prima di leggere il resto.`,
+  'La presentazione sta solo in apertura: non ripetere nome e ruolo nel corpo e non aggiungere un blocco firma finale, perche la firma la aggiunge il CRM.',
+  'Nelle email istituzionali mantieni la forma di cortesia anche nella presentazione (“Buongiorno, sono ' + EMAIL_SENDER_NAME + ', ' + EMAIL_SENDER_ROLE + '.”).',
+].join(' ')
+
+/**
  * Master positioning for the wine vertical. It is NOT a template email: it is the
  * single concept every wine draft must carry, whatever angle the AI chooses.
  * Mental image: Cantina -> Speaqi -> tutto il mondo.
@@ -140,6 +188,7 @@ export function withEmailAiFramework<T extends EmailAiFrameworkSettings>(setting
 export function buildEmailAiPolicy(settings?: EmailAiFrameworkSettings | null) {
   const effective = withEmailAiFramework(settings)
   return [
+    `## Chi scrive\n${EMAIL_SENDER_IDENTITY_POLICY}`,
     `## Identita e Posizionamento di Speaqi\n${effective.speaqi_context}`,
     `## Posizionamento\n${effective.email_positioning}`,
     `## Cose da non dire\n${effective.email_do_not_say}`,

@@ -15,7 +15,12 @@ import {
   resolveWineTemplateId,
   validateGeneratedDraft,
 } from '@/lib/server/email-draft-context'
-import { buildEmailAiPolicy } from '@/lib/email-ai-framework'
+import {
+  buildEmailAiPolicy,
+  EMAIL_SENDER_INTRO_AFTER_GREETING,
+  EMAIL_SENDER_NAME,
+  EMAIL_SENDER_ROLE,
+} from '@/lib/email-ai-framework'
 import type { CRMContact, GmailMessage } from '@/types'
 
 type GeneratedEmail = {
@@ -167,13 +172,14 @@ async function generateEmail(input: {
     'Usa come fonte di verita esclusivamente il contesto aziendale, i dati del contatto e la cronologia forniti sotto.',
     'Scrivi nella lingua del contatto quando il campo lingua e valorizzato; altrimenti scrivi in italiano.',
     'Scrivi in prima persona, con tono umano, professionale e concreto.',
-    'Apri sempre con un saluto: “Buongiorno Nome,” se il nome e affidabile, altrimenti “Buongiorno,”. Non usare frasi generiche come “spero che tu stia bene”; dopo il saluto vai dritto al punto.',
+    'Apri sempre con un saluto: “Buongiorno Nome,” se il nome e affidabile, altrimenti “Buongiorno,”. Non usare frasi generiche come “spero che tu stia bene”.',
+    `Subito dopo il saluto presentati sempre in una riga: “${EMAIL_SENDER_INTRO_AFTER_GREETING}” (adattala alla lingua del contatto). La presentazione non e mai facoltativa: senza di essa il destinatario non sa chi gli scrive. Subito dopo vai dritto al punto.`,
     'Non inventare dati, prezzi, disponibilita, meeting o promesse non presenti nel contesto.',
     'Non inventare una personalizzazione: se i dati non bastano, usa un motivo del contatto onesto e specifico per il segmento.',
     'Non scrivere mai che il destinatario ha mostrato interesse, aperto, cliccato o risposto a una campagna se questo fatto non compare esplicitamente nello storico email fornito o nelle indicazioni di segmento sotto, e anche quando le indicazioni di segmento lo permettono non nominare mai apertura/click/campagna: usa solo un riferimento naturale a una comunicazione scritta precedente. Non citare mai un numero di aperture/click. Non inventare di aver incontrato il destinatario a una fiera o evento: il nome di una lista o campagna CRM non e la prova di un incontro reale.',
     'Non descrivere servizi o capacita che non compaiono nel contesto aziendale.',
-    'Non inserire la firma: il CRM la aggiunge dopo, usando la firma Gmail quando disponibile.',
-    'Struttura: saluto, apertura rilevante, problema o opportunita osservabile, valore specifico, una sola CTA semplice che chieda un riscontro per una call di 15 minuti con il referente appropriato, salvo indicazione diversa nelle indicazioni di segmento sotto (che hanno la precedenza sulla CTA).',
+    `Non inserire la firma: il CRM la aggiunge dopo, usando la firma Gmail quando disponibile. Nome e ruolo (${EMAIL_SENDER_NAME}, ${EMAIL_SENDER_ROLE}) vanno solo nella presentazione iniziale, mai ripetuti in chiusura.`,
+    'Struttura: saluto, presentazione di chi scrive, apertura rilevante, problema o opportunita osservabile, valore specifico, una sola CTA semplice che chieda un riscontro per una call di 15 minuti con il referente appropriato, salvo indicazione diversa nelle indicazioni di segmento sotto (che hanno la precedenza sulla CTA).',
     'Mantieni il corpo tra 70 e 140 parole, salvo che la cronologia richieda una risposta piu articolata.',
     'Evita autocelebrazioni, buzzword, elenchi di servizi e frasi vaghe come "potrebbe interessarti".',
     'L oggetto deve essere breve, specifico e collegato al caso del destinatario.',

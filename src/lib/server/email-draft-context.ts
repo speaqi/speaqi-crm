@@ -1,5 +1,12 @@
 import type { CRMContact } from '@/types'
-import { withEmailAiFramework, type EmailAiFrameworkSettings } from '@/lib/email-ai-framework'
+import {
+  EMAIL_SENDER_INTRO_AFTER_GREETING,
+  EMAIL_SENDER_INTRO_STANDALONE,
+  ensureSenderIntroInText,
+  hasSenderIntroduction,
+  withEmailAiFramework,
+  type EmailAiFrameworkSettings,
+} from '@/lib/email-ai-framework'
 import {
   formatWineEmailTemplateGuidance,
   getWineEmailTemplates,
@@ -230,14 +237,35 @@ const RAI3_FOOTER_TEXT =
 const RAI3_FOOTER_HTML =
   `<p>Speaqi è stato raccontato anche da Rai 3 (Mezzogiorno Italia):<br><a href="${SPEAQI_RAI3_URL}">${SPEAQI_RAI3_URL}</a></p>`
 
+const GREETING_PATTERN = /^(buongiorno|buonasera|salve|gentil|egregi|spettabil|ciao)/i
+
+function insertSenderIntroHtml(bodyHtml: string) {
+  const firstParagraph = bodyHtml.match(/^\s*<p\b[^>]*>([\s\S]*?)<\/p>/i)
+  const firstParagraphText = String(firstParagraph?.[1] || '').replace(/<[^>]+>/g, ' ').trim()
+
+  if (firstParagraph && GREETING_PATTERN.test(firstParagraphText)) {
+    const insertAt = (firstParagraph.index || 0) + firstParagraph[0].length
+    return `${bodyHtml.slice(0, insertAt)}\n<p>${EMAIL_SENDER_INTRO_AFTER_GREETING}</p>${bodyHtml.slice(insertAt)}`
+  }
+
+  const intro = `<p>${EMAIL_SENDER_INTRO_STANDALONE}</p>`
+  return bodyHtml ? `${intro}\n${bodyHtml}` : intro
+}
+
 /**
  * Ensures required assets after AI generation:
+ * - “sono Massimo Morgante, fondatore di Speaqi” in apertura di ogni bozza
  * - Rai 3 footer for every draft
  * - speaqi.com/comuni link only for municipality contacts
  */
 export function ensureDraftRequiredAssets(contact: CRMContact, draft: DraftLike): DraftLike {
   let bodyText = String(draft.body_text || '').trim()
   let bodyHtml = String(draft.body_html || '').trim()
+
+  if (!hasSenderIntroduction(`${bodyText}\n${bodyHtml}`)) {
+    bodyText = ensureSenderIntroInText(bodyText)
+    bodyHtml = insertSenderIntroHtml(bodyHtml)
+  }
 
   if (isMunicipalityContact(contact)) {
     if (!hasUrl(`${bodyText}\n${bodyHtml}`, SPEAQI_COMUNI_URL)) {
