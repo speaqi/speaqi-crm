@@ -108,6 +108,7 @@ create index if not exists commercial_suppressions_email_lookup_idx
 create or replace function public.commercial_campaign_slug_is_immutable()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   if old.slug is not null and new.slug is distinct from old.slug then
@@ -126,6 +127,7 @@ create trigger commercial_campaigns_slug_immutable
 create or replace function public.commercial_step_is_immutable_once_used()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 declare v_used boolean;
 begin
