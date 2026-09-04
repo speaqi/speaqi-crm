@@ -1,4 +1,5 @@
 import { createActivities } from '@/lib/server/crm'
+import { ensureSenderIntroInText } from '@/lib/email-ai-framework'
 
 export type WineProjectSequenceTemplate = {
   sequence: number
@@ -161,6 +162,12 @@ function isMissingTable(error: unknown) {
     (message.includes('schema cache') || message.includes('does not exist') || message.includes('column'))
 }
 
+/**
+ * I modelli salvati in impostazioni vincono sui default, quindi cambiare i
+ * default non basta a far dire a queste email chi le scrive: la presentazione
+ * viene garantita qui, su ogni lettura e su ogni salvataggio, qualunque testo
+ * ci sia in `wine_project_automation_settings.sequence_templates`.
+ */
 function normalizeSequenceTemplates(input: unknown) {
   const supplied = Array.isArray(input) ? input : []
   return DEFAULT_WINE_PROJECT_SEQUENCE_TEMPLATES.map((defaultTemplate) => {
@@ -170,7 +177,7 @@ function normalizeSequenceTemplates(input: unknown) {
       label: text(candidate?.label, 100) || defaultTemplate.label,
       condition: defaultTemplate.condition,
       subject: text(candidate?.subject, 240) || defaultTemplate.subject,
-      body: text(candidate?.body, 5000) || defaultTemplate.body,
+      body: ensureSenderIntroInText(text(candidate?.body, 5000) || defaultTemplate.body),
     } satisfies WineProjectSequenceTemplate
   })
 }

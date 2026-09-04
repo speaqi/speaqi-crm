@@ -2,7 +2,8 @@ import type { CRMContact } from '@/types'
 import {
   EMAIL_SENDER_INTRO_AFTER_GREETING,
   EMAIL_SENDER_INTRO_STANDALONE,
-  EMAIL_SENDER_NAME,
+  ensureSenderIntroInText,
+  hasSenderIntroduction,
   withEmailAiFramework,
   type EmailAiFrameworkSettings,
 } from '@/lib/email-ai-framework'
@@ -238,27 +239,6 @@ const RAI3_FOOTER_HTML =
 
 const GREETING_PATTERN = /^(buongiorno|buonasera|salve|gentil|egregi|spettabil|ciao)/i
 
-function hasSenderIntroduction(text: string) {
-  return new RegExp(EMAIL_SENDER_NAME.replace(/\s+/g, '\\s+'), 'i').test(text)
-}
-
-/**
- * L'email deve dire subito chi scrive. Il modello lo fa quasi sempre (e nel
- * prompt e una regola), ma la presentazione non puo dipendere dal modello:
- * qui viene inserita dopo il saluto quando manca.
- */
-function insertSenderIntroText(bodyText: string) {
-  const lines = bodyText.split('\n')
-  const greetingIndex = lines.findIndex((line) => line.trim())
-
-  if (greetingIndex >= 0 && GREETING_PATTERN.test(lines[greetingIndex].trim())) {
-    lines.splice(greetingIndex + 1, 0, '', EMAIL_SENDER_INTRO_AFTER_GREETING)
-    return lines.join('\n')
-  }
-
-  return bodyText ? `${EMAIL_SENDER_INTRO_STANDALONE}\n\n${bodyText}` : EMAIL_SENDER_INTRO_STANDALONE
-}
-
 function insertSenderIntroHtml(bodyHtml: string) {
   const firstParagraph = bodyHtml.match(/^\s*<p\b[^>]*>([\s\S]*?)<\/p>/i)
   const firstParagraphText = String(firstParagraph?.[1] || '').replace(/<[^>]+>/g, ' ').trim()
@@ -283,7 +263,7 @@ export function ensureDraftRequiredAssets(contact: CRMContact, draft: DraftLike)
   let bodyHtml = String(draft.body_html || '').trim()
 
   if (!hasSenderIntroduction(`${bodyText}\n${bodyHtml}`)) {
-    bodyText = insertSenderIntroText(bodyText)
+    bodyText = ensureSenderIntroInText(bodyText)
     bodyHtml = insertSenderIntroHtml(bodyHtml)
   }
 
