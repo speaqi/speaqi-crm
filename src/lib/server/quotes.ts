@@ -59,6 +59,7 @@ export function normalizeQuoteItems(value: unknown): QuoteLineItem[] {
       const listUnitRaw = normalizeNumber(row.list_unit_price, 0)
       const listUnitPrice = listUnitRaw > 0 ? roundMoney(listUnitRaw) : null
       const lineTotal = roundMoney(quantity * unitPrice)
+      const choiceGroupId = normalizeText(row.choice_group_id)
 
       return {
         id: normalizeText(row.id) || randomUUID(),
@@ -68,13 +69,34 @@ export function normalizeQuoteItems(value: unknown): QuoteLineItem[] {
         unit_price: roundMoney(unitPrice),
         ...(listUnitPrice ? { list_unit_price: listUnitPrice } : {}),
         line_total: lineTotal,
+        ...(choiceGroupId
+          ? {
+              choice_group_id: choiceGroupId,
+              choice_group_label: normalizeText(row.choice_group_label),
+              selected: row.selected === true,
+            }
+          : {}),
       }
     })
     .forEach((item) => {
       if (item) items.push(item)
     })
 
-  return items
+  const chosenByGroup = new Map<string, string | undefined>()
+  for (const item of items) {
+    if (!item.choice_group_id || chosenByGroup.has(item.choice_group_id)) continue
+    const group = items.filter((candidate) => candidate.choice_group_id === item.choice_group_id)
+    chosenByGroup.set(item.choice_group_id, group.find((candidate) => candidate.selected)?.id || group[0]?.id)
+  }
+  return items.map((item) =>
+    item.choice_group_id
+      ? { ...item, selected: item.id === chosenByGroup.get(item.choice_group_id) }
+      : item
+  )
+}
+
+export function isQuoteItemIncluded(item: QuoteLineItem) {
+  return !item.choice_group_id || item.selected === true
 }
 
 export function calculateQuoteTotals(
@@ -88,7 +110,14 @@ export function calculateQuoteTotals(
   }
 ) {
   const subtotalAmount = roundMoney(
-    items.reduce((total, item) => total + Math.max(0, Number(item.line_total ?? item.quantity * item.unit_price)), 0)
+    items.reduce(
+      (total, item) =>
+        total +
+        (isQuoteItemIncluded(item)
+          ? Math.max(0, Number(item.line_total ?? item.quantity * item.unit_price))
+          : 0),
+      0
+    )
   )
   const discountAmount = roundMoney(Math.min(Math.max(0, options?.discountAmount ?? 0), subtotalAmount))
   const taxableAmount = Math.max(0, subtotalAmount - discountAmount)

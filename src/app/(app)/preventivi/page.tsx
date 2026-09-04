@@ -37,20 +37,7 @@ const STATUS_LABELS: Record<QuoteStatus, string> = {
 
 const DEFAULT_QUOTE_TITLE = 'Offerta Speaqi'
 const DEFAULT_PUBLIC_NOTE = 'Acconto 30%. Saldo alla consegna.'
-const PRO_PLAN_LINE_ID = 'speaqi-pro-plan-option'
 const QR_WASTE_LINE_ID = 'speaqi-qr-waste-sheets'
-const PRO_PLAN_DETAILS =
-  'Nella presente offerta: Piano PRO incluso per il primo anno a €490 + IVA. Dal secondo anno il servizio è facoltativo: il Cliente può scegliere se rinnovare o meno il Piano PRO al prezzo di listino (€299/anno + IVA).'
-
-function makeProPlanLine(): QuoteLineItem {
-  return {
-    id: PRO_PLAN_LINE_ID,
-    description: 'Piano PRO Speaqi',
-    details: PRO_PLAN_DETAILS,
-    quantity: 1,
-    unit_price: 490,
-  }
-}
 
 function makeQrWasteLine(bottleCount: number): QuoteLineItem {
   const quantity = Math.max(1, Math.round(Number(bottleCount || 1)))
@@ -64,21 +51,14 @@ function makeQrWasteLine(bottleCount: number): QuoteLineItem {
   }
 }
 
-function isProPlanLine(item: QuoteLineItem) {
-  if (item.id === PRO_PLAN_LINE_ID) return true
-  const d = String(item.description || '')
-  return d.includes('Piano PRO') && d.includes('Speaqi')
-}
-
 function isQrWasteLine(item: QuoteLineItem) {
   if (item.id === QR_WASTE_LINE_ID) return true
   const d = String(item.description || '').toLowerCase()
   return d.includes('schede tecniche qr') && d.includes('rifiuti')
 }
 
-function normalizeItemsProIds(items: QuoteLineItem[]): QuoteLineItem[] {
+function normalizeSpecialLineIds(items: QuoteLineItem[]): QuoteLineItem[] {
   return items.map((item) => {
-    if (isProPlanLine(item)) return { ...item, id: PRO_PLAN_LINE_ID, details: PRO_PLAN_DETAILS }
     if (isQrWasteLine(item)) return { ...item, id: QR_WASTE_LINE_ID }
     return item
   })
@@ -131,7 +111,7 @@ function quoteUrl(origin: string, token: string) {
 }
 
 function calculateDraftTotals(draft: QuoteDraft) {
-  const subtotal = draft.items.reduce(
+  const subtotal = draft.items.filter((item) => !item.choice_group_id || item.selected === true).reduce(
     (total, item) => total + Math.max(0, Number(item.quantity || 0)) * Math.max(0, Number(item.unit_price || 0)),
     0
   )
@@ -266,15 +246,13 @@ export default function PreventiviPage() {
   function applyPreset(key: SpeaqiPackageKey) {
     const p = SPEAQI_PACKAGES[key]
     setDraft((previous) => {
-      const regularItems = previous.items.filter((item) => !isProPlanLine(item))
-      const proItems = previous.items.filter(isProPlanLine)
       const shouldUsePackageTitle =
-        regularItems.length === 0 && previous.title.trim() === DEFAULT_QUOTE_TITLE
+        previous.items.length === 0 && previous.title.trim() === DEFAULT_QUOTE_TITLE
 
       return {
         ...previous,
         title: shouldUsePackageTitle ? p.quoteTitle : previous.title,
-        items: [...regularItems, quoteLineFromPackage(key, makeLineId()), ...proItems],
+        items: [...previous.items, quoteLineFromPackage(key, makeLineId())],
         deposit_percent: previous.deposit_percent || 30,
         public_note: previous.public_note || DEFAULT_PUBLIC_NOTE,
       }
@@ -341,10 +319,41 @@ export default function PreventiviPage() {
     })
   }
 
+  function addAlternative(source: QuoteLineItem) {
+    const groupId = source.choice_group_id || `choice-${makeLineId()}`
+    setDraft((previous) => ({
+      ...previous,
+      items: previous.items.flatMap((item) => {
+        if (item.id !== source.id) return [item]
+        const original = {
+          ...item,
+          choice_group_id: groupId,
+          choice_group_label: item.choice_group_label || `Scegli una soluzione per ${item.description || 'questo servizio'}`,
+          selected: true,
+        }
+        return [
+          original,
+          {
+            ...original,
+            id: makeLineId(),
+            description: `${item.description || 'Servizio'} — alternativa`,
+            selected: false,
+          },
+        ]
+      }),
+    }))
+  }
+
   function removeItem(id: string) {
-    patchDraft({
-      items: draft.items.filter((item) => item.id !== id),
-    })
+    const removed = draft.items.find((item) => item.id === id)
+    const remaining = draft.items.filter((item) => item.id !== id)
+    const replacementId = removed?.choice_group_id && removed.selected
+      ? remaining.find((item) => item.choice_group_id === removed.choice_group_id)?.id
+      : null
+    const items = replacementId
+      ? remaining.map((item) => (item.id === replacementId ? { ...item, selected: true } : item))
+      : remaining
+    patchDraft({ items })
   }
 
   function moveItem(id: string, direction: 'up' | 'down') {
@@ -364,17 +373,6 @@ export default function PreventiviPage() {
         items,
       }
     })
-  }
-
-  function setIncludeProPlan(include: boolean) {
-    const has = draft.items.some(isProPlanLine)
-    if (include && !has) {
-      patchDraft({ items: [...draft.items, makeProPlanLine()] })
-      return
-    }
-    if (!include && has) {
-      patchDraft({ items: draft.items.filter((item) => !isProPlanLine(item)) })
-    }
   }
 
   function setQrWasteSheets(count: number) {
@@ -402,7 +400,7 @@ export default function PreventiviPage() {
   function editQuote(quote: Quote) {
     setEditingId(quote.id)
     const linked = quote.contact_id ? contacts.find((item) => item.id === quote.contact_id) : null
-    const normalizedItems = quote.items?.length ? normalizeItemsProIds(quote.items) : blankDraft().items
+    const normalizedItems = quote.items?.length ? normalizeSpecialLineIds(quote.items) : blankDraft().items
     const qrLine = normalizedItems.find(isQrWasteLine)
     setContactQuery(linked ? contactLabel(linked) : '')
     setContactMenuOpen(false)
@@ -753,6 +751,26 @@ export default function PreventiviPage() {
             {draft.items.map((item, index) => (
               <div className="quote-line" key={item.id}>
                 <div className="quote-line-main">
+                  {item.choice_group_id && (
+                    <div className="quote-choice-admin-head">
+                      <span>Alternativa selezionabile dal cliente</span>
+                      <input
+                        className="fi"
+                        value={item.choice_group_label || ''}
+                        placeholder="Titolo della scelta"
+                        onChange={(event) => {
+                          const label = event.target.value
+                          patchDraft({
+                            items: draft.items.map((candidate) =>
+                              candidate.choice_group_id === item.choice_group_id
+                                ? { ...candidate, choice_group_label: label }
+                                : candidate
+                            ),
+                          })
+                        }}
+                      />
+                    </div>
+                  )}
                   <input
                     className="fi"
                     placeholder="Descrizione"
@@ -832,19 +850,13 @@ export default function PreventiviPage() {
                     ×
                   </button>
                 </div>
+                {!item.choice_group_id && (
+                  <button type="button" className="quote-add-alternative" onClick={() => addAlternative(item)}>
+                    + Aggiungi prezzo alternativo per lo stesso servizio
+                  </button>
+                )}
               </div>
             ))}
-            <label className="quotes-pro-opt">
-              <input
-                type="checkbox"
-                checked={draft.items.some(isProPlanLine)}
-                onChange={(event) => setIncludeProPlan(event.target.checked)}
-              />
-              <span>
-                Includi Piano PRO (1° anno a €490 + IVA, secondo anno facoltativo a €299/anno + IVA)
-              </span>
-            </label>
-
             <div className="quotes-extra-card">
               <div>
                 <strong>Schede tecniche QR rifiuti</strong>

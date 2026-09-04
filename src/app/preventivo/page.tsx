@@ -3,6 +3,7 @@ import { resolvePublicBankInstructions } from '@/lib/quote-defaults'
 import { createPublicServerClient } from '@/lib/server/supabase'
 import type { Quote, QuoteLineItem } from '@/types'
 import { QuoteContractAcceptance } from './QuoteContractAcceptance'
+import { QuoteChoiceGroup } from './QuoteChoiceGroup'
 import { QuotePaymentActions } from './QuotePaymentActions'
 
 export const dynamic = 'force-dynamic'
@@ -37,7 +38,7 @@ function safeItems(value: unknown): QuoteLineItem[] {
 
 /** Somma imponibile di listino (o prezzo unitario se listino assente) per riga — coerente con le righe + IVA. */
 function initialListNetTotal(items: QuoteLineItem[]) {
-  return items.reduce((sum, item) => {
+  return items.filter((item) => !item.choice_group_id || item.selected === true).reduce((sum, item) => {
     const qty = Number(item.quantity || 0)
     const listRaw = item.list_unit_price != null ? Number(item.list_unit_price) : null
     const list = listRaw != null && listRaw > 0 ? listRaw : null
@@ -111,6 +112,7 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
   }
 
   const items = safeItems(quote.items)
+  const lockedChoices = quote.status === 'accepted' || quote.status === 'paid' || Boolean(quote.contract_signer_email)
   const canUseStripe = false
   const hasBankTransfer = true
   const validUntil = formatDate(quote.valid_until)
@@ -174,6 +176,19 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
             <h2>Dettaglio offerta</h2>
             <div className="public-quote-item-list">
               {items.map((item) => {
+                if (item.choice_group_id) {
+                  const groupItems = items.filter((candidate) => candidate.choice_group_id === item.choice_group_id)
+                  if (groupItems[0]?.id !== item.id) return null
+                  return (
+                    <QuoteChoiceGroup
+                      key={item.choice_group_id}
+                      token={token}
+                      items={groupItems}
+                      currency={quote.currency}
+                      locked={lockedChoices}
+                    />
+                  )
+                }
                 const qty = Number(item.quantity || 0)
                 const unit = Number(item.unit_price || 0)
                 const listUnit = item.list_unit_price != null ? Number(item.list_unit_price) : null

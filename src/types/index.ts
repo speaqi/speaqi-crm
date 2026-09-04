@@ -213,6 +213,12 @@ export interface QuoteLineItem {
   /** Prezzo di listino / prima dello sconto, solo espositivo (stesso criterio di unit_price) */
   list_unit_price?: number | null
   line_total?: number
+  /** Identificativo condiviso dalle alternative tra cui il cliente deve sceglierne una. */
+  choice_group_id?: string | null
+  /** Etichetta mostrata sopra le alternative (es. "Scegli la durata"). */
+  choice_group_label?: string | null
+  /** Solo una riga per gruppo concorre al totale del preventivo. */
+  selected?: boolean
 }
 
 export interface QuoteContactSnapshot {
