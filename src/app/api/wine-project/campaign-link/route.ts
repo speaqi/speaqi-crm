@@ -22,7 +22,11 @@ export async function GET(request: NextRequest) {
   if (error || !data) return Response.json({ error: 'Link non trovato' }, { status: 404 })
 
   const contact = Array.isArray(data.contacts) ? data.contacts[0] : data.contacts
+  const demoAccessToken = process.env.WINE_PROJECT_DEMO_ACCESS_TOKEN
+  if (!demoAccessToken) return Response.json({ error: 'WINE_PROJECT_DEMO_ACCESS_TOKEN non configurato' }, { status: 500 })
+
   const destination = new URL('/demo/wine-project', process.env.WINE_PROJECT_URL || 'https://speaqi.com')
+  destination.searchParams.set('access', demoAccessToken)
   destination.searchParams.set('first_name', firstName(contact?.name || ''))
   if (contact?.company) destination.searchParams.set('company_name', contact.company)
   destination.searchParams.set('source', 'acumbamail')
