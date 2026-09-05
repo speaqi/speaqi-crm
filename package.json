@@ -12,7 +12,7 @@
     "start": "node start.cjs",
     "lint": "next lint",
     "test": "npm run test:unit && npm run test:db",
-    "test:unit": "tsx --test tests/campaigns.unit.test.ts",
+    "test:unit": "tsx --test tests/campaigns.unit.test.ts tests/wine-project.unit.test.ts",
     "test:db": "tsx --test tests/campaigns.db.test.ts"
   },
   "engines": {
