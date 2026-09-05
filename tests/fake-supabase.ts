@@ -94,6 +94,27 @@ class FakeQuery {
   is(column: string, value: any) { this.filters.push((row) => (row[column] ?? null) === value); return this }
   in(column: string, values: any[]) { const set = new Set(values); this.filters.push((row) => set.has(row[column])); return this }
 
+  /**
+   * ILIKE con la semantica vera di Postgres: `%` e `_` sono jolly, la barra
+   * rovesciata li disinnesca. Serve proprio a verificare che il codice
+   * neutralizzi i jolly negli indirizzi email, dove `_` e' comunissimo.
+   */
+  ilike(column: string, pattern: string) {
+    let expression = ''
+    for (let index = 0; index < pattern.length; index += 1) {
+      const character = pattern[index]
+      if (character === '\\') {
+        index += 1
+        expression += pattern[index] ? pattern[index].replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : ''
+      } else if (character === '%') expression += '.*'
+      else if (character === '_') expression += '.'
+      else expression += character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    }
+    const matcher = new RegExp(`^${expression}$`, 'i')
+    this.filters.push((row) => matcher.test(String(row[column] ?? '')))
+    return this
+  }
+
   not(column: string, operator: string, value: any) {
     if (operator === 'is') this.filters.push((row) => (row[column] ?? null) !== value)
     else if (operator === 'in') {

@@ -343,6 +343,35 @@ export async function scheduleNextWineProjectFollowup(
 }
 
 /**
+ * Tutte le schede contatto che condividono l'indirizzo di quella data, la sua
+ * compresa. Con i re-import della lista lo stesso indirizzo finisce su piu'
+ * righe di `contacts`, e fermare una sola riga non ferma la sequenza.
+ */
+async function contactIdsSharingEmail(supabase: any, userId: string, contactId: string) {
+  const { data: contact, error } = await supabase
+    .from('contacts')
+    .select('email')
+    .eq('user_id', userId)
+    .eq('id', contactId)
+    .maybeSingle()
+  if (error) throw error
+
+  const email = String(contact?.email || '').trim().toLowerCase()
+  if (!email) return [contactId]
+
+  const { data: twins, error: twinsError } = await supabase
+    .from('contacts')
+    .select('id')
+    .eq('user_id', userId)
+    .ilike('email', likeLiteral(email))
+  if (twinsError) throw twinsError
+
+  const ids = new Set<string>([contactId])
+  for (const twin of twins || []) ids.add(String(twin.id))
+  return [...ids]
+}
+
+/**
  * Ferma in un solo aggiornamento gli invii Wine non ancora consegnati. Gli
  * invii gia marcati come sent restano nello storico; gli elementi in sending
  * vengono annullati prima della pubblicazione della campagna quando possibile.
@@ -354,11 +383,15 @@ export async function stopWineProjectFollowups(
   reason: string
 ) {
   const now = new Date().toISOString()
+  // Ferma anche le schede duplicate con lo stesso indirizzo: chi ha risposto
+  // ha risposto come persona, non come record, e l'email successiva partirebbe
+  // comunque dal gemello importato dopo.
+  const contactIds = await contactIdsSharingEmail(supabase, userId, contactId)
   const { data, error } = await supabase
     .from('wine_project_followup_events')
     .update({ status: 'skipped', skipped_at: now, skip_reason: reason })
     .eq('user_id', userId)
-    .eq('contact_id', contactId)
+    .in('contact_id', contactIds)
     .in('status', ['scheduled', 'queued', 'sending'])
     .select('id, sequence')
 
@@ -496,6 +529,10 @@ export async function backfillWineProjectFollowups(supabase: any, userId?: strin
       for (const contact of page) {
         if (remaining < 1) break
         if (!contact.email || alreadyEnrolled.has(contact.id)) continue
+        // Non si arruola chi ha gia' risposto, si e' disiscritto o ha una
+        // scheda gemella chiusa: prima il filtro guardava solo la riga in
+        // esame, e la scheda nata dall'ultimo import passava sempre.
+        if (await wineSequenceBlockReason(supabase, contact)) continue
         const result = await planWineProjectFollowups(supabase, contact, settings)
         if (result.planned > 0) {
           alreadyEnrolled.add(contact.id)
@@ -509,11 +546,57 @@ export async function backfillWineProjectFollowups(supabase: any, userId?: strin
   return { contacts: scanned, planned, blocked }
 }
 
-function stoppedReason(contact: WineContact, hasReply: boolean) {
+const CLOSED_WINE_STATUSES = ['Closed', 'Paid', 'Lost']
+
+/** Neutralizza i jolly di LIKE: `_` dentro un indirizzo email e' comunissimo. */
+function likeLiteral(value: string) {
+  return value.replace(/([\\%_])/g, '\\$1')
+}
+
+/**
+ * Motivo per cui la sequenza non deve partire ne' proseguire, cercato
+ * sull'INDIRIZZO e non sulla singola scheda contatto.
+ *
+ * Lo stesso indirizzo vive spesso su piu' schede: ogni re-import dalla lista
+ * Acumbamail ne crea una nuova. La risposta si attacca alla scheda su cui era
+ * sincronizzata la casella, mentre la sequenza gira su quella appena
+ * importata, che di quella risposta non sa nulla — ed e' cosi' che una cantina
+ * che aveva gia' risposto «non siamo interessati» si e' vista ripartire la
+ * sequenza da capo.
+ *
+ * La risposta si cerca per `from_email` e non per `contact_id`: e' l'unico
+ * dato che lega il messaggio alla persona invece che alla scheda, e in piu'
+ * scarta i messaggi nostri finiti fra gli inbound perche' spediti da un
+ * indirizzo diverso da quello dell'account Gmail collegato.
+ */
+export async function wineSequenceBlockReason(supabase: any, contact: WineContact) {
   if (contact.email_unsubscribed_at) return 'disiscritto'
-  if (['Closed', 'Paid', 'Lost'].includes(String(contact.status || ''))) return 'trattativa chiusa'
-  if (hasReply) return 'risposta ricevuta'
-  return null
+  if (CLOSED_WINE_STATUSES.includes(String(contact.status || ''))) return 'trattativa chiusa'
+
+  const email = String(contact.email || '').trim().toLowerCase()
+  if (!email) return null
+  const pattern = likeLiteral(email)
+
+  const { data: twins, error: twinsError } = await supabase
+    .from('contacts')
+    .select('id, status, email_unsubscribed_at')
+    .eq('user_id', contact.user_id)
+    .ilike('email', pattern)
+  if (twinsError) throw twinsError
+  for (const twin of twins || []) {
+    if (twin.id === contact.id) continue
+    if (twin.email_unsubscribed_at) return 'disiscritto su scheda duplicata'
+    if (CLOSED_WINE_STATUSES.includes(String(twin.status || ''))) return 'trattativa chiusa su scheda duplicata'
+  }
+
+  const { count, error: replyError } = await supabase
+    .from('gmail_messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', contact.user_id)
+    .eq('direction', 'inbound')
+    .ilike('from_email', pattern)
+  if (replyError) throw replyError
+  return (count || 0) > 0 ? 'risposta ricevuta' : null
 }
 
 function sequenceTemplate(settings: WineProjectAutomationSettings, sequence: number) {
@@ -566,23 +649,18 @@ export async function queueDueWineProjectFollowups(supabase: any, userId?: strin
     }
     if (!settings.enabled) continue
     const template = sequenceTemplate(settings, Number(event.sequence))
-    const { count, error: replyError } = await supabase
-      .from('gmail_messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('contact_id', contact.id)
-      .eq('direction', 'inbound')
-      .gte('sent_at', event.created_at || '1970-01-01T00:00:00.000Z')
-    if (replyError) throw replyError
-
-    const reason = stoppedReason(contact, Boolean(count))
+    // Il controllo non ha finestra temporale: una risposta arrivata prima
+    // dell'arruolamento vale quanto una arrivata dopo. La versione precedente
+    // guardava solo i messaggi successivi alla creazione dell'evento, quindi
+    // un re-import bastava a far ripartire la sequenza su chi aveva gia'
+    // risposto mesi prima.
+    const reason = await wineSequenceBlockReason(supabase, contact)
     if (reason) {
-      const { error: skipError } = await supabase
-        .from('wine_project_followup_events')
-        .update({ status: 'skipped', skipped_at: new Date().toISOString(), skip_reason: reason })
-        .eq('id', event.id)
-        .eq('status', 'scheduled')
-      if (skipError) throw skipError
-      skipped += 1
+      // Si ferma tutta la coda del contatto (schede gemelle comprese), non il
+      // solo evento in scadenza: altrimenti lo stesso motivo va riscoperto una
+      // email per volta, e ogni giro ne lascia passare una.
+      const stop = await stopWineProjectFollowups(supabase, contact.user_id, contact.id, reason)
+      skipped += Math.max(1, stop.stopped)
       continue
     }
 
