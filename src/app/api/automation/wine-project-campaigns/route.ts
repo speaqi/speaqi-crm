@@ -52,18 +52,69 @@ function paragraphHtml(text: string) {
   return `<p style="margin:0 0 20px;font:16px/1.6 Arial,Helvetica,sans-serif;color:#15243a;text-align:left;">${escaped}</p>`
 }
 
-function campaignHtml(template: WineProjectSequenceTemplate) {
-  const copy = template.body
+/**
+ * Riga-pulsante: `→ [ETICHETTA]` in una riga a se' diventa il bottone verso la
+ * demo personalizzata della cantina (`*|WINE_URL|*`). Prima il bottone era
+ * agganciato a una frase fissa, quindi riscrivere il testo lo faceva sparire
+ * silenziosamente; la vecchia frase resta riconosciuta per i testi non ancora
+ * aggiornati.
+ */
+const LEGACY_CTA = '→ Scoprite come sarebbe la vostra cantina su Speaqi'
+
+function ctaLabel(line: string) {
+  const marker = line.trim().match(/^(?:→|->)\s*\[([^\]]{3,80})\]$/)
+  if (marker) return marker[1].trim()
+  if (line.includes(LEGACY_CTA)) return 'Scoprite come sarebbe la vostra cantina su Speaqi'
+  return null
+}
+
+/**
+ * La riga-pulsante puo' stare dentro un paragrafo insieme alla riga che la
+ * introduce ("Qui c'e' <cantina>"): quel testo va tenuto, non sostituito.
+ */
+function paragraphBlocksHtml(paragraph: string) {
+  const blocks: string[] = []
+  let pending: string[] = []
+
+  const flush = () => {
+    const text = pending.join('\n').trim()
+    if (text) blocks.push(paragraphHtml(text))
+    pending = []
+  }
+
+  for (const line of paragraph.split('\n')) {
+    const label = ctaLabel(line)
+    if (label) {
+      flush()
+      blocks.push(ctaButtonHtml(label))
+      continue
+    }
+    pending.push(line)
+  }
+  flush()
+
+  return blocks.join('')
+}
+
+function ctaButtonHtml(label: string) {
+  return `<p style="margin:28px 0 24px;text-align:left;"><a href="*|WINE_URL|*" style="display:inline-block;background:#132034;color:#ffffff;text-decoration:none;padding:13px 18px;font:600 16px Arial,Helvetica,sans-serif;">${escapeHtml(label)} →</a></p>`
+}
+
+/**
+ * I merge tag entrano DOPO la formattazione: sostituirli prima significava che
+ * un `**{{azienda}}**` in grassetto produceva `***|COMPANY|***`, il regex del
+ * bold si mangiava un asterisco e Acumbamail non riconosceva piu' il tag.
+ */
+function withMergeTags(html: string) {
+  return html
     .replaceAll('Buongiorno {{nome}},', '*|GREETING|*')
     .replaceAll('{{nome}}', '*|FIRST_NAME|*')
     .replaceAll('{{azienda}}', '*|COMPANY|*')
-  const paragraphs = copy.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean)
-  const body = paragraphs.map((paragraph) => {
-    if (paragraph.includes('→ Scoprite come sarebbe la vostra cantina su Speaqi')) {
-      return '<p style="margin:28px 0 24px;text-align:left;"><a href="*|WINE_URL|*" style="display:inline-block;background:#132034;color:#ffffff;text-decoration:none;padding:13px 18px;font:600 16px Arial,Helvetica,sans-serif;">Scoprite come sarebbe la vostra cantina su Speaqi →</a></p>'
-    }
-    return paragraphHtml(paragraph)
-  }).join('')
+}
+
+function campaignHtml(template: WineProjectSequenceTemplate) {
+  const paragraphs = template.body.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean)
+  const body = withMergeTags(paragraphs.map(paragraphBlocksHtml).join(''))
 
   return `<!doctype html><html><body style="margin:0;background:#ffffff;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr><td style="padding:32px 20px;background:#ffffff;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:680px;margin:0;"><tr><td style="padding:0;text-align:left;"><p style="margin:0 0 24px;font:700 13px/1.3 Arial,Helvetica,sans-serif;letter-spacing:1.8px;color:#b66326;">SPEAQI · GLOBAL WINE EXPERIENCE</p>${body}<hr style="border:0;border-top:1px solid #d8dde4;margin:30px 0 20px;"><p style="margin:0;font:14px/1.55 Arial,Helvetica,sans-serif;color:#526174;text-align:left;">Massimo Morgante<br>CEO · Speaqi<br><a href="mailto:massimo@speaqi.com" style="color:#334e70;">massimo@speaqi.com</a> · <a href="https://www.speaqi.com" style="color:#334e70;">www.speaqi.com</a></p><p style="margin:24px 0 0;font:12px/1.5 Arial,Helvetica,sans-serif;color:#6b7280;text-align:left;">Non desidera più ricevere aggiornamenti? <a href="*|UNSUBSCRIBE_URL|*" style="color:#526174;text-decoration:underline;">Si disiscriva qui</a>.</p></td></tr></table></td></tr></table></body></html>`
 }
