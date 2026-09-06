@@ -6,7 +6,13 @@ import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, test } from 'node:test'
 import { FakeSupabase } from './fake-supabase'
 import { clampWhatsappText, normalizeChatId } from '../src/lib/server/whatsapp'
-import { buildDigestMessage, contactLabel, recordWhatsappEvent } from '../src/lib/server/whatsapp-notify'
+import {
+  buildDigestMessage,
+  contactLabel,
+  invalidateWhatsappSettingsCache,
+  loadWhatsappSettings,
+  recordWhatsappEvent,
+} from '../src/lib/server/whatsapp-notify'
 
 const USER = 'user-1'
 
@@ -14,8 +20,19 @@ function configureGateway() {
   process.env.OPENWA_BASE_URL = 'https://wa.example.com'
   process.env.OPENWA_API_KEY = 'key'
   process.env.OPENWA_SESSION_ID = '0a941dac-a965-45e7-b318-74ae8be134f0'
-  process.env.WHATSAPP_NOTIFY_TO = '+39 333 1234567'
-  process.env.WHATSAPP_NOTIFY_ENABLED = 'true'
+}
+
+/** La riga che oggi governa numero, interruttore ed eventi: sta nel CRM. */
+function settingsRow(overrides: Record<string, any> = {}) {
+  return { user_id: USER, notify_to: '+39 389 6868162', enabled: true, events: null, ...overrides }
+}
+
+function db(settings: any[] = [settingsRow()]) {
+  invalidateWhatsappSettingsCache()
+  return new FakeSupabase({
+    whatsapp_notification_events: [],
+    whatsapp_notification_settings: settings,
+  }) as any
 }
 
 function clearGateway() {
@@ -24,15 +41,22 @@ function clearGateway() {
   delete process.env.OPENWA_SESSION_ID
   delete process.env.WHATSAPP_NOTIFY_TO
   delete process.env.WHATSAPP_NOTIFY_ENABLED
-  delete process.env.WHATSAPP_NOTIFY_EVENTS
+  invalidateWhatsappSettingsCache()
 }
 
 describe('numero e testo verso il gateway', () => {
   test('un numero scritto come lo scrive un umano diventa un WID', () => {
-    assert.equal(normalizeChatId('+39 333 123 4567'), '393331234567@c.us')
-    assert.equal(normalizeChatId('393331234567@c.us'), '393331234567@c.us')
+    assert.equal(normalizeChatId('+39 389 686 8162'), '393896868162@c.us')
+    assert.equal(normalizeChatId('393896868162@c.us'), '393896868162@c.us')
     assert.equal(normalizeChatId('12345'), null)
     assert.equal(normalizeChatId(''), null)
+  })
+
+  test('un cellulare italiano senza prefisso prende il 39, non un destinatario inesistente', () => {
+    assert.equal(normalizeChatId('3896868162'), '393896868162@c.us')
+    assert.equal(normalizeChatId('389 686 8162'), '393896868162@c.us')
+    // Con il + davanti il numero e gia internazionale: guai a metterci un 39.
+    assert.equal(normalizeChatId('+1 415 555 0100'), '14155550100@c.us')
   })
 
   test('il testo viene troncato a 4096 caratteri invece di farsi rifiutare', () => {
@@ -74,7 +98,7 @@ describe('coda degli eventi', () => {
   afterEach(() => clearGateway())
 
   test('senza gateway configurato non si accumula coda', async () => {
-    const supabase = new FakeSupabase({ whatsapp_notification_events: [] }) as any
+    const supabase = db()
     await recordWhatsappEvent(supabase, {
       userId: USER,
       type: 'email_sent',
@@ -85,9 +109,21 @@ describe('coda degli eventi', () => {
     assert.equal(data.length, 0)
   })
 
+  test('con le notifiche spente nel CRM non si accumula coda', async () => {
+    configureGateway()
+    const supabase = db([settingsRow({ enabled: false })])
+    await recordWhatsappEvent(supabase, {
+      userId: USER,
+      type: 'email_sent',
+      contact: { id: 'c1', company: 'Cantina A' },
+    })
+    const { data } = await supabase.from('whatsapp_notification_events').select('*')
+    assert.equal(data.length, 0)
+  })
+
   test('un invio finisce in coda per il riepilogo, con agente e campagna', async () => {
     configureGateway()
-    const supabase = new FakeSupabase({ whatsapp_notification_events: [] }) as any
+    const supabase = db()
     await recordWhatsappEvent(supabase, {
       userId: USER,
       type: 'email_sent',
@@ -103,10 +139,9 @@ describe('coda degli eventi', () => {
     assert.equal(data[0].notified_at ?? null, null)
   })
 
-  test('un tipo escluso da WHATSAPP_NOTIFY_EVENTS non entra nemmeno in coda', async () => {
+  test('un tipo tolto dalle impostazioni non entra nemmeno in coda', async () => {
     configureGateway()
-    process.env.WHATSAPP_NOTIFY_EVENTS = 'email_reply,email_click'
-    const supabase = new FakeSupabase({ whatsapp_notification_events: [] }) as any
+    const supabase = db([settingsRow({ events: ['email_reply', 'email_click'] })])
     await recordWhatsappEvent(supabase, {
       userId: USER,
       type: 'email_open',
@@ -114,6 +149,27 @@ describe('coda degli eventi', () => {
     })
     const { data } = await supabase.from('whatsapp_notification_events').select('*')
     assert.equal(data.length, 0)
+  })
+})
+
+describe('impostazioni', () => {
+  beforeEach(() => clearGateway())
+  afterEach(() => clearGateway())
+
+  test('la riga del CRM vince sulle env', async () => {
+    process.env.WHATSAPP_NOTIFY_TO = '+39 333 0000000'
+    const settings = await loadWhatsappSettings(db(), USER)
+    assert.equal(settings.notify_to, '+39 389 6868162')
+    assert.equal(settings.enabled, true)
+    assert.deepEqual(settings.events.length, 5)
+  })
+
+  test('senza riga valgono le env, cosi il primo avvio non resta muto', async () => {
+    process.env.WHATSAPP_NOTIFY_TO = '+39 333 0000000'
+    process.env.WHATSAPP_NOTIFY_ENABLED = 'true'
+    const settings = await loadWhatsappSettings(db([]), USER)
+    assert.equal(settings.notify_to, '+39 333 0000000')
+    assert.equal(settings.enabled, true)
   })
 })
 

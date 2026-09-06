@@ -3,7 +3,7 @@ import { requireAutomation } from '@/lib/server/automation-auth'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 import { errorMessage } from '@/lib/server/http'
 import { runWhatsappDigest } from '@/lib/server/whatsapp-notify'
-import { isWhatsappNotifyEnabled, whatsappConfigStatus } from '@/lib/server/whatsapp'
+import { isWhatsappHardDisabled, whatsappGatewayStatus } from '@/lib/server/whatsapp'
 
 /**
  * Riepilogo WhatsApp degli eventi in coda (invii, aperture, click,
@@ -14,22 +14,23 @@ export async function POST(request: NextRequest) {
   const auth = requireAutomation(request)
   if ('response' in auth) return auth.response
 
-  // Interruttore spento o gateway non configurato non sono errori: sono lo stato
-  // normale finche il numero non e agganciato. Rispondiamo 200 perche altrimenti
-  // il cron n8n suonerebbe l'allarme ogni mezz'ora.
-  const status = whatsappConfigStatus()
-  if (!status.configured) {
+  // Gateway non configurato o freno di emergenza tirato non sono errori: sono
+  // lo stato normale finche il numero non e agganciato. Rispondiamo 200 perche
+  // altrimenti il cron n8n suonerebbe l'allarme ogni mezz'ora. L'interruttore
+  // vero e il numero stanno nel CRM e li controlla runWhatsappDigest.
+  const gateway = whatsappGatewayStatus()
+  if (!gateway.configured) {
     return Response.json({
       ok: true,
       skipped: true,
-      reason: `Gateway WhatsApp non configurato: manca ${status.missing.join(', ')}`,
+      reason: `Gateway WhatsApp non configurato: manca ${gateway.missing.join(', ')}`,
     })
   }
-  if (!isWhatsappNotifyEnabled()) {
+  if (isWhatsappHardDisabled()) {
     return Response.json({
       ok: true,
       skipped: true,
-      reason: 'WHATSAPP_NOTIFY_ENABLED non è true: notifiche disattivate',
+      reason: 'WHATSAPP_NOTIFY_ENABLED=false: notifiche disattivate',
     })
   }
 

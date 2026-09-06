@@ -1,5 +1,6 @@
 import {
-  isWhatsappNotifyEnabled,
+  isWhatsappHardDisabled,
+  normalizeChatId,
   sendWhatsappText,
   whatsappConfig,
 } from '@/lib/server/whatsapp'
@@ -49,8 +50,14 @@ export type WhatsappEventInput = {
   occurredAt?: string | null
 }
 
+export type WhatsappSettings = {
+  notify_to: string | null
+  enabled: boolean
+  events: WhatsappEventType[]
+}
+
 const IMMEDIATE_EVENTS: WhatsappEventType[] = ['email_reply']
-const ALL_EVENTS: WhatsappEventType[] = [
+export const ALL_WHATSAPP_EVENTS: WhatsappEventType[] = [
   'email_sent',
   'email_open',
   'email_click',
@@ -76,24 +83,94 @@ const EVENT_ICONS: Record<WhatsappEventType, string> = {
 
 const MAX_NAMES_PER_LINE = 6
 const DIGEST_EVENT_LIMIT = 2000
+const SETTINGS_CACHE_MS = 30_000
 
-/**
- * `WHATSAPP_NOTIFY_EVENTS` spegne singoli tipi senza toccare il codice: utile
- * quando una campagna genera troppe aperture e si vuole tenere solo i click e
- * le risposte. Vuota o assente significa "tutti".
- */
-export function enabledWhatsappEvents(): WhatsappEventType[] {
-  const raw = String(process.env.WHATSAPP_NOTIFY_EVENTS || '').trim()
-  if (!raw) return ALL_EVENTS
-  const wanted = new Set(
-    raw.split(',').map((value) => value.trim().toLowerCase()).filter(Boolean)
-  )
-  const selected = ALL_EVENTS.filter((event) => wanted.has(event))
-  return selected.length ? selected : ALL_EVENTS
+const settingsCache = new Map<string, { value: WhatsappSettings; expiresAt: number }>()
+
+function normalizeEvents(raw: unknown): WhatsappEventType[] {
+  if (!Array.isArray(raw) || !raw.length) return ALL_WHATSAPP_EVENTS
+  const wanted = new Set(raw.map((value) => String(value).trim().toLowerCase()))
+  const selected = ALL_WHATSAPP_EVENTS.filter((event) => wanted.has(event))
+  return selected.length ? selected : ALL_WHATSAPP_EVENTS
 }
 
-function isEventEnabled(type: WhatsappEventType) {
-  return enabledWhatsappEvents().includes(type)
+/**
+ * Il numero e l'interruttore stanno nel CRM; le env restano solo come valore di
+ * partenza per il primo avvio e come freno di emergenza globale.
+ *
+ * La cache di 30 s serve perche questa funzione sta sul percorso di ogni invio
+ * email: senza, ogni email pagherebbe una query in piu per sapere una cosa che
+ * cambia una volta ogni sei mesi.
+ */
+export function invalidateWhatsappSettingsCache(userId?: string) {
+  if (userId) settingsCache.delete(userId)
+  else settingsCache.clear()
+}
+
+export async function loadWhatsappSettings(supabase: any, userId: string): Promise<WhatsappSettings> {
+  const cached = settingsCache.get(userId)
+  if (cached && cached.expiresAt > Date.now()) return cached.value
+
+  const envNotifyTo = String(process.env.WHATSAPP_NOTIFY_TO || '').trim() || null
+  let value: WhatsappSettings = {
+    notify_to: envNotifyTo,
+    enabled: String(process.env.WHATSAPP_NOTIFY_ENABLED || '').trim().toLowerCase() === 'true',
+    events: ALL_WHATSAPP_EVENTS,
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('whatsapp_notification_settings')
+      .select('notify_to,enabled,events')
+      .eq('user_id', userId)
+      .maybeSingle()
+    // La tabella puo non esserci ancora (migration non applicata): in quel caso
+    // valgono le env, non un errore.
+    if (error && String(error.code || '') !== '42P01') throw error
+    if (data) {
+      value = {
+        notify_to: String(data.notify_to || '').trim() || envNotifyTo,
+        enabled: data.enabled === true,
+        events: normalizeEvents(data.events),
+      }
+    }
+  } catch (error) {
+    console.error('whatsapp settings not loaded', error)
+  }
+
+  settingsCache.set(userId, { value, expiresAt: Date.now() + SETTINGS_CACHE_MS })
+  return value
+}
+
+export async function saveWhatsappSettings(
+  supabase: any,
+  userId: string,
+  input: Partial<WhatsappSettings>
+): Promise<WhatsappSettings> {
+  const current = await loadWhatsappSettings(supabase, userId)
+  const next: WhatsappSettings = {
+    notify_to:
+      input.notify_to === undefined ? current.notify_to : String(input.notify_to || '').trim() || null,
+    enabled: input.enabled === undefined ? current.enabled : input.enabled === true,
+    events: input.events === undefined ? current.events : normalizeEvents(input.events),
+  }
+
+  const { error } = await supabase.from('whatsapp_notification_settings').upsert(
+    {
+      user_id: userId,
+      notify_to: next.notify_to,
+      enabled: next.enabled,
+      // Tutti gli eventi si salvano come null: cosi aggiungere un tipo nuovo in
+      // futuro non lascia fuori chi non ha piu riaperto la pagina.
+      events: next.events.length === ALL_WHATSAPP_EVENTS.length ? null : next.events,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id' }
+  )
+  if (error) throw error
+
+  invalidateWhatsappSettingsCache(userId)
+  return next
 }
 
 export function contactLabel(contact?: WhatsappEventInput['contact']): string {
@@ -135,10 +212,14 @@ function truncate(value: string, max: number) {
  */
 export async function recordWhatsappEvent(supabase: any, input: WhatsappEventInput) {
   try {
-    if (!input.userId || !isEventEnabled(input.type)) return
-    // Senza gateway configurato non accumuliamo coda: al primo collegamento
-    // arriverebbe un riepilogo di eventi vecchi di settimane.
-    if (!whatsappConfig() || !isWhatsappNotifyEnabled()) return
+    if (!input.userId) return
+    // Senza gateway o con le notifiche spente non accumuliamo coda: al primo
+    // collegamento arriverebbe un riepilogo di eventi vecchi di settimane.
+    if (!whatsappConfig() || isWhatsappHardDisabled()) return
+
+    const settings = await loadWhatsappSettings(supabase, input.userId)
+    if (!settings.enabled || !normalizeChatId(settings.notify_to)) return
+    if (!settings.events.includes(input.type)) return
 
     const delivery = IMMEDIATE_EVENTS.includes(input.type) ? 'immediate' : 'digest'
     const row = {
@@ -162,7 +243,7 @@ export async function recordWhatsappEvent(supabase: any, input: WhatsappEventInp
     if (error) throw error
 
     if (delivery === 'immediate' && data?.id) {
-      await deliverImmediateEvent(supabase, { ...row, id: data.id })
+      await deliverImmediateEvent(supabase, { ...row, id: data.id }, settings)
     }
   } catch (error) {
     console.error('whatsapp event not recorded', error)
@@ -182,11 +263,12 @@ function immediateMessage(event: any) {
   return lines.join('\n')
 }
 
-async function deliverImmediateEvent(supabase: any, event: any) {
+async function deliverImmediateEvent(supabase: any, event: any, settings: WhatsappSettings) {
   const body = immediateMessage(event)
-  const result = await sendWhatsappText(body)
+  const result = await sendWhatsappText(body, { chatId: settings.notify_to })
   await logWhatsappSend(supabase, event.user_id, {
     kind: 'immediate',
+    chatId: settings.notify_to,
     body,
     eventCount: 1,
     result,
@@ -202,13 +284,19 @@ async function deliverImmediateEvent(supabase: any, event: any) {
 async function logWhatsappSend(
   supabase: any,
   userId: string,
-  input: { kind: string; body: string; eventCount: number; result: { ok: boolean; providerMessageId?: string; error?: string } }
+  input: {
+    kind: string
+    chatId: string | null
+    body: string
+    eventCount: number
+    result: { ok: boolean; providerMessageId?: string; error?: string }
+  }
 ) {
   try {
     await supabase.from('whatsapp_notification_sends').insert({
       user_id: userId,
       kind: input.kind,
-      chat_id: whatsappConfig()?.chatId || null,
+      chat_id: normalizeChatId(input.chatId),
       body: input.body.slice(0, 4096),
       event_count: input.eventCount,
       ok: input.result.ok,
@@ -266,7 +354,7 @@ export function buildDigestMessage(events: any[], timezone: string) {
   lines.push(`📊 *Speaqi CRM* — riepilogo ${from}–${to}`)
   lines.push('')
 
-  for (const type of ALL_EVENTS) {
+  for (const type of ALL_WHATSAPP_EVENTS) {
     const count = counts.get(type)
     if (!count) continue
     lines.push(`${EVENT_ICONS[type]} ${count} ${EVENT_LABELS[type]}`)
@@ -305,6 +393,8 @@ export type WhatsappDigestResult = {
   pending: number
   sent: boolean
   dry_run: boolean
+  skipped?: boolean
+  reason?: string
   message?: string | null
   error?: string
 }
@@ -322,6 +412,18 @@ export async function runWhatsappDigest(
   const timezone = options?.timezone || process.env.AUTOMATION_TIMEZONE || 'Europe/Rome'
   const limit = Math.min(DIGEST_EVENT_LIMIT, Math.max(1, Number(options?.limit) || DIGEST_EVENT_LIMIT))
 
+  const settings = await loadWhatsappSettings(supabase, userId)
+  if (!dryRun && (!settings.enabled || !normalizeChatId(settings.notify_to))) {
+    return {
+      ok: true,
+      pending: 0,
+      sent: false,
+      dry_run: false,
+      skipped: true,
+      reason: settings.enabled ? 'Numero destinatario mancante' : 'Notifiche WhatsApp spente',
+    }
+  }
+
   const { data: events, error } = await supabase
     .from('whatsapp_notification_events')
     .select('*')
@@ -338,9 +440,10 @@ export async function runWhatsappDigest(
   if (!message) return { ok: true, pending, sent: false, dry_run: dryRun, message: null }
   if (dryRun) return { ok: true, pending, sent: false, dry_run: true, message }
 
-  const result = await sendWhatsappText(message)
+  const result = await sendWhatsappText(message, { chatId: settings.notify_to })
   await logWhatsappSend(supabase, userId, {
     kind: 'digest',
+    chatId: settings.notify_to,
     body: message,
     eventCount: pending,
     result,

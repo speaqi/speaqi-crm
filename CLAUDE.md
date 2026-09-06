@@ -60,9 +60,8 @@ Copy `.env.local.example` to `.env.local`. Required keys:
 | `OPENWA_BASE_URL` | WhatsApp gateway (OpenWA) base URL |
 | `OPENWA_API_KEY` | OpenWA API key |
 | `OPENWA_SESSION_ID` | OpenWA session **UUID** (not its name) |
-| `WHATSAPP_NOTIFY_TO` | Recipient of the WhatsApp notifications (international format) |
-| `WHATSAPP_NOTIFY_ENABLED` | Kill switch for WhatsApp notifications; anything but `true` records nothing |
-| `WHATSAPP_NOTIFY_EVENTS` | Optional subset of notified events; empty means all |
+| `WHATSAPP_NOTIFY_TO` | Starting recipient, used only until the number is saved in the CRM (`/impostazioni/whatsapp`) |
+| `WHATSAPP_NOTIFY_ENABLED` | Emergency brake: `false` kills every notification whatever the CRM toggle says |
 | `SPEAQI_WEBHOOK_SECRET` | Auth secret for Acumbamail webhook |
 | `REMINDER_EMAIL` | From address for reminder emails |
 | `ACUMBAMAIL_WEBHOOK_USER_ID` | Acumbamail integration user ID |
@@ -99,6 +98,7 @@ supabase migration up
 | `automation_send_daily_counters` | Per-sender per-local-day reserved/sent counters backing the atomic daily cap |
 | `whatsapp_notification_events` | Queue of CRM facts to notify on WhatsApp (`notified_at` only once the message really went out) |
 | `whatsapp_notification_sends` | History of the messages pushed to the WhatsApp gateway |
+| `whatsapp_notification_settings` | Per-workspace WhatsApp recipient, toggle and event selection (edited from the UI, not from env) |
 | `gmail_accounts` | Connected Gmail accounts (encrypted tokens) |
 | `gmail_messages` | Synced Gmail threads linked to contacts |
 | `team_members` | Multi-user team management (with `auth_user_id` linking) |
@@ -341,10 +341,20 @@ Guida operativa e deploy Railway in `docs/WHATSAPP-OPENWA.md`.
   eventi, li rimanda. Con gateway non configurato o kill switch spento non si
   registra nulla: altrimenti al primo collegamento arriverebbe un riepilogo di
   settimane.
+- **Numero e interruttore stanno nel CRM**, non nelle env
+  (`whatsapp_notification_settings`, pagina `/impostazioni/whatsapp`): cambiare
+  numero non deve voler dire aprire Railway e riavviare. Nelle env restano le
+  credenziali del gateway, `WHATSAPP_NOTIFY_TO` come valore di partenza al primo
+  avvio e `WHATSAPP_NOTIFY_ENABLED=false` come freno di emergenza che vince su
+  tutto. `loadWhatsappSettings` mette in cache 30 s per workspace: sta sul
+  percorso di ogni invio email e non deve costargli una query.
+- **Un numero italiano senza prefisso prende il +39** (`normalizeChatId`):
+  scritto come lo si scrive di solito finirebbe altrimenti su un destinatario
+  inesistente, e WhatsApp non segnala l'errore.
 - **L'agente nel messaggio** è il `responsible` del contatto (o
   `assigned_agent`), lo stesso campo delle analytics di `/attivita`. Oggi c'è un
-  solo destinatario (`WHATSAPP_NOTIFY_TO`); la coda porta già il nome
-  dell'agente, quindi instradare per agente è un'aggiunta, non una riscrittura.
+  solo destinatario; la coda porta già il nome dell'agente, quindi instradare
+  per agente è un'aggiunta, non una riscrittura.
 - **Superfici**: `POST /api/automation/whatsapp-digest` (cron n8n
   `14-whatsapp-digest`), `GET|POST /api/whatsapp/status` (stato, messaggio di
   prova, riepilogo forzato) e la pagina `/impostazioni/whatsapp`.

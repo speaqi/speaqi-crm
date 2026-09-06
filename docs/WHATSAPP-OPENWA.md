@@ -57,14 +57,22 @@ L'agente che compare nel messaggio è il `responsible` del contatto (o
 
 ## Variabili d'ambiente
 
+Nelle env stanno solo le credenziali del gateway, che sono infrastruttura. Il
+**numero destinatario, l'interruttore e la scelta degli eventi si impostano da
+`/impostazioni/whatsapp`** e vivono su `whatsapp_notification_settings`:
+cambiare numero non deve voler dire aprire Railway e riavviare il servizio.
+
 | Variabile | Descrizione |
 |---|---|
 | `OPENWA_BASE_URL` | URL del gateway, es. `https://openwa.railway.internal:3000` |
 | `OPENWA_API_KEY` | API key OpenWA (ruolo Operator basta) |
 | `OPENWA_SESSION_ID` | **UUID** della sessione, non il nome |
-| `WHATSAPP_NOTIFY_TO` | Numero destinatario in formato internazionale |
-| `WHATSAPP_NOTIFY_ENABLED` | Kill switch: solo `true` accende le notifiche |
-| `WHATSAPP_NOTIFY_EVENTS` | Facoltativo: sottoinsieme di eventi. Vuoto = tutti |
+| `WHATSAPP_NOTIFY_TO` | Facoltativa: numero di partenza, vale solo finché non si salva dalla pagina |
+| `WHATSAPP_NOTIFY_ENABLED` | Facoltativa: `false` è il freno di emergenza, spegne tutto anche a interruttore acceso |
+
+Un numero italiano scritto senza prefisso (`3896868162`) prende il `+39` da
+solo: WhatsApp non segnala un destinatario inesistente, quindi il prefisso lo
+mette il CRM.
 
 ## Deploy su Railway
 
@@ -95,9 +103,10 @@ L'agente che compare nel messaggio è il `responsible` del contatto (o
 
    Scansiona il QR da WhatsApp del numero dedicato (Dispositivi collegati).
    Lo stato passa a `ready`.
-6. Sul servizio CRM: imposta le variabili qui sopra e riavvia.
-7. Apri `/impostazioni/whatsapp`, verifica sessione `ready` e manda il messaggio
-   di prova. Poi attiva `14-whatsapp-digest` su n8n.
+6. Sul servizio CRM: imposta le tre variabili `OPENWA_*` e riavvia.
+7. Apri `/impostazioni/whatsapp`: scrivi il numero, accendi l'interruttore,
+   salva. Verifica che la sessione sia `ready` e manda il messaggio di prova.
+   Poi attiva `14-whatsapp-digest` su n8n.
 
 ## Diagnostica
 
@@ -109,15 +118,16 @@ L'agente che compare nel messaggio è il `responsible` del contatto (o
   righe di `whatsapp_notification_events` con `notified_at is null`.
 - **Il gateway risponde 409.** La sessione non è connessa (riconnessione o
   reload di WhatsApp Web): l'evento resta in coda e riparte al giro dopo.
-- **Troppi messaggi.** Restringi con `WHATSAPP_NOTIFY_EVENTS`, per esempio
-  `email_reply,email_click`, oppure dirada il cron di `14-whatsapp-digest`.
+- **Troppi messaggi.** Togli gli eventi rumorosi (di solito le aperture) dalla
+  pagina impostazioni, oppure dirada il cron di `14-whatsapp-digest`.
 
 ## Cosa non copre (per scelta)
 
 - Le aperture ricalcolate in blocco da `/api/integrations/acumbamail/sync-campaign`
   non generano notifiche: sono conteggi storici, non fatti appena successi.
-- Un solo destinatario. Notificare ogni agente sul proprio numero vuole un campo
-  `whatsapp_number` su `team_members` e l'instradamento per `responsible`: la
-  coda è già segnata con l'agente, quindi è un'aggiunta, non una riscrittura.
+- Un solo destinatario per workspace. Notificare ogni agente sul proprio numero
+  vuole un campo `whatsapp_number` su `team_members` e l'instradamento per
+  `responsible`: la coda è già segnata con l'agente, quindi è un'aggiunta, non
+  una riscrittura.
 - Nessun comando in ingresso: i webhook di OpenWA verso il CRM non sono
   collegati, il canale è di sola uscita.
