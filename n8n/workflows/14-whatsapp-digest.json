@@ -1,0 +1,11 @@
+{
+  "id": "wA7pLd2QsRt9Vx4m",
+  "name": "SPEAQI WhatsApp Digest",
+  "nodes": [
+    { "id": "cron_whatsapp_digest", "name": "Ogni 30 min", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [260, 260], "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "5,35 7-21 * * *" }] } } },
+    { "id": "call_whatsapp_digest", "name": "Riepilogo WhatsApp", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4, "position": [520, 260], "parameters": { "method": "POST", "url": "={{ $env.APP_BASE_URL + '/api/automation/whatsapp-digest' }}", "sendHeaders": true, "headerParameters": { "parameters": [{ "name": "x-automation-secret", "value": "={{ $env.AUTOMATION_SECRET }}" }] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={\"dry_run\":false}", "options": { "timeout": 60000, "retry": { "maxTries": 1 } } } }
+  ],
+  "connections": { "Ogni 30 min": { "main": [[{ "node": "Riepilogo WhatsApp", "type": "main", "index": 0 }]] } },
+  "settings": { "errorWorkflow": "0xqpUI1Kr7z0UJg2", "timezone": "Europe/Rome", "executionOrder": "v1" },
+  "active": false
+}

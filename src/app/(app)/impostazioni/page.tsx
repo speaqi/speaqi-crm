@@ -22,6 +22,12 @@ const SETTINGS_ITEMS = [
     description: 'Cadenza della sequenza, collegamento Acumbamail e stato dei contatti demo.',
   },
   {
+    href: '/impostazioni/whatsapp',
+    icon: '📱',
+    title: 'Notifiche WhatsApp',
+    description: 'Gateway OpenWA: risposte email subito, invii e reazioni in riepilogo.',
+  },
+  {
     href: '/gmail',
     icon: '✉️',
     title: 'Gmail',

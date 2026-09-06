@@ -1,0 +1,123 @@
+# Notifiche WhatsApp (gateway OpenWA)
+
+Il CRM manda su WhatsApp quello che succede alle email: risposte subito, invii
+e reazioni in un riepilogo. Il ponte è [OpenWA](https://github.com/rmyndharis/OpenWA),
+un gateway self-hosted (NestJS + whatsapp-web.js/Baileys) che tiene agganciato
+un numero WhatsApp vero e lo pilota via REST.
+
+## Prima di tutto: cosa può andare storto
+
+- **Non è l'API ufficiale Meta.** OpenWA pilota un client WhatsApp reale. Usare
+  un numero per mandare messaggi non richiesti lo fa segnalare e bloccare.
+  Qui viaggia solo traffico interno — notifiche a noi stessi, poche decine di
+  messaggi al giorno, sempre alla stessa chat — che è l'uso a rischio basso.
+  **Non** usare questo canale per outreach ai contatti.
+- **Serve un numero dedicato**, non quello personale: se WhatsApp lo blocca, si
+  perde il numero, non solo le notifiche.
+- **La sessione si sgancia.** WhatsApp Web scollega i dispositivi inattivi e la
+  sessione vive su disco: senza volume persistente ogni redeploy chiede di
+  riscansionare il QR. Lo stato si controlla da `/impostazioni/whatsapp`.
+- **Il volume è il vero nemico.** Su una lista da migliaia di cantine le
+  aperture sono centinaia al giorno: un messaggio per evento rende il telefono
+  inutilizzabile e fa sembrare il numero un bot. Per questo solo le risposte
+  escono subito, tutto il resto è un riepilogo ogni mezz'ora.
+
+## Come funziona nel CRM
+
+```
+fatto nel CRM  →  whatsapp_notification_events  →  messaggio WhatsApp
+```
+
+| Fatto | Dove viene intercettato | Consegna |
+|---|---|---|
+| Email inviata dal CRM o da un'automazione | `sendContactEmail` (`src/lib/server/gmail.ts`) | riepilogo |
+| Email inviata a mano da Gmail | `handleOutboundSyncedMessages` (al sync, finestra 72 h) | riepilogo |
+| Apertura / click / disiscrizione | webhook Acumbamail (`applyEventToContact`) | riepilogo |
+| Risposta ricevuta | `handleInboundReplies` (al sync Gmail, finestra 72 h) | **subito** |
+
+Le finestre di 72 ore evitano che il primo sync di un contatto — che importa
+tutto lo storico — riversi su WhatsApp email di mesi fa.
+
+Un evento sta in coda finché non è **davvero** partito: `notified_at` si
+valorizza solo dopo una risposta positiva del gateway. Se il gateway era spento,
+il riepilogo successivo recupera la coda invece di perderla. E, per non
+accumulare code inutili, con gateway non configurato o interruttore spento gli
+eventi non vengono nemmeno registrati.
+
+L'agente che compare nel messaggio è il `responsible` del contatto (o
+`assigned_agent`), lo stesso campo su cui girano le analytics di `/attivita`.
+
+- Cron: `POST /api/automation/whatsapp-digest` (`AUTOMATION_SECRET`), workflow
+  n8n `14-whatsapp-digest.json`, ogni mezz'ora dalle 7 alle 21.
+- Pagina di controllo: `/impostazioni/whatsapp` — stato sessione, coda,
+  messaggio di prova, riepilogo forzato.
+- Tabelle: `whatsapp_notification_events` (coda) e
+  `whatsapp_notification_sends` (storico degli invii, per capire se un
+  messaggio non è mai partito o non è stato consegnato).
+
+## Variabili d'ambiente
+
+| Variabile | Descrizione |
+|---|---|
+| `OPENWA_BASE_URL` | URL del gateway, es. `https://openwa.railway.internal:3000` |
+| `OPENWA_API_KEY` | API key OpenWA (ruolo Operator basta) |
+| `OPENWA_SESSION_ID` | **UUID** della sessione, non il nome |
+| `WHATSAPP_NOTIFY_TO` | Numero destinatario in formato internazionale |
+| `WHATSAPP_NOTIFY_ENABLED` | Kill switch: solo `true` accende le notifiche |
+| `WHATSAPP_NOTIFY_EVENTS` | Facoltativo: sottoinsieme di eventi. Vuoto = tutti |
+
+## Deploy su Railway
+
+1. **Nuovo servizio** nello stesso progetto del CRM, sorgente
+   `https://github.com/rmyndharis/OpenWA` (builder Dockerfile: il repo ne ha uno).
+2. **Volume persistente** montato sulla cartella dati del gateway. Senza, la
+   sessione WhatsApp si perde a ogni deploy e va riscansionato il QR.
+3. Variabili del servizio OpenWA secondo il suo README (API key, engine,
+   database). SQLite sul volume basta per questo uso; Postgres e Redis servono
+   solo con molte sessioni.
+4. Il gateway **non va esposto pubblicamente** se non serve: il CRM lo raggiunge
+   sulla rete privata Railway (`*.railway.internal`). Se lo esponi, l'API key è
+   l'unica difesa — trattala come un segreto di produzione.
+5. Crea la sessione e aggancia il numero:
+
+   ```bash
+   curl -X POST "$OPENWA_BASE_URL/api/sessions" \
+     -H "X-API-Key: $OPENWA_API_KEY" -H 'Content-Type: application/json' \
+     -d '{"name":"speaqi-crm"}'
+   # id restituito → OPENWA_SESSION_ID
+
+   curl -X POST "$OPENWA_BASE_URL/api/sessions/$OPENWA_SESSION_ID/start" \
+     -H "X-API-Key: $OPENWA_API_KEY"
+
+   curl "$OPENWA_BASE_URL/api/sessions/$OPENWA_SESSION_ID/qr" \
+     -H "X-API-Key: $OPENWA_API_KEY"
+   ```
+
+   Scansiona il QR da WhatsApp del numero dedicato (Dispositivi collegati).
+   Lo stato passa a `ready`.
+6. Sul servizio CRM: imposta le variabili qui sopra e riavvia.
+7. Apri `/impostazioni/whatsapp`, verifica sessione `ready` e manda il messaggio
+   di prova. Poi attiva `14-whatsapp-digest` su n8n.
+
+## Diagnostica
+
+- **Non arriva niente.** `/impostazioni/whatsapp`: configurazione completa?
+  interruttore `true`? sessione `ready`? Se lo stato è `qr_ready` il numero è
+  stato sganciato e va riscansionato.
+- **Il messaggio non è mai partito.** `whatsapp_notification_sends` conserva
+  corpo, esito ed errore di ogni tentativo; gli eventi rimasti indietro sono le
+  righe di `whatsapp_notification_events` con `notified_at is null`.
+- **Il gateway risponde 409.** La sessione non è connessa (riconnessione o
+  reload di WhatsApp Web): l'evento resta in coda e riparte al giro dopo.
+- **Troppi messaggi.** Restringi con `WHATSAPP_NOTIFY_EVENTS`, per esempio
+  `email_reply,email_click`, oppure dirada il cron di `14-whatsapp-digest`.
+
+## Cosa non copre (per scelta)
+
+- Le aperture ricalcolate in blocco da `/api/integrations/acumbamail/sync-campaign`
+  non generano notifiche: sono conteggi storici, non fatti appena successi.
+- Un solo destinatario. Notificare ogni agente sul proprio numero vuole un campo
+  `whatsapp_number` su `team_members` e l'instradamento per `responsible`: la
+  coda è già segnata con l'agente, quindi è un'aggiunta, non una riscrittura.
+- Nessun comando in ingresso: i webhook di OpenWA verso il CRM non sono
+  collegati, il canale è di sola uscita.

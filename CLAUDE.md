@@ -57,6 +57,12 @@ Copy `.env.local.example` to `.env.local`. Required keys:
 | `AUTOMATION_DAILY_SEND_CAP` | Max automated Gmail sends per sender per day (default 40) |
 | `AUTOMATION_SEND_DELAY_MS` | Optional pause between sends inside a batch |
 | `AUTOMATION_RECONCILE_FAIL_HOURS` | How long an `unknown` attempt may stay unresolved before it is failed (minimum 24) |
+| `OPENWA_BASE_URL` | WhatsApp gateway (OpenWA) base URL |
+| `OPENWA_API_KEY` | OpenWA API key |
+| `OPENWA_SESSION_ID` | OpenWA session **UUID** (not its name) |
+| `WHATSAPP_NOTIFY_TO` | Recipient of the WhatsApp notifications (international format) |
+| `WHATSAPP_NOTIFY_ENABLED` | Kill switch for WhatsApp notifications; anything but `true` records nothing |
+| `WHATSAPP_NOTIFY_EVENTS` | Optional subset of notified events; empty means all |
 | `SPEAQI_WEBHOOK_SECRET` | Auth secret for Acumbamail webhook |
 | `REMINDER_EMAIL` | From address for reminder emails |
 | `ACUMBAMAIL_WEBHOOK_USER_ID` | Acumbamail integration user ID |
@@ -91,6 +97,8 @@ supabase migration up
 | `email_drafts` | AI drafts awaiting review (`sent_via` + `provider_message_id` link the row to what actually went out) |
 | `automation_send_attempts` | One row per autonomous send attempt: atomic claim, RFC `Message-ID`, terminal outcome |
 | `automation_send_daily_counters` | Per-sender per-local-day reserved/sent counters backing the atomic daily cap |
+| `whatsapp_notification_events` | Queue of CRM facts to notify on WhatsApp (`notified_at` only once the message really went out) |
+| `whatsapp_notification_sends` | History of the messages pushed to the WhatsApp gateway |
 | `gmail_accounts` | Connected Gmail accounts (encrypted tokens) |
 | `gmail_messages` | Synced Gmail threads linked to contacts |
 | `team_members` | Multi-user team management (with `auth_user_id` linking) |
@@ -180,6 +188,8 @@ src/
 │   │   ├── automation-auth.ts  # x-automation-secret check + server-side AutomationContext
 │   │   ├── automation-send.ts  # Autonomous send engine: guardrails, atomic claim, quota
 │   │   ├── draft-reconcile.ts  # Closes drafts sent by hand from Gmail
+│   │   ├── whatsapp.ts         # OpenWA gateway client (fail-soft, never breaks a send)
+│   │   ├── whatsapp-notify.ts  # Event queue + immediate replies + digest builder
 │   │   ├── scope-filters.ts    # applyPipelineScope / applyCrmScope
 │   │   ├── backup.ts           # Database dump → Storage + email
 │   │   ├── gcal.ts             # Google Calendar integration
@@ -307,6 +317,38 @@ Each stage has a `system_key` and `color`. Closed statuses: `closed`, `paid`, `l
 - **Open tracking (MailSuite) requires sending from Gmail**: browser extensions inject their pixel in the Gmail compose window, so a CRM API send is never tracked. The tracked path is: "📥 Prepara tutte in Gmail" in `/email` (`POST /api/automation/prepare-gmail-drafts`, one Gmail token/signature for the whole batch, 25 drafts per call, skips drafts already in Gmail unless `include_existing`) → "Apri in Gmail ↗" per draft (`email_drafts.gmail_draft_message_id` builds `mail.google.com/mail/u/<account>/#drafts?compose=<id>`) → send by hand from Gmail → reconciliation closes the draft in the CRM
 - **Sent-from-Gmail reconciliation** (`src/lib/server/draft-reconcile.ts`, `POST /api/automation/reconcile-drafts`): a draft saved to Gmail ("Salva in bozza") and then sent by hand from Gmail used to stay `pending` forever. The reconciler compares pending drafts with the account's sent mail — a message to that contact after the draft's `created_at` closes the draft as `sent` with `sent_via = 'gmail'` and `provider_message_id` = the Gmail message (unique index: one message can never close two drafts), copying the subject/body actually sent, then delegates activity + follow-up to `syncContactGmailMessages`. Runs automatically when `/email` loads, on the "Controlla invii Gmail" button, and every 30 min from `05-reply-monitor`. `email_drafts.sent_via` records the path: `crm` / `automation` / `gmail`
 
+## WhatsApp Notifications (OpenWA)
+
+Il CRM riporta su WhatsApp cosa succede alle email. Ponte: [OpenWA](https://github.com/rmyndharis/OpenWA),
+gateway self-hosted che pilota un numero WhatsApp vero via REST — **non** l'API
+ufficiale Meta, quindi numero dedicato e solo traffico interno: mai outreach.
+Guida operativa e deploy Railway in `docs/WHATSAPP-OPENWA.md`.
+
+- **Due velocità, per una ragione precisa**: le risposte email escono subito
+  (sono poche e vanno gestite a mano in fretta), invii/aperture/click/
+  disiscrizioni confluiscono in un riepilogo. Su una lista da migliaia di
+  cantine un messaggio per apertura riempirebbe il telefono e farebbe segnalare
+  il numero come bot.
+- **Agganci**: `sendContactEmail` (invii CRM e automazioni),
+  `handleOutboundSyncedMessages` (inviate a mano da Gmail),
+  `handleInboundReplies` (risposte), `applyEventToContact` del webhook
+  Acumbamail (aperture, click, disiscrizioni). Le due finestre di 72 h nel sync
+  Gmail evitano che il primo sync di un contatto notifichi email di mesi fa.
+- **La coda è la garanzia**: `recordWhatsappEvent` scrive su
+  `whatsapp_notification_events` e non lancia mai — il gateway è un servizio
+  esterno e un invio email non deve fallire per colpa sua. `notified_at` si
+  valorizza solo dopo un invio riuscito, quindi un gateway spento non perde
+  eventi, li rimanda. Con gateway non configurato o kill switch spento non si
+  registra nulla: altrimenti al primo collegamento arriverebbe un riepilogo di
+  settimane.
+- **L'agente nel messaggio** è il `responsible` del contatto (o
+  `assigned_agent`), lo stesso campo delle analytics di `/attivita`. Oggi c'è un
+  solo destinatario (`WHATSAPP_NOTIFY_TO`); la coda porta già il nome
+  dell'agente, quindi instradare per agente è un'aggiunta, non una riscrittura.
+- **Superfici**: `POST /api/automation/whatsapp-digest` (cron n8n
+  `14-whatsapp-digest`), `GET|POST /api/whatsapp/status` (stato, messaggio di
+  prova, riepilogo forzato) e la pagina `/impostazioni/whatsapp`.
+
 ## Voice Commands
 
 - Voice FAB on dashboard for quick access to `/voice`
@@ -369,6 +411,7 @@ Located in `n8n/workflows/` — see `n8n/README.md` for the recommended re-enabl
 - `12-hospitality-commercial.json` — Hospitality outreach + reply sync (every 30 min); shipped with `dry_run: true`
 - `12-wine-project-automation.json` — Wine Project follow-ups, campaign groups, engagement and replies (every 30 min)
 - `13-reconcile-sends.json` — resolves `unknown` send attempts against Gmail (hourly at :20); must be active **before** `11-send-holding`
+- `14-whatsapp-digest.json` — WhatsApp digest of sends/opens/clicks (every 30 min, 07-21); answers `200 {skipped:true}` while the gateway is off, so it is safe to leave active
 
 > Two files share the `12-` prefix (`12-hospitality-commercial`, `12-wine-project-automation`). The number is only a filename convention — n8n keys workflows by `id` — but keep it in mind when reading the list.
 
