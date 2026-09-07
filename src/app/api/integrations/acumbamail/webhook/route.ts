@@ -5,6 +5,7 @@ import { ensurePipelineStages } from '@/lib/server/crm'
 import { errorMessage } from '@/lib/server/http'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 import { applyCommercialEmailEvent } from '@/lib/server/commercial-outreach'
+import { recordWhatsappEvent, type WhatsappEventType } from '@/lib/server/whatsapp-notify'
 
 type AcumbamailEventName =
   | 'opens'
@@ -653,6 +654,12 @@ async function markPendingTasksDone(supabase: any, userId: string, contactId: st
   if (error) throw error
 }
 
+const WHATSAPP_EVENT_BY_PROVIDER_EVENT: Record<string, WhatsappEventType | undefined> = {
+  opens: 'email_open',
+  clicks: 'email_click',
+  unsubscribes: 'email_unsubscribe',
+}
+
 async function applyEventToContact(
   supabase: any,
   contact: ContactRow,
@@ -713,6 +720,18 @@ async function applyEventToContact(
     .single()
 
   if (error) throw error
+
+  const whatsappEventType = WHATSAPP_EVENT_BY_PROVIDER_EVENT[event.event]
+  if (whatsappEventType) {
+    await recordWhatsappEvent(supabase, {
+      userId: contact.user_id,
+      type: whatsappEventType,
+      contact: updated as ContactRow,
+      detail: contentForEvent(event),
+      source: 'acumbamail',
+      occurredAt: event.occurredAt,
+    })
+  }
 
   return {
     activity,

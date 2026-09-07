@@ -3,6 +3,7 @@ import { createActivities, syncPendingCallTask, updateContactSummary } from '@/l
 import { applyReplyOutcome, logAiDecision, logLeadActivity } from '@/lib/server/ai-ready'
 import { nextFollowupAfterEmail, nextHoldingFollowup } from '@/lib/sla'
 import { isClosedStatus } from '@/lib/data'
+import { recordWhatsappEvent } from '@/lib/server/whatsapp-notify'
 import type { CRMContact, GmailAccountStatus, GmailMessage } from '@/types'
 
 type GmailAccountRecord = {
@@ -668,6 +669,21 @@ async function handleInboundReplies(
   ).trim()
   if (!latestReplyText) return
 
+  // Il primo sync di un contatto importa tutto lo storico: notifichiamo solo le
+  // risposte davvero recenti, altrimenti arriverebbero su WhatsApp email di
+  // mesi fa come se fossero appena arrivate.
+  const replyAge = Date.now() - new Date(latestMessage.sent_at || 0).getTime()
+  if (Number.isFinite(replyAge) && replyAge <= OUTBOUND_SYNC_ACTIVITY_WINDOW_HOURS * 60 * 60 * 1000) {
+    await recordWhatsappEvent(supabase, {
+      userId,
+      type: 'email_reply',
+      contact,
+      detail: latestReplyText,
+      source: 'gmail_sync',
+      occurredAt: latestMessage.sent_at || undefined,
+    })
+  }
+
   const outcome = await applyReplyOutcome(supabase, userId, contact.id, latestReplyText)
   const promoted = (contact.contact_scope || 'crm') === 'holding'
 
@@ -797,6 +813,17 @@ async function handleOutboundSyncedMessages(
       },
     }))
   )
+
+  for (const message of pending) {
+    await recordWhatsappEvent(supabase, {
+      userId,
+      type: 'email_sent',
+      contact,
+      detail: message.subject || 'senza oggetto',
+      source: 'gmail_sync',
+      occurredAt: message.sent_at || undefined,
+    })
+  }
 
   const latest = pending[pending.length - 1]
   const latestSentAt = new Date(latest.sent_at || 0).getTime()
@@ -1032,6 +1059,14 @@ export async function sendContactEmail(
   if (logError) {
     // Do not fail the send flow if the secondary log insert is unavailable.
   }
+
+  await recordWhatsappEvent(supabase, {
+    userId,
+    type: 'email_sent',
+    contact,
+    detail: input.subject,
+    source: 'gmail_send',
+  })
 
   const profile = await fetchGmailProfile(accessToken).catch(() => null)
   await updateAccountSyncMarker(supabase, account.id, profile?.historyId)
