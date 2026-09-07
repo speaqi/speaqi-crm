@@ -157,10 +157,15 @@ uscite 165 email serve poco se non si sa da quale progetto:
 
 ```
 📤 165 email inviate
-   · Wine Project: 120
-   · Hospitality: 42
+   · Wine Project — Vinitaly · Email 1/5: 98
+   · Wine Project — Vinitaly · Email 2/5: 22
+   · Hospitality · Email 3/5: 42
    · CRM: 3
 ```
+
+L'etichetta porta anche lo step della sequenza: due email della stessa campagna
+possono partire nella stessa mezz'ora, e un totale unico non direbbe quale passo
+è avanzato.
 
 `CRM` raccoglie quello che non nasce da una campagna: bozze AI, invii a mano,
 automazioni di holding.

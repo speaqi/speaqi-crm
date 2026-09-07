@@ -340,8 +340,11 @@ Guida operativa e deploy Railway in `docs/WHATSAPP-OPENWA.md`.
   una riga per batch con `quantity` = destinatari, non una riga per
   destinatario — centoventi insert a ogni giro del cron per dire una cosa sola.
   `buildDigestMessage` **somma** `quantity`, non conta le righe, e ripartisce
-  gli invii per campagna (`Wine Project: 120 · Hospitality: 42 · CRM: 3`) solo
-  quando le provenienze sono più di una, altrimenti ripeterebbe il totale.
+  gli invii per provenienza solo quando ce n'è più di una (altrimenti
+  ripeterebbe il totale). L'etichetta porta **anche lo step della sequenza**
+  (`Wine Project — Vinitaly · Email 1/5: 98`): due email della stessa campagna
+  partite nella stessa mezz'ora sono due fatti distinti, e un totale unico non
+  dice quale passo è avanzato.
 - **La coda è la garanzia**: `recordWhatsappEvent` scrive su
   `whatsapp_notification_events` e non lancia mai — il gateway è un servizio
   esterno e un invio email non deve fallire per colpa sua. `notified_at` si

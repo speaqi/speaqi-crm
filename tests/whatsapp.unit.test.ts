@@ -103,6 +103,22 @@ describe('riepilogo', () => {
     assert.ok(message!.includes('· CRM: 3'))
   })
 
+  test('due step della stessa sequenza restano due righe distinte', () => {
+    // Il caso vero: Email 1/5 e Email 2/5 partite nella stessa mezz'ora. Con
+    // l'etichetta ferma al progetto diventavano un unico "180 email inviate"
+    // da cui non si capiva quale passo fosse avanzato.
+    const message = buildDigestMessage(
+      [
+        { event_type: 'email_sent', campaign: 'Wine Project — Vinitaly · Email 1/5', quantity: 98, occurred_at: '2026-09-07T08:00:00.000Z' },
+        { event_type: 'email_sent', campaign: 'Wine Project — Vinitaly · Email 2/5', quantity: 82, occurred_at: '2026-09-07T08:30:00.000Z' },
+      ],
+      'UTC'
+    )
+    assert.ok(message!.includes('180 email inviate'))
+    assert.ok(message!.includes('· Wine Project — Vinitaly · Email 1/5: 98'))
+    assert.ok(message!.includes('· Wine Project — Vinitaly · Email 2/5: 82'))
+  })
+
   test('con una sola provenienza la ripartizione non ripete il totale', () => {
     const message = buildDigestMessage(
       [{ event_type: 'email_sent', campaign: 'Wine Project', quantity: 120, occurred_at: '2026-09-07T08:00:00.000Z' }],

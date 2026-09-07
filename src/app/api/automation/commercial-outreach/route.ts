@@ -272,8 +272,8 @@ async function runCampaign(
       await recordWhatsappEvent(supabase, {
         userId: campaign.user_id,
         type: 'email_sent',
-        campaign: campaign.name,
-        detail: `Email ${stepNumber}/${steps.length} · ${content.subject}`,
+        campaign: `${campaign.name} · Email ${stepNumber}/${steps.length}`,
+        detail: content.subject,
         source: 'commercial_campaign',
         quantity: deliveries.length,
       })

@@ -316,8 +316,11 @@ export async function POST(request: NextRequest) {
         await recordWhatsappEvent(supabase, {
           userId,
           type: 'email_sent',
-          campaign: settings.campaign_name || 'Wine Project',
-          detail: `Email ${template.sequence}/5 · ${campaignSubject(template)}`,
+          // Lo step entra nell'etichetta, non solo nel dettaglio: due email
+          // della stessa sequenza partite nella stessa mezz'ora sono due fatti
+          // distinti, e un totale unico non dice quale sequenza e' avanzata.
+          campaign: `${settings.campaign_name || 'Wine Project'} · Email ${template.sequence}/5`,
+          detail: campaignSubject(template),
           source: 'wine_project',
           quantity: recipients.length,
           occurredAt: sentAt,
