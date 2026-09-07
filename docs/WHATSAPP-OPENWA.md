@@ -31,6 +31,7 @@ fatto nel CRM  →  whatsapp_notification_events  →  messaggio WhatsApp
 | Fatto | Dove viene intercettato | Consegna |
 |---|---|---|
 | Email inviata dal CRM o da un'automazione | `sendContactEmail` (`src/lib/server/gmail.ts`) | riepilogo |
+| Invio di una sequenza via Acumbamail (Wine Project, campagne commerciali) | `/api/automation/wine-project-campaigns` e `-commercial-outreach`, un evento per batch con `quantity` | riepilogo |
 | Email inviata a mano da Gmail | `handleOutboundSyncedMessages` (al sync, finestra 72 h) | riepilogo |
 | Apertura / click / disiscrizione | webhook Acumbamail (`applyEventToContact`) | riepilogo |
 | Risposta ricevuta | `handleInboundReplies` (al sync Gmail, finestra 72 h) | **subito** |
@@ -150,6 +151,19 @@ collegati). Lo stato passa a `ready`.
   target del dominio, `OPENWA_BASE_URL` e la porta reale nei log di avvio.
 - **Troppi messaggi.** Togli gli eventi rumorosi (di solito le aperture) dalla
   pagina impostazioni, oppure dirada il cron di `14-whatsapp-digest`.
+
+Gli invii sono ripartiti per campagna nel riepilogo, perché sapere che sono
+uscite 165 email serve poco se non si sa da quale progetto:
+
+```
+📤 165 email inviate
+   · Wine Project: 120
+   · Hospitality: 42
+   · CRM: 3
+```
+
+`CRM` raccoglie quello che non nasce da una campagna: bozze AI, invii a mano,
+automazioni di holding.
 
 ## Cosa non copre (per scelta)
 

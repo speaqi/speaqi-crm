@@ -88,6 +88,30 @@ describe('riepilogo', () => {
     assert.ok(!message!.includes('aperture: Cantina A'))
   })
 
+  test('un invio di campagna conta per quanti destinatari aveva, non per una riga', () => {
+    const events = [
+      { event_type: 'email_sent', campaign: 'Wine Project', quantity: 120, occurred_at: '2026-09-07T08:00:00.000Z' },
+      { event_type: 'email_sent', campaign: 'Hospitality', quantity: 42, occurred_at: '2026-09-07T08:05:00.000Z' },
+      { event_type: 'email_sent', quantity: 3, occurred_at: '2026-09-07T08:10:00.000Z' },
+    ]
+
+    const message = buildDigestMessage(events, 'UTC')
+    assert.ok(message!.includes('165 email inviate'))
+    assert.ok(message!.includes('· Wine Project: 120'))
+    assert.ok(message!.includes('· Hospitality: 42'))
+    // Un invio fuori campagna (bozza AI, invio a mano) non resta senza etichetta.
+    assert.ok(message!.includes('· CRM: 3'))
+  })
+
+  test('con una sola provenienza la ripartizione non ripete il totale', () => {
+    const message = buildDigestMessage(
+      [{ event_type: 'email_sent', campaign: 'Wine Project', quantity: 120, occurred_at: '2026-09-07T08:00:00.000Z' }],
+      'UTC'
+    )
+    assert.ok(message!.includes('120 email inviate'))
+    assert.ok(!message!.includes('· Wine Project: 120'))
+  })
+
   test('senza eventi non esce nessun messaggio', () => {
     assert.equal(buildDigestMessage([], 'UTC'), null)
   })

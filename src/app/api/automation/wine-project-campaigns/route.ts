@@ -10,6 +10,7 @@ import { errorMessage } from '@/lib/server/http'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 import { loadWineProjectAutomationSettings, scheduleNextWineProjectFollowup, type WineProjectSequenceTemplate } from '@/lib/server/wine-project-automation'
 import { createWineProjectShortLinkToken } from '@/lib/server/wine-project-campaign-token'
+import { recordWhatsappEvent } from '@/lib/server/whatsapp-notify'
 
 type QueuedEvent = {
   id: string
@@ -311,6 +312,16 @@ export async function POST(request: NextRequest) {
         }, { onConflict: 'user_id,campaign_key' })
         await supabase.from('contacts').update({ marketing_status: 'sent', last_contact_at: sentAt, updated_at: sentAt })
           .in('id', selected.map((event) => event.contact_id))
+
+        await recordWhatsappEvent(supabase, {
+          userId,
+          type: 'email_sent',
+          campaign: settings.campaign_name || 'Wine Project',
+          detail: `Email ${template.sequence}/5 · ${campaignSubject(template)}`,
+          source: 'wine_project',
+          quantity: recipients.length,
+          occurredAt: sentAt,
+        })
         await createActivities(supabase, selected.map((event) => ({
           user_id: event.user_id,
           contact_id: event.contact_id,

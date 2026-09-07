@@ -332,8 +332,16 @@ Guida operativa e deploy Railway in `docs/WHATSAPP-OPENWA.md`.
 - **Agganci**: `sendContactEmail` (invii CRM e automazioni),
   `handleOutboundSyncedMessages` (inviate a mano da Gmail),
   `handleInboundReplies` (risposte), `applyEventToContact` del webhook
-  Acumbamail (aperture, click, disiscrizioni). Le due finestre di 72 h nel sync
-  Gmail evitano che il primo sync di un contatto notifichi email di mesi fa.
+  Acumbamail (aperture, click, disiscrizioni), più i due invii di campagna via
+  Acumbamail (`/api/automation/commercial-outreach` e `-wine-project-campaigns`).
+  Le due finestre di 72 h nel sync Gmail evitano che il primo sync di un
+  contatto notifichi email di mesi fa.
+- **Un invio di massa è un fatto solo con una quantità**: le campagne registrano
+  una riga per batch con `quantity` = destinatari, non una riga per
+  destinatario — centoventi insert a ogni giro del cron per dire una cosa sola.
+  `buildDigestMessage` **somma** `quantity`, non conta le righe, e ripartisce
+  gli invii per campagna (`Wine Project: 120 · Hospitality: 42 · CRM: 3`) solo
+  quando le provenienze sono più di una, altrimenti ripeterebbe il totale.
 - **La coda è la garanzia**: `recordWhatsappEvent` scrive su
   `whatsapp_notification_events` e non lancia mai — il gateway è un servizio
   esterno e un invio email non deve fallire per colpa sua. `notified_at` si

@@ -19,6 +19,7 @@ import {
 } from '@/lib/server/acumbamail-marketing'
 import { errorMessage } from '@/lib/server/http'
 import { createServiceRoleClient } from '@/lib/server/supabase'
+import { recordWhatsappEvent } from '@/lib/server/whatsapp-notify'
 
 const CLOSED = new Set(['Closed', 'Paid', 'Lost'])
 
@@ -264,6 +265,18 @@ async function runCampaign(
         await advance(supabase, campaign, steps.length, item.message, item.enrollment, true, undefined, provider)
         results.push({ message_id: item.message.id, campaign_id: providerCampaignId, sent: true, recipient: item.message.recipient_email, step: stepNumber })
       }
+
+      // Un evento solo per il batch, con la quantita: cosi il riepilogo
+      // WhatsApp dice "Hospitality: 42" invece di annegare in una riga per
+      // destinatario.
+      await recordWhatsappEvent(supabase, {
+        userId: campaign.user_id,
+        type: 'email_sent',
+        campaign: campaign.name,
+        detail: `Email ${stepNumber}/${steps.length} · ${content.subject}`,
+        source: 'commercial_campaign',
+        quantity: deliveries.length,
+      })
       await supabase.from('acumbamail_campaigns').upsert(
         {
           user_id: campaign.user_id,

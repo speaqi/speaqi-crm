@@ -48,6 +48,12 @@ export type WhatsappEventInput = {
   campaign?: string | null
   source?: string | null
   occurredAt?: string | null
+  /**
+   * Quante email copre l'evento. Un invio di campagna e un fatto solo con una
+   * quantita: 120 righe di coda per dire "120 email inviate" sarebbero 120
+   * insert per ogni giro del cron.
+   */
+  quantity?: number | null
 }
 
 export type WhatsappSettings = {
@@ -82,6 +88,8 @@ const EVENT_ICONS: Record<WhatsappEventType, string> = {
 }
 
 const MAX_NAMES_PER_LINE = 6
+/** Invii che non arrivano da una campagna: bozze AI, invii a mano, automazioni. */
+const UNLABELLED_CAMPAIGN = 'CRM'
 const DIGEST_EVENT_LIMIT = 2000
 const SETTINGS_CACHE_MS = 30_000
 
@@ -232,6 +240,7 @@ export async function recordWhatsappEvent(supabase: any, input: WhatsappEventInp
       campaign: campaignName(input),
       detail: input.detail ? truncate(input.detail, 400) : null,
       source: input.source || null,
+      quantity: Math.max(1, Math.floor(Number(input.quantity) || 1)),
       occurred_at: input.occurredAt || new Date().toISOString(),
     }
 
@@ -328,13 +337,21 @@ export function buildDigestMessage(events: any[], timezone: string) {
 
   const counts = new Map<WhatsappEventType, number>()
   const byAgent = new Map<string, number>()
+  const byCampaign = new Map<string, number>()
   const highlights = new Map<WhatsappEventType, string[]>()
 
   for (const event of events) {
     const type = event.event_type as WhatsappEventType
-    counts.set(type, (counts.get(type) || 0) + 1)
+    const quantity = Math.max(1, Math.floor(Number(event.quantity) || 1))
+    counts.set(type, (counts.get(type) || 0) + quantity)
+    if (type === 'email_sent') {
+      // Le sequenze partono per campagna: sapere che sono uscite 120 email
+      // serve poco se non si sa da quale progetto.
+      const campaign = String(event.campaign || '').trim() || UNLABELLED_CAMPAIGN
+      byCampaign.set(campaign, (byCampaign.get(campaign) || 0) + quantity)
+    }
     if (type === 'email_sent' && event.agent_name) {
-      byAgent.set(event.agent_name, (byAgent.get(event.agent_name) || 0) + 1)
+      byAgent.set(event.agent_name, (byAgent.get(event.agent_name) || 0) + quantity)
     }
     if (type === 'email_click' || type === 'email_reply' || type === 'email_unsubscribe') {
       const list = highlights.get(type) || []
@@ -358,6 +375,13 @@ export function buildDigestMessage(events: any[], timezone: string) {
     const count = counts.get(type)
     if (!count) continue
     lines.push(`${EVENT_ICONS[type]} ${count} ${EVENT_LABELS[type]}`)
+    // La ripartizione ha senso solo se c'e' piu' di una provenienza: con una
+    // campagna sola ripeterebbe il totale appena scritto.
+    if (type === 'email_sent' && byCampaign.size > 1) {
+      for (const [campaign, count] of [...byCampaign.entries()].sort((left, right) => right[1] - left[1])) {
+        lines.push(`   · ${campaign}: ${count}`)
+      }
+    }
   }
 
   if (byAgent.size) {
