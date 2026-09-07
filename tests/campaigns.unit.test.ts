@@ -17,7 +17,7 @@ const USER = 'user-1'
 function campaign(overrides: Partial<CommercialCampaign> = {}): CommercialCampaign {
   return {
     id: 'camp-1', user_id: USER, vertical: 'consorzi', name: 'Consorzi 2026',
-    slug: 'consorzi-2026', list_name: 'Consorzi', event_tag: 'consorzi-2026',
+    slug: 'consorzi-2026', locale: 'it', list_name: 'Consorzi', event_tag: 'consorzi-2026',
     status: 'active', approval_status: 'approved', daily_cap: 100, daily_enrollment_cap: 30,
     sender_name: 'Massimo Morgante', sender_email: 'info@speaqi.com', reply_to: null,
     acumbamail_list_id: null, cadence_days: [1, 4, 9, 16, 28],

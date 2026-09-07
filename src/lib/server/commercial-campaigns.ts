@@ -21,6 +21,7 @@ export type CommercialCampaign = {
   vertical: string
   name: string
   slug: string | null
+  locale: 'it' | 'en'
   list_name: string
   event_tag: string
   status: (typeof CAMPAIGN_STATUSES)[number]

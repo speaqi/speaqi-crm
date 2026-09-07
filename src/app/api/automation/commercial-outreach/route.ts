@@ -46,18 +46,45 @@ function reliableName(contact: any) {
 }
 
 /**
+ * Testi di cornice che il motore genera da se, nella lingua della campagna. I
+ * testi degli step li scrive chi crea la campagna; questi no, quindi devono
+ * seguire `locale` o una campagna inglese esce con la cornice italiana.
+ */
+const FRAME_COPY = {
+  it: {
+    fallbackCompany: 'la vostra organizzazione',
+    greeting: (firstName: string) => (firstName ? `Buongiorno ${firstName},` : 'Buongiorno,'),
+    ctaLabel: 'apri la pagina dedicata',
+    unsubscribe: (link: string) => `Non desidera ricevere altri messaggi? ${link}.`,
+    unsubscribeLabel: 'Si disiscriva qui',
+  },
+  en: {
+    fallbackCompany: 'your organisation',
+    greeting: (firstName: string) => (firstName ? `Dear ${firstName},` : 'Hello,'),
+    ctaLabel: 'open your dedicated page',
+    unsubscribe: (link: string) => `Would you rather not hear from us again? ${link}.`,
+    unsubscribeLabel: 'Unsubscribe here',
+  },
+} as const
+
+function frameCopy(campaign: CommercialCampaign) {
+  return FRAME_COPY[campaign.locale === 'en' ? 'en' : 'it']
+}
+
+/**
  * Personalizzazione e CTA. La destinazione e `landing_url` della campagna: un
  * verticale nuovo cambia URL senza toccare il codice.
  */
 function personalization(campaign: CommercialCampaign, contact: any) {
+  const copy = frameCopy(campaign)
   const fullName = reliableName(contact)
   const firstName = fullName.split(' ')[0] || ''
-  const company = String(contact.company || contact.name || '').trim() || 'la vostra organizzazione'
+  const company = String(contact.company || contact.name || '').trim() || copy.fallbackCompany
   let landing = campaign.landing_url || ''
   if (landing) {
     try {
       const url = new URL(landing)
-      if (company !== 'la vostra organizzazione') url.searchParams.set('company_name', company)
+      if (company !== copy.fallbackCompany) url.searchParams.set('company_name', company)
       url.searchParams.set('utm_source', 'acumbamail')
       url.searchParams.set('utm_medium', 'email')
       url.searchParams.set('utm_campaign', campaign.slug || campaign.vertical)
@@ -68,17 +95,18 @@ function personalization(campaign: CommercialCampaign, contact: any) {
     email: String(contact.email || '').trim().toLowerCase(),
     firstName,
     fullName,
-    greeting: firstName ? `Buongiorno ${firstName},` : 'Buongiorno,',
+    greeting: copy.greeting(firstName),
     company,
     demoUrl: landing,
   }
 }
 
 function campaignContent(campaign: CommercialCampaign, step: any) {
+  const frame = frameCopy(campaign)
   const subject = String(step.subject_template || '')
     .replaceAll('{{nome}}', '*|FULL_NAME|*')
     .replaceAll('{{azienda}}', '*|COMPANY|*')
-    .replace(/\s+- All'attenzione di\s*$/i, '')
+    .replace(/\s+- (?:All'attenzione di|For the attention of)\s*$/i, '')
   const copy = String(step.body_text_template || '')
     .replaceAll('{{saluto}}', '*|GREETING|*')
     .replaceAll('{{nome}}', '*|FULL_NAME|*')
@@ -89,7 +117,7 @@ function campaignContent(campaign: CommercialCampaign, step: any) {
     .split(/\n\s*\n/)
     .map((paragraph) => {
       const html = escapeHtml(paragraph)
-        .replace('[[LANDING_URL]]', '<a href="*|DEMO_URL|*" style="color:#2949b8;text-decoration:underline;">apri la pagina dedicata</a>')
+        .replace('[[LANDING_URL]]', `<a href="*|DEMO_URL|*" style="color:#2949b8;text-decoration:underline;">${frame.ctaLabel}</a>`)
         .replace(/(https:\/\/[^\s<]+)/g, '<a href="$1" style="color:#2949b8;text-decoration:underline;">$1</a>')
         .replace(/\n/g, '<br>')
       return `<p style="margin:0 0 18px;font:15px/1.62 Arial,Helvetica,sans-serif;color:#172033;text-align:left;">${html}</p>`
@@ -100,7 +128,7 @@ function campaignContent(campaign: CommercialCampaign, step: any) {
   const senderEmail = escapeHtml(campaign.sender_email)
   return {
     subject,
-    html: `<!doctype html><html><body style="margin:0;background:#ffffff;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr><td style="padding:30px 20px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:680px;margin:0;"><tr><td><p style="margin:0 0 22px;font:700 12px/1.3 Arial,Helvetica,sans-serif;letter-spacing:1.6px;color:#2949b8;">${eyebrow}</p>${body}<hr style="border:0;border-top:1px solid #dfe4ed;margin:28px 0 18px;"><p style="margin:0;font:13px/1.55 Arial,Helvetica,sans-serif;color:#536078;">${sender}<br>Speaqi<br><a href="mailto:${senderEmail}" style="color:#2949b8;">${senderEmail}</a></p><p style="margin:22px 0 0;font:11px/1.5 Arial,Helvetica,sans-serif;color:#7b8495;">Non desidera ricevere altri messaggi? <a href="*|UNSUBSCRIBE_URL|*" style="color:#536078;text-decoration:underline;">Si disiscriva qui</a>.</p></td></tr></table></td></tr></table></body></html>`,
+    html: `<!doctype html><html><body style="margin:0;background:#ffffff;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr><td style="padding:30px 20px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:680px;margin:0;"><tr><td><p style="margin:0 0 22px;font:700 12px/1.3 Arial,Helvetica,sans-serif;letter-spacing:1.6px;color:#2949b8;">${eyebrow}</p>${body}<hr style="border:0;border-top:1px solid #dfe4ed;margin:28px 0 18px;"><p style="margin:0;font:13px/1.55 Arial,Helvetica,sans-serif;color:#536078;">${sender}<br>Speaqi<br><a href="mailto:${senderEmail}" style="color:#2949b8;">${senderEmail}</a></p><p style="margin:22px 0 0;font:11px/1.5 Arial,Helvetica,sans-serif;color:#7b8495;">${frame.unsubscribe(`<a href="*|UNSUBSCRIBE_URL|*" style="color:#536078;text-decoration:underline;">${frame.unsubscribeLabel}</a>`)}</p></td></tr></table></td></tr></table></body></html>`,
   }
 }
 

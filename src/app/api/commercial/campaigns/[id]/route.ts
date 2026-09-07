@@ -14,7 +14,7 @@ const EDITABLE = new Set([
   'cadence_days', 'stop_on_open', 'stop_on_click',
   'automatic_pause_bounce_rate', 'automatic_pause_complaint_rate',
   'approval_status', 'approval_note', 'pilot_started_at',
-  'brand_eyebrow', 'landing_url',
+  'brand_eyebrow', 'landing_url', 'locale',
   'import_exclude_keyword', 'import_required_country',
   'require_marketing_attestation',
 ])

@@ -7,6 +7,8 @@
     "analyze:legacy": "python3 scripts/analyze_legacy_csv.py",
     "import:contacts-csv": "python3 scripts/import_contacts_csv.py",
     "hospitality:import": "node scripts/import_hospitality_contacts.mjs",
+    "touring:import": "node scripts/import_touring_club_contacts.mjs",
+    "touring:acumbamail": "node scripts/acumbamail_create_list.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "node start.cjs",
