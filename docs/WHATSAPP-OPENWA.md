@@ -64,7 +64,7 @@ cambiare numero non deve voler dire aprire Railway e riavviare il servizio.
 
 | Variabile | Descrizione |
 |---|---|
-| `OPENWA_BASE_URL` | URL del gateway, es. `http://openwa.railway.internal:2785` (OpenWA ascolta su **2785**, non 3000) |
+| `OPENWA_BASE_URL` | URL del gateway con la porta su cui ascolta davvero, es. `http://openwa.railway.internal:8080` |
 | `OPENWA_API_KEY` | API key OpenWA (ruolo Operator basta) |
 | `OPENWA_SESSION_ID` | **UUID** della sessione, non il nome |
 | `WHATSAPP_NOTIFY_TO` | Facoltativa: numero di partenza, vale solo finché non si salva dalla pagina |
@@ -78,15 +78,24 @@ mette il CRM.
 
 1. **Nuovo servizio** nello stesso progetto del CRM, sorgente
    `https://github.com/rmyndharis/OpenWA` (builder Dockerfile: il repo ne ha uno).
-   Il servizio ascolta sulla porta **2785** e serve sulla stessa porta sia l'API
-   sia la dashboard React.
+   Sulla stessa porta gira sia l'API sia la dashboard React.
+
+   **Quale porta.** `src/main.ts` di OpenWA fa `process.env.PORT || 2785`: il
+   2785 e solo il default di chi non impone nulla. Railway **inietta la sua
+   `PORT`** (di norma 8080), quindi l'app ascolta li. Non combatterlo forzando
+   `PORT=2785` — prendi la porta che Railway assegna e usa la stessa in tre
+   punti: il target del dominio, `OPENWA_BASE_URL` sul CRM, e l'indirizzo di
+   rete privata. E' l'allineamento che conta, non il numero.
 2. **Volume persistente montato su `/app/data`**. Li dentro stanno la sessione
    WhatsApp, il database SQLite e la chiave di bootstrap: senza volume, ogni
    redeploy azzera tutto e chiede di riscansionare il QR.
 3. Variabili del servizio OpenWA: bastano i default. SQLite sul volume regge
    questo uso; Postgres e Redis servono solo con molte sessioni.
 4. Il gateway **non va esposto pubblicamente** se non serve: il CRM lo raggiunge
-   sulla rete privata Railway (`openwa.railway.internal:2785`). Per aprire la
+   sulla rete privata Railway (`openwa.railway.internal:<porta>`). La rete
+   privata non indovina la porta: se l'indirizzo la sbaglia, il CRM riceve un
+   connection refused e la pagina dice solo "Gateway WhatsApp irraggiungibile".
+   Per aprire la
    dashboard la prima volta puoi generare un dominio pubblico temporaneo e poi
    toglierlo. Se lo lasci esposto, l'API key e l'unica difesa.
 
@@ -94,7 +103,7 @@ mette il CRM.
 
 | Variabile | Dove si prende |
 |---|---|
-| `OPENWA_BASE_URL` | Lo decidi tu: e l'indirizzo del servizio OpenWA. Su Railway, rete privata: `http://openwa.railway.internal:2785` (sostituisci `openwa` col nome che dai al servizio). Senza porta non funziona: il default HTTP e 80, OpenWA sta su 2785. |
+| `OPENWA_BASE_URL` | Lo decidi tu: e l'indirizzo del servizio OpenWA. Su Railway, rete privata: `http://openwa.railway.internal:<porta>` (sostituisci `openwa` col nome del servizio). La porta va sempre indicata — vedi sotto: su Railway e la `PORT` iniettata dalla piattaforma, tipicamente 8080. |
 | `OPENWA_API_KEY` | La genera OpenWA al primo avvio: la stampa nei **log di deploy** (riquadro "🔑 API Key (newly created)") e la salva in `/app/data/.api-key`. Se ti sfugge, ne crei un'altra dalla dashboard (sezione API Keys): il ruolo **operator** basta. |
 | `OPENWA_SESSION_ID` | E l'**UUID** della sessione WhatsApp, che nasce quando crei la sessione. Dalla dashboard: crea la sessione, aprila, copia l'id. Da riga di comando e la risposta di `POST /api/sessions` (campo `id`), oppure `GET /api/sessions`. Il **nome** della sessione non funziona: le rotte accettano solo l'id. |
 
@@ -135,6 +144,10 @@ collegati). Lo stato passa a `ready`.
   righe di `whatsapp_notification_events` con `notified_at is null`.
 - **Il gateway risponde 409.** La sessione non è connessa (riconnessione o
   reload di WhatsApp Web): l'evento resta in coda e riparte al giro dopo.
+- **"Gateway WhatsApp irraggiungibile" oppure "Application failed to respond"
+  aprendo il dominio.** Quasi sempre e la porta disallineata: l'app ascolta
+  sulla `PORT` iniettata da Railway, non sul 2785 del default. Confronta il
+  target del dominio, `OPENWA_BASE_URL` e la porta reale nei log di avvio.
 - **Troppi messaggi.** Togli gli eventi rumorosi (di solito le aperture) dalla
   pagina impostazioni, oppure dirada il cron di `14-whatsapp-digest`.
 
