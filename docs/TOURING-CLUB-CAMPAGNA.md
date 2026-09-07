@@ -31,15 +31,15 @@ campagna** e sceglie lo step per numero, non per lingua del contatto.
 
 ```bash
 # prova senza scrivere niente
-npm run touring:import -- --file "/percorso/Touring_Club_Italia.csv" \
-  --emit-acumbamail /tmp/touring.json
+npm run touring:import -- --file "/percorso/Touring_Club_Italia.csv" --emit-acumbamail /tmp/touring.json
 
 # scrittura vera
-NEXT_PUBLIC_SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
-npm run touring:import -- --file "/percorso/Touring_Club_Italia.csv" \
-  --emit-acumbamail /tmp/touring.json \
-  --apply --user-id 212e3b5a-f099-4b40-9ace-b6c25f1db562
+npm run touring:import -- --file "/percorso/Touring_Club_Italia.csv" --emit-acumbamail /tmp/touring.json --apply --user-id 212e3b5a-f099-4b40-9ace-b6c25f1db562
 ```
+
+`NEXT_PUBLIC_SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` vengono letti da
+`.env.local` se non sono gia nell'ambiente. Anche `--user-id` si puo omettere se
+`.env.local` ha `AUTOMATION_WORKSPACE_USER_ID`.
 
 Cosa fa, oltre a importare:
 
@@ -61,9 +61,10 @@ Totale scritto: 33.900 contatti `contact_scope = 'holding'`.
 ### 2. Creare la lista su Acumbamail
 
 ```bash
-ACUMBAMAIL_AUTH_TOKEN=... npm run touring:acumbamail -- \
-  --from /tmp/touring.json --name "Touring Club Italia" --apply
+npm run touring:acumbamail -- --from /tmp/touring.json --name "Touring Club Italia" --apply
 ```
+
+Anche qui `ACUMBAMAIL_AUTH_TOKEN` arriva da `.env.local` se non e nell'ambiente.
 
 Senza `--apply` e un dry run. Lo script crea la lista, aggiunge i merge tag
 (`first_name`, `full_name`, `greeting`, `company`, `demo_url`) e carica gli

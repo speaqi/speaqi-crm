@@ -14,8 +14,24 @@
  */
 
 import { createHash } from 'node:crypto'
+import { existsSync, readFileSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
-import { basename, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
+
+/** Le credenziali stanno in .env.local, che un `node script.mjs` non carica da se. */
+function envLocal() {
+  const path = join(process.cwd(), '.env.local')
+  if (!existsSync(path)) return {}
+  return Object.fromEntries(
+    readFileSync(path, 'utf8')
+      .split('\n')
+      .filter((line) => line.includes('=') && !line.trim().startsWith('#'))
+      .map((line) => {
+        const separator = line.indexOf('=')
+        return [line.slice(0, separator).trim(), line.slice(separator + 1).trim().replace(/^["']|["']$/g, '')]
+      })
+  )
+}
 
 const LIST_NAME = 'Touring Club Italia'
 const SOURCE = 'touring-club-italia'
@@ -230,12 +246,15 @@ if (args.emit) {
 }
 
 if (args.apply) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key || !args.userId) {
-    console.error('--apply richiede NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY e --user-id')
+  const env = { ...envLocal(), ...process.env }
+  const url = env.NEXT_PUBLIC_SUPABASE_URL
+  const key = env.SUPABASE_SERVICE_ROLE_KEY
+  const owner = args.userId || env.AUTOMATION_WORKSPACE_USER_ID || ''
+  if (!url || !key || !owner) {
+    console.error('--apply richiede NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY (in .env.local o nell\'ambiente), piu --user-id')
     process.exit(1)
   }
+  if (owner !== userId) for (const record of unique) record.contact.user_id = owner
   const { createClient } = await import('@supabase/supabase-js')
   const supabase = createClient(url, key, { auth: { persistSession: false } })
   let written = 0

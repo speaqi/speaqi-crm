@@ -11,7 +11,24 @@
  * cosa caricherebbe.
  */
 
+import { existsSync, readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+
+/** Il token sta in .env.local, che un `node script.mjs` non carica da se. */
+function envLocal() {
+  const path = join(process.cwd(), '.env.local')
+  if (!existsSync(path)) return {}
+  return Object.fromEntries(
+    readFileSync(path, 'utf8')
+      .split('\n')
+      .filter((line) => line.includes('=') && !line.trim().startsWith('#'))
+      .map((line) => {
+        const separator = line.indexOf('=')
+        return [line.slice(0, separator).trim(), line.slice(separator + 1).trim().replace(/^["']|["']$/g, '')]
+      })
+  )
+}
 
 const API = 'https://acumbamail.com/api/1'
 const MERGE_TAGS = ['first_name', 'full_name', 'greeting', 'company', 'demo_url']
@@ -98,8 +115,8 @@ if (!args.apply) {
   process.exit(0)
 }
 
-const token = process.env.ACUMBAMAIL_AUTH_TOKEN
-if (!token) { console.error('Manca ACUMBAMAIL_AUTH_TOKEN'); process.exit(1) }
+const token = process.env.ACUMBAMAIL_AUTH_TOKEN || envLocal().ACUMBAMAIL_AUTH_TOKEN
+if (!token) { console.error('Manca ACUMBAMAIL_AUTH_TOKEN (in .env.local o nell\'ambiente)'); process.exit(1) }
 
 let listId = args.listId
 if (!listId) {
