@@ -533,7 +533,7 @@ export async function backfillWineProjectFollowups(supabase: any, userId?: strin
   return { contacts: scanned, planned, blocked }
 }
 
-const CLOSED_WINE_STATUSES = ['Closed', 'Paid', 'Lost']
+export const CLOSED_WINE_STATUSES = ['Closed', 'Paid', 'Lost']
 
 /** Neutralizza i jolly di LIKE: `_` dentro un indirizzo email e' comunissimo. */
 function likeLiteral(value: string) {

@@ -62,7 +62,20 @@ const EMPTY_SETTINGS: WineProjectSettings = {
   sequence_templates: [],
 }
 
-type WineProjectEngagement = 'all' | 'opened' | 'clicked' | 'silent'
+type WineProjectEngagement =
+  | 'all'
+  | 'opened'
+  | 'clicked'
+  | 'landing'
+  | 'form'
+  | 'demo'
+  | 'interested'
+  | 'replied'
+  | 'unsubscribed'
+  | 'excluded'
+  | 'silent'
+
+type WineProjectJourneyStep = { key: string; label: string; at: string; detail?: string | null }
 
 type WineProjectContact = {
   id: string
@@ -75,14 +88,47 @@ type WineProjectContact = {
   last_email_open_at: string | null
   last_email_click_at: string | null
   last_contact_at: string | null
+  email_unsubscribed_at: string | null
+  email_unsubscribe_source: string | null
+  first_open_at: string | null
+  last_open_at: string | null
+  first_click_at: string | null
+  landing_at: string | null
+  form_at: string | null
+  demo_at: string | null
+  demo_url: string | null
+  interested_at: string | null
+  reply_at: string | null
+  sent_count: number
+  last_sequence: number | null
+  last_sent_at: string | null
+  next_sequence: number | null
+  next_due_at: string | null
+  excluded_reason: string | null
+  journey: WineProjectJourneyStep[]
 }
 
 const ENGAGEMENT_TABS: { id: WineProjectEngagement; label: string; hint: string }[] = [
-  { id: 'opened', label: 'Ha aperto', hint: 'Cantine che hanno aperto almeno una email della sequenza.' },
+  { id: 'opened', label: 'Ha aperto', hint: 'Cantine che hanno aperto almeno una email della sequenza: per ognuna, quando l’ha aperta la prima volta e quante volte è tornata.' },
   { id: 'clicked', label: 'Ha cliccato', hint: 'Cantine che hanno cliccato un link: la coda più calda.' },
+  { id: 'landing', label: 'Arrivata sulla landing', hint: 'Ha aperto la demo personalizzata dal pulsante dell’email: sa già di cosa parliamo.' },
+  { id: 'form', label: 'Ha compilato il form', hint: 'Ha lasciato sito, email e telefono sulla landing: da chiamare, non da rilanciare.' },
+  { id: 'demo', label: 'Demo pronta', hint: 'Demo generata e sequenza fermata: la chiamata è il passo successivo.' },
+  { id: 'interested', label: 'Risposta interessata', hint: 'Risposte classificate come interessate dall’AI.' },
+  { id: 'replied', label: 'Ha risposto', hint: 'Ha scritto in casella: la sequenza è ferma su questo indirizzo.' },
+  { id: 'unsubscribed', label: 'Disiscritte', hint: 'Si sono cancellate dalla lista: non ricevono più nulla, per nessuna campagna.' },
+  { id: 'excluded', label: 'Escluse dalla sequenza', hint: 'Fuori dal giro con un motivo: disiscritte, trattativa chiusa o già rispondenti.' },
   { id: 'silent', label: 'Nessuna reazione', hint: 'Nessuna apertura e nessun click tracciati.' },
   { id: 'all', label: 'Tutte', hint: 'Tutte le cantine con tag wine-project.' },
 ]
+
+/** Le date in tabella: giorno, mese e ora. «Ieri alle 18» decide una telefonata, «08/09» no. */
+function formatMoment(value: string | null | undefined) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return date.toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
 
 type WineProjectSend = {
   sent_at: string
@@ -92,6 +138,29 @@ type WineProjectSend = {
 }
 
 const EMPTY_STATS: WineProjectStats = { contacts: 0, enrolled: 0, not_enrolled: 0, sent: 0, scheduled: 0, queued: 0, stopped: 0, replies: 0, opens: 0, clicks: 0, forms: 0, demos: 0, interested_replies: 0, calls: 0 }
+
+
+/**
+ * I riquadri sono la porta d'ingresso alla lista: un numero che non si può
+ * aprire non è lavorabile — «12 form compilati» serve solo se dice anche quali.
+ * I riquadri senza `engagement` restano numeri di stato del motore.
+ */
+const STAT_TILES: { key: keyof WineProjectStats; label: string; engagement?: WineProjectEngagement }[] = [
+  { key: 'contacts', label: 'cantine nel flusso', engagement: 'all' },
+  { key: 'enrolled', label: 'già arruolate' },
+  { key: 'not_enrolled', label: 'in attesa di partire' },
+  { key: 'sent', label: 'email inviate' },
+  { key: 'opens', label: 'aperture email', engagement: 'opened' },
+  { key: 'clicks', label: 'click landing', engagement: 'clicked' },
+  { key: 'forms', label: 'form completati', engagement: 'form' },
+  { key: 'demos', label: 'demo pronte', engagement: 'demo' },
+  { key: 'interested_replies', label: 'risposte interessate', engagement: 'interested' },
+  { key: 'replies', label: 'risposte ricevute', engagement: 'replied' },
+  { key: 'calls', label: 'chiamate da fare' },
+  { key: 'scheduled', label: 'azioni programmate' },
+  { key: 'queued', label: 'azioni già in coda' },
+  { key: 'stopped', label: 'azioni fermate' },
+]
 
 export default function WineProjectSettingsPage() {
   const { isAdmin, showToast } = useCRMContext()
@@ -140,6 +209,14 @@ export default function WineProjectSettingsPage() {
       cancelled = true
     }
   }, [isAdmin, engagement])
+
+  /** Dal numero alla lista: filtra e porta l'occhio dove è comparso l'elenco. */
+  function openEngagement(next: WineProjectEngagement) {
+    setEngagement(next)
+    if (typeof document !== 'undefined') {
+      document.getElementById('wine-project-engagement')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
 
   function setDays(field: 'first_followup_days' | 'second_followup_days' | 'third_followup_days' | 'fourth_followup_days' | 'fifth_followup_days', value: string) {
     const number = Math.max(1, Math.floor(Number(value) || 1))
@@ -267,22 +344,33 @@ export default function WineProjectSettingsPage() {
       </section>
 
       <section className="wine-project-stat-grid" aria-label="Stato Wine Project">
-        <div><strong>{stats.contacts}</strong><span>cantine nel flusso</span></div>
-        <div><strong>{stats.enrolled}</strong><span>già arruolate</span></div>
-        <div><strong>{stats.not_enrolled}</strong><span>in attesa di partire</span></div>
-        <div><strong>{stats.sent}</strong><span>email inviate</span></div>
-        <div><strong>{stats.opens}</strong><span>aperture email</span></div>
-        <div><strong>{stats.clicks}</strong><span>click landing</span></div>
-        <div><strong>{stats.forms}</strong><span>form completati</span></div>
-        <div><strong>{stats.demos}</strong><span>demo pronte</span></div>
-        <div><strong>{stats.interested_replies}</strong><span>risposte interessate</span></div>
-        <div><strong>{stats.calls}</strong><span>chiamate da fare</span></div>
-        <div><strong>{stats.scheduled}</strong><span>azioni programmate</span></div>
-        <div><strong>{stats.queued}</strong><span>azioni già in coda</span></div>
-        <div><strong>{stats.stopped}</strong><span>azioni fermate</span></div>
+        {STAT_TILES.map((tile) => {
+          const value = stats[tile.key]
+          if (!tile.engagement) {
+            return (
+              <div key={tile.key}>
+                <strong>{value}</strong>
+                <span>{tile.label}</span>
+              </div>
+            )
+          }
+          return (
+            <button
+              key={tile.key}
+              type="button"
+              className={`wine-project-stat-tile${engagement === tile.engagement ? ' is-active' : ''}`}
+              onClick={() => openEngagement(tile.engagement as WineProjectEngagement)}
+              aria-label={`${value} ${tile.label}: mostra le cantine`}
+            >
+              <strong>{value}</strong>
+              <span>{tile.label}</span>
+              <em>vedi chi →</em>
+            </button>
+          )
+        })}
       </section>
 
-      <section className="wine-project-settings-card">
+      <section className="wine-project-settings-card" id="wine-project-engagement">
         <div className="wine-project-card-heading">
           <div>
             <p className="wine-project-eyebrow">CHI HA REAGITO</p>
@@ -312,29 +400,73 @@ export default function WineProjectSettingsPage() {
             <p className="wine-project-engagement-count">
               <strong>{engagementTotal}</strong> cantine{engagementContacts.length < engagementTotal ? ` · ne vedi le prime ${engagementContacts.length}` : ''}
             </p>
-            <table className="wine-project-sends-table">
+            <table className="wine-project-sends-table wine-project-journey-table">
               <thead>
                 <tr>
                   <th>Cantina</th>
-                  <th>Email</th>
-                  <th>Aperture</th>
-                  <th>Click</th>
-                  <th>Ultima reazione</th>
+                  <th>Ultima email inviata</th>
+                  <th>Che cosa ha fatto, e quando</th>
+                  <th>Prossimo passo</th>
                 </tr>
               </thead>
               <tbody>
-                {engagementContacts.map((contact) => {
-                  const lastReaction = contact.last_email_click_at || contact.last_email_open_at || contact.last_contact_at
-                  return (
-                    <tr key={contact.id}>
-                      <td><Link href={`/contacts/${contact.id}`}>{contact.company || contact.name || '—'}</Link></td>
-                      <td>{contact.email || '—'}</td>
-                      <td>{contact.email_open_count || 0}</td>
-                      <td>{contact.email_click_count || 0}</td>
-                      <td>{lastReaction ? new Date(lastReaction).toLocaleDateString('it-IT') : '—'}</td>
-                    </tr>
-                  )
-                })}
+                {engagementContacts.map((contact) => (
+                  <tr key={contact.id}>
+                    <td>
+                      <Link href={`/contacts/${contact.id}`}>{contact.company || contact.name || '—'}</Link>
+                      <span className="wine-project-journey-sub">{contact.email || 'senza email'}</span>
+                      <span className="wine-project-journey-sub">
+                        {contact.email_open_count || 0} aperture · {contact.email_click_count || 0} click
+                      </span>
+                    </td>
+                    <td>
+                      {contact.last_sent_at ? (
+                        <>
+                          <strong>Email {contact.last_sequence}/5</strong>
+                          <span className="wine-project-journey-sub">{formatMoment(contact.last_sent_at)}</span>
+                          <span className="wine-project-journey-sub">{contact.sent_count} email uscite in tutto</span>
+                        </>
+                      ) : (
+                        <span className="wine-project-journey-sub">Nessun invio registrato</span>
+                      )}
+                    </td>
+                    <td>
+                      {contact.journey.length === 0 ? (
+                        <span className="wine-project-journey-sub">Nessuna reazione tracciata.</span>
+                      ) : (
+                        <ol className="wine-project-journey">
+                          {contact.journey.map((step) => (
+                            <li key={step.key}>
+                              <time>{formatMoment(step.at)}</time>
+                              <span>{step.label}</span>
+                              {step.detail ? (
+                                step.detail.startsWith('http') ? (
+                                  <a href={step.detail} target="_blank" rel="noreferrer">apri la demo ↗</a>
+                                ) : (
+                                  <em>{step.detail}</em>
+                                )
+                              ) : null}
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </td>
+                    <td>
+                      {contact.excluded_reason ? (
+                        <span className="wine-project-journey-stop">{contact.excluded_reason}</span>
+                      ) : contact.form_at || contact.demo_at ? (
+                        <span className="wine-project-journey-hot">Da chiamare</span>
+                      ) : contact.next_due_at ? (
+                        <>
+                          <strong>Email {contact.next_sequence}/5</strong>
+                          <span className="wine-project-journey-sub">{formatMoment(contact.next_due_at)}</span>
+                        </>
+                      ) : (
+                        <span className="wine-project-journey-sub">Sequenza conclusa</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </>
