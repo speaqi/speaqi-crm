@@ -47,7 +47,35 @@ export async function GET(request: NextRequest) {
       .limit(limit)
     if (error) throw error
 
-    return Response.json({ engagement, total: count || 0, contacts: data || [] })
+    // Chi ha gia' risposto va riconosciuto a colpo d'occhio: aperture e click
+    // da soli fanno sembrare da lavorare anche una cantina che ha gia' detto
+    // no. La risposta si cerca sull'indirizzo e non sulla scheda, come fa il
+    // blocco della sequenza: lo stesso indirizzo vive su piu' righe.
+    const contacts = (data || []) as Array<{ email: string | null; [key: string]: unknown }>
+    const emails = [...new Set(contacts.map((contact) => String(contact.email || '').trim().toLowerCase()).filter(Boolean))]
+    const replied = new Set<string>()
+    for (let index = 0; index < emails.length; index += 50) {
+      // ilike e non in(): l'intestazione From arriva con la maiuscola come
+      // capita, un confronto esatto perderebbe meta' delle risposte.
+      const group = emails.slice(index, index + 50)
+      const { data: messages, error: repliesError } = await auth.supabase
+        .from('gmail_messages')
+        .select('from_email')
+        .eq('user_id', auth.workspaceUserId)
+        .eq('direction', 'inbound')
+        .or(group.map((email) => `from_email.ilike.${email.replace(/([\\%_])/g, '\\$1')}`).join(','))
+      if (repliesError) throw repliesError
+      for (const message of messages || []) replied.add(String(message.from_email || '').trim().toLowerCase())
+    }
+
+    return Response.json({
+      engagement,
+      total: count || 0,
+      contacts: contacts.map((contact) => ({
+        ...contact,
+        replied: replied.has(String(contact.email || '').trim().toLowerCase()),
+      })),
+    })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Impossibile caricare le cantine') }, { status: 500 })
   }

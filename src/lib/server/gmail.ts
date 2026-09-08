@@ -1118,7 +1118,7 @@ function toSentMessageInfo(message: GmailApiMessage): SentGmailMessageInfo {
 
 async function getMessageMetadata(accessToken: string, messageId: string) {
   const params = new URLSearchParams({ format: 'metadata' })
-  for (const header of ['To', 'Cc', 'Bcc', 'Subject', 'Date']) {
+  for (const header of ['From', 'To', 'Cc', 'Bcc', 'Subject', 'Date']) {
     params.append('metadataHeaders', header)
   }
   return gmailApiRequest<GmailApiMessage>(
@@ -1320,4 +1320,173 @@ export async function updateContactDraft(
   if (!session) throw new Error('Gmail non collegato')
 
   return saveContactDraftWithSession(session, contact, { ...input, gmailDraftId })
+}
+
+/** Neutralizza i jolly di LIKE: `_` dentro un indirizzo email e' comunissimo. */
+function likeLiteral(value: string) {
+  return value.replace(/([\\%_])/g, '\\$1')
+}
+
+const SWEEP_SENDER_CHUNK = 40
+
+/**
+ * Schede da risincronizzare: quelle a cui manca almeno un messaggio del
+ * proprio mittente. Chi ha gia' in archivio tutto quello che la casella
+ * mostra non ha nulla di nuovo, e risincronizzarlo costerebbe venti chiamate
+ * a Gmail per riscoprire quello che sappiamo gia'.
+ *
+ * Il confronto e' per coppia scheda+messaggio, non per solo messaggio: lo
+ * stesso indirizzo vive su piu' schede e la risposta archiviata su quella
+ * vecchia non basta a fermare la sequenza che gira sulla nuova.
+ */
+export function contactsNeedingInboundSync<T extends { id: string; email?: string | null }>(
+  contacts: T[],
+  senders: Map<string, string[]>,
+  knownContactMessages: Set<string>
+) {
+  return contacts.filter((contact) => {
+    const ids = senders.get(normalizeEmail(contact.email)) || []
+    return ids.some((messageId) => !knownContactMessages.has(`${contact.id}:${messageId}`))
+  })
+}
+
+export type InboundSweepResult = {
+  gmail_connected: boolean
+  messages_scanned: number
+  senders: number
+  senders_matched: number
+  contacts_synced: number
+  messages_imported: number
+  errors: string[]
+}
+
+/**
+ * Legge la posta in arrivo e cerca nel CRM chi ha scritto.
+ *
+ * Fino a qui la scoperta di una risposta partiva sempre dal contatto: si
+ * sceglieva una scheda e si interrogava Gmail per quell'indirizzo
+ * (`reply-monitor` sui contatti scritti di recente, `wine-project-replies` a
+ * rotazione sugli arruolati). Chi non entrava nella rotazione — e il bacino
+ * Wine e' di migliaia di cantine — restava invisibile per giorni, e nel
+ * frattempo la sequenza continuava a scrivere a chi aveva gia' risposto «non
+ * siamo interessati».
+ *
+ * Questo giro parte dalla parte opposta e non ha rotazione da coprire: una
+ * sola ricerca sull'account, poi per ogni mittente riconosciuto si passa il
+ * lavoro a `syncContactGmailMessages`, che e' gia' il posto dove una risposta
+ * diventa attivita, promozione da holding, classificazione AI, stato del
+ * contatto e stop della sequenza Wine.
+ *
+ * Le schede gemelle vengono sincronizzate tutte: lo stesso indirizzo vive su
+ * piu' righe (ogni re-import Acumbamail ne crea una) e l'email successiva
+ * partirebbe comunque da quella che della risposta non sa nulla.
+ */
+export async function sweepInboundGmailReplies(
+  supabase: any,
+  userId: string,
+  options: { days?: number; maxMessages?: number; maxContacts?: number } = {}
+): Promise<InboundSweepResult> {
+  const days = Math.min(30, Math.max(1, Math.floor(Number(options.days) || 3)))
+  const maxMessages = Math.min(300, Math.max(1, Math.floor(Number(options.maxMessages) || 100)))
+  const maxContacts = Math.min(200, Math.max(1, Math.floor(Number(options.maxContacts) || 40)))
+  const empty: InboundSweepResult = {
+    gmail_connected: false,
+    messages_scanned: 0,
+    senders: 0,
+    senders_matched: 0,
+    contacts_synced: 0,
+    messages_imported: 0,
+    errors: [],
+  }
+
+  const account = await getGmailAccount(supabase, userId, { tolerateMissingRelation: true })
+  if (!account) return empty
+
+  const accessToken = await refreshAccessToken(account)
+  // `-from:` e `-in:sent` tolgono le nostre copie; la spam resta dentro
+  // (`includeSpamTrash`) perche' una risposta finita li' e' comunque una
+  // risposta, e ignorarla e' esattamente il caso che si vuole chiudere.
+  const query = `newer_than:${days}d -in:sent -in:draft -from:${account.email}`
+  const list = await listMessages(accessToken, query, maxMessages)
+  const refs = list.messages || []
+  if (!refs.length) return { ...empty, gmail_connected: true }
+
+  // Solo i metadati: l'intestazione From basta per capire chi ha scritto, e il
+  // corpo lo rileggera' il sync del contatto per i soli mittenti riconosciuti.
+  const senders = new Map<string, string[]>()
+  let scanned = 0
+  const errors: string[] = []
+  let next = 0
+  await Promise.all(
+    Array.from({ length: Math.min(5, refs.length) }, async () => {
+      while (next < refs.length) {
+        const ref = refs[next++]
+        try {
+          const message = await getMessageMetadata(accessToken, ref.id)
+          scanned += 1
+          const from = normalizeEmail(uniqueEmails([getHeader(message.payload?.headers, 'from')])[0])
+          if (!from || from === normalizeEmail(account.email)) continue
+          senders.set(from, [...(senders.get(from) || []), ref.id])
+        } catch {
+          // Un messaggio illeggibile non deve far fallire l'intera scansione.
+        }
+      }
+    })
+  )
+  if (!senders.size) return { ...empty, gmail_connected: true, messages_scanned: scanned }
+
+  const senderList = [...senders.keys()]
+  const matched: CRMContact[] = []
+  for (let index = 0; index < senderList.length; index += SWEEP_SENDER_CHUNK) {
+    const group = senderList.slice(index, index + SWEEP_SENDER_CHUNK)
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('*')
+      .eq('user_id', userId)
+      .or(group.map((email) => `email.ilike.${likeLiteral(email)}`).join(','))
+    if (error) throw error
+    matched.push(...((data || []) as CRMContact[]))
+  }
+  if (!matched.length) {
+    return { ...empty, gmail_connected: true, messages_scanned: scanned, senders: senders.size }
+  }
+
+  // Chi ha gia' in archivio tutti i messaggi del proprio mittente non ha
+  // nulla di nuovo: risincronizzarlo costerebbe venti chiamate a Gmail per
+  // riscoprire quello che sappiamo gia'.
+  const messageIds = [...new Set([...senders.values()].flat())]
+  const known = new Set<string>()
+  for (let index = 0; index < messageIds.length; index += 100) {
+    const { data, error } = await supabase
+      .from('gmail_messages')
+      .select('contact_id, gmail_message_id')
+      .eq('user_id', userId)
+      .in('gmail_message_id', messageIds.slice(index, index + 100))
+    if (error) throw error
+    for (const row of data || []) known.add(`${row.contact_id}:${row.gmail_message_id}`)
+  }
+
+  const pending = contactsNeedingInboundSync(matched, senders, known)
+
+  let syncedContacts = 0
+  let imported = 0
+  for (const contact of pending.slice(0, maxContacts)) {
+    try {
+      const result = await syncContactGmailMessages(supabase, userId, contact, 20)
+      syncedContacts += 1
+      imported += result.synced
+    } catch (error) {
+      errors.push(`${contact.email}: ${(error as Error).message}`)
+    }
+  }
+
+  return {
+    gmail_connected: true,
+    messages_scanned: scanned,
+    senders: senders.size,
+    senders_matched: new Set(matched.map((contact) => normalizeEmail(contact.email))).size,
+    contacts_synced: syncedContacts,
+    messages_imported: imported,
+    errors,
+  }
 }

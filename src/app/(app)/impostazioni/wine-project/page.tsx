@@ -75,6 +75,7 @@ type WineProjectContact = {
   last_email_open_at: string | null
   last_email_click_at: string | null
   last_contact_at: string | null
+  replied?: boolean
 }
 
 const ENGAGEMENT_TABS: { id: WineProjectEngagement; label: string; hint: string }[] = [
@@ -102,6 +103,8 @@ export default function WineProjectSettingsPage() {
   const [engagementContacts, setEngagementContacts] = useState<WineProjectContact[]>([])
   const [engagementTotal, setEngagementTotal] = useState(0)
   const [engagementLoading, setEngagementLoading] = useState(true)
+  const [checkingReplies, setCheckingReplies] = useState(false)
+  const [engagementReload, setEngagementReload] = useState(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savingTemplate, setSavingTemplate] = useState<number | null>(null)
@@ -139,7 +142,37 @@ export default function WineProjectSettingsPage() {
     return () => {
       cancelled = true
     }
-  }, [isAdmin, engagement])
+  }, [isAdmin, engagement, engagementReload])
+
+  /**
+   * Scansione della posta in arrivo su richiesta. La stessa che gira ogni
+   * mezz'ora da n8n: serve qui perche' e' questa la pagina dove ci si accorge
+   * che una cantina «che ha reagito» in realta' aveva gia' risposto.
+   */
+  async function checkReplies() {
+    setCheckingReplies(true)
+    setError('')
+    try {
+      const result = await apiFetch<{ gmail_connected: boolean; contacts_synced: number; messages_imported: number }>(
+        '/api/automation/inbound-replies',
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ days: 7 }) }
+      )
+      if (!result.gmail_connected) {
+        showToast('Gmail non collegato: impossibile leggere la posta in arrivo')
+        return
+      }
+      setEngagementReload((value) => value + 1)
+      showToast(
+        result.contacts_synced === 0
+          ? 'Nessuna risposta nuova nella posta in arrivo'
+          : `${result.contacts_synced} contatti aggiornati dalla posta in arrivo`
+      )
+    } catch (replyError) {
+      setError(replyError instanceof Error ? replyError.message : 'Controllo risposte non riuscito')
+    } finally {
+      setCheckingReplies(false)
+    }
+  }
 
   function setDays(field: 'first_followup_days' | 'second_followup_days' | 'third_followup_days' | 'fourth_followup_days' | 'fifth_followup_days', value: string) {
     const number = Math.max(1, Math.floor(Number(value) || 1))
@@ -289,6 +322,9 @@ export default function WineProjectSettingsPage() {
             <h2>Le cantine dietro i numeri</h2>
             <p>{ENGAGEMENT_TABS.find((tab) => tab.id === engagement)?.hint}</p>
           </div>
+          <button type="button" className="wine-project-secondary-button" onClick={checkReplies} disabled={checkingReplies}>
+            {checkingReplies ? '⏳ Controllo…' : '📥 Controlla risposte'}
+          </button>
         </div>
         <div className="wine-project-engagement-tabs" role="group" aria-label="Filtro reazione email">
           {ENGAGEMENT_TABS.map((tab) => (
@@ -320,6 +356,7 @@ export default function WineProjectSettingsPage() {
                   <th>Aperture</th>
                   <th>Click</th>
                   <th>Ultima reazione</th>
+                  <th>Stato</th>
                 </tr>
               </thead>
               <tbody>
@@ -332,6 +369,7 @@ export default function WineProjectSettingsPage() {
                       <td>{contact.email_open_count || 0}</td>
                       <td>{contact.email_click_count || 0}</td>
                       <td>{lastReaction ? new Date(lastReaction).toLocaleDateString('it-IT') : '—'}</td>
+                      <td>{contact.replied ? `Ha risposto${contact.status ? ` · ${contact.status}` : ''}` : contact.status || '—'}</td>
                     </tr>
                   )
                 })}

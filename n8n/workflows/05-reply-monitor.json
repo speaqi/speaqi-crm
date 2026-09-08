@@ -20,6 +20,33 @@
       }
     },
     {
+      "id": "call_inbound_sweep",
+      "name": "Risposte in arrivo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [520, 120],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.APP_BASE_URL + '/api/automation/inbound-replies' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-automation-secret",
+              "value": "={{ $env.AUTOMATION_SECRET }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"days\":3,\"max_messages\":150}"
+      }
+    },
+    {
       "id": "call_reply_monitor",
       "name": "Check Replies",
       "type": "n8n-nodes-base.httpRequest",
@@ -76,6 +103,17 @@
   ],
   "connections": {
     "Ogni 30 minuti": {
+      "main": [
+        [
+          {
+            "node": "Risposte in arrivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Risposte in arrivo": {
       "main": [
         [
           {

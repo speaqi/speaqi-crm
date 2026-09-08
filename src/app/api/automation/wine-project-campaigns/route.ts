@@ -8,7 +8,7 @@ import {
 } from '@/lib/server/acumbamail-marketing'
 import { errorMessage } from '@/lib/server/http'
 import { createServiceRoleClient } from '@/lib/server/supabase'
-import { loadWineProjectAutomationSettings, scheduleNextWineProjectFollowup, type WineProjectSequenceTemplate } from '@/lib/server/wine-project-automation'
+import { loadWineProjectAutomationSettings, scheduleNextWineProjectFollowup, wineSequenceBlockReason, type WineProjectSequenceTemplate } from '@/lib/server/wine-project-automation'
 import { createWineProjectShortLinkToken } from '@/lib/server/wine-project-campaign-token'
 import { recordWhatsappEvent } from '@/lib/server/whatsapp-notify'
 
@@ -189,13 +189,33 @@ export async function POST(request: NextRequest) {
     const remainingByUser = new Map<string, number>()
     for (const [key, events] of grouped) {
       const contacts = events.map((event) => Array.isArray(event.contacts) ? event.contacts[0] : event.contacts).filter(Boolean)
-      const eligible = events.filter((event, index) => !closed(contacts[index]))
-      const ineligible = events.filter((event, index) => closed(contacts[index]))
+      // Ultimo cancello prima della partenza vera. `closed()` guarda solo la
+      // riga in esame: chi ha risposto su una scheda gemella la supera, e fra
+      // la messa in coda e l'invio puo' essere passato mezzo giorno. Qui si
+      // ricontrolla sull'indirizzo, che e' il dato che lega la risposta alla
+      // persona invece che al record.
+      const blockReasons = await Promise.all(
+        contacts.map(async (contact, index) => {
+          if (closed(contact)) return 'contatto non piu contattabile'
+          try {
+            return await wineSequenceBlockReason(supabase, contact as any)
+          } catch {
+            // Un controllo non riuscito non deve bloccare l'intero gruppo:
+            // il filtro a monte ha gia' fatto la sua parte.
+            return null
+          }
+        })
+      )
+      const eligible = events.filter((event, index) => !blockReasons[index])
+      const ineligible = events.filter((event, index) => Boolean(blockReasons[index]))
       const now = new Date().toISOString()
       if (ineligible.length && !dryRun) {
-        await supabase.from('wine_project_followup_events')
-          .update({ status: 'skipped', skipped_at: now, skip_reason: 'contatto non piu contattabile' })
-          .in('id', ineligible.map((event) => event.id)).eq('status', 'queued')
+        for (const event of ineligible) {
+          const reason = blockReasons[events.indexOf(event)] || 'contatto non piu contattabile'
+          await supabase.from('wine_project_followup_events')
+            .update({ status: 'skipped', skipped_at: now, skip_reason: reason })
+            .eq('id', event.id).eq('status', 'queued')
+        }
       }
       if (!eligible.length) {
         results.push({ key, sent: 0, skipped: ineligible.length })

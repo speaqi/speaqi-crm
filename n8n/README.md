@@ -48,9 +48,12 @@ Riattiva un workflow alla volta e osserva per qualche giorno prima del successiv
    contatti da recuperare.
 6. **02-stale-leads** (ogni giorno 09:00) — task "Riattiva X" sui contatti
    fermi da più di 5 giorni.
-7. **05-reply-monitor** (ogni 30 min) — sync Gmail + classificazione AI delle
-   risposte, poi riconciliazione delle bozze `/email` spedite a mano da Gmail.
-   Prima di attivarlo verifica che i token OAuth Gmail siano validi.
+7. **05-reply-monitor** (ogni 30 min) — scansione della posta in arrivo
+   (`/api/automation/inbound-replies`), poi sync Gmail + classificazione AI
+   delle risposte, poi riconciliazione delle bozze `/email` spedite a mano da
+   Gmail. Prima di attivarlo verifica che i token OAuth Gmail siano validi.
+   Finche' questo workflow resta spento nessuna risposta entra nel CRM da
+   sola: le sequenze continuano a scrivere a chi ha gia' risposto.
 8. **03-speaqi-webhook** — solo se il form del sito è attivo.
 9. **04-orchestrator** (lun-ven 08:00) — bozze email AI del mattino.
 10. **09-score-leads** e **10-acumbamail-qualification** — endpoint orfani.
@@ -76,7 +79,7 @@ Riattiva un workflow alla volta e osserva per qualche giorno prima del successiv
 | 02-stale-leads | `POST /api/automation/stale-leads` | `0 9 * * *` |
 | 03-speaqi-webhook | `POST /api/speaqi/leads` (webhook inbound) | — |
 | 04-orchestrator | `POST /api/automation/orchestrator` | `0 8 * * 1-5` |
-| 05-reply-monitor | `POST /api/automation/reply-monitor` + `POST /api/automation/reconcile-drafts` | `*/30 * * * *` |
+| 05-reply-monitor | `POST /api/automation/inbound-replies` + `POST /api/automation/reply-monitor` + `POST /api/automation/reconcile-drafts` | `*/30 * * * *` |
 | 06-db-maintenance | `POST /api/automation/db-maintenance` | `0 * * * *` |
 | 07-weekly-recap | `POST /api/automation/weekly-recap` | `30 7 * * 1` |
 | 08-backup | `POST /api/automation/backup` | `0 3 * * *` |
@@ -84,7 +87,7 @@ Riattiva un workflow alla volta e osserva per qualche giorno prima del successiv
 | 10-acumbamail-qualification | `POST /api/automation/acumbamail-qualification` | `0 7 * * *` |
 | 11-send-holding | `POST /api/automation/send-batch` | `0 9 * * 1-5` |
 | 12-hospitality-commercial (SPEAQI Commercial Campaigns) | `POST /api/automation/commercial-outreach` su **tutte** le campagne attive, poi reply monitor | ogni 30 minuti |
-| 12-wine-project-automation | `POST /api/automation/wine-project-followups`, `-campaigns`, `-engagement`, `-replies` | `*/30 * * * *` |
+| 12-wine-project-automation | `POST /api/automation/inbound-replies`, `POST /api/automation/wine-project-followups`, `-campaigns`, `-engagement`, `-replies` | `*/30 * * * *` |
 | 13-reconcile-sends | `POST /api/automation/reconcile-sends` | `20 * * * *` |
 | 14-whatsapp-digest | `POST /api/automation/whatsapp-digest` | `5,35 7-21 * * *` |
 
