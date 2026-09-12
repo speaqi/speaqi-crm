@@ -6535,3 +6535,16 @@ textarea.form-input::placeholder { color: var(--text3); }
 .campaigns-actions label { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text2); }
 .campaigns-step { border: 1px solid var(--border); border-radius: 13px; padding: 14px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px; }
 .campaigns-step textarea { width: 100%; font: 13px/1.55 inherit; resize: vertical; }
+
+/* Allineamento delle schede generate sull'app Speaqi (/impostazioni/wine-project) */
+.wine-project-reconcile-input { width: 100%; margin-top: 14px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
+.wine-project-reconcile-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.wine-project-reconcile-result { margin-top: 16px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface2, var(--surface)); }
+.wine-project-reconcile-result > p { margin: 0 0 10px; font-size: 13px; font-weight: 700; }
+.wine-project-reconcile-result ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.wine-project-reconcile-result li { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: 13px; }
+.wine-project-reconcile-result li strong { min-width: 0; overflow-wrap: anywhere; }
+.wine-project-reconcile-result li span { color: var(--text3); font-size: 12px; }
+.wine-project-reconcile-result li.is-created strong { color: var(--green); }
+.wine-project-reconcile-result li.is-unmatched strong,
+.wine-project-reconcile-result li.is-invalid strong { color: var(--red, #d14343); }

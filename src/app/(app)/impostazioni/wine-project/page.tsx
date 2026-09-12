@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import { useCRMContext } from '@/app/(app)/layout'
 
@@ -137,6 +137,26 @@ type WineProjectSend = {
   email: string | null
 }
 
+type DemoReconcileOutcome = {
+  source_url: string | null
+  email: string | null
+  status: 'created' | 'already_present' | 'unmatched' | 'invalid'
+  company?: string | null
+  contact_email?: string
+  matched_by?: 'external_id' | 'email' | 'site'
+  demo_ready?: boolean
+  reason?: string
+}
+
+type DemoReconcileResult = {
+  results: DemoReconcileOutcome[]
+  summary: { received: number; created: number; already_present: number; unmatched: number; invalid: number }
+}
+
+const RECONCILE_PLACEHOLDER = `https://www.cantinecogo.it/
+https://gorghitondi.it/
+https://www.alfeu.it/shop/, alfeuwinery@gmail.com`
+
 const EMPTY_STATS: WineProjectStats = { contacts: 0, enrolled: 0, not_enrolled: 0, sent: 0, scheduled: 0, queued: 0, stopped: 0, replies: 0, opens: 0, clicks: 0, forms: 0, demos: 0, interested_replies: 0, calls: 0 }
 
 
@@ -176,18 +196,23 @@ export default function WineProjectSettingsPage() {
   const [savingTemplate, setSavingTemplate] = useState<number | null>(null)
   const [savedTemplate, setSavedTemplate] = useState<number | null>(null)
   const [error, setError] = useState('')
+  const [reconcileText, setReconcileText] = useState('')
+  const [reconcileBusy, setReconcileBusy] = useState(false)
+  const [reconcileResult, setReconcileResult] = useState<DemoReconcileResult | null>(null)
+
+  const loadOverview = useCallback(() => apiFetch<{ settings: WineProjectSettings; stats: WineProjectStats; recent_sends: WineProjectSend[] }>('/api/wine-project/automation')
+    .then((result) => {
+      setSettings(result.settings)
+      setStats(result.stats)
+      setRecentSends(result.recent_sends || [])
+    }), [])
 
   useEffect(() => {
     if (!isAdmin) return
-    apiFetch<{ settings: WineProjectSettings; stats: WineProjectStats; recent_sends: WineProjectSend[] }>('/api/wine-project/automation')
-      .then((result) => {
-        setSettings(result.settings)
-        setStats(result.stats)
-        setRecentSends(result.recent_sends || [])
-      })
+    loadOverview()
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : 'Caricamento non riuscito'))
       .finally(() => setLoading(false))
-  }, [isAdmin])
+  }, [isAdmin, loadOverview])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -209,6 +234,33 @@ export default function WineProjectSettingsPage() {
       cancelled = true
     }
   }, [isAdmin, engagement])
+
+  /**
+   * Allinea le schede generate sull'app Speaqi. `dryRun` mostra cosa
+   * succederebbe senza scrivere: su un elenco incollato a mano vedere prima
+   * quali cantine vengono agganciate evita di scoprirlo dopo.
+   */
+  async function runReconcile(dryRun: boolean) {
+    if (!reconcileText.trim()) return
+    setReconcileBusy(true)
+    setError('')
+    try {
+      const result = await apiFetch<DemoReconcileResult>('/api/wine-project/reconcile-demos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: reconcileText, dry_run: dryRun }),
+      })
+      setReconcileResult(result)
+      if (!dryRun) {
+        await loadOverview().catch(() => undefined)
+        showToast(`${result.summary.created} schede allineate`)
+      }
+    } catch (reconcileError) {
+      setError(reconcileError instanceof Error ? reconcileError.message : 'Allineamento non riuscito')
+    } finally {
+      setReconcileBusy(false)
+    }
+  }
 
   /** Dal numero alla lista: filtra e porta l'occhio dove è comparso l'elenco. */
   function openEngagement(next: WineProjectEngagement) {
@@ -368,6 +420,58 @@ export default function WineProjectSettingsPage() {
             </button>
           )
         })}
+      </section>
+
+      <section className="wine-project-settings-card">
+        <div className="wine-project-card-heading">
+          <div>
+            <p className="wine-project-eyebrow">ALLINEAMENTO</p>
+            <h2>Schede generate sull&apos;app Speaqi</h2>
+            <p>
+              Ogni demo nasce da un&apos;email che sta qui dentro, quindi ogni scheda compilata ha una cantina a cui
+              appartenere: se i due conti non coincidono, manca un avviso, non un lead. Incolla l&apos;elenco delle
+              analisi — una per riga, basta il sito — e il CRM registra quelle che non ha. Se una cantina non si
+              aggancia (email su un dominio diverso dal sito), aggiungi la sua email dopo la virgola.
+            </p>
+          </div>
+        </div>
+        <textarea
+          className="wine-project-reconcile-input"
+          rows={5}
+          value={reconcileText}
+          onChange={(event) => setReconcileText(event.target.value)}
+          placeholder={RECONCILE_PLACEHOLDER}
+          aria-label="Elenco delle schede generate"
+        />
+        <div className="wine-project-reconcile-actions">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => runReconcile(true)} disabled={reconcileBusy || !reconcileText.trim()}>
+            {reconcileBusy ? 'Controllo…' : 'Controlla senza scrivere'}
+          </button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => runReconcile(false)} disabled={reconcileBusy || !reconcileText.trim()}>
+            Allinea nel CRM
+          </button>
+        </div>
+        {reconcileResult && (
+          <div className="wine-project-reconcile-result">
+            <p>
+              {reconcileResult.summary.created} da registrare · {reconcileResult.summary.already_present} già presenti ·{' '}
+              {reconcileResult.summary.unmatched} senza cantina
+            </p>
+            <ul>
+              {reconcileResult.results.map((row, index) => (
+                <li key={`${row.source_url || row.email || index}`} className={`is-${row.status}`}>
+                  <strong>{row.company || row.contact_email || row.source_url || row.email}</strong>
+                  <span>
+                    {row.status === 'created' && `registrata${row.demo_ready ? ' con demo' : ''}${row.matched_by === 'site' ? ' (agganciata dal sito)' : ''}`}
+                    {row.status === 'already_present' && 'già nel CRM'}
+                    {row.status === 'unmatched' && (row.reason || 'nessuna cantina con questo dominio')}
+                    {row.status === 'invalid' && (row.reason || 'riga non leggibile')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
 
       <section className="wine-project-settings-card" id="wine-project-engagement">
