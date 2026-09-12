@@ -2,6 +2,11 @@ import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
 import { requireRouteUser } from '@/lib/server/supabase'
 import { CLOSED_WINE_STATUSES } from '@/lib/server/wine-project-automation'
+import {
+  ID_SCAN_LIMIT,
+  contactIdsWithActivity,
+  contactIdsWithReply,
+} from '@/lib/server/wine-project-engagement'
 
 const ENGAGEMENTS = [
   'all',
@@ -57,70 +62,8 @@ type ContactRow = {
 
 type JourneyStep = { key: string; label: string; at: string; detail?: string | null }
 
-/** Il tetto oltre il quale smettiamo di raccogliere id per i gruppi calcolati. */
-const ID_SCAN_LIMIT = 5000
-
 function normalizedEmail(value: string | null | undefined) {
   return String(value || '').trim().toLowerCase()
-}
-
-/**
- * Gli id distinti dei contatti wine-project che hanno almeno un'attività di
- * quel tipo, dal più recente. Form, demo e risposte interessate sono decine,
- * non migliaia: si raccolgono per intero e si contano davvero, così il numero
- * mostrato in pagina è quello vero e non «le prime N».
- */
-async function contactIdsWithActivity(supabase: any, userId: string, type: string) {
-  const ids: string[] = []
-  const seen = new Set<string>()
-  let from = 0
-  for (;;) {
-    const { data, error } = await supabase
-      .from('activities')
-      .select('contact_id, created_at, contacts!inner(event_tag)')
-      .eq('user_id', userId)
-      .eq('type', type)
-      .eq('contacts.event_tag', 'wine-project')
-      .order('created_at', { ascending: false })
-      .range(from, from + 999)
-    if (error) throw error
-    for (const row of data || []) {
-      const id = String(row.contact_id || '')
-      if (!id || seen.has(id)) continue
-      seen.add(id)
-      ids.push(id)
-    }
-    if (!data || data.length < 1000 || ids.length >= ID_SCAN_LIMIT) break
-    from += 1000
-  }
-  return ids
-}
-
-/** Gli id dei contatti wine-project che hanno almeno una risposta in casella. */
-async function contactIdsWithReply(supabase: any, userId: string) {
-  const ids: string[] = []
-  const seen = new Set<string>()
-  let from = 0
-  for (;;) {
-    const { data, error } = await supabase
-      .from('gmail_messages')
-      .select('contact_id, sent_at, contacts!inner(event_tag)')
-      .eq('user_id', userId)
-      .eq('direction', 'inbound')
-      .eq('contacts.event_tag', 'wine-project')
-      .order('sent_at', { ascending: false, nullsFirst: false })
-      .range(from, from + 999)
-    if (error) throw error
-    for (const row of data || []) {
-      const id = String(row.contact_id || '')
-      if (!id || seen.has(id)) continue
-      seen.add(id)
-      ids.push(id)
-    }
-    if (!data || data.length < 1000 || ids.length >= ID_SCAN_LIMIT) break
-    from += 1000
-  }
-  return ids
 }
 
 /** I contatti wine-project disiscritti o con la trattativa chiusa. */

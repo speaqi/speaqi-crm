@@ -1092,8 +1092,39 @@ export function createSpeaqiCallOpenApi(origin: string) {
                     responsible: { type: 'string' },
                     note: { type: 'string' },
                     next_followup_at: { type: 'string', format: 'date-time' },
+                    event_type: {
+                      type: 'string',
+                      enum: [
+                        'inbound_lead',
+                        'wine_landing_clicked',
+                        'wine_form_submitted',
+                        'wine_demo_contact',
+                        'hospitality_form_submitted',
+                        'hospitality_demo_contact',
+                      ],
+                      description:
+                        '`*_form_submitted` va inviato appena la scheda e compilata, `*_demo_contact` quando la demo e pronta. Se l analisi fallisce o resta in revisione la demo non nasce mai: senza l evento di form quel lead non entra nel CRM.',
+                    },
+                    campaign_token: {
+                      type: 'string',
+                      description: 'Il token firmato che il CRM mette nel link della campagna: identifica la cantina anche senza email.',
+                    },
+                    source_url: {
+                      type: 'string',
+                      description: 'Il sito analizzato. Se manca sia email sia campaign_token, il CRM riconosce il contatto dal dominio.',
+                    },
+                    demo_project_url: { type: 'string' },
+                    results_count: { type: 'number' },
+                    wine_names: { type: 'array', items: { type: 'string' } },
+                    attempt_id: {
+                      type: 'string',
+                      description: 'Id del tentativo: lo stesso valore su form e demo evita di contare due volte lo stesso lead.',
+                    },
+                    reason: { type: 'string' },
                   },
                   required: ['user_id'],
+                  description:
+                    'Serve almeno uno fra email, campaign_token e source_url riconducibile a un contatto del progetto.',
                 },
                 example: {
                   user_id: '9fbaad92-820e-4e48-9b4a-95ebeb0c8a91',
@@ -1123,7 +1154,7 @@ export function createSpeaqiCallOpenApi(origin: string) {
               },
             },
             '400': {
-              description: 'Missing user_id',
+              description: 'Missing user_id o contatto non identificabile',
               content: {
                 'application/json': {
                   schema: { $ref: '#/components/schemas/Error' },

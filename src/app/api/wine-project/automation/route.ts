@@ -6,6 +6,7 @@ import {
   loadWineProjectAutomationSettings,
   normalizeWineProjectAutomationSettings,
 } from '@/lib/server/wine-project-automation'
+import { contactIdsWithActivity } from '@/lib/server/wine-project-engagement'
 
 function missingTable(error: unknown) {
   const message = String((error as { message?: unknown })?.message || '').toLowerCase()
@@ -69,13 +70,27 @@ export async function GET(request: NextRequest) {
       .eq('contacts.event_tag', 'wine-project')
     if (repliesError) throw repliesError
 
-    const [{ data: activities, error: activitiesError }, { count: calls, error: callsError }] = await Promise.all([
+    // Form, demo e risposte interessate si contano per cantina, non per riga:
+    // e' il numero che apre "vedi chi", e un secondo invio della stessa cantina
+    // non e' un secondo lead. Le righe non si tirano giu' tutte (PostgREST
+    // tronca a 1000 e un solo `landing_clicked` in piu' faceva sparire i form
+    // dal conteggio): ogni gruppo ha la sua query paginata.
+    const [
+      formContacts,
+      demoContacts,
+      interestedContacts,
+      { count: clickActivities, error: clickActivitiesError },
+      { count: calls, error: callsError },
+    ] = await Promise.all([
+      contactIdsWithActivity(auth.supabase, auth.workspaceUserId, 'demo_form_submitted'),
+      contactIdsWithActivity(auth.supabase, auth.workspaceUserId, 'demo_ready'),
+      contactIdsWithActivity(auth.supabase, auth.workspaceUserId, 'reply_interested'),
       auth.supabase
         .from('activities')
-        .select('type, contacts!inner(event_tag)')
+        .select('id, contacts!inner(event_tag)', { count: 'exact', head: true })
         .eq('user_id', auth.workspaceUserId)
-        .eq('contacts.event_tag', 'wine-project')
-        .in('type', ['landing_clicked', 'demo_form_submitted', 'demo_ready', 'reply_interested']),
+        .eq('type', 'landing_clicked')
+        .eq('contacts.event_tag', 'wine-project'),
       auth.supabase
         .from('tasks')
         .select('id, contacts!inner(event_tag)', { count: 'exact', head: true })
@@ -84,7 +99,7 @@ export async function GET(request: NextRequest) {
         .eq('action', 'call')
         .eq('contacts.event_tag', 'wine-project'),
     ])
-    if (activitiesError) throw activitiesError
+    if (clickActivitiesError) throw clickActivitiesError
     if (callsError) throw callsError
 
     const summary = (events || []).reduce((acc: Record<string, number>, event: { status: string }) => {
@@ -96,10 +111,6 @@ export async function GET(request: NextRequest) {
     // del prossimo giro di daily_enrollment_cap.
     const enrolledContactIds = new Set((events || []).map((event: { contact_id: string }) => event.contact_id))
     const enrolled = enrolledContactIds.size
-    const activitySummary = (activities || []).reduce((acc: Record<string, number>, activity: { type: string }) => {
-      acc[activity.type] = (acc[activity.type] || 0) + 1
-      return acc
-    }, {})
 
     const { data: recentSendRows, error: recentSendError } = await auth.supabase
       .from('activities')
@@ -133,10 +144,10 @@ export async function GET(request: NextRequest) {
         stopped: summary.skipped || 0,
         replies: replies || 0,
         opens,
-        clicks: Math.max(clicksFromContacts, activitySummary.landing_clicked || 0),
-        forms: activitySummary.demo_form_submitted || 0,
-        demos: activitySummary.demo_ready || 0,
-        interested_replies: activitySummary.reply_interested || 0,
+        clicks: Math.max(clicksFromContacts, clickActivities || 0),
+        forms: formContacts.length,
+        demos: demoContacts.length,
+        interested_replies: interestedContacts.length,
         calls: calls || 0,
       },
     })
