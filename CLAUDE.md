@@ -120,7 +120,7 @@ src/
 ├── app/
 │   ├── (app)/                  # Authenticated routes
 │   │   ├── dashboard/
-│   │   ├── todo/              # To Do board: attività personali/extra, avanzamento + Gantt
+│   │   ├── todo/              # To Do: lavagna kanban, lista e Gantt delle attività personali/extra
 │   │   ├── contacts/
 │   │   │   └── [id]/           # Contact detail page
 │   │   ├── kanban/
@@ -172,7 +172,7 @@ src/
 ├── components/
 │   ├── crm/                    # ContactDrawer, ContactModal, CallOutcomeModal, EmailDraftPanel
 │   ├── layout/                 # Sidebar, Topbar, BrandLockup
-│   ├── todo/                   # TodoRow, TodoGantt (pagina /todo)
+│   ├── todo/                   # TodoKanban, TodoCard, TodoRow, TodoGantt, TodoDateField (pagina /todo)
 │   └── ui/                     # Modal, Toast
 ├── lib/
 │   ├── server/                 # Server-only utilities
@@ -237,6 +237,10 @@ Il workspace contiene decine di migliaia di contatti (quasi tutti `holding`, imp
 - Dashboard "Da recuperare" panel surfaces open contacts with no next step (including Waiting contacts whose recall date has passed) with quick reschedule/dismiss actions
 - Sidebar shows only the core loop (Oggi, To Do, Pipeline, Contatti, Follow-up, Preventivi, Commerciale, Analytics, Impostazioni); other pages stay reachable by URL
 - **To Do board** (`/todo`): standalone tasks (`tasks.contact_id is null`, `type = 'todo'`) are the one place for everything to do, Speaqi and non-Speaqi. They carry `area` (`speaqi` / `personale` / `altro`), `progress_state` (`todo` / `in_progress` / `blocked` / `done`), `progress_percent` and `start_date` (with `due_date` it draws the Gantt bar). `status` stays the binary flag the rest of the CRM reads: `/api/tasks/standalone` is the only place where the two are kept in sync. Standalone tasks are visible **only to the workspace owner** — the `tasks_workspace` RLS policy joins through `contacts`, which they don't have
+- **To Do — la lavagna è la vista di partenza**: `/todo` apre sul kanban (`TodoKanban`), con Lista e Gantt come viste alternative. Le colonne vengono da `TODO_GROUPINGS` in `src/lib/todo.ts` e sono **al massimo quattro**, perché la lavagna deve stare tutta nella finestra: sotto i 1180 px scende a due colonne e la pagina torna a scorrere. Quattro raggruppamenti: *Avanzamento* (da fare / in corso / in attesa / fatte), *Quando* (oggi / questa settimana / più avanti / da pianificare), *Progetto* (le tre aree) e *Priorità*. Le **arretrate non hanno una colonna propria**: cadono in "Oggi", perché restano da fare oggi e una colonna di rimproveri in testa alla pagina non si guarda volentieri. Anche la lista apre su "Oggi", non più sulle arretrate
+- **To Do — trascinare è l'unica scrittura implicita**: `todoDropPatch()` traduce la colonna d'arrivo nella modifica da salvare e nella frase da mostrare, e restituisce `null` quando la scheda è già dove è stata lasciata — un trascinamento a vuoto non deve contare come rinvio, visto che ogni cambio di `due_date` incrementa `reschedule_count` lato server. L'unica eccezione è una arretrata rilasciata su "Oggi": lì la colonna coincide già, ma l'intenzione è ridatarla. Il `+` in testa a ogni colonna crea l'attività **già** con i valori di quella colonna (`todoColumnDefaults()`)
+- **To Do — ordinamenti**: `TODO_SORTS` (priorità, scadenza, avanzamento, aggiunte di recente, alfabetico) vale dentro ogni colonna e nella lista; a parità di criterio si scende sempre su scadenza → inserimento → id, altrimenti due schede identiche si scambiano di posto a ogni render. La colonna "Fatte" ignora l'ordinamento scelto e mostra le ultime chiuse per prime. Vista, raggruppamento, ordinamento, filtro area e "mostra fatte" restano in `localStorage` (`speaqi.todo.prefs`), applicati dopo l'idratazione perché il primo render deve coincidere con quello del server
+- **To Do — il campo data non salva mentre si digita** (`TodoDateField`): un `input[type=date]` emette un `change` a ogni segmento e finché la data non è completa il valore letto è la stringa vuota. Salvando a ogni evento si scriveva `due_date: null` a metà digitazione, il componente si ri-renderizzava vuoto e i segmenti già inseriti sparivano: si riusciva a mettere una cifra per volta. Il valore vive in locale e si salva solo a data completa, o all'uscita dal campo quando è stata svuotata davvero
 - **Admin collaborator filter**: Admin can toggle `workspace=all` to see all contacts, otherwise sees only assigned contacts (matching `responsible` or `assigned_agent` via `contactMatchesAssigneeName`)
 
 ## Pipeline Stages
@@ -561,7 +565,7 @@ migrarlo e un lavoro separato, da fare a motore collaudato.
 Nessuna dipendenza di test oltre `tsx`: si usa `node:test`.
 
 ```bash
-npm run test:unit   # motore campagne su client Supabase finto
+npm run test:unit   # motore campagne, Wine Project, WhatsApp e lavagna To Do
 npm run test:db     # integrazione e concorrenza su un Postgres locale usa-e-getta
 npm test            # entrambi
 ```

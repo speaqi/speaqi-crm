@@ -1,12 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { TodoDateField } from '@/components/todo/TodoDateField'
 import {
   TODO_AREAS,
   TODO_PERCENT_STEPS,
   TODO_PROGRESS_STATES,
-  dateInputToIso,
-  dateInputValue,
   formatDayMonth,
   formatFullDate,
   isTaskOverdue,
@@ -159,25 +158,23 @@ export function TodoRow({ task, today, expanded, onToggleExpanded, onPatch, onDe
             </div>
           </div>
 
-          <label className="todo-field">
+          <div className="todo-field">
             <span>Inizio</span>
-            <input
-              className="fi"
-              type="date"
-              value={dateInputValue(task.start_date)}
-              onChange={(e) => patch({ start_date: dateInputToIso(e.target.value) })}
+            <TodoDateField
+              label="Inizio"
+              value={task.start_date}
+              onCommit={(iso) => patch({ start_date: iso })}
             />
-          </label>
+          </div>
 
-          <label className="todo-field">
+          <div className="todo-field">
             <span>Scadenza</span>
-            <input
-              className="fi"
-              type="date"
-              value={dateInputValue(task.due_date)}
-              onChange={(e) => patch({ due_date: dateInputToIso(e.target.value) })}
+            <TodoDateField
+              label="Scadenza"
+              value={task.due_date}
+              onCommit={(iso) => patch({ due_date: iso })}
             />
-          </label>
+          </div>
 
           <label className="todo-field">
             <span>Priorità</span>
