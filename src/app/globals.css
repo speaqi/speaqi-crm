@@ -6240,6 +6240,8 @@ textarea.form-input::placeholder { color: var(--text3); }
 .wine-project-toggle input:checked + span { background: var(--green); }
 .wine-project-toggle input:checked + span::after { transform: translateX(20px); }
 .wine-project-toggle input:focus-visible + span { outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 3px; }
+.wine-project-toggle input:disabled + span { opacity: .65; }
+.wine-project-toggle-saving { color: var(--text3); font-size: 12px; font-style: normal; font-weight: 600; }
 .wine-project-stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 18px; }
 .wine-project-stat-grid > div { display: flex; min-width: 0; flex-direction: column; padding: 15px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 .wine-project-stat-grid strong { font-size: 25px; line-height: 1; }
