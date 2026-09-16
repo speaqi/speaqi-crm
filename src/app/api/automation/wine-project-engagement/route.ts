@@ -20,52 +20,59 @@ export async function POST(request: NextRequest) {
     if (error) throw error
 
     let updated = 0
+    let failed = 0
     for (const campaign of campaigns || []) {
-      const [opensPayload, clicksPayload] = await Promise.all([
-        fetchAcumbamailFunction('getCampaignOpeners', token, String(campaign.campaign_id)),
-        fetchAcumbamailFunction('getCampaignClicks', token, String(campaign.campaign_id)),
-      ])
-      const opens = collectEmailEvents(opensPayload)
-      const clicks = collectEmailEvents(clicksPayload)
-      const emails = [...new Set([...opens.keys(), ...clicks.keys()])]
-      for (const email of emails) {
-        const open = opens.get(email)
-        const click = clicks.get(email)
-        const now = new Date().toISOString()
-        await supabase.from('acumbamail_campaign_engagements').upsert({
-          user_id: campaign.user_id,
-          campaign_key: campaign.campaign_key,
-          email,
-          name: open?.name || click?.name || null,
-          open_count: Number(open?.count || 0),
-          click_count: Number(click?.count || 0),
-          last_open_at: open?.lastAt || null,
-          updated_at: now,
-        }, { onConflict: 'user_id,campaign_key,email' })
-        const normalized = normalizeEmail(email)
-        if (!normalized) continue
-        const { data: contact } = await supabase
-          .from('contacts')
-          .select('id,email_open_count,email_click_count')
-          .eq('user_id', campaign.user_id)
-          .eq('event_tag', 'wine-project')
-          .eq('email', normalized)
-          .maybeSingle()
-        if (contact) {
-          await supabase.from('contacts').update({
-            email_open_count: Math.max(Number(contact.email_open_count || 0), Number(open?.count || 0)),
-            email_click_count: Math.max(Number(contact.email_click_count || 0), Number(click?.count || 0)),
-            last_email_open_at: open?.lastAt || null,
-            last_email_click_at: click?.lastAt || null,
+      try {
+        const [opensPayload, clicksPayload] = await Promise.all([
+          fetchAcumbamailFunction('getCampaignOpeners', token, String(campaign.campaign_id)),
+          fetchAcumbamailFunction('getCampaignClicks', token, String(campaign.campaign_id)),
+        ])
+        const opens = collectEmailEvents(opensPayload)
+        const clicks = collectEmailEvents(clicksPayload)
+        const emails = [...new Set([...opens.keys(), ...clicks.keys()])]
+        for (const email of emails) {
+          const open = opens.get(email)
+          const click = clicks.get(email)
+          const now = new Date().toISOString()
+          await supabase.from('acumbamail_campaign_engagements').upsert({
+            user_id: campaign.user_id,
+            campaign_key: campaign.campaign_key,
+            email,
+            name: open?.name || click?.name || null,
+            open_count: Number(open?.count || 0),
+            click_count: Number(click?.count || 0),
+            last_open_at: open?.lastAt || null,
             updated_at: now,
-          }).eq('id', contact.id)
-          updated += 1
+          }, { onConflict: 'user_id,campaign_key,email' })
+          const normalized = normalizeEmail(email)
+          if (!normalized) continue
+          const { data: contact } = await supabase
+            .from('contacts')
+            .select('id,email_open_count,email_click_count')
+            .eq('user_id', campaign.user_id)
+            .eq('event_tag', 'wine-project')
+            .eq('email', normalized)
+            .maybeSingle()
+          if (contact) {
+            await supabase.from('contacts').update({
+              email_open_count: Math.max(Number(contact.email_open_count || 0), Number(open?.count || 0)),
+              email_click_count: Math.max(Number(contact.email_click_count || 0), Number(click?.count || 0)),
+              last_email_open_at: open?.lastAt || null,
+              last_email_click_at: click?.lastAt || null,
+              updated_at: now,
+            }).eq('id', contact.id)
+            updated += 1
+          }
         }
+        await supabase.from('acumbamail_campaigns').update({ last_synced_at: new Date().toISOString(), last_sync_error: null })
+          .eq('user_id', campaign.user_id).eq('campaign_key', campaign.campaign_key)
+      } catch (campaignError) {
+        failed += 1
+        await supabase.from('acumbamail_campaigns').update({ last_sync_error: errorMessage(campaignError, 'sync failed') })
+          .eq('user_id', campaign.user_id).eq('campaign_key', campaign.campaign_key)
       }
-      await supabase.from('acumbamail_campaigns').update({ last_synced_at: new Date().toISOString(), last_sync_error: null })
-        .eq('user_id', campaign.user_id).eq('campaign_key', campaign.campaign_key)
     }
-    return Response.json({ ok: true, campaigns_checked: campaigns?.length || 0, contacts_updated: updated })
+    return Response.json({ ok: true, campaigns_checked: campaigns?.length || 0, contacts_updated: updated, campaigns_failed: failed })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Wine Project engagement sync failed') }, { status: 500 })
   }
