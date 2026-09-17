@@ -96,15 +96,20 @@ export async function POST(request: NextRequest) {
 
     let synced = 0
     let failures = 0
+    // Senza i messaggi distinti un token Gmail scaduto fa fallire ogni contatto
+    // in silenzio: la rotta risponde comunque 200 e il cron resta verde.
+    const syncErrors: string[] = []
     for (const contact of contacts) {
       try {
         const result = await syncContactGmailMessages(supabase, contact.user_id, contact as any, 20)
         synced += result.synced
-      } catch {
+      } catch (error) {
         failures += 1
+        const message = errorMessage(error, 'sync fallita')
+        if (!syncErrors.includes(message)) syncErrors.push(message)
       }
     }
-    return Response.json({ ok: failures === 0, checked: contacts.length, messages_synced: synced, failures })
+    return Response.json({ ok: failures === 0, checked: contacts.length, messages_synced: synced, failures, errors: syncErrors })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Wine Project reply sync failed') }, { status: 500 })
   }
