@@ -65,4 +65,32 @@ describe('selectByIdChunks', () => {
     // Il terzo blocco non doveva partire: un errore ferma il giro, non lo salta.
     assert.equal(calls, 2)
   })
+
+  test('un blocco con piu righe del limite PostgREST si legge a pagine', async () => {
+    // Un blocco di soli 200 id non basta: PostgREST tronca ogni risposta a
+    // `db-max-rows` righe (1000 di default) senza segnalarlo. Una tabella con
+    // più di mille task per lo stesso blocco di contatti restituiva solo le
+    // prime mille, silenziosamente — la riga mancante era proprio quella che
+    // serviva a riconoscere un duplicato gia' esistente.
+    const total = 2500
+    const allRows = Array.from({ length: total }, (_, index) => ({ id: `row-${index}` }))
+    const seenRanges: Array<{ from: number; to: number }> = []
+
+    const rows = await selectByIdChunks<{ id: string }>(
+      ['a'],
+      200,
+      async (_group, range) => {
+        seenRanges.push(range)
+        return { data: allRows.slice(range.from, range.to + 1), error: null }
+      },
+      1000
+    )
+
+    assert.equal(rows.length, total)
+    assert.deepEqual(seenRanges, [
+      { from: 0, to: 999 },
+      { from: 1000, to: 1999 },
+      { from: 2000, to: 2999 },
+    ])
+  })
 })

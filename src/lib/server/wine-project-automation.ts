@@ -821,7 +821,7 @@ export async function selectWineContactsForReplySync(supabase: any, batch: numbe
   const enrolledIds = [...new Set(events.map((event) => String(event.contact_id)).filter(Boolean))]
   if (!enrolledIds.length) return []
 
-  const contacts = await selectByIdChunks<WineReplySyncContact>(enrolledIds, REPLY_SYNC_ID_CHUNK, (group) =>
+  const contacts = await selectByIdChunks<WineReplySyncContact>(enrolledIds, REPLY_SYNC_ID_CHUNK, (group, range) =>
     supabase
       .from('contacts')
       .select('*')
@@ -829,13 +829,19 @@ export async function selectWineContactsForReplySync(supabase: any, batch: numbe
       .is('email_unsubscribed_at', null)
       .not('status', 'in', '(Closed,Paid,Lost)')
       .not('email', 'is', null)
+      .range(range.from, range.to)
   )
   if (!contacts.length) return []
 
   const checks = await selectByIdChunks<{ contact_id: string; checked_at: string }>(
     contacts.map((contact) => contact.id),
     REPLY_SYNC_ID_CHUNK,
-    (group) => supabase.from('wine_project_reply_checks').select('contact_id, checked_at').in('contact_id', group)
+    (group, range) =>
+      supabase
+        .from('wine_project_reply_checks')
+        .select('contact_id, checked_at')
+        .in('contact_id', group)
+        .range(range.from, range.to)
   )
   const lastChecked = new Map<string, number>()
   for (const row of checks) {

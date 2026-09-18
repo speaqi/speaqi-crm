@@ -80,12 +80,13 @@ export async function POST(request: NextRequest) {
     let existingIdempotencyKeys = new Set<string>()
 
     if (contactIds.length) {
-      const pendingTasks = await selectByIdChunks<any>(contactIds, ID_CHUNK, (group) =>
+      const pendingTasks = await selectByIdChunks<any>(contactIds, ID_CHUNK, (group, range) =>
         supabase
           .from('tasks')
           .select('contact_id, due_date')
           .eq('status', 'pending')
           .in('contact_id', group)
+          .range(range.from, range.to)
       )
       existingTaskKeys = new Set(
         pendingTasks.map((task: any) => `${task.contact_id}:${task.due_date}`)
@@ -97,12 +98,13 @@ export async function POST(request: NextRequest) {
       // faceva `existingTaskKeys`) lasciava passare il duplicato fino
       // all'insert, che falliva con 23505 — mascherato per settimane dal
       // `.in()` troppo lungo che faceva fallire la rotta prima di arrivarci.
-      const allTasksWithKey = await selectByIdChunks<any>(contactIds, ID_CHUNK, (group) =>
+      const allTasksWithKey = await selectByIdChunks<any>(contactIds, ID_CHUNK, (group, range) =>
         supabase
           .from('tasks')
           .select('idempotency_key')
           .not('idempotency_key', 'is', null)
           .in('contact_id', group)
+          .range(range.from, range.to)
       )
       existingIdempotencyKeys = new Set(
         allTasksWithKey
@@ -170,12 +172,13 @@ export async function POST(request: NextRequest) {
     let quoteTaskPayload: any[] = []
 
     if (quoteRecovery && contactIds.length) {
-      const quotes = await selectByIdChunks<any>(contactIds, ID_CHUNK, (group) =>
+      const quotes = await selectByIdChunks<any>(contactIds, ID_CHUNK, (group, range) =>
         supabase
           .from('quotes')
           .select('id, user_id, contact_id, quote_number, status, total_amount, sent_at, created_at')
           .eq('status', 'sent')
           .in('contact_id', group)
+          .range(range.from, range.to)
       )
 
       quoteTaskPayload = quotes
@@ -264,38 +267,6 @@ export async function POST(request: NextRequest) {
       quote_recovery: quoteRecovery,
       contacts_due: contacts.length,
       due_tasks: dueTaskPayload.length,
-      due_task_contact_ids: dueTaskPayload.map((task) => task.contact_id).slice(0, 5),
-      debug_contact_ids_total: contactIds.length,
-      debug_existing_task_keys_size: existingTaskKeys.size,
-      debug_existing_idempotency_keys_size: existingIdempotencyKeys.size,
-      debug_target_in_contact_ids: contactIds.includes('d42f3973-3228-445a-ae4b-01b533f8621b'),
-      debug_target_task_key_match: existingTaskKeys.has('d42f3973-3228-445a-ae4b-01b533f8621b:2026-04-22T09:45:08.207+00:00'),
-      debug_target_idempotency_match: existingIdempotencyKeys.has('auto-followup:d42f3973-3228-445a-ae4b-01b533f8621b:2026-04-22T09:45:08.207+00:00:call'),
-      debug_target_raw: (() => {
-        const target = contacts.find((c: any) => c.id === 'd42f3973-3228-445a-ae4b-01b533f8621b')
-        if (!target) return { found_in_contacts: false }
-        const dueAt = target.next_action_at || target.next_followup_at
-        const action = normalizeTaskAction(
-          target.next_followup_at && dueAt === target.next_followup_at
-            ? 'call'
-            : (target.phone ? 'call' : target.email ? 'send_email' : 'wait')
-        )
-        const computedKey = `auto-followup:${target.id}:${dueAt}:${action}`
-        const computedTaskKey = `${target.id}:${dueAt}`
-        return {
-          found_in_contacts: true,
-          due_at: dueAt,
-          action,
-          computed_idempotency_key: computedKey,
-          computed_task_key: computedTaskKey,
-          matches_idempotency_set: existingIdempotencyKeys.has(computedKey),
-          matches_task_key_set: existingTaskKeys.has(computedTaskKey),
-          due_date_truthy: Boolean(dueAt),
-        }
-      })(),
-      debug_target_count_in_contacts: contacts.filter((c: any) => c.id === 'd42f3973-3228-445a-ae4b-01b533f8621b').length,
-      debug_target_count_in_all_open: allOpenContacts.filter((c: any) => c.id === 'd42f3973-3228-445a-ae4b-01b533f8621b').length,
-      debug_due_task_first_entry_raw: dueTaskPayload[0],
       sla_tasks: slaTaskPayload.length,
       quote_recovery_tasks: quoteTaskPayload.length,
       wine_project: { ...wineProject, backfill: wineProjectBackfill },
