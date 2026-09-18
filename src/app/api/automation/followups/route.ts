@@ -293,6 +293,9 @@ export async function POST(request: NextRequest) {
           due_date_truthy: Boolean(dueAt),
         }
       })(),
+      debug_target_count_in_contacts: contacts.filter((c: any) => c.id === 'd42f3973-3228-445a-ae4b-01b533f8621b').length,
+      debug_target_count_in_all_open: allOpenContacts.filter((c: any) => c.id === 'd42f3973-3228-445a-ae4b-01b533f8621b').length,
+      debug_due_task_first_entry_raw: dueTaskPayload[0],
       sla_tasks: slaTaskPayload.length,
       quote_recovery_tasks: quoteTaskPayload.length,
       wine_project: { ...wineProject, backfill: wineProjectBackfill },
