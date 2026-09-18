@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { validateAutomationSecret } from '@/lib/server/automation-auth'
 import { syncContactGmailMessages } from '@/lib/server/gmail'
-import { errorMessage } from '@/lib/server/http'
+import { errorMessage, selectByIdChunks } from '@/lib/server/http'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 
 const DEFAULT_BATCH = 100
@@ -19,12 +19,6 @@ async function readAll<T>(build: (from: number, to: number) => any) {
     rows.push(...((data || []) as T[]))
     if (!data || data.length < PAGE) return rows
   }
-}
-
-function chunks<T>(items: T[], size: number) {
-  const out: T[][] = []
-  for (let index = 0; index < items.length; index += size) out.push(items.slice(index, index + size))
-  return out
 }
 
 /**
@@ -50,33 +44,28 @@ async function selectContactsToSync(supabase: any, batch: number) {
   const enrolledIds = [...new Set(events.map((event) => String(event.contact_id)).filter(Boolean))]
   if (!enrolledIds.length) return []
 
-  const contacts: WineContactRow[] = []
-  for (const group of chunks(enrolledIds, ID_CHUNK)) {
-    const { data, error } = await supabase
+  const contacts = await selectByIdChunks<WineContactRow>(enrolledIds, ID_CHUNK, (group) =>
+    supabase
       .from('contacts')
       .select('*')
       .in('id', group)
       .is('email_unsubscribed_at', null)
       .not('status', 'in', '(Closed,Paid,Lost)')
       .not('email', 'is', null)
-    if (error) throw error
-    contacts.push(...((data || []) as WineContactRow[]))
-  }
+  )
   if (!contacts.length) return []
 
+  const syncMarks = await selectByIdChunks<{ contact_id: string; synced_at: string | null }>(
+    contacts.map((contact) => contact.id),
+    ID_CHUNK,
+    (group) => supabase.from('gmail_messages').select('contact_id, synced_at').in('contact_id', group)
+  )
   const lastSync = new Map<string, number>()
-  for (const group of chunks(contacts.map((contact) => contact.id), ID_CHUNK)) {
-    const { data, error } = await supabase
-      .from('gmail_messages')
-      .select('contact_id, synced_at')
-      .in('contact_id', group)
-    if (error) throw error
-    for (const message of data || []) {
-      const id = String(message.contact_id || '')
-      if (!id) continue
-      const at = new Date(message.synced_at || 0).getTime()
-      if (at > (lastSync.get(id) ?? 0)) lastSync.set(id, at)
-    }
+  for (const message of syncMarks) {
+    const id = String(message.contact_id || '')
+    if (!id) continue
+    const at = new Date(message.synced_at || 0).getTime()
+    if (at > (lastSync.get(id) ?? 0)) lastSync.set(id, at)
   }
 
   return contacts

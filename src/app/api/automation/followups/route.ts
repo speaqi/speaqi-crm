@@ -6,7 +6,7 @@ import { createServiceRoleClient } from '@/lib/server/supabase'
 import { statusSlaHours } from '@/lib/sla'
 import { validateAutomationSecret } from '@/lib/server/automation-auth'
 import { backfillWineProjectFollowups, queueDueWineProjectFollowups } from '@/lib/server/wine-project-automation'
-import { errorMessage } from '@/lib/server/http'
+import { errorMessage, selectByIdChunks } from '@/lib/server/http'
 
 function asDate(value?: string | null) {
   if (!value) return null
@@ -25,6 +25,9 @@ function dayKey(value = new Date()) {
 function taskKey(task: { contact_id: string; due_date?: string | null; idempotency_key?: string | null }) {
   return `${task.contact_id}:${task.due_date || ''}:${task.idempotency_key || ''}`
 }
+
+/** Vedi `selectByIdChunks` in `@/lib/server/http` per il perché. */
+const ID_CHUNK = 200
 
 export async function POST(request: NextRequest) {
   if (!validateAutomationSecret(request)) {
@@ -77,18 +80,18 @@ export async function POST(request: NextRequest) {
     let existingIdempotencyKeys = new Set<string>()
 
     if (contactIds.length) {
-      const { data: existingTasks, error: existingTasksError } = await supabase
-        .from('tasks')
-        .select('contact_id, due_date, idempotency_key')
-        .eq('status', 'pending')
-        .in('contact_id', contactIds)
-
-      if (existingTasksError) throw existingTasksError
+      const existingTasks = await selectByIdChunks<any>(contactIds, ID_CHUNK, (group) =>
+        supabase
+          .from('tasks')
+          .select('contact_id, due_date, idempotency_key')
+          .eq('status', 'pending')
+          .in('contact_id', group)
+      )
       existingTaskKeys = new Set(
-        (existingTasks || []).map((task: any) => `${task.contact_id}:${task.due_date}`)
+        existingTasks.map((task: any) => `${task.contact_id}:${task.due_date}`)
       )
       existingIdempotencyKeys = new Set(
-        (existingTasks || [])
+        existingTasks
           .map((task: any) => String(task.idempotency_key || '').trim())
           .filter(Boolean)
       )
@@ -149,15 +152,15 @@ export async function POST(request: NextRequest) {
     let quoteTaskPayload: any[] = []
 
     if (quoteRecovery && contactIds.length) {
-      const { data: quotes, error: quotesError } = await supabase
-        .from('quotes')
-        .select('id, user_id, contact_id, quote_number, status, total_amount, sent_at, created_at')
-        .eq('status', 'sent')
-        .in('contact_id', contactIds)
+      const quotes = await selectByIdChunks<any>(contactIds, ID_CHUNK, (group) =>
+        supabase
+          .from('quotes')
+          .select('id, user_id, contact_id, quote_number, status, total_amount, sent_at, created_at')
+          .eq('status', 'sent')
+          .in('contact_id', group)
+      )
 
-      if (quotesError) throw quotesError
-
-      quoteTaskPayload = (quotes || [])
+      quoteTaskPayload = quotes
         .flatMap((quote: any) => {
           const sentAt = quote.sent_at || quote.created_at
           if (!sentAt || !quote.contact_id) return []
