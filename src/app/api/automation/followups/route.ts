@@ -263,6 +263,8 @@ export async function POST(request: NextRequest) {
       sla_mode: slaMode,
       quote_recovery: quoteRecovery,
       contacts_due: contacts.length,
+      due_tasks: dueTaskPayload.length,
+      due_task_contact_ids: dueTaskPayload.map((task) => task.contact_id).slice(0, 5),
       sla_tasks: slaTaskPayload.length,
       quote_recovery_tasks: quoteTaskPayload.length,
       wine_project: { ...wineProject, backfill: wineProjectBackfill },
