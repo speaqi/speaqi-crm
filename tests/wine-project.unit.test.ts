@@ -11,7 +11,9 @@ import { describe, test } from 'node:test'
 import { FakeSupabase } from './fake-supabase'
 import {
   isTransientDeliveryError,
+  markWineContactsReplyChecked,
   reviveFailedWineProjectFollowups,
+  selectWineContactsForReplySync,
   wineSequenceBlockReason,
   WINE_MAX_DELIVERY_RETRIES,
 } from '../src/lib/server/wine-project-automation'
@@ -152,5 +154,73 @@ describe('recupero degli invii falliti', () => {
     assert.equal(isTransientDeliveryError('fetch failed'), true)
     assert.equal(isTransientDeliveryError('Acumbamail addSubscriber (400): email non valida'), false)
     assert.equal(isTransientDeliveryError(null), false)
+  })
+})
+
+/**
+ * La rotazione delle risposte guarda "l'ho controllata", non "ho trovato
+ * qualcosa".
+ *
+ * Il caso vero: il 18 settembre 2026, due chiamate consecutive da 100
+ * contatti hanno dato zero messaggi entrambe. La rotazione ordinava per
+ * ultimo messaggio in `gmail_messages`, ma una cantina senza mai uno scambio
+ * non scrive mai una riga li' — il suo "ultimo sync" restava a zero per
+ * sempre e l'ordinamento la riproponeva in cima ad ogni giro, bloccando la
+ * rotazione sullo stesso pugno di cantine silenziose.
+ */
+describe('rotazione delle risposte Wine', () => {
+  function enrolledEvent(contactId: string, overrides: Record<string, any> = {}) {
+    return { contact_id: contactId, status: 'sent', ...overrides }
+  }
+
+  function replyContact(id: string, overrides: Record<string, any> = {}) {
+    return {
+      id,
+      user_id: USER,
+      name: `Cantina ${id}`,
+      email: `${id}@example.com`,
+      status: 'Interested',
+      email_unsubscribed_at: null,
+      ...overrides,
+    }
+  }
+
+  test('una cantina mai controllata viene prima di una gia controllata', async () => {
+    const supabase = new FakeSupabase({
+      wine_project_followup_events: [enrolledEvent('c1'), enrolledEvent('c2')],
+      contacts: [replyContact('c1'), replyContact('c2')],
+      wine_project_reply_checks: [{ contact_id: 'c2', checked_at: '2026-09-01T00:00:00.000Z' }],
+    }) as any
+
+    const selected = await selectWineContactsForReplySync(supabase, 1)
+
+    assert.deepEqual(selected.map((contact: any) => contact.id), ['c1'])
+  })
+
+  test('marcare il controllo fa avanzare la rotazione anche senza trovare nulla', async () => {
+    const supabase = new FakeSupabase({
+      wine_project_followup_events: [enrolledEvent('c1'), enrolledEvent('c2'), enrolledEvent('c3')],
+      contacts: [replyContact('c1'), replyContact('c2'), replyContact('c3')],
+      wine_project_reply_checks: [],
+    }) as any
+
+    // Primo giro: prende le prime due (nessun controllo precedente, ordine
+    // stabile), le marca controllate anche senza aver trovato nulla — il
+    // caso vero riprodotto.
+    const first = await selectWineContactsForReplySync(supabase, 2)
+    assert.deepEqual(first.map((contact: any) => contact.id).sort(), ['c1', 'c2'])
+    await markWineContactsReplyChecked(supabase, first.map((contact: any) => contact.id))
+
+    // Secondo giro: le due appena controllate non devono ripresentarsi in
+    // testa. Prima di questo fix, un esito "zero messaggi" le avrebbe
+    // rimesse in cima per sempre.
+    const second = await selectWineContactsForReplySync(supabase, 2)
+    assert.ok(second.some((contact: any) => contact.id === 'c3'), 'la terza cantina deve finalmente entrare in rotazione')
+  })
+
+  test('un elenco vuoto non richiede nessuna scrittura', async () => {
+    const supabase = new FakeSupabase({ wine_project_reply_checks: [] }) as any
+    await markWineContactsReplyChecked(supabase, [])
+    assert.deepEqual(supabase.tables.wine_project_reply_checks, [])
   })
 })

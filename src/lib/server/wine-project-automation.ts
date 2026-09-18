@@ -1,5 +1,6 @@
 import { createActivities } from '@/lib/server/crm'
 import { ensureSenderIntroInText } from '@/lib/email-ai-framework'
+import { selectByIdChunks } from '@/lib/server/http'
 
 export type WineProjectSequenceTemplate = {
   sequence: number
@@ -770,4 +771,101 @@ export async function reviveFailedWineProjectFollowups(supabase: any, userId?: s
   }
 
   return { revived, permanent }
+}
+
+const REPLY_SYNC_PAGE = 1000
+const REPLY_SYNC_ID_CHUNK = 100
+
+/** Legge a pagine: PostgREST tronca a 1000 righe senza dirlo. */
+async function readAllPages<T>(build: (from: number, to: number) => any) {
+  const rows: T[] = []
+  for (let from = 0; ; from += REPLY_SYNC_PAGE) {
+    const { data, error } = await build(from, from + REPLY_SYNC_PAGE - 1)
+    if (error) throw error
+    rows.push(...((data || []) as T[]))
+    if (!data || data.length < REPLY_SYNC_PAGE) return rows
+  }
+}
+
+export type WineReplySyncContact = { id: string; user_id: string; email: string | null; [key: string]: unknown }
+
+/**
+ * Contatti da sincronizzare per le risposte: solo quelli dentro la sequenza,
+ * dal meno recentemente controllato.
+ *
+ * Il bacino Wine e' di centinaia di cantine, ma una risposta non vista fa
+ * danno soltanto a chi ha ancora email in canna: e' li' che si finisce per
+ * riscrivere a chi ha gia' detto no. L'ordine per ultimo controllo fa
+ * ruotare il giro da solo, senza cursori da mantenere fra un'esecuzione e
+ * l'altra.
+ *
+ * Il controllo viene da `wine_project_reply_checks`, non da
+ * `gmail_messages`: una cantina senza mai uno scambio email non scrive mai
+ * una riga li', quindi il suo "ultimo sync" restava per sempre a zero e
+ * l'ordinamento la riproponeva in cima a ogni giro — la rotazione restava
+ * bloccata sullo stesso pugno di cantine silenziose e non avrebbe mai
+ * raggiunto le altre, scoperto dal vivo il 18 settembre 2026 quando due
+ * chiamate consecutive da 100 hanno dato zero messaggi entrambe. Qui si
+ * registra "ho controllato", a prescindere dal fatto che si sia trovato
+ * qualcosa.
+ */
+export async function selectWineContactsForReplySync(supabase: any, batch: number) {
+  const events = await readAllPages<{ contact_id: string }>((from, to) =>
+    supabase
+      .from('wine_project_followup_events')
+      .select('contact_id')
+      .in('status', ['scheduled', 'queued', 'sending', 'sent'])
+      .order('contact_id', { ascending: true })
+      .range(from, to)
+  )
+  const enrolledIds = [...new Set(events.map((event) => String(event.contact_id)).filter(Boolean))]
+  if (!enrolledIds.length) return []
+
+  const contacts = await selectByIdChunks<WineReplySyncContact>(enrolledIds, REPLY_SYNC_ID_CHUNK, (group) =>
+    supabase
+      .from('contacts')
+      .select('*')
+      .in('id', group)
+      .is('email_unsubscribed_at', null)
+      .not('status', 'in', '(Closed,Paid,Lost)')
+      .not('email', 'is', null)
+  )
+  if (!contacts.length) return []
+
+  const checks = await selectByIdChunks<{ contact_id: string; checked_at: string }>(
+    contacts.map((contact) => contact.id),
+    REPLY_SYNC_ID_CHUNK,
+    (group) => supabase.from('wine_project_reply_checks').select('contact_id, checked_at').in('contact_id', group)
+  )
+  const lastChecked = new Map<string, number>()
+  for (const row of checks) {
+    const id = String(row.contact_id || '')
+    if (id) lastChecked.set(id, new Date(row.checked_at || 0).getTime())
+  }
+
+  return contacts
+    .sort((left, right) => (lastChecked.get(left.id) ?? 0) - (lastChecked.get(right.id) ?? 0))
+    .slice(0, batch)
+}
+
+/**
+ * Segna il controllo fatto, esito o no che sia. Senza questo passaggio la
+ * cantina resta per sempre in cima alla coda quando non trova nulla: e'
+ * proprio il caso — la maggioranza silenziosa — che deve invece far posto
+ * alle altre. Marcato anche chi e' fallito: se restasse in coda per sempre
+ * bloccherebbe la rotazione esattamente come le cantine silenziose.
+ */
+export async function markWineContactsReplyChecked(supabase: any, contactIds: string[]) {
+  if (!contactIds.length) return
+  const now = new Date().toISOString()
+  const { error } = await supabase
+    .from('wine_project_reply_checks')
+    .upsert(
+      contactIds.map((contact_id) => ({ contact_id, checked_at: now })),
+      { onConflict: 'contact_id' }
+    )
+  // La migration che crea la tabella potrebbe non essere ancora applicata: in
+  // quel caso la rotazione si limita a non avanzare il segnale, invece di far
+  // fallire tutto il giro.
+  if (error && String(error.code || '') !== '42P01') throw error
 }

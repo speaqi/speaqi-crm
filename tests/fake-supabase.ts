@@ -51,6 +51,7 @@ class FakeQuery {
   private filters: Filter[] = []
   private sortKey: { column: string; ascending: boolean } | null = null
   private max = Infinity
+  private rangeFrom = 0
   private mode: 'select' | 'insert' | 'upsert' | 'update' | 'delete' = 'select'
   private payload: Row[] = []
   private conflict = ''
@@ -135,6 +136,12 @@ class FakeQuery {
 
   limit(count: number) { this.max = count; return this }
 
+  range(from: number, to: number) {
+    this.rangeFrom = from
+    this.max = to - from + 1
+    return this
+  }
+
   private matching() {
     let rows = this.source.filter((row) => this.filters.every((filter) => filter(row)))
     if (this.sortKey) {
@@ -143,7 +150,7 @@ class FakeQuery {
         (left[column] > right[column] ? 1 : left[column] < right[column] ? -1 : 0) * (ascending ? 1 : -1)
       )
     }
-    return rows.slice(0, this.max)
+    return rows.slice(this.rangeFrom, this.rangeFrom + this.max)
   }
 
   private conflictKey(row: Row) {

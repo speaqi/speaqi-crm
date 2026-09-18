@@ -1,77 +1,11 @@
 import { NextRequest } from 'next/server'
 import { validateAutomationSecret } from '@/lib/server/automation-auth'
 import { syncContactGmailMessages } from '@/lib/server/gmail'
-import { errorMessage, selectByIdChunks } from '@/lib/server/http'
+import { errorMessage } from '@/lib/server/http'
 import { createServiceRoleClient } from '@/lib/server/supabase'
+import { markWineContactsReplyChecked, selectWineContactsForReplySync } from '@/lib/server/wine-project-automation'
 
 const DEFAULT_BATCH = 100
-const PAGE = 1000
-const ID_CHUNK = 100
-
-type WineContactRow = { id: string; user_id: string; email: string | null; [key: string]: unknown }
-
-/** Legge a pagine: PostgREST tronca a 1000 righe senza dirlo. */
-async function readAll<T>(build: (from: number, to: number) => any) {
-  const rows: T[] = []
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await build(from, from + PAGE - 1)
-    if (error) throw error
-    rows.push(...((data || []) as T[]))
-    if (!data || data.length < PAGE) return rows
-  }
-}
-
-/**
- * Contatti da sincronizzare: solo quelli dentro la sequenza, dal piu' vecchio
- * per data di sincronizzazione.
- *
- * Il bacino Wine e' di migliaia di cantine, ma una risposta non vista fa danno
- * soltanto a chi ha ancora email in canna: e' li' che si finisce per riscrivere
- * a chi ha gia' detto no. Prima la rotta prendeva 100 righe del bacino senza
- * alcun ordinamento, quindi ripescava sempre le stesse e la sequenza non veniva
- * coperta. L'ordine per ultima sincronizzazione fa ruotare il giro da solo,
- * senza cursori da mantenere fra un'esecuzione e l'altra.
- */
-async function selectContactsToSync(supabase: any, batch: number) {
-  const events = await readAll<{ contact_id: string }>((from, to) =>
-    supabase
-      .from('wine_project_followup_events')
-      .select('contact_id')
-      .in('status', ['scheduled', 'queued', 'sending', 'sent'])
-      .order('contact_id', { ascending: true })
-      .range(from, to)
-  )
-  const enrolledIds = [...new Set(events.map((event) => String(event.contact_id)).filter(Boolean))]
-  if (!enrolledIds.length) return []
-
-  const contacts = await selectByIdChunks<WineContactRow>(enrolledIds, ID_CHUNK, (group) =>
-    supabase
-      .from('contacts')
-      .select('*')
-      .in('id', group)
-      .is('email_unsubscribed_at', null)
-      .not('status', 'in', '(Closed,Paid,Lost)')
-      .not('email', 'is', null)
-  )
-  if (!contacts.length) return []
-
-  const syncMarks = await selectByIdChunks<{ contact_id: string; synced_at: string | null }>(
-    contacts.map((contact) => contact.id),
-    ID_CHUNK,
-    (group) => supabase.from('gmail_messages').select('contact_id, synced_at').in('contact_id', group)
-  )
-  const lastSync = new Map<string, number>()
-  for (const message of syncMarks) {
-    const id = String(message.contact_id || '')
-    if (!id) continue
-    const at = new Date(message.synced_at || 0).getTime()
-    if (at > (lastSync.get(id) ?? 0)) lastSync.set(id, at)
-  }
-
-  return contacts
-    .sort((left, right) => (lastSync.get(left.id) ?? 0) - (lastSync.get(right.id) ?? 0))
-    .slice(0, batch)
-}
 
 export async function POST(request: NextRequest) {
   if (!validateAutomationSecret(request)) return Response.json({ error: 'Unauthorized automation' }, { status: 401 })
@@ -81,7 +15,7 @@ export async function POST(request: NextRequest) {
     const batch = Number.isInteger(requested) && requested > 0 && requested <= 500 ? requested : DEFAULT_BATCH
 
     const supabase = createServiceRoleClient()
-    const contacts = await selectContactsToSync(supabase, batch)
+    const contacts = await selectWineContactsForReplySync(supabase, batch)
 
     let synced = 0
     // Il motivo del fallimento e' l'informazione: un `catch {}` muto rendeva
@@ -97,6 +31,8 @@ export async function POST(request: NextRequest) {
         failures.push({ contact_id: contact.id, error: errorMessage(contactError, 'Sync Gmail non riuscito') })
       }
     }
+    await markWineContactsReplyChecked(supabase, contacts.map((contact) => contact.id))
+
     // Due viste sullo stesso guasto: `errors` dice *cosa* e' andato storto
     // (un token scaduto da' cento volte lo stesso messaggio, e una volta
     // basta), `failures` dice *a chi*, per poterlo aprire nel CRM.
