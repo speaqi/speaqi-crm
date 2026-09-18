@@ -95,16 +95,31 @@ export async function POST(request: NextRequest) {
     const contacts = await selectContactsToSync(supabase, batch)
 
     let synced = 0
-    let failures = 0
+    // Il motivo del fallimento e' l'informazione: un `catch {}` muto rendeva
+    // indistinguibile "nessuna risposta" da "il token Gmail e' scaduto". Il
+    // giro continua comunque — una cantina che non si sincronizza non deve
+    // fermare le altre — ma l'errore esce dalla rotta.
+    const failures: Array<{ contact_id: string; error: string }> = []
     for (const contact of contacts) {
       try {
         const result = await syncContactGmailMessages(supabase, contact.user_id, contact as any, 20)
         synced += result.synced
-      } catch {
-        failures += 1
+      } catch (contactError) {
+        failures.push({ contact_id: contact.id, error: errorMessage(contactError, 'Sync Gmail non riuscito') })
       }
     }
-    return Response.json({ ok: failures === 0, checked: contacts.length, messages_synced: synced, failures })
+    if (failures.length) {
+      console.error(`wine-project-replies: ${failures.length}/${contacts.length} contatti non sincronizzati`, failures[0].error)
+    }
+    return Response.json({
+      ok: failures.length === 0,
+      checked: contacts.length,
+      messages_synced: synced,
+      failed: failures.length,
+      // Bastano i primi: se il token e' scaduto sono tutti lo stesso errore, e
+      // una lista da cento righe uguali non dice niente di piu.
+      failures: failures.slice(0, 5),
+    })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Wine Project reply sync failed') }, { status: 500 })
   }

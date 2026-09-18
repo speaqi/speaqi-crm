@@ -9,7 +9,12 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { FakeSupabase } from './fake-supabase'
-import { wineSequenceBlockReason } from '../src/lib/server/wine-project-automation'
+import {
+  isTransientDeliveryError,
+  reviveFailedWineProjectFollowups,
+  wineSequenceBlockReason,
+  WINE_MAX_DELIVERY_RETRIES,
+} from '../src/lib/server/wine-project-automation'
 
 const USER = 'user-1'
 
@@ -79,5 +84,73 @@ describe('blocco della sequenza Wine', () => {
   test('senza risposte ne schede chiuse la sequenza prosegue', async () => {
     const supabase = db([contact()], [inbound('altra@cantina.it')])
     assert.equal(await wineSequenceBlockReason(supabase, contact()), null)
+  })
+})
+
+/**
+ * Il recupero degli invii caduti.
+ *
+ * Il caso vero: il 13 settembre 2026 quarantasei email della sequenza non sono
+ * partite per un 429 di Acumbamail. `failed` era uno stato terminale, quindi
+ * quelle cantine non hanno mai ricevuto quel passo mentre i successivi
+ * venivano comunque programmati.
+ */
+describe('recupero degli invii falliti', () => {
+  const rateLimit = 'Acumbamail addMergeTag (429): {"message":"Too Many Requests","policy":"10/m"}'
+
+  function eventsDb(events: any[]) {
+    return new FakeSupabase({ wine_project_followup_events: events }) as any
+  }
+
+  function failedEvent(overrides: Record<string, any> = {}) {
+    return {
+      id: 'evt-1',
+      user_id: USER,
+      contact_id: 'contact-1',
+      sequence: 2,
+      status: 'failed',
+      retry_count: 0,
+      due_at: '2026-09-13T08:00:00.000Z',
+      delivery_error: rateLimit,
+      ...overrides,
+    }
+  }
+
+  test('un 429 torna in coda', async () => {
+    const supabase = eventsDb([failedEvent()])
+    const result = await reviveFailedWineProjectFollowups(supabase)
+
+    assert.deepEqual(result, { revived: 1, permanent: 0 })
+    const row = supabase.tables.wine_project_followup_events[0]
+    assert.equal(row.status, 'scheduled')
+    assert.equal(row.retry_count, 1)
+    assert.equal(row.delivery_error, null)
+    // La scadenza torna a ora: l'evento era gia' scaduto quando l'invio e'
+    // fallito, e deve ripartire al primo giro utile.
+    assert.ok(new Date(row.due_at).getTime() > new Date('2026-09-13T08:00:00.000Z').getTime())
+  })
+
+  test('un errore permanente resta fermo', async () => {
+    const supabase = eventsDb([failedEvent({ delivery_error: 'Acumbamail createList (400): nome lista non valido' })])
+    const result = await reviveFailedWineProjectFollowups(supabase)
+
+    assert.deepEqual(result, { revived: 0, permanent: 1 })
+    assert.equal(supabase.tables.wine_project_followup_events[0].status, 'failed')
+  })
+
+  test('oltre il tetto di ritentativi non si insiste', async () => {
+    const supabase = eventsDb([failedEvent({ retry_count: WINE_MAX_DELIVERY_RETRIES })])
+    const result = await reviveFailedWineProjectFollowups(supabase)
+
+    assert.deepEqual(result, { revived: 0, permanent: 0 })
+    assert.equal(supabase.tables.wine_project_followup_events[0].status, 'failed')
+  })
+
+  test('il riconoscimento guarda la sostanza, non la forma', () => {
+    assert.equal(isTransientDeliveryError(rateLimit), true)
+    assert.equal(isTransientDeliveryError('Acumbamail createCampaign (503)'), true)
+    assert.equal(isTransientDeliveryError('fetch failed'), true)
+    assert.equal(isTransientDeliveryError('Acumbamail addSubscriber (400): email non valida'), false)
+    assert.equal(isTransientDeliveryError(null), false)
   })
 })

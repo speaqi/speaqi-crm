@@ -12,6 +12,7 @@ import {
   invalidateWhatsappSettingsCache,
   loadWhatsappSettings,
   recordWhatsappEvent,
+  ALL_WHATSAPP_EVENTS,
 } from '../src/lib/server/whatsapp-notify'
 
 const USER = 'user-1'
@@ -201,7 +202,9 @@ describe('impostazioni', () => {
     const settings = await loadWhatsappSettings(db(), USER)
     assert.equal(settings.notify_to, '+39 389 6868162')
     assert.equal(settings.enabled, true)
-    assert.deepEqual(settings.events.length, 5)
+    // Contro la costante, non contro un numero scritto a mano: aggiungere un
+    // tipo di evento non deve rompere un test che vuole dire "tutti".
+    assert.deepEqual(settings.events, ALL_WHATSAPP_EVENTS)
   })
 
   test('senza riga valgono le env, cosi il primo avvio non resta muto', async () => {

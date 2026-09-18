@@ -43,6 +43,49 @@ export function createServiceRoleClient() {
   })
 }
 
+/**
+ * Errori di trasporto verso Supabase: il database non ha detto "no", non ha
+ * risposto affatto. Sul piano Free il REST restituisce un 504 a intermittenza
+ * anche su una select da una riga, e ogni volta che capita un cron salta un
+ * giro intero — il riepilogo WhatsApp e il monitor delle risposte lo hanno
+ * fatto piu volte al giorno per settimane.
+ */
+const TRANSIENT_SUPABASE_ERROR =
+  /gateway timeout|\b50[234]\b|fetch failed|econnreset|etimedout|econnrefused|socket hang up|network/i
+
+export function isTransientSupabaseError(error: unknown) {
+  if (!error) return false
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === 'object'
+      ? String((error as Record<string, unknown>).message || '')
+      : String(error)
+  return TRANSIENT_SUPABASE_ERROR.test(message)
+}
+
+/**
+ * Riprova una lettura caduta per un errore di trasporto.
+ *
+ * Solo per i transitori: un errore vero (permesso negato, colonna assente)
+ * esce al primo colpo, perche' ritentarlo nasconderebbe il difetto invece di
+ * risolverlo. L'attesa raddoppia per non insistere su un servizio in affanno.
+ */
+export async function withSupabaseRetry<T>(label: string, run: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastError: unknown = null
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await run()
+    } catch (error) {
+      if (!isTransientSupabaseError(error) || attempt === attempts) throw error
+      lastError = error
+      const wait = 400 * 2 ** (attempt - 1)
+      console.warn(`${label}: errore transitorio Supabase, ritento fra ${wait}ms (${attempt}/${attempts})`)
+      await new Promise((resolve) => setTimeout(resolve, wait))
+    }
+  }
+  throw lastError
+}
+
 export function getBearerToken(request: NextRequest) {
   const header = request.headers.get('authorization') || request.headers.get('Authorization')
   if (!header?.startsWith('Bearer ')) return null

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { createServiceRoleClient } from '@/lib/server/supabase'
+import { createServiceRoleClient, withSupabaseRetry } from '@/lib/server/supabase'
 import { errorMessage } from '@/lib/server/http'
 import { classifyReplyWithAI } from '@/lib/server/ai-ready'
 import { syncContactGmailMessages } from '@/lib/server/gmail'
@@ -30,26 +30,34 @@ export async function POST(request: NextRequest) {
 
     const since = new Date(Date.now() - sinceMinutes * 60 * 1000).toISOString()
 
-    const { data: recentOutbounds, error: outError } = await supabase
-      .from('gmail_messages')
-      .select('contact_id, user_id, sent_at')
-      .eq('direction', 'outbound')
-      .gte('sent_at', since)
-      .not('contact_id', 'is', null)
-      .order('sent_at', { ascending: false })
-
-    if (outError) throw outError
+    // Le due letture d'apertura passano dal ritentativo: sul piano Free il
+    // REST Supabase risponde 504 a intermittenza, e finora bastava quello per
+    // far saltare il giro intero — nei log di Railway questa rotta falliva
+    // cosi' quasi a ogni esecuzione.
+    const recentOutbounds = await withSupabaseRetry('reply-monitor outbound', async () => {
+      const { data, error: outError } = await supabase
+        .from('gmail_messages')
+        .select('contact_id, user_id, sent_at')
+        .eq('direction', 'outbound')
+        .gte('sent_at', since)
+        .not('contact_id', 'is', null)
+        .order('sent_at', { ascending: false })
+      if (outError) throw outError
+      return data
+    })
 
     // Rotate through active commercial enrollments independently from the
     // recent-outbound window. This catches replies arriving days or weeks later.
-    const { data: commercialEnrollmentRows, error: enrollmentError } = await supabase
-      .from('commercial_enrollments')
-      .select('id,contact_id,last_reply_checked_at')
-      .in('status', ['pending', 'active'])
-      .order('last_reply_checked_at', { ascending: true, nullsFirst: true })
-      .limit(commercialLimit)
-    if (enrollmentError && String(enrollmentError.code || '') !== '42P01') throw enrollmentError
-    const commercialEnrollments = enrollmentError ? [] : (commercialEnrollmentRows || [])
+    const commercialEnrollments = await withSupabaseRetry('reply-monitor enrollments', async () => {
+      const { data, error: enrollmentError } = await supabase
+        .from('commercial_enrollments')
+        .select('id,contact_id,last_reply_checked_at')
+        .in('status', ['pending', 'active'])
+        .order('last_reply_checked_at', { ascending: true, nullsFirst: true })
+        .limit(commercialLimit)
+      if (enrollmentError && String(enrollmentError.code || '') !== '42P01') throw enrollmentError
+      return enrollmentError ? [] : (data || [])
+    })
 
     const enrollmentIds = commercialEnrollments.map((row: any) => row.id)
     let commercialOutbounds: any[] = []

@@ -12,6 +12,8 @@ import {
   stopWineProjectFollowups,
   wineFollowupDueAt,
 } from '@/lib/server/wine-project-automation'
+import { sendContactEmail } from '@/lib/server/gmail'
+import { recordWhatsappEvent } from '@/lib/server/whatsapp-notify'
 import { verifyWineProjectCampaignToken } from '@/lib/server/wine-project-campaign-token'
 import { toCallableSlot } from '@/lib/sla'
 
@@ -30,6 +32,110 @@ function normalizedEmail(value: unknown) {
 
 function nextDay() {
   return new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+}
+
+/**
+ * Email alla cantina quando la demo e pronta.
+ *
+ * Il form viene compilato sulla landing e la demo esiste da subito, ma finora
+ * dal CRM non usciva niente: la cantina restava senza il link e senza una
+ * risposta, e il solo segnale era un task di chiamata che poteva aspettare
+ * ore. Il testo resta corto di proposito — il contenuto e il link, e la
+ * telefonata che arriva dopo fa il resto.
+ *
+ * Apertura con la presentazione del mittente, come ogni altra email del CRM
+ * (`EMAIL_SENDER_*` in `src/lib/email-ai-framework.ts`).
+ */
+function wineDemoEmail(input: { firstName: string; company: string | null; demoUrl: string }) {
+  const greeting = input.firstName ? `Buongiorno ${input.firstName},` : 'Buongiorno,'
+  const subject = input.company
+    ? `La demo Speaqi di ${input.company} è pronta`
+    : 'La sua demo Speaqi è pronta'
+  const paragraphs = [
+    greeting,
+    'sono Massimo Morgante, fondatore di Speaqi.',
+    input.company
+      ? `La pagina che avete richiesto per ${input.company} è pronta: qui sotto trovate il link per vederla.`
+      : 'La pagina che avete richiesto è pronta: qui sotto trovate il link per vederla.',
+    input.demoUrl,
+    'È una demo costruita sui vostri contenuti, quindi la trovate già con i vostri vini e la vostra storia. Se qualcosa non torna, me lo scriva: la sistemiamo insieme.',
+    'Nei prossimi giorni la chiamo per capire se ha senso portarla avanti.',
+  ]
+  // Non `text`: quel nome e gia la funzione di normalizzazione del modulo.
+  const plain = paragraphs.join('\n\n')
+  const html = paragraphs
+    .map((paragraph) =>
+      paragraph === input.demoUrl
+        ? `<p style="margin:24px 0;"><a href="${paragraph}" style="display:inline-block;background:#132034;color:#ffffff;text-decoration:none;padding:13px 18px;font:600 16px Arial,Helvetica,sans-serif;">Guardi la demo →</a></p>`
+        : `<p style="margin:0 0 16px;font:16px/1.6 Arial,Helvetica,sans-serif;color:#15243a;">${paragraph}</p>`
+    )
+    .join('')
+  return { subject, text: plain, html }
+}
+
+/**
+ * Consegna la demo: email alla cantina e notifica immediata a chi la richiama.
+ *
+ * Le due cose sono indipendenti apposta. La notifica deve partire anche quando
+ * l'email non parte (Gmail scollegato, nessun link demo nel payload): sapere
+ * che una cantina ha compilato il form vale a prescindere, ed e' proprio il
+ * caso in cui serve intervenire a mano. Per lo stesso motivo niente qui puo
+ * far fallire la rotta: il contatto e il task sono gia stati scritti, e un
+ * errore di consegna non deve far ritentare al mittente tutto l'ingest.
+ */
+async function deliverWineDemo(
+  supabase: any,
+  userId: string,
+  contact: Record<string, any>,
+  demoUrl: string | null
+) {
+  const emailEnabled = String(process.env.WINE_DEMO_EMAIL_ENABLED || 'true').trim().toLowerCase() !== 'false'
+  let emailSent = false
+  let emailError: string | null = null
+
+  if (demoUrl && contact.email && emailEnabled) {
+    try {
+      const message = wineDemoEmail({
+        firstName: String(contact.name || '').trim().split(/\s+/)[0] || '',
+        company: String(contact.company || '').trim() || null,
+        demoUrl,
+      })
+      // `sendContactEmail` tiene insieme invio, `email_logs`, activity e coda
+      // WhatsApp: passare da qui evita di riscrivere quella catena a mano.
+      await sendContactEmail(supabase, userId, contact as any, {
+        subject: message.subject,
+        html: message.html,
+        text: message.text,
+        // Il follow-up lo decide gia la chiamata prioritaria creata sopra:
+        // sovrascriverlo qui la sposterebbe in avanti.
+        followupAt: null,
+      })
+      emailSent = true
+    } catch (error) {
+      emailError = error instanceof Error ? error.message : 'Invio demo non riuscito'
+      console.error('speaqi/leads: email demo Wine non inviata', emailError)
+    }
+  } else if (!demoUrl) {
+    emailError = 'demo_project_url assente nel payload'
+  } else if (!emailEnabled) {
+    emailError = 'WINE_DEMO_EMAIL_ENABLED=false'
+  }
+
+  await recordWhatsappEvent(supabase, {
+    userId,
+    type: 'wine_demo_ready',
+    contact: contact as any,
+    detail: [
+      'Form compilato: demo pronta.',
+      contact.phone ? `Tel: ${contact.phone}` : null,
+      demoUrl,
+      emailSent ? 'Email con il link inviata.' : `Email NON inviata (${emailError || 'motivo sconosciuto'}).`,
+    ].filter(Boolean).join(' '),
+    campaign: 'Wine Project',
+    source: 'wine_demo',
+  })
+
+  return { email_sent: emailSent, email_error: emailError }
 }
 
 function demoSummary(body: Record<string, unknown>, vertical: 'wine' | 'hospitality') {
@@ -298,7 +404,14 @@ export async function POST(request: NextRequest) {
       touchLastContactAt: isProjectDemo,
     })
 
-    return Response.json({ contact, task, plan, stopped, created, event_type: eventType }, { status: created ? 201 : 200 })
+    // Una demo pronta smetteva qui: nessuna email alla cantina e nessuna
+    // notifica a chi deve chiamarla. Restava solo un task in una lista, che
+    // nel frattempo si era gia riempita di altro.
+    const demoDelivery = isWineConversion
+      ? await deliverWineDemo(supabase, userId, contact, text(body.demo_project_url, 1000) || null)
+      : null
+
+    return Response.json({ contact, task, plan, stopped, created, event_type: eventType, demo_delivery: demoDelivery }, { status: created ? 201 : 200 })
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : 'Failed to ingest Speaqi lead' },

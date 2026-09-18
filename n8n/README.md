@@ -49,8 +49,9 @@ Riattiva un workflow alla volta e osserva per qualche giorno prima del successiv
 6. **02-stale-leads** (ogni giorno 09:00) — task "Riattiva X" sui contatti
    fermi da più di 5 giorni.
 7. **05-reply-monitor** (ogni 30 min) — sync Gmail + classificazione AI delle
-   risposte, poi riconciliazione delle bozze `/email` spedite a mano da Gmail.
-   Prima di attivarlo verifica che i token OAuth Gmail siano validi.
+   risposte, riconciliazione delle bozze `/email` spedite a mano da Gmail, poi
+   le risposte delle cantine Wine. Prima di attivarlo verifica che i token
+   OAuth Gmail siano validi.
 8. **03-speaqi-webhook** — solo se il form del sito è attivo.
 9. **04-orchestrator** (lun-ven 08:00) — bozze email AI del mattino.
 10. **09-score-leads** e **10-acumbamail-qualification** — endpoint orfani.
@@ -76,7 +77,7 @@ Riattiva un workflow alla volta e osserva per qualche giorno prima del successiv
 | 02-stale-leads | `POST /api/automation/stale-leads` | `0 9 * * *` |
 | 03-speaqi-webhook | `POST /api/speaqi/leads` (webhook inbound) | — |
 | 04-orchestrator | `POST /api/automation/orchestrator` | `0 8 * * 1-5` |
-| 05-reply-monitor | `POST /api/automation/reply-monitor` + `POST /api/automation/reconcile-drafts` | `*/30 * * * *` |
+| 05-reply-monitor | `POST /api/automation/reply-monitor` + `-reconcile-drafts` + `-wine-project-replies` | `*/30 * * * *` |
 | 06-db-maintenance | `POST /api/automation/db-maintenance` | `0 * * * *` |
 | 07-weekly-recap | `POST /api/automation/weekly-recap` | `30 7 * * 1` |
 | 08-backup | `POST /api/automation/backup` | `0 3 * * *` |
@@ -87,6 +88,19 @@ Riattiva un workflow alla volta e osserva per qualche giorno prima del successiv
 | 12-wine-project-automation | `POST /api/automation/wine-project-followups`, `-campaigns`, `-engagement`, `-replies` | `*/30 * * * *` |
 | 13-reconcile-sends | `POST /api/automation/reconcile-sends` | `20 * * * *` |
 | 14-whatsapp-digest | `POST /api/automation/whatsapp-digest` | `5,35 7-21 * * *` |
+
+## I nodi HTTP non si fermano a vicenda
+
+Ogni nodo HTTP dei workflow a catena ha `onError: continueRegularOutput` e due
+tentativi. Non e un dettaglio di stile: `12-wine-project-automation` e una
+catena seriale, e finche' non c'e' stato, un 500 su `Sync Wine Engagement`
+teneva fermo `Sync Wine Replies` — per due settimane nessuna risposta delle
+cantine e' stata letta, senza che nulla lo segnalasse. Per la stessa ragione
+`wine-project-replies` viene chiamato anche da `05-reply-monitor`: la lettura
+delle risposte non deve dipendere da una sola catena.
+
+**Dopo un aggiornamento di questi file va rifatto l'import su n8n**: i workflow
+girano dalla copia caricata sull'istanza, non da quella nel repository.
 
 Due file condividono il prefisso `12-` (`12-hospitality-commercial`,
 `12-wine-project-automation`): il numero e solo una convenzione di nome, n8n

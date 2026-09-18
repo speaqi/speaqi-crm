@@ -694,3 +694,80 @@ export async function queueDueWineProjectFollowups(supabase: any, userId?: strin
 
   return { queued, skipped }
 }
+
+/** Oltre questo numero di ritentativi l'errore non e' piu' temporaneo. */
+export const WINE_MAX_DELIVERY_RETRIES = 3
+
+/**
+ * Errori che dicono "riprova", non "non si puo' fare".
+ *
+ * Il caso vero e' il 429 di Acumbamail: tetto per endpoint colpito da una
+ * raffica. Ci stanno accanto i 5xx e le cadute di rete. Tutto il resto (una
+ * lista rifiutata, un campo malformato) e' un difetto che ritentare non sana.
+ */
+const TRANSIENT_DELIVERY_ERROR =
+  /\(429\)|429:|too many requests|rate limit|\(5\d\d\)|gateway timeout|timeout|etimedout|econnreset|econnrefused|fetch failed|socket hang up|network/i
+
+export function isTransientDeliveryError(message: unknown) {
+  return TRANSIENT_DELIVERY_ERROR.test(String(message || ''))
+}
+
+/**
+ * Rimette in coda gli invii falliti per un motivo temporaneo.
+ *
+ * Senza questo giro `failed` era terminale: l'email non partiva, nessuno la
+ * ripescava e la cantina restava senza quel passo della sequenza mentre i
+ * successivi venivano comunque programmati. Il ritentativo e' limitato da
+ * `retry_count`, altrimenti un errore permanente girerebbe in eterno.
+ */
+export async function reviveFailedWineProjectFollowups(supabase: any, userId?: string) {
+  let query = supabase
+    .from('wine_project_followup_events')
+    .select('id, user_id, contact_id, sequence, retry_count, delivery_error')
+    .eq('status', 'failed')
+    .lt('retry_count', WINE_MAX_DELIVERY_RETRIES)
+    .order('due_at', { ascending: true })
+    .limit(200)
+  if (userId) query = query.eq('user_id', userId)
+
+  const { data: events, error } = await query
+  if (error) {
+    if (isMissingTable(error)) return { revived: 0, permanent: 0 }
+    // La colonna `retry_count` arriva con una migration: finche' non e'
+    // applicata il recupero sta fermo, ma non deve far fallire il cron che lo
+    // ospita — gli invii normali devono continuare a partire.
+    if (String(error.code || '') === '42703') return { revived: 0, permanent: 0 }
+    throw error
+  }
+
+  let revived = 0
+  let permanent = 0
+  const now = new Date().toISOString()
+  for (const event of events || []) {
+    if (!isTransientDeliveryError(event.delivery_error)) {
+      permanent += 1
+      continue
+    }
+    // `due_at` torna a ora: l'evento era gia' scaduto quando l'invio e'
+    // fallito, quindi deve ripartire al primo giro utile, non alla data
+    // originale (che il filtro `lte` accetterebbe comunque, ma l'ordinamento
+    // per scadenza lo terrebbe davanti a tutto per sempre).
+    const { error: updateError } = await supabase
+      .from('wine_project_followup_events')
+      .update({
+        status: 'scheduled',
+        due_at: now,
+        retry_count: Number(event.retry_count || 0) + 1,
+        delivery_error: null,
+        queued_at: null,
+        sending_at: null,
+        updated_at: now,
+      })
+      .eq('id', event.id)
+      .eq('status', 'failed')
+    if (updateError) throw updateError
+    revived += 1
+  }
+
+  return { revived, permanent }
+}

@@ -4,6 +4,7 @@ import {
   sendWhatsappText,
   whatsappConfig,
 } from '@/lib/server/whatsapp'
+import { withSupabaseRetry } from '@/lib/server/supabase'
 
 /**
  * Il ponte fra i fatti del CRM e il messaggio WhatsApp.
@@ -29,6 +30,7 @@ export type WhatsappEventType =
   | 'email_click'
   | 'email_reply'
   | 'email_unsubscribe'
+  | 'wine_demo_ready'
 
 export type WhatsappEventInput = {
   userId: string
@@ -62,13 +64,22 @@ export type WhatsappSettings = {
   events: WhatsappEventType[]
 }
 
-const IMMEDIATE_EVENTS: WhatsappEventType[] = ['email_reply']
+/**
+ * Escono subito, senza aspettare il riepilogo.
+ *
+ * Sono i due fatti che chiedono una mano umana entro pochi minuti: una
+ * risposta a cui replicare e una cantina che ha appena compilato il form e si
+ * aspetta una telefonata. Tutto il resto e volume, e il volume sta nel
+ * riepilogo.
+ */
+const IMMEDIATE_EVENTS: WhatsappEventType[] = ['email_reply', 'wine_demo_ready']
 export const ALL_WHATSAPP_EVENTS: WhatsappEventType[] = [
   'email_sent',
   'email_open',
   'email_click',
   'email_reply',
   'email_unsubscribe',
+  'wine_demo_ready',
 ]
 
 const EVENT_LABELS: Record<WhatsappEventType, string> = {
@@ -77,6 +88,7 @@ const EVENT_LABELS: Record<WhatsappEventType, string> = {
   email_click: 'click',
   email_reply: 'risposte',
   email_unsubscribe: 'disiscrizioni',
+  wine_demo_ready: 'demo Wine pronte',
 }
 
 const EVENT_ICONS: Record<WhatsappEventType, string> = {
@@ -85,6 +97,13 @@ const EVENT_ICONS: Record<WhatsappEventType, string> = {
   email_click: '🖱️',
   email_reply: '💬',
   email_unsubscribe: '🚫',
+  wine_demo_ready: '🍷',
+}
+
+/** Titolo del messaggio immediato: dice subito di cosa si tratta. */
+const IMMEDIATE_TITLES: Partial<Record<WhatsappEventType, string>> = {
+  email_reply: 'Risposta email',
+  wine_demo_ready: 'Wine Project pronto',
 }
 
 const MAX_NAMES_PER_LINE = 6
@@ -127,14 +146,17 @@ export async function loadWhatsappSettings(supabase: any, userId: string): Promi
   }
 
   try {
-    const { data, error } = await supabase
-      .from('whatsapp_notification_settings')
-      .select('notify_to,enabled,events')
-      .eq('user_id', userId)
-      .maybeSingle()
-    // La tabella puo non esserci ancora (migration non applicata): in quel caso
-    // valgono le env, non un errore.
-    if (error && String(error.code || '') !== '42P01') throw error
+    const data = await withSupabaseRetry('whatsapp settings', async () => {
+      const { data: row, error } = await supabase
+        .from('whatsapp_notification_settings')
+        .select('notify_to,enabled,events')
+        .eq('user_id', userId)
+        .maybeSingle()
+      // La tabella puo non esserci ancora (migration non applicata): in quel
+      // caso valgono le env, non un errore.
+      if (error && String(error.code || '') !== '42P01') throw error
+      return row
+    })
     if (data) {
       value = {
         notify_to: String(data.notify_to || '').trim() || envNotifyTo,
@@ -203,7 +225,10 @@ function campaignName(input: WhatsappEventInput): string | null {
 }
 
 function contactUrl(contactId?: string | null) {
-  const base = String(process.env.APP_BASE_URL || '').trim().replace(/\/+$/, '')
+  // `APP_BASE_URL` e la variabile che usano i workflow n8n e non e detto sia
+  // impostata anche sul servizio web: senza il ripiego, ogni notifica usciva
+  // senza il link alla scheda proprio dove serve per agire.
+  const base = String(process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || '').trim().replace(/\/+$/, '')
   if (!base || !contactId) return null
   return `${base}/contacts/${contactId}`
 }
@@ -261,8 +286,9 @@ export async function recordWhatsappEvent(supabase: any, input: WhatsappEventInp
 
 function immediateMessage(event: any) {
   const lines: string[] = []
-  const icon = EVENT_ICONS[event.event_type as WhatsappEventType] || '🔔'
-  lines.push(`${icon} *Risposta email*`)
+  const type = event.event_type as WhatsappEventType
+  const icon = EVENT_ICONS[type] || '🔔'
+  lines.push(`${icon} *${IMMEDIATE_TITLES[type] || 'Novita dal CRM'}*`)
   lines.push(event.contact_label || 'Contatto')
   if (event.agent_name) lines.push(`Agente: ${event.agent_name}`)
   if (event.campaign) lines.push(`Campagna: ${event.campaign}`)
@@ -448,14 +474,17 @@ export async function runWhatsappDigest(
     }
   }
 
-  const { data: events, error } = await supabase
-    .from('whatsapp_notification_events')
-    .select('*')
-    .eq('user_id', userId)
-    .is('notified_at', null)
-    .order('occurred_at', { ascending: true })
-    .limit(limit)
-  if (error) throw error
+  const events = await withSupabaseRetry('whatsapp digest', async () => {
+    const { data, error } = await supabase
+      .from('whatsapp_notification_events')
+      .select('*')
+      .eq('user_id', userId)
+      .is('notified_at', null)
+      .order('occurred_at', { ascending: true })
+      .limit(limit)
+    if (error) throw error
+    return data
+  })
 
   const pending = events?.length || 0
   if (!pending) return { ok: true, pending: 0, sent: false, dry_run: dryRun, message: null }

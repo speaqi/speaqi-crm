@@ -57,6 +57,9 @@ Copy `.env.local.example` to `.env.local`. Required keys:
 | `AUTOMATION_DAILY_SEND_CAP` | Max automated Gmail sends per sender per day (default 40) |
 | `AUTOMATION_SEND_DELAY_MS` | Optional pause between sends inside a batch |
 | `AUTOMATION_RECONCILE_FAIL_HOURS` | How long an `unknown` attempt may stay unresolved before it is failed (minimum 24) |
+| `ACUMBAMAIL_MIN_INTERVAL_MS` | Distanza minima fra due chiamate allo stesso endpoint Acumbamail (default 6500, tetto documentato 10/min) |
+| `ACUMBAMAIL_MAX_ATTEMPTS` | Tentativi massimi su un 429 Acumbamail (default 4) |
+| `WINE_DEMO_EMAIL_ENABLED` | Email automatica alla cantina con il link della demo Wine; `false` lascia solo la notifica WhatsApp |
 | `OPENWA_BASE_URL` | WhatsApp gateway (OpenWA) base URL |
 | `OPENWA_API_KEY` | OpenWA API key |
 | `OPENWA_SESSION_ID` | OpenWA session **UUID** (not its name) |
@@ -96,7 +99,7 @@ supabase migration up
 | `email_drafts` | AI drafts awaiting review (`sent_via` + `provider_message_id` link the row to what actually went out) |
 | `automation_send_attempts` | One row per autonomous send attempt: atomic claim, RFC `Message-ID`, terminal outcome |
 | `automation_send_daily_counters` | Per-sender per-local-day reserved/sent counters backing the atomic daily cap |
-| `whatsapp_notification_events` | Queue of CRM facts to notify on WhatsApp (`notified_at` only once the message really went out) |
+| `whatsapp_notification_events` | Queue of CRM facts to notify on WhatsApp (`notified_at` only once the message really went out; `email_sent/open/click/reply/unsubscribe` + `wine_demo_ready`) |
 | `whatsapp_notification_sends` | History of the messages pushed to the WhatsApp gateway |
 | `whatsapp_notification_settings` | Per-workspace WhatsApp recipient, toggle and event selection (edited from the UI, not from env) |
 | `gmail_accounts` | Connected Gmail accounts (encrypted tokens) |
@@ -310,6 +313,10 @@ Each stage has a `system_key` and `color`. Closed statuses: `closed`, `paid`, `l
 - Messaging baseline in `src/lib/email-ai-framework.ts` (`DEFAULT_EMAIL_AI_FRAMEWORK`); every field is overridable per user in `user_settings`
 - **Wine Project — riga-pulsante verso la demo**: nel corpo di uno step una riga nella forma `→ [ETICHETTA]` diventa il bottone verso la demo personalizzata della cantina (`*|WINE_URL|*`, un link firmato per evento). Prima il bottone era agganciato a una frase fissa, quindi riscrivere il testo lo faceva sparire in silenzio; la vecchia frase resta riconosciuta. I merge tag Acumbamail entrano **dopo** la formattazione, altrimenti un `**{{azienda}}**` in grassetto produce `***|COMPANY|***` e il tag non viene piu' sostituito
 - **Wine Project — modifica dei testi e filtro reazioni** (`/impostazioni/wine-project`): ogni email della sequenza ha un pulsante di salvataggio proprio (`PATCH /api/wine-project/automation` con `sequence`), oltre al salvataggio completo in fondo alla pagina. La sezione "Chi ha reagito" elenca le cantine filtrate per reazione (`GET /api/wine-project/contacts?engagement=opened|clicked|landing|form|demo|interested|replied|unsubscribed|excluded|silent|all`); lo stesso filtro esiste in `/contacts` ("Email: qualsiasi reazione", client-side su `email_open_count` / `email_click_count`)
+- **Wine Project — demo pronta: email alla cantina e notifica subito**: `wine_demo_contact` su `/api/speaqi/leads` scriveva contatto, activity e task chiamata e finiva lì — nessuna email alla cantina e nessun avviso a chi doveva richiamarla. `deliverWineDemo` manda l'email col link (`sendContactEmail`, quindi `email_logs` + activity + coda WhatsApp arrivano gratis) e registra l'evento immediato `wine_demo_ready`. Le due cose sono indipendenti apposta: la notifica parte **anche** quando l'email non parte (Gmail scollegato, `demo_project_url` assente), perché è proprio il caso in cui serve intervenire a mano — e il messaggio dice quale dei due è successo. Nulla di tutto questo può far fallire la rotta: contatto e task sono già scritti. Interruttore: `WINE_DEMO_EMAIL_ENABLED=false`
+- **Acumbamail: un 429 è una richiesta di aspettare, non un errore**: `src/lib/server/acumbamail-http.ts` è l'unico punto da cui il CRM parla con Acumbamail. Coda **per endpoint** (il tetto è per endpoint, `policy: 10/m`) più attesa sul `retry_after_seconds` e ritentativo. Prima i due client chiamavano `fetch` direttamente: il 13/09/2026 una raffica di `addMergeTag` ha lasciato a terra 46 email della sequenza, senza secondo tentativo. Gli invii caduti per un motivo temporaneo rientrano in coda da `reviveFailedWineProjectFollowups` (dentro `/api/automation/wine-project-followups`), al massimo `WINE_MAX_DELIVERY_RETRIES` volte: `failed` non è più uno stato terminale, ma un errore permanente non gira in eterno
+- **Fallimento isolato, ovunque**: un gruppo di invio che fallisce non ferma gli altri (`wine-project-campaigns`), una campagna che non si sincronizza non ferma le altre (`wine-project-engagement`, che avanza comunque `last_synced_at` perché una campagna rotta non affami la rotazione), un contatto che non si sincronizza non ferma il giro (`wine-project-replies`, che ora **riporta** l'errore invece di ingoiarlo con un `catch {}`). Nei workflow n8n i nodi HTTP hanno `onError: continueRegularOutput`: la catena di `12-wine-project-automation` è seriale, e un 500 su `Sync Wine Engagement` teneva fermo `Sync Wine Replies` — per due settimane nessuna risposta delle cantine è stata letta. Per la stessa ragione `05-reply-monitor` chiama ora anche `wine-project-replies`: la lettura delle risposte non deve dipendere da una sola catena
+- **Supabase che non risponde**: sul piano Free il REST restituisce 504 a intermittenza anche su una select da una riga, e ogni volta un cron saltava il giro. `withSupabaseRetry` (in `src/lib/server/supabase.ts`) ritenta **solo** i transitori — un permesso negato o una colonna assente escono al primo colpo — ed è applicato dove il 504 mordeva davvero: impostazioni WhatsApp, riepilogo, letture d'apertura del reply monitor
 - **Wine Project — stop su risposta**: il blocco della sequenza si cerca sull'**indirizzo**, non sulla singola scheda contatto (`wineSequenceBlockReason` in `src/lib/server/wine-project-automation.ts`). Ogni re-import della lista Acumbamail crea una scheda nuova con la stessa email: la risposta resta attaccata alla scheda vecchia e la sequenza girava su quella nuova. Il controllo guarda `gmail_messages.from_email` (non `contact_id`, e senza finestra temporale) e lo stato/disiscrizione di tutte le schede gemelle; `stopWineProjectFollowups` ferma gli eventi di tutte le schede con quell'indirizzo. La sincronizzazione delle risposte (`POST /api/automation/wine-project-replies`) copre solo i contatti dentro la sequenza, dal meno recentemente sincronizzato: il bacino è di migliaia di cantine e un `limit` senza ordinamento ripescava sempre le stesse cento
 - **Wine Project — la storia di ogni cantina, non solo il conteggio**: la tabella di "Chi ha reagito" mostra per riga l'ultima email della sequenza uscita (numero + data e ora), il percorso datato — invii, prima apertura, primo click, arrivo sulla landing, form compilato, demo pronta, risposta, disiscrizione — e il prossimo passo (email programmata, "Da chiamare", o il motivo per cui e' fuori dal giro). "Ha cliccato" da solo non dice se poi e' successo qualcosa. I riquadri statistici in cima sono pulsanti: aprono la lista sul gruppo corrispondente (`openEngagement`), perche' un numero che non si puo' aprire non e' lavorabile. Due gruppi nuovi rispondono a "chi e' uscito": **Disiscritte** (`email_unsubscribed_at`) ed **Escluse dalla sequenza**, che riusa gli stessi tre motivi di `wineSequenceBlockReason` (disiscritta, trattativa chiusa, ha gia' risposto) — la risposta si cerca anche per indirizzo, cosi' le schede gemelle da re-import non risultano ancora arruolabili. Le date arrivano da `activities` (`wine_followup_sent`, `email_open`, `email_click`, `landing_clicked`, `demo_form_submitted`, `demo_ready`, `reply_interested`), da `wine_project_followup_events` (sequenza inviata/programmata) e da `gmail_messages` inbound
 - **Wine master message** (`email_wine_core_message`): the single concept behind every email to a cantina — "raccontate la cantina una volta, Speaqi la fa parlare con il mondo". Injected by `buildEmailSegmentGuidance` for both cold and high-interest wine contacts; QR, traduzioni, video e AI Concierge non sono mai il prodotto
@@ -325,8 +332,9 @@ gateway self-hosted che pilota un numero WhatsApp vero via REST — **non** l'AP
 ufficiale Meta, quindi numero dedicato e solo traffico interno: mai outreach.
 Guida operativa e deploy Railway in `docs/WHATSAPP-OPENWA.md`.
 
-- **Due velocità, per una ragione precisa**: le risposte email escono subito
-  (sono poche e vanno gestite a mano in fretta), invii/aperture/click/
+- **Due velocità, per una ragione precisa**: risposte email e demo Wine pronte
+  escono subito (sono poche e chiedono una mano umana entro pochi minuti: a
+  cui replicare la prima, da richiamare la seconda), invii/aperture/click/
   disiscrizioni confluiscono in un riepilogo. Su una lista da migliaia di
   cantine un messaggio per apertura riempirebbe il telefono e farebbe segnalare
   il numero come bot.
@@ -336,7 +344,13 @@ Guida operativa e deploy Railway in `docs/WHATSAPP-OPENWA.md`.
   Acumbamail (aperture, click, disiscrizioni), più i due invii di campagna via
   Acumbamail (`/api/automation/commercial-outreach` e `-wine-project-campaigns`).
   Le due finestre di 72 h nel sync Gmail evitano che il primo sync di un
-  contatto notifichi email di mesi fa.
+  contatto notifichi email di mesi fa. Le aperture e i click delle campagne
+  Wine entrano da due strade che convivono: il webhook della lista Acumbamail
+  (agganciato alla creazione della lista da `attachWebhookToWineList`) e, come
+  rete di sicurezza, `/api/automation/wine-project-engagement`, che notifica
+  **solo l'incremento** del contatore — rileggendo gli stessi apritori a ogni
+  giro, notificare sul valore assoluto rimanderebbe la stessa apertura ogni
+  mezz'ora.
 - **Un invio di massa è un fatto solo con una quantità**: le campagne registrano
   una riga per batch con `quantity` = destinatari, non una riga per
   destinatario — centoventi insert a ogni giro del cron per dire una cosa sola.
@@ -423,7 +437,7 @@ Located in `n8n/workflows/` — see `n8n/README.md` for the recommended re-enabl
 - `02-stale-leads.json` — stale lead detection (daily 09:00)
 - `03-speaqi-webhook.json` — inbound lead ingestion webhook
 - `04-orchestrator.json` — morning AI email drafts (Mon–Fri 08:00, human sends)
-- `05-reply-monitor.json` — Gmail reply sync + AI classification, then draft reconciliation (every 30 min)
+- `05-reply-monitor.json` — Gmail reply sync + AI classification, draft reconciliation, poi le risposte delle cantine Wine (every 30 min)
 - `06-db-maintenance.json` — data hygiene (hourly)
 - `07-weekly-recap.json` — weekly recap email (Monday 07:30)
 - `08-backup.json` — nightly database backup (03:00)
