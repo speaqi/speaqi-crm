@@ -6,6 +6,7 @@ import { createServiceRoleClient } from '@/lib/server/supabase'
 import { statusSlaHours } from '@/lib/sla'
 import { validateAutomationSecret } from '@/lib/server/automation-auth'
 import { backfillWineProjectFollowups, queueDueWineProjectFollowups } from '@/lib/server/wine-project-automation'
+import { errorMessage } from '@/lib/server/http'
 
 function asDate(value?: string | null) {
   if (!value) return null
@@ -252,7 +253,7 @@ export async function POST(request: NextRequest) {
     // bisognava indovinare.
     console.error('followups failed', error)
     return Response.json(
-      { error: error instanceof Error ? error.message : 'Failed to run follow-up automation' },
+      { error: errorMessage(error, 'Failed to run follow-up automation') },
       { status: 500 }
     )
   }

@@ -108,17 +108,20 @@ export async function POST(request: NextRequest) {
         failures.push({ contact_id: contact.id, error: errorMessage(contactError, 'Sync Gmail non riuscito') })
       }
     }
+    // Due viste sullo stesso guasto: `errors` dice *cosa* e' andato storto
+    // (un token scaduto da' cento volte lo stesso messaggio, e una volta
+    // basta), `failures` dice *a chi*, per poterlo aprire nel CRM.
+    const errors = [...new Set(failures.map((failure) => failure.error))]
     if (failures.length) {
-      console.error(`wine-project-replies: ${failures.length}/${contacts.length} contatti non sincronizzati`, failures[0].error)
+      console.error(`wine-project-replies: ${failures.length}/${contacts.length} contatti non sincronizzati`, errors[0])
     }
     return Response.json({
       ok: failures.length === 0,
       checked: contacts.length,
       messages_synced: synced,
-      failed: failures.length,
-      // Bastano i primi: se il token e' scaduto sono tutti lo stesso errore, e
-      // una lista da cento righe uguali non dice niente di piu.
-      failures: failures.slice(0, 5),
+      failures: failures.length,
+      errors,
+      failed_contacts: failures.slice(0, 5),
     })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Wine Project reply sync failed') }, { status: 500 })

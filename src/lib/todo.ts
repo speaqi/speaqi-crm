@@ -1,5 +1,5 @@
 import { localDayDateKey, startOfDay } from '@/lib/schedule'
-import type { Task, TodoArea, TodoProgressState } from '@/types'
+import type { StandaloneTaskInput, StandaloneTaskPatch, Task, TodoArea, TodoProgressState } from '@/types'
 
 /** Ora locale a cui vengono ancorate inizio e scadenza scelte dal date picker. */
 const PLANNING_HOUR = 9
@@ -170,4 +170,277 @@ export function resolveProgress(current: ResolvedProgress, levers: ProgressLever
   }
 
   return { status: state === 'done' ? 'done' : 'pending', progress_state: state, progress_percent: percent }
+}
+
+/* ------------------------------------------------------------------ *
+ * Kanban: raggruppamenti, ordinamenti, spostamenti
+ * ------------------------------------------------------------------ */
+
+/**
+ * Come si divide la lavagna. Ogni raggruppamento ha **al massimo quattro**
+ * colonne: la lavagna deve stare tutta nella finestra, senza scorrimento
+ * orizzontale, altrimenti le colonne di destra non si guardano mai.
+ */
+export type TodoGrouping = 'progress' | 'when' | 'area' | 'priority'
+
+/** Ordinamento delle schede dentro una colonna. */
+export type TodoSort = 'priority' | 'due' | 'progress' | 'recent' | 'title'
+
+export type TodoPriority = 'low' | 'medium' | 'high'
+
+export interface TodoColumnDef {
+  key: string
+  label: string
+  /** Riga sotto il titolo: dice cosa significa la colonna, non quante schede ha. */
+  hint: string
+  /** Suffisso della classe CSS, per il colore della colonna. */
+  tone: string
+}
+
+export const TODO_PRIORITIES: { key: TodoPriority; label: string; short: string }[] = [
+  { key: 'high', label: 'Alta', short: '!!!' },
+  { key: 'medium', label: 'Media', short: '!!' },
+  { key: 'low', label: 'Bassa', short: '!' },
+]
+
+export const TODO_GROUPINGS: { key: TodoGrouping; label: string; columns: TodoColumnDef[] }[] = [
+  {
+    key: 'progress',
+    label: 'Avanzamento',
+    columns: [
+      { key: 'todo', label: 'Da fare', hint: 'Non ancora iniziate', tone: 'todo' },
+      { key: 'in_progress', label: 'In corso', hint: 'Ci stai lavorando adesso', tone: 'in_progress' },
+      { key: 'blocked', label: 'In attesa', hint: 'Ferme su qualcun altro', tone: 'blocked' },
+      { key: 'done', label: 'Fatte', hint: 'Chiuse', tone: 'done' },
+    ],
+  },
+  {
+    key: 'when',
+    label: 'Quando',
+    columns: [
+      // Le scadute stanno qui dentro, non in una colonna loro: restano da fare
+      // oggi, e una colonna "in ritardo" in testa alla pagina è solo un rimprovero.
+      { key: 'today', label: 'Oggi', hint: 'In scadenza oggi e arretrate', tone: 'today' },
+      { key: 'week', label: 'Questa settimana', hint: 'Entro sette giorni', tone: 'week' },
+      { key: 'later', label: 'Più avanti', hint: 'Oltre la settimana', tone: 'later' },
+      { key: 'unplanned', label: 'Da pianificare', hint: 'Ancora senza data', tone: 'unplanned' },
+    ],
+  },
+  {
+    key: 'area',
+    label: 'Progetto',
+    columns: [
+      { key: 'speaqi', label: 'Speaqi', hint: 'Lavoro sul CRM e sul progetto', tone: 'speaqi' },
+      { key: 'personale', label: 'Personale', hint: 'Fuori dal lavoro', tone: 'personale' },
+      { key: 'altro', label: 'Altri progetti', hint: 'Tutto il resto che porti avanti', tone: 'altro' },
+    ],
+  },
+  {
+    key: 'priority',
+    label: 'Priorità',
+    columns: [
+      { key: 'high', label: 'Alta', hint: 'Prima di tutto il resto', tone: 'high' },
+      { key: 'medium', label: 'Media', hint: 'Il flusso normale', tone: 'medium' },
+      { key: 'low', label: 'Bassa', hint: 'Quando avanza tempo', tone: 'low' },
+    ],
+  },
+]
+
+export const TODO_SORTS: { key: TodoSort; label: string }[] = [
+  { key: 'priority', label: 'Priorità' },
+  { key: 'due', label: 'Scadenza' },
+  { key: 'progress', label: 'Avanzamento' },
+  { key: 'recent', label: 'Aggiunte di recente' },
+  { key: 'title', label: 'Alfabetico' },
+]
+
+export function todoColumns(grouping: TodoGrouping): TodoColumnDef[] {
+  return (TODO_GROUPINGS.find((g) => g.key === grouping) || TODO_GROUPINGS[0]).columns
+}
+
+export function taskPriority(task: Task): TodoPriority {
+  const value = String(task.priority || '').trim().toLowerCase()
+  return value === 'low' || value === 'high' ? value : 'medium'
+}
+
+/** In quale colonna cade l'attività, dato il raggruppamento scelto. */
+export function todoColumnKey(task: Task, grouping: TodoGrouping, today: Date): string {
+  switch (grouping) {
+    case 'progress':
+      return taskProgressState(task)
+    case 'area':
+      return taskArea(task)
+    case 'priority':
+      return taskPriority(task)
+    case 'when': {
+      const bucket = todoBucket(task, today)
+      return bucket === 'overdue' ? 'today' : bucket
+    }
+    default:
+      return ''
+  }
+}
+
+const PRIORITY_RANK: Record<TodoPriority, number> = { high: 0, medium: 1, low: 2 }
+const PROGRESS_RANK: Record<TodoProgressState, number> = { in_progress: 0, blocked: 1, todo: 2, done: 3 }
+const NO_DUE = Number.MAX_SAFE_INTEGER
+
+function dueTime(task: Task) {
+  if (!task.due_date) return NO_DUE
+  const time = new Date(task.due_date).getTime()
+  return Number.isNaN(time) ? NO_DUE : time
+}
+
+function createdTime(task: Task) {
+  const time = new Date(task.created_at).getTime()
+  return Number.isNaN(time) ? 0 : time
+}
+
+/**
+ * Comparatore per un ordinamento. A parità di criterio si scende sempre su
+ * scadenza → inserimento → id: senza l'ultimo gradino due schede identiche si
+ * scambierebbero di posto a ogni render.
+ */
+export function compareTodoTasks(left: Task, right: Task, sort: TodoSort): number {
+  switch (sort) {
+    case 'priority': {
+      const diff = PRIORITY_RANK[taskPriority(left)] - PRIORITY_RANK[taskPriority(right)]
+      if (diff !== 0) return diff
+      break
+    }
+    case 'progress': {
+      const byState = PROGRESS_RANK[taskProgressState(left)] - PROGRESS_RANK[taskProgressState(right)]
+      if (byState !== 0) return byState
+      const byPercent = taskProgressPercent(right) - taskProgressPercent(left)
+      if (byPercent !== 0) return byPercent
+      break
+    }
+    case 'recent': {
+      const diff = createdTime(right) - createdTime(left)
+      if (diff !== 0) return diff
+      break
+    }
+    case 'title': {
+      const diff = (left.title || '').localeCompare(right.title || '', 'it', { sensitivity: 'base' })
+      if (diff !== 0) return diff
+      break
+    }
+    case 'due':
+    default:
+      break
+  }
+
+  const byDue = dueTime(left) - dueTime(right)
+  if (byDue !== 0) return byDue
+  const byCreated = createdTime(left) - createdTime(right)
+  if (byCreated !== 0) return byCreated
+  return left.id.localeCompare(right.id)
+}
+
+export function sortTodoTasks(tasks: Task[], sort: TodoSort): Task[] {
+  return [...tasks].sort((left, right) => compareTodoTasks(left, right, sort))
+}
+
+/** Giorni da oggi a cui finisce un'attività lasciata cadere in una colonna di "Quando". */
+const WHEN_DROP_DAYS: Record<string, number> = { today: 0, week: 1, later: 7 }
+
+function isoForDayOffset(today: Date, days: number) {
+  return dateInputToIso(localDayDateKey(shiftIsoDate(today, days)))
+}
+
+function shiftIsoDate(date: Date, days: number) {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+/**
+ * Cosa succede a un'attività trascinata in una colonna: la modifica da salvare
+ * e la frase da mostrare. `null` quando la scheda è già dove è stata lasciata,
+ * così un trascinamento a vuoto non conta come un rinvio (ogni cambio di
+ * scadenza incrementa `reschedule_count` lato server).
+ */
+export function todoDropPatch(
+  task: Task,
+  grouping: TodoGrouping,
+  columnKey: string,
+  today: Date
+): { patch: StandaloneTaskPatch; message: string } | null {
+  const current = todoColumnKey(task, grouping, today)
+
+  if (grouping === 'when') {
+    const overdue = todoBucket(task, today) === 'overdue'
+    // Una scaduta sta già nella colonna "Oggi": lasciarcela cadere di nuovo
+    // significa "rimettila in data oggi", non "non fare niente".
+    if (current === columnKey && !(columnKey === 'today' && overdue)) return null
+
+    if (columnKey === 'unplanned') {
+      return { patch: { due_date: null }, message: 'Senza data: è in “Da pianificare”' }
+    }
+
+    const days = WHEN_DROP_DAYS[columnKey]
+    if (days === undefined) return null
+    const iso = isoForDayOffset(today, days)
+    if (!iso) return null
+    const label = formatDayMonth(iso)
+    return {
+      patch: { due_date: iso },
+      message: columnKey === 'today' ? 'Spostata a oggi' : `Spostata al ${label}`,
+    }
+  }
+
+  if (current === columnKey) return null
+
+  if (grouping === 'progress') {
+    const state = TODO_PROGRESS_STATES.find((option) => option.key === columnKey)
+    if (!state) return null
+    return {
+      patch: { progress_state: state.key },
+      message: state.key === 'done' ? 'Fatta ✓' : `Ora è “${state.label}”`,
+    }
+  }
+
+  if (grouping === 'area') {
+    const area = TODO_AREAS.find((option) => option.key === columnKey)
+    if (!area) return null
+    return { patch: { area: area.key }, message: `Spostata in ${area.label}` }
+  }
+
+  if (grouping === 'priority') {
+    const priority = TODO_PRIORITIES.find((option) => option.key === columnKey)
+    if (!priority) return null
+    return { patch: { priority: priority.key }, message: `Priorità ${priority.label.toLowerCase()}` }
+  }
+
+  return null
+}
+
+/**
+ * Valori di partenza per un'attività creata direttamente dentro una colonna:
+ * nasce già dove è stata scritta, senza doverla poi spostare.
+ */
+export function todoColumnDefaults(
+  grouping: TodoGrouping,
+  columnKey: string,
+  today: Date
+): Pick<StandaloneTaskInput, 'area' | 'priority' | 'progress_state' | 'due_date'> {
+  if (grouping === 'area') {
+    const area = TODO_AREAS.find((option) => option.key === columnKey)
+    return area ? { area: area.key } : {}
+  }
+  if (grouping === 'priority') {
+    const priority = TODO_PRIORITIES.find((option) => option.key === columnKey)
+    return priority ? { priority: priority.key } : {}
+  }
+  if (grouping === 'progress') {
+    const state = TODO_PROGRESS_STATES.find((option) => option.key === columnKey)
+    return state ? { progress_state: state.key } : {}
+  }
+  if (grouping === 'when') {
+    if (columnKey === 'unplanned') return {}
+    const days = WHEN_DROP_DAYS[columnKey]
+    if (days === undefined) return {}
+    return { due_date: isoForDayOffset(today, days) }
+  }
+  return {}
 }

@@ -163,11 +163,21 @@ export async function PUT(request: NextRequest) {
   }
 }
 
+/** Gli interruttori che la pagina puo' salvare da soli, senza il resto. */
+const TOGGLE_FIELDS = ['enabled', 'campaign_send_enabled'] as const
+
 /**
- * Salvataggio di una singola email della sequenza. Il PUT sopra riscrive tutte
- * le impostazioni: con cinque testi lunghi in pagina serviva un salvataggio per
- * card, cosi si puo' correggere un messaggio senza rimandare (o rischiare di
- * perdere) tutto il resto.
+ * Salvataggio parziale. Due usi, un solo endpoint:
+ *
+ * - con `sequence`, una singola email della sequenza: il PUT sopra riscrive
+ *   tutte le impostazioni, e con cinque testi lunghi in pagina serviva un
+ *   salvataggio per card, cosi si puo' correggere un messaggio senza rimandare
+ *   (o rischiare di perdere) tutto il resto;
+ * - con `enabled` e/o `campaign_send_enabled`, i due interruttori in cima alla
+ *   pagina. Un kill switch che resta nello stato del browser finche' non si
+ *   scorre in fondo a premere «Salva automazione» non e' un kill switch:
+ *   spegnendolo e uscendo, al rientro la pagina rilegge il database e lo mostra
+ *   di nuovo acceso — con gli invii che nel frattempo non si erano mai fermati.
  */
 export async function PATCH(request: NextRequest) {
   const auth = await requireRouteUser(request)
@@ -176,12 +186,29 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const sequence = Number(body?.sequence)
+    const current = await loadWineProjectAutomationSettings(auth.supabase, auth.workspaceUserId)
+
+    const toggles = TOGGLE_FIELDS.filter((field) => typeof body?.[field] === 'boolean')
+    if (body?.sequence === undefined || body?.sequence === null) {
+      if (toggles.length === 0) {
+        return Response.json({ error: 'Niente da salvare: manca la sequenza o un interruttore' }, { status: 400 })
+      }
+      const settings = normalizeWineProjectAutomationSettings({
+        ...current,
+        ...Object.fromEntries(toggles.map((field) => [field, body[field] as boolean])),
+      })
+      const { error } = await auth.supabase
+        .from('wine_project_automation_settings')
+        .upsert({ user_id: auth.workspaceUserId, ...settings }, { onConflict: 'user_id' })
+      if (error) throw error
+      return Response.json({ ok: true, settings })
+    }
+
+    const sequence = Number(body.sequence)
     if (!Number.isInteger(sequence)) {
       return Response.json({ error: 'Sequenza non valida' }, { status: 400 })
     }
 
-    const current = await loadWineProjectAutomationSettings(auth.supabase, auth.workspaceUserId)
     const target = current.sequence_templates.find((template) => template.sequence === sequence)
     if (!target) {
       return Response.json({ error: `Email ${sequence} non trovata nella sequenza` }, { status: 404 })

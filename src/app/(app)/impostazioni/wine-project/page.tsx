@@ -137,6 +137,13 @@ type WineProjectSend = {
   email: string | null
 }
 
+type WineProjectToggle = 'enabled' | 'campaign_send_enabled'
+
+const TOGGLE_TOASTS: Record<WineProjectToggle, { on: string; off: string }> = {
+  enabled: { on: 'Sequenza attiva', off: 'Sequenza in pausa' },
+  campaign_send_enabled: { on: 'Invio email reali ATTIVO', off: 'Invio email reali disattivato' },
+}
+
 const EMPTY_STATS: WineProjectStats = { contacts: 0, enrolled: 0, not_enrolled: 0, sent: 0, scheduled: 0, queued: 0, stopped: 0, replies: 0, opens: 0, clicks: 0, forms: 0, demos: 0, interested_replies: 0, calls: 0 }
 
 
@@ -174,6 +181,7 @@ export default function WineProjectSettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savingTemplate, setSavingTemplate] = useState<number | null>(null)
+  const [savingToggle, setSavingToggle] = useState<WineProjectToggle | null>(null)
   const [savedTemplate, setSavedTemplate] = useState<number | null>(null)
   const [error, setError] = useState('')
 
@@ -215,6 +223,43 @@ export default function WineProjectSettingsPage() {
     setEngagement(next)
     if (typeof document !== 'undefined') {
       document.getElementById('wine-project-engagement')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
+  /**
+   * Un interruttore si salva da solo, subito. Prima vivevano nello stato del
+   * browser fino al «Salva automazione» in fondo alla pagina: spegnere l'invio
+   * reale e uscire non spegneva niente, e al rientro la pagina rileggeva il
+   * database e lo mostrava di nuovo acceso. Lo stato si muove subito perche' il
+   * gesto dev'essere leggibile, e torna indietro se il salvataggio non riesce:
+   * un interruttore che mente su un invio di massa e' peggio di uno lento.
+   */
+  async function saveToggle(field: WineProjectToggle, value: boolean) {
+    const previous = settings[field]
+    if (previous === value) return
+    setSettings((current) => ({ ...current, [field]: value }))
+    setSavingToggle(field)
+    setError('')
+    try {
+      const result = await apiFetch<{ settings: WineProjectSettings }>('/api/wine-project/automation', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: value }),
+      })
+      // Solo i due interruttori dalla risposta: il resto della pagina puo'
+      // avere modifiche non ancora salvate (i testi della sequenza) che non
+      // vanno sovrascritte da quello che c'e' nel database.
+      setSettings((current) => ({
+        ...current,
+        enabled: result.settings.enabled,
+        campaign_send_enabled: result.settings.campaign_send_enabled,
+      }))
+      showToast(TOGGLE_TOASTS[field][value ? 'on' : 'off'])
+    } catch (saveError) {
+      setSettings((current) => ({ ...current, [field]: previous }))
+      setError(saveError instanceof Error ? saveError.message : 'Interruttore non salvato')
+    } finally {
+      setSavingToggle(null)
     }
   }
 
@@ -320,12 +365,14 @@ export default function WineProjectSettingsPage() {
                 id="wine-project-enabled"
                 type="checkbox"
                 checked={settings.enabled}
-                onChange={(event) => setSettings((current) => ({ ...current, enabled: event.target.checked }))}
+                disabled={savingToggle !== null}
+                onChange={(event) => void saveToggle('enabled', event.target.checked)}
               />
               <span aria-hidden="true" />
               <strong>{settings.enabled ? 'Sequenza attiva' : 'Sequenza in pausa'}</strong>
+              {savingToggle === 'enabled' && <em className="wine-project-toggle-saving">salvataggio…</em>}
             </label>
-            <p className="wine-project-pause-note">In pausa nessun nuovo arruolamento né invio parte, nemmeno per chi è già in coda; riattivando riprende esattamente da dove si era fermata, senza perdite né duplicati.</p>
+            <p className="wine-project-pause-note">In pausa nessun nuovo arruolamento né invio parte, nemmeno per chi è già in coda; riattivando riprende esattamente da dove si era fermata, senza perdite né duplicati. Questo interruttore si salva da solo: non serve il pulsante in fondo alla pagina.</p>
           </div>
           <div className="wine-project-control-row">
             <label className="wine-project-toggle wine-project-toggle-danger" htmlFor="wine-project-campaign-send-enabled">
@@ -333,12 +380,14 @@ export default function WineProjectSettingsPage() {
                 id="wine-project-campaign-send-enabled"
                 type="checkbox"
                 checked={settings.campaign_send_enabled}
-                onChange={(event) => setSettings((current) => ({ ...current, campaign_send_enabled: event.target.checked }))}
+                disabled={savingToggle !== null}
+                onChange={(event) => void saveToggle('campaign_send_enabled', event.target.checked)}
               />
               <span aria-hidden="true" />
               <strong>{settings.campaign_send_enabled ? 'Invio email reali ATTIVO' : 'Invio email reali disattivato'}</strong>
+              {savingToggle === 'campaign_send_enabled' && <em className="wine-project-toggle-saving">salvataggio…</em>}
             </label>
-            <p className="wine-project-pause-note wine-project-danger-note">Interruttore separato dalla pausa qui sopra: governa solo se il passo di invio può davvero spedire via Acumbamail. Da qui, non serve più Railway.</p>
+            <p className="wine-project-pause-note wine-project-danger-note">Interruttore separato dalla pausa qui sopra: governa solo se il passo di invio può davvero spedire via Acumbamail. Si salva da solo appena lo tocchi, senza passare dal pulsante in fondo: da qui, non serve più Railway.</p>
           </div>
         </div>
       </section>
@@ -608,7 +657,7 @@ export default function WineProjectSettingsPage() {
 
       {error && <div className="inline-error">{error}</div>}
       <div className="wine-project-save-bar">
-        <p>Le modifiche valgono per le nuove demo Wine Project; i contatti già in coda mantengono la data già pianificata.</p>
+        <p>Salva cadenza, tetti e riferimenti Acumbamail; i due interruttori in cima alla pagina si salvano da soli. Le modifiche valgono per le nuove demo Wine Project: i contatti già in coda mantengono la data già pianificata.</p>
         <button type="button" className="btn btn-primary" onClick={save} disabled={saving}>
           {saving ? 'Salvataggio…' : 'Salva automazione'}
         </button>
