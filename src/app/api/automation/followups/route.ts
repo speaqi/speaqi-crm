@@ -271,6 +271,28 @@ export async function POST(request: NextRequest) {
       debug_target_in_contact_ids: contactIds.includes('d42f3973-3228-445a-ae4b-01b533f8621b'),
       debug_target_task_key_match: existingTaskKeys.has('d42f3973-3228-445a-ae4b-01b533f8621b:2026-04-22T09:45:08.207+00:00'),
       debug_target_idempotency_match: existingIdempotencyKeys.has('auto-followup:d42f3973-3228-445a-ae4b-01b533f8621b:2026-04-22T09:45:08.207+00:00:call'),
+      debug_target_raw: (() => {
+        const target = contacts.find((c: any) => c.id === 'd42f3973-3228-445a-ae4b-01b533f8621b')
+        if (!target) return { found_in_contacts: false }
+        const dueAt = target.next_action_at || target.next_followup_at
+        const action = normalizeTaskAction(
+          target.next_followup_at && dueAt === target.next_followup_at
+            ? 'call'
+            : (target.phone ? 'call' : target.email ? 'send_email' : 'wait')
+        )
+        const computedKey = `auto-followup:${target.id}:${dueAt}:${action}`
+        const computedTaskKey = `${target.id}:${dueAt}`
+        return {
+          found_in_contacts: true,
+          due_at: dueAt,
+          action,
+          computed_idempotency_key: computedKey,
+          computed_task_key: computedTaskKey,
+          matches_idempotency_set: existingIdempotencyKeys.has(computedKey),
+          matches_task_key_set: existingTaskKeys.has(computedTaskKey),
+          due_date_truthy: Boolean(dueAt),
+        }
+      })(),
       sla_tasks: slaTaskPayload.length,
       quote_recovery_tasks: quoteTaskPayload.length,
       wine_project: { ...wineProject, backfill: wineProjectBackfill },
