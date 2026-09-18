@@ -80,18 +80,32 @@ export async function POST(request: NextRequest) {
     let existingIdempotencyKeys = new Set<string>()
 
     if (contactIds.length) {
-      const existingTasks = await selectByIdChunks<any>(contactIds, ID_CHUNK, (group) =>
+      const pendingTasks = await selectByIdChunks<any>(contactIds, ID_CHUNK, (group) =>
         supabase
           .from('tasks')
-          .select('contact_id, due_date, idempotency_key')
+          .select('contact_id, due_date')
           .eq('status', 'pending')
           .in('contact_id', group)
       )
       existingTaskKeys = new Set(
-        existingTasks.map((task: any) => `${task.contact_id}:${task.due_date}`)
+        pendingTasks.map((task: any) => `${task.contact_id}:${task.due_date}`)
+      )
+
+      // `tasks_user_idempotency_key_idx` e' unico per (user_id, idempotency_key)
+      // a prescindere dallo stato: un task completato mesi fa blocca comunque
+      // un inserimento con la stessa chiave. Filtrare solo sui `pending` (come
+      // faceva `existingTaskKeys`) lasciava passare il duplicato fino
+      // all'insert, che falliva con 23505 — mascherato per settimane dal
+      // `.in()` troppo lungo che faceva fallire la rotta prima di arrivarci.
+      const allTasksWithKey = await selectByIdChunks<any>(contactIds, ID_CHUNK, (group) =>
+        supabase
+          .from('tasks')
+          .select('idempotency_key')
+          .not('idempotency_key', 'is', null)
+          .in('contact_id', group)
       )
       existingIdempotencyKeys = new Set(
-        existingTasks
+        allTasksWithKey
           .map((task: any) => String(task.idempotency_key || '').trim())
           .filter(Boolean)
       )
@@ -118,7 +132,11 @@ export async function POST(request: NextRequest) {
           idempotency_key: `auto-followup:${contact.id}:${dueAt}:${action}`,
         }
       })
-      .filter((task) => task.due_date && !existingTaskKeys.has(`${task.contact_id}:${task.due_date}`))
+      .filter((task) =>
+        task.due_date &&
+        !existingTaskKeys.has(`${task.contact_id}:${task.due_date}`) &&
+        !existingIdempotencyKeys.has(task.idempotency_key)
+      )
 
     const slaTaskPayload = slaMode
       ? allOpenContacts
