@@ -95,21 +95,34 @@ export async function POST(request: NextRequest) {
     const contacts = await selectContactsToSync(supabase, batch)
 
     let synced = 0
-    let failures = 0
-    // Senza i messaggi distinti un token Gmail scaduto fa fallire ogni contatto
-    // in silenzio: la rotta risponde comunque 200 e il cron resta verde.
-    const syncErrors: string[] = []
+    // Il motivo del fallimento e' l'informazione: un `catch {}` muto rendeva
+    // indistinguibile "nessuna risposta" da "il token Gmail e' scaduto". Il
+    // giro continua comunque — una cantina che non si sincronizza non deve
+    // fermare le altre — ma l'errore esce dalla rotta.
+    const failures: Array<{ contact_id: string; error: string }> = []
     for (const contact of contacts) {
       try {
         const result = await syncContactGmailMessages(supabase, contact.user_id, contact as any, 20)
         synced += result.synced
-      } catch (error) {
-        failures += 1
-        const message = errorMessage(error, 'sync fallita')
-        if (!syncErrors.includes(message)) syncErrors.push(message)
+      } catch (contactError) {
+        failures.push({ contact_id: contact.id, error: errorMessage(contactError, 'Sync Gmail non riuscito') })
       }
     }
-    return Response.json({ ok: failures === 0, checked: contacts.length, messages_synced: synced, failures, errors: syncErrors })
+    // Due viste sullo stesso guasto: `errors` dice *cosa* e' andato storto
+    // (un token scaduto da' cento volte lo stesso messaggio, e una volta
+    // basta), `failures` dice *a chi*, per poterlo aprire nel CRM.
+    const errors = [...new Set(failures.map((failure) => failure.error))]
+    if (failures.length) {
+      console.error(`wine-project-replies: ${failures.length}/${contacts.length} contatti non sincronizzati`, errors[0])
+    }
+    return Response.json({
+      ok: failures.length === 0,
+      checked: contacts.length,
+      messages_synced: synced,
+      failures: failures.length,
+      errors,
+      failed_contacts: failures.slice(0, 5),
+    })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Wine Project reply sync failed') }, { status: 500 })
   }

@@ -91,6 +91,9 @@ class FakeQuery {
 
   eq(column: string, value: any) { this.filters.push((row) => row[column] === value); return this }
   gt(column: string, value: any) { this.filters.push((row) => row[column] > value); return this }
+  gte(column: string, value: any) { this.filters.push((row) => row[column] >= value); return this }
+  lt(column: string, value: any) { this.filters.push((row) => row[column] < value); return this }
+  lte(column: string, value: any) { this.filters.push((row) => row[column] <= value); return this }
   is(column: string, value: any) { this.filters.push((row) => (row[column] ?? null) === value); return this }
   in(column: string, values: any[]) { const set = new Set(values); this.filters.push((row) => set.has(row[column])); return this }
 

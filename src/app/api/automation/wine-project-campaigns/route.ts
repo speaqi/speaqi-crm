@@ -3,12 +3,18 @@ import { createActivities } from '@/lib/server/crm'
 import { validateAutomationSecret } from '@/lib/server/automation-auth'
 import {
   addCampaignRecipients,
+  configureAcumbamailListWebhook,
   createWineProjectCampaign,
   createWineProjectRecipientList,
 } from '@/lib/server/acumbamail-marketing'
 import { errorMessage } from '@/lib/server/http'
 import { createServiceRoleClient } from '@/lib/server/supabase'
-import { loadWineProjectAutomationSettings, scheduleNextWineProjectFollowup, type WineProjectSequenceTemplate } from '@/lib/server/wine-project-automation'
+import {
+  isTransientDeliveryError,
+  loadWineProjectAutomationSettings,
+  scheduleNextWineProjectFollowup,
+  type WineProjectSequenceTemplate,
+} from '@/lib/server/wine-project-automation'
 import { createWineProjectShortLinkToken } from '@/lib/server/wine-project-campaign-token'
 import { recordWhatsappEvent } from '@/lib/server/whatsapp-notify'
 
@@ -40,6 +46,47 @@ type QueuedEvent = {
 
 function firstName(value: string) {
   return String(value || '').trim().split(/\s+/)[0] || ''
+}
+
+/**
+ * Aggancia il webhook Acumbamail alla lista appena creata.
+ *
+ * Ogni invio Wine nasce su una lista nuova, e una lista senza webhook non
+ * racconta niente: aperture, click e disiscrizioni restavano dentro
+ * Acumbamail. `configureAcumbamailListWebhook` esisteva gia' ma non era
+ * chiamato da nessuna parte — per questo, a fronte di centinaia di aperture, il
+ * CRM non ha mai scritto una activity `email_open` ne' mandato una notifica.
+ *
+ * I parametri sull'URL rispecchiano cio' che le cantine Wine gia' sono
+ * (`scope=crm`, `event_tag=wine-project`): senza, il webhook applicherebbe i
+ * default d'ambiente e riporterebbe i contatti in holding a ogni apertura.
+ * `create_events=none` perche' i destinatari di questa lista sono per
+ * definizione contatti che esistono gia'.
+ *
+ * Fallisce in silenzio di proposito: e' telemetria. Un webhook non configurato
+ * non deve impedire la partenza di un invio gia' preparato.
+ */
+async function attachWebhookToWineList(token: string, listId: string, userId: string) {
+  const base = String(process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || '').trim().replace(/\/+$/, '')
+  const webhookToken = String(process.env.ACUMBAMAIL_WEBHOOK_TOKEN || '').trim()
+  if (!base || !webhookToken) {
+    console.warn('wine-project-campaigns: webhook lista non configurato (APP_BASE_URL o ACUMBAMAIL_WEBHOOK_TOKEN mancante)')
+    return false
+  }
+  const callbackUrl = `${base}/api/integrations/acumbamail/webhook?${new URLSearchParams({
+    token: webhookToken,
+    user_id: userId,
+    scope: 'crm',
+    event_tag: 'wine-project',
+    create_events: 'none',
+  }).toString()}`
+  try {
+    await configureAcumbamailListWebhook(token, listId, callbackUrl)
+    return true
+  } catch (error) {
+    console.error('wine-project-campaigns: configurazione webhook lista non riuscita', errorMessage(error, 'errore sconosciuto'))
+    return false
+  }
 }
 
 function escapeHtml(value: string) {
@@ -284,6 +331,7 @@ export async function POST(request: NextRequest) {
 
       try {
         const listId = await createWineProjectRecipientList(token, `Wine Project · Email ${template.sequence}/5 · ${new Date().toISOString().slice(0, 16)}`, senderEmail)
+        await attachWebhookToWineList(token, listId, userId)
         await addCampaignRecipients(token, listId, recipients)
         const campaignId = await createWineProjectCampaign(token, {
           name: `Wine Project · Email ${template.sequence}/5 · ${new Date().toLocaleDateString('it-IT')}`,
@@ -348,13 +396,21 @@ export async function POST(request: NextRequest) {
         remainingByUser.set(userId, remaining - recipients.length)
         results.push({ key, sent: recipients.length, deferred, chained, campaign_id: campaignId, campaign_key: campaignKey, skipped: ineligible.length, daily_cap: settings.daily_send_cap })
       } catch (campaignError) {
+        const failure = errorMessage(campaignError, 'Invio Acumbamail non riuscito')
         await supabase.from('wine_project_followup_events')
-          .update({ status: 'failed', delivery_error: errorMessage(campaignError, 'Invio Acumbamail non riuscito') })
+          .update({ status: 'failed', delivery_error: failure })
           .in('id', eventIds).eq('status', 'sending')
-        throw campaignError
+        // Fallimento isolato per gruppo: prima un errore su una email della
+        // sequenza abortiva l'intero giro, quindi anche i gruppi non ancora
+        // processati restavano fermi senza una riga che lo dicesse. Chi e'
+        // fallito per un motivo temporaneo rientra in coda al giro dopo.
+        console.error(`wine-project-campaigns: gruppo ${key} non inviato`, failure)
+        results.push({ key, sent: 0, skipped: ineligible.length, error: failure, retriable: isTransientDeliveryError(failure) })
+        continue
       }
     }
-    return Response.json({ ok: true, dry_run: dryRun, groups: results })
+    const failed = results.filter((result) => 'error' in result).length
+    return Response.json({ ok: failed === 0, dry_run: dryRun, groups: results }, { status: failed ? 500 : 200 })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Wine Project campaigns failed') }, { status: 500 })
   }

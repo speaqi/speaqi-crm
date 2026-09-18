@@ -248,6 +248,10 @@ export async function POST(request: NextRequest) {
       created_tasks: createdTasks,
     })
   } catch (error) {
+    // Senza questa riga il 500 usciva muto: nei log Railway si vedeva solo lo
+    // status, e per capire perche' il cron dei follow-up fosse rosso da giorni
+    // bisognava indovinare.
+    console.error('followups failed', error)
     return Response.json(
       { error: errorMessage(error, 'Failed to run follow-up automation') },
       { status: 500 }

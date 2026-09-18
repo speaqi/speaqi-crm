@@ -1,4 +1,4 @@
-const ACUMBAMAIL_API_URL = 'https://acumbamail.com/api/1'
+import { acumbamailForm, acumbamailRequest } from '@/lib/server/acumbamail-http'
 
 type ApiResponse = Record<string, unknown> | unknown[] | string | number
 
@@ -31,27 +31,17 @@ export async function callAcumbamailMarketing(
   authToken: string,
   data: Record<string, unknown> = {}
 ): Promise<ApiResponse> {
-  const form = new URLSearchParams()
-  const inputPayload = { ...data, auth_token: authToken, response_type: 'json' }
-  for (const [key, value] of Object.entries(inputPayload)) {
-    form.set(key, value && typeof value === 'object' ? JSON.stringify(value) : String(value ?? ''))
-  }
-  const response = await fetch(`${ACUMBAMAIL_API_URL}/${functionName}/`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: form,
-    cache: 'no-store',
-  })
-  const raw = await response.text()
-  let payload: ApiResponse = {}
-  try {
-    payload = raw ? JSON.parse(raw) : {}
-  } catch {
-    payload = { raw }
-  }
-  if (!response.ok) {
+  // Coda e attesa sul 429 vivono in `acumbamail-http`: un tetto colpito non e
+  // un errore, e' una richiesta di aspettare. Prima qui un 429 faceva fallire
+  // l'invio di un gruppo gia' preparato, senza secondo tentativo.
+  const { ok, status, raw, payload: parsed } = await acumbamailRequest(
+    functionName,
+    acumbamailForm(authToken, data)
+  )
+  const payload: ApiResponse = (parsed ?? {}) as ApiResponse
+  if (!ok) {
     const message = typeof payload === 'object' ? JSON.stringify(payload).slice(0, 500) : raw.slice(0, 500)
-    throw new Error(`Acumbamail ${functionName} (${response.status}): ${message}`)
+    throw new Error(`Acumbamail ${functionName} (${status}): ${message}`)
   }
   return payload
 }

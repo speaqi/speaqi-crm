@@ -7,7 +7,10 @@
       "name": "Ogni 30 minuti",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [260, 260],
+      "position": [
+        260,
+        260
+      ],
       "parameters": {
         "rule": {
           "interval": [
@@ -24,7 +27,10 @@
       "name": "Check Replies",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [520, 260],
+      "position": [
+        520,
+        260
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $env.APP_BASE_URL + '/api/automation/reply-monitor' }}",
@@ -44,14 +50,22 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\"since_minutes\":60}"
-      }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
     },
     {
       "id": "call_reconcile_drafts",
       "name": "Bozze inviate da Gmail",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [780, 260],
+      "position": [
+        780,
+        260
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $env.APP_BASE_URL + '/api/automation/reconcile-drafts' }}",
@@ -71,7 +85,47 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\"lookback_days\":7}"
-      }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "call_wine_replies",
+      "name": "Risposte cantine Wine",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1040,
+        260
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.APP_BASE_URL + '/api/automation/wine-project-replies' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-automation-secret",
+              "value": "={{ $env.AUTOMATION_SECRET }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"limit\":100}"
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
     }
   ],
   "connections": {
@@ -91,6 +145,17 @@
         [
           {
             "node": "Bozze inviate da Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bozze inviate da Gmail": {
+      "main": [
+        [
+          {
+            "node": "Risposte cantine Wine",
             "type": "main",
             "index": 0
           }
