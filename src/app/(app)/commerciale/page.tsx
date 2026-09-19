@@ -34,12 +34,23 @@ type ExternalProject = {
   progress: { enrollments: number; active: number; sent: number; pool: number }
 }
 
+/** Verticale che nasce con le sue email gia scritte (vedi commercial-campaign-presets.ts). */
+type CampaignPreset = {
+  vertical: string
+  label: string
+  description: string
+  name: string
+  event_tag: string
+  steps: number
+}
+
 const EMPTY_FORM = { name: '', vertical: '', event_tag: '', sender_name: '', sender_email: '' }
 
 export default function CommercialePage() {
   const { isAdmin, showToast } = useCRMContext()
   const [campaigns, setCampaigns] = useState<CampaignRow[] | null>(null)
   const [externals, setExternals] = useState<ExternalProject[]>([])
+  const [presets, setPresets] = useState<CampaignPreset[]>([])
   const [error, setError] = useState('')
   const [form, setForm] = useState(EMPTY_FORM)
   const [creating, setCreating] = useState(false)
@@ -47,9 +58,14 @@ export default function CommercialePage() {
 
   const load = useCallback(async () => {
     try {
-      const data = await apiFetch<{ campaigns: CampaignRow[]; external_projects?: ExternalProject[] }>('/api/commercial/campaigns')
+      const data = await apiFetch<{
+        campaigns: CampaignRow[]
+        external_projects?: ExternalProject[]
+        presets?: CampaignPreset[]
+      }>('/api/commercial/campaigns')
       setCampaigns(data.campaigns)
       setExternals(data.external_projects || [])
+      setPresets(data.presets || [])
       setError('')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Progetti commerciali non disponibili')
@@ -110,6 +126,25 @@ export default function CommercialePage() {
 
       {showForm ? (
         <form className="card" onSubmit={create}>
+          {presets.length ? (
+            <div className="campaigns-presets">
+              <p className="campaigns-muted">
+                Verticali gia pronti: le cinque email sono scritte e finiscono nella campagna alla creazione.
+                Restano riscrivibili dalla scheda finche non partono.
+              </p>
+              {presets.map((preset) => (
+                <button
+                  key={preset.vertical}
+                  type="button"
+                  className="btn"
+                  title={preset.description}
+                  onClick={() => setForm({ ...form, name: preset.name, vertical: preset.vertical, event_tag: preset.event_tag })}
+                >
+                  {preset.label} · {preset.steps} email
+                </button>
+              ))}
+            </div>
+          ) : null}
           <div className="campaigns-grid">
             <label className="fl">
               <span>Nome</span>

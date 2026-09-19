@@ -535,6 +535,28 @@ migrarlo e un lavoro separato, da fare a motore collaudato.
   /api/commercial/campaigns/[id]`, `PUT /api/commercial/campaigns/[id]/steps`.
   `/api/commercial/hospitality` resta come alias sottile finche la pagina
   `/hospitality` non viene ritirata.
+- **Testi di partenza per verticale**:
+  `src/lib/server/commercial-campaign-presets.ts`. `defaultCampaignSteps()`
+  guarda il `vertical`: con un preset la campagna nasce con le sue email vere,
+  senza preset con cinque tappe neutre. Oggi c'e **consorzi** (consorzi di
+  tutela e promozione, cinque email: patrimonio informativo del consorzio,
+  scena concreta, i soci, i mercati esteri, chiusura). Il preset copre anche i
+  campi lasciati vuoti alla creazione — nome, `event_tag`, `list_name`,
+  `brand_eyebrow`, `landing_url`, cadenza — ed e offerto come pulsante in
+  "Nuova campagna" (`presets[]` in `GET /api/commercial/campaigns`). Resta
+  contenuto iniziale, non processo: da li in poi comandano le righe, e uno step
+  gia inviato non si riscrive (trigger). Tre vincoli che i test presidiano
+  (`tests/campaigns.unit.test.ts`, describe *preset consorzi*): la
+  presentazione del mittente in ogni email, **una sola domanda** per email, e
+  nessun segnaposto fuori da quelli che il motore sostituisce — un
+  `{{landing}}` scritto male non rompe niente, esce una email con un buco
+  dentro. Il link sta in un paragrafo suo perche `campaignContent` lo
+  sostituisce **una volta per paragrafo**.
+- **L'anteprima mostra il link della campagna**: `renderCommercialMessage`
+  prende la campagna e risolve `{{landing_url}}`/`{{demo_url}}` con il suo
+  `landing_url`. Prima erano cablati sulla demo Hospitality, quindi il giro a
+  vuoto — l'unico posto dove si rilegge una email prima che parta — mostrava il
+  link di un altro verticale, o nessun link.
 - **Motore**: `src/lib/server/commercial-campaigns.ts` —
   `ensureCampaignSteps()` (crea solo gli step mancanti, mai riscrive) e
   `enrollCampaignContacts()` (prima i contatti CRM col tag della campagna, poi

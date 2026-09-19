@@ -11,6 +11,7 @@
  */
 
 import { fetchAcumbamailListSubscribers } from '@/lib/server/acumbamail-marketing'
+import { campaignPreset } from '@/lib/server/commercial-campaign-presets'
 
 export const CAMPAIGN_STATUSES = ['paused', 'active', 'completed'] as const
 export const CAMPAIGN_APPROVAL_STATUSES = ['analysis', 'pending_legal', 'approved', 'rejected'] as const
@@ -90,34 +91,54 @@ export function campaignSlug(value: unknown) {
 // ---------------------------------------------------------------------------
 
 /**
- * Cinque tappe generiche: la campagna nasce utilizzabile, non vuota. I testi
- * sono un punto di partenza da riscrivere sulla pagina della campagna, non la
- * voce di Speaqi su un verticale specifico.
+ * Le cinque tappe con cui nasce una campagna.
+ *
+ * Con un preset per il verticale (`commercial-campaign-presets.ts`) sono le
+ * sue email vere; senza, cinque tappe volutamente neutre — la campagna nasce
+ * utilizzabile, non vuota, e i testi si riscrivono dalla sua scheda.
+ *
+ * La cadenza resta sempre quella della campagna: il preset porta il contenuto,
+ * non il calendario, che il proprietario puo aver gia stretto o allargato.
  */
-export function defaultCampaignSteps(campaign: Pick<CommercialCampaign, 'name' | 'cadence_days' | 'sender_name' | 'sender_email'>) {
+export function defaultCampaignSteps(
+  campaign: Pick<CommercialCampaign, 'name' | 'cadence_days' | 'sender_name' | 'sender_email'> & { vertical?: string | null }
+) {
   const cadence = (Array.isArray(campaign.cadence_days) && campaign.cadence_days.length
     ? campaign.cadence_days
     : [1, 4, 9, 16, 28]
   ).map((day) => Math.max(0, Math.floor(Number(day) || 0)))
 
   const firma = `Cordiali saluti,\n${campaign.sender_name}\nSpeaqi\n${campaign.sender_email}`
-  const bodies = [
+  const generic = [
     `{{saluto}}\n\nLe scrivo a proposito di {{azienda}}.\n\nSpeaqi trasforma le informazioni gia pubblicate dall'organizzazione in un'esperienza digitale multilingua, consultabile da un solo indirizzo.\n\nPuo vedere un esempio qui: {{landing_url}}\n\n${firma}`,
     `{{saluto}}\n\nTorno brevemente sulla mia email precedente.\n\nLa prima versione si costruisce dalle informazioni gia pubbliche di {{azienda}}: non serve un progetto tecnico per vederla.\n\n{{landing_url}}\n\n${firma}`,
     `{{saluto}}\n\nUn esempio concreto: chi arriva da un altro paese trova le stesse informazioni nella propria lingua, aggiornate da un'unica fonte.\n\nPer {{azienda}} funzionerebbe cosi: {{landing_url}}\n\n${firma}`,
     `{{saluto}}\n\nSe il tema le interessa ma non e il momento, mi dica pure quando riprendere.\n\nIntanto lascio qui l'esempio dedicato a {{azienda}}: {{landing_url}}\n\n${firma}`,
     `{{saluto}}\n\nChiudo qui i miei messaggi per non disturbarla oltre.\n\nSe in futuro vorra vedere l'esperienza pensata per {{azienda}}, la trova sempre qui: {{landing_url}}\n\nResto volentieri a disposizione.\n\n${firma}`,
-  ]
-
-  return bodies.map((body, index) => ({
-    step_number: index + 1,
-    day_offset: cadence[index] ?? (cadence[cadence.length - 1] || 0) + (index + 1 - cadence.length) * 7,
+  ].map((body, index) => ({
     // Solo la seconda email si ferma davanti a un segnale: e il richiamo, non
     // ha senso mandarlo a chi ha gia aperto.
     only_without_engagement: index === 1,
     subject_template: `{{azienda}} - ${campaign.name}`,
-    body_text_template: body,
-    body_html_template: textToHtml(body),
+    body,
+  }))
+
+  const preset = campaignPreset(campaign.vertical)
+  const source = preset
+    ? preset.steps.map((step) => ({
+        only_without_engagement: step.only_without_engagement === true,
+        subject_template: step.subject_template,
+        body: step.body,
+      }))
+    : generic
+
+  return source.map((step, index) => ({
+    step_number: index + 1,
+    day_offset: cadence[index] ?? (cadence[cadence.length - 1] || 0) + (index + 1 - cadence.length) * 7,
+    only_without_engagement: step.only_without_engagement,
+    subject_template: step.subject_template,
+    body_text_template: step.body,
+    body_html_template: textToHtml(step.body),
   }))
 }
 

@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { campaignPreset, campaignPresetOptions } from '@/lib/server/commercial-campaign-presets'
 import {
   campaignSlug,
   ensureCampaignSteps,
@@ -35,6 +36,10 @@ export async function GET(request: NextRequest) {
         legacy_page: campaign.vertical === 'hospitality' ? '/hospitality' : null,
       })),
       external_projects: vertical ? [] : await loadExternalProjects(auth.supabase, auth.workspaceUserId),
+      // Verticali che nascono gia con le loro email scritte. La scheda di
+      // creazione li offre come punto di partenza: e l'unica differenza fra
+      // una campagna pronta a partire e una da riscrivere prima di attivarla.
+      presets: campaignPresetOptions(),
     })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Elenco campagne non disponibile') }, { status: 500 })
@@ -47,9 +52,13 @@ export async function POST(request: NextRequest) {
   if (!auth.isAdmin) return Response.json({ error: 'Admin access required' }, { status: 403 })
   try {
     const body = await request.json().catch(() => ({}))
-    const name = String(body.name || '').trim()
     const vertical = String(body.vertical || '').trim().toLowerCase()
-    const eventTag = String(body.event_tag || '').trim()
+    // Il preset del verticale copre i campi lasciati vuoti: chi sceglie
+    // "Consorzi" non deve reinventare nome, tag e destinazione del bottone —
+    // e sono proprio i campi che, sbagliati, rendono la campagna inerte.
+    const preset = campaignPreset(vertical)
+    const name = String(body.name || preset?.name || '').trim()
+    const eventTag = String(body.event_tag || preset?.event_tag || '').trim()
     if (!name || !vertical || !eventTag) {
       return Response.json({ error: 'Nome, verticale e tag contatti sono obbligatori' }, { status: 400 })
     }
@@ -64,7 +73,7 @@ export async function POST(request: NextRequest) {
         vertical,
         name,
         slug,
-        list_name: String(body.list_name || name).trim(),
+        list_name: String(body.list_name || preset?.list_name || name).trim(),
         event_tag: eventTag,
         // Invio spento alla nascita: nessuna campagna spedisce prima che
         // qualcuno l'abbia guardata e attivata deliberatamente.
@@ -73,8 +82,17 @@ export async function POST(request: NextRequest) {
         sender_name: String(body.sender_name || 'Massimo Morgante').trim(),
         sender_email: String(body.sender_email || 'info@speaqi.com').trim(),
         reply_to: body.reply_to ? String(body.reply_to).trim() : null,
-        brand_eyebrow: body.brand_eyebrow ? String(body.brand_eyebrow).trim() : `SPEAQI · ${vertical.toUpperCase()}`,
-        landing_url: body.landing_url ? String(body.landing_url).trim() : null,
+        brand_eyebrow: body.brand_eyebrow
+          ? String(body.brand_eyebrow).trim()
+          : preset?.brand_eyebrow || `SPEAQI · ${vertical.toUpperCase()}`,
+        // Senza destinazione il bottone delle email punta al vuoto: il preset
+        // ne porta sempre una, modificabile dalla scheda della campagna.
+        landing_url: body.landing_url ? String(body.landing_url).trim() : preset?.landing_url || null,
+        ...(Array.isArray(body.cadence_days) && body.cadence_days.length
+          ? { cadence_days: body.cadence_days.map((day: unknown) => Math.max(0, Math.floor(Number(day) || 0))) }
+          : preset
+            ? { cadence_days: preset.cadence_days }
+            : {}),
       })
       .select('*')
       .single()

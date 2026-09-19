@@ -11,6 +11,8 @@ import {
   structureKey,
   type CommercialCampaign,
 } from '../src/lib/server/commercial-campaigns'
+import { campaignPreset } from '../src/lib/server/commercial-campaign-presets'
+import { renderCommercialMessage } from '../src/lib/server/commercial-outreach'
 
 const USER = 'user-1'
 
@@ -106,6 +108,12 @@ describe('step predefiniti', () => {
     assert.equal(steps.filter((step) => step.only_without_engagement).length, 1)
   })
 
+  test('un verticale senza preset resta sui testi neutri', () => {
+    const steps = defaultCampaignSteps(campaign({ vertical: 'snai' }))
+    assert.ok(steps.every((step) => step.subject_template.includes('Consorzi 2026')))
+    assert.ok(steps[0].body_text_template.includes("Le scrivo a proposito di {{azienda}}"))
+  })
+
   test('ensureCampaignSteps non riscrive uno step esistente', async () => {
     const target = campaign()
     const db = new FakeSupabase({
@@ -116,6 +124,84 @@ describe('step predefiniti', () => {
     const steps = await ensureCampaignSteps(db, target)
     assert.equal(steps.length, 5)
     assert.equal(steps[0].subject_template, 'Scritto a mano')
+  })
+})
+
+/**
+ * Le email di un verticale con preset partono cosi come sono scritte: non
+ * passano da un modello, da una revisione umana o da un controllo a valle. Un
+ * segnaposto sbagliato non rompe nulla — esce una email con un buco dentro, e
+ * lo si scopre dal destinatario.
+ */
+describe('preset consorzi', () => {
+  const MERGE_TOKENS = new Set(['saluto', 'nome', 'azienda', 'landing_url', 'demo_url', 'rai3_url'])
+
+  test('la campagna consorzi nasce con le sue cinque email, non coi testi neutri', () => {
+    const preset = campaignPreset('Consorzi')
+    assert.ok(preset)
+    const steps = defaultCampaignSteps(campaign({ vertical: 'consorzi' }))
+    assert.equal(steps.length, 5)
+    assert.deepEqual(
+      steps.map((step) => step.subject_template),
+      preset!.steps.map((step) => step.subject_template)
+    )
+    // La cadenza resta quella della campagna: il preset porta il testo, non il
+    // calendario.
+    assert.deepEqual(steps.map((step) => step.day_offset), [1, 4, 9, 16, 28])
+    assert.deepEqual(
+      defaultCampaignSteps(campaign({ vertical: 'consorzi', cadence_days: [0, 3, 7] })).map((step) => step.day_offset),
+      [0, 3, 7, 14, 21]
+    )
+  })
+
+  test('solo il richiamo si ferma davanti a un segnale', () => {
+    const steps = defaultCampaignSteps(campaign({ vertical: 'consorzi' }))
+    assert.deepEqual(steps.map((step) => step.only_without_engagement), [false, true, false, false, false])
+  })
+
+  test('ogni email si presenta e porta una sola richiesta', () => {
+    for (const step of campaignPreset('consorzi')!.steps) {
+      assert.ok(
+        step.body.includes('sono Massimo Morgante, fondatore di Speaqi.'),
+        `presentazione mancante: ${step.subject_template}`
+      )
+      // Una domanda sola: due richieste in fondo a una email fredda ne
+      // annullano una.
+      const questions = (step.body.match(/\?/g) || []).length
+      assert.ok(questions <= 1, `${questions} domande in "${step.subject_template}"`)
+      assert.ok(step.subject_template.length <= 90, `oggetto troppo lungo: ${step.subject_template}`)
+    }
+  })
+
+  test('nessun segnaposto che il motore non sostituisce', () => {
+    for (const step of campaignPreset('consorzi')!.steps) {
+      for (const source of [step.subject_template, step.body]) {
+        for (const [, token] of source.matchAll(/{{\s*([a-z0-9_]+)\s*}}/gi)) {
+          assert.ok(MERGE_TOKENS.has(token.toLowerCase()), `segnaposto sconosciuto: {{${token}}}`)
+        }
+      }
+    }
+  })
+
+  test('il link sta in un paragrafo suo', () => {
+    // `campaignContent` sostituisce il segnaposto una volta per paragrafo: due
+    // link nello stesso capoverso lascerebbero il secondo in chiaro.
+    for (const step of campaignPreset('consorzi')!.steps) {
+      for (const paragraph of step.body.split(/\n\s*\n/)) {
+        const links = (paragraph.match(/{{\s*landing_url\s*}}/g) || []).length
+        assert.ok(links <= 1, `due link in un paragrafo di "${step.subject_template}"`)
+      }
+    }
+  })
+
+  test("l'anteprima mostra il link della campagna, non quello di un altro verticale", () => {
+    const target = campaign({ vertical: 'consorzi', landing_url: 'https://speaqi.com/destinations' })
+    const [first] = defaultCampaignSteps(target)
+    const rendered = renderCommercialMessage(first, { company: 'Consorzio di Tutela' }, target)
+    assert.ok(rendered.text.includes('https://speaqi.com/destinations'))
+    assert.ok(!rendered.text.includes('hotel-project'))
+    assert.ok(!rendered.text.includes('{{'), 'segnaposto non risolto nell\'anteprima')
+    assert.ok(rendered.subject.includes('Consorzio di Tutela'))
   })
 })
 

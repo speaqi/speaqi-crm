@@ -62,15 +62,27 @@ function reliableFullName(contact: { name?: string | null; company?: string | nu
   return name
 }
 
-function templateValues(contact: { name?: string | null; company?: string | null; email?: string | null }) {
+/**
+ * La destinazione e quella della campagna, non piu una costante Hospitality.
+ * L'anteprima del giro a vuoto e l'unico posto dove si legge il testo prima
+ * che parta: mostrando li il link di un altro verticale — o, per
+ * `{{landing_url}}`, nessun link — si approvava una email diversa da quella
+ * che sarebbe uscita davvero.
+ */
+function templateValues(
+  contact: { name?: string | null; company?: string | null; email?: string | null },
+  campaign?: { landing_url?: string | null } | null
+) {
   const fullName = reliableFullName(contact)
   const firstName = fullName.split(' ')[0] || ''
   const company = String(contact.company || contact.name || '').trim() || 'la vostra struttura'
+  const landing = String(campaign?.landing_url || '').trim() || DEMO_URL
   return {
     nome: fullName,
     azienda: company,
     saluto: firstName ? `Buongiorno ${firstName},` : 'Buongiorno,',
-    demo_url: DEMO_URL,
+    demo_url: landing,
+    landing_url: landing,
     rai3_url: RAI3_URL,
   }
 }
@@ -90,9 +102,10 @@ export function hospitalityStepTemplates() {
 
 export function renderCommercialMessage(
   step: { subject_template: string; body_text_template: string },
-  contact: { name?: string | null; company?: string | null; email?: string | null }
+  contact: { name?: string | null; company?: string | null; email?: string | null },
+  campaign?: { landing_url?: string | null } | null
 ) {
-  const values = templateValues(contact)
+  const values = templateValues(contact, campaign)
   const subject = render(step.subject_template, values).trim()
   const text = render(step.body_text_template, values).trim()
   return { subject, text, html: textToLeftAlignedHtml(text) }

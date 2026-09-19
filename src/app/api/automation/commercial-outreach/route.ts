@@ -208,7 +208,7 @@ async function runCampaign(
       results.push({ message_id: message.id, skipped: true, reason: 'step_missing' })
       continue
     }
-    const rendered = renderCommercialMessage(step, contact)
+    const rendered = renderCommercialMessage(step, contact, campaign)
 
     let stopReason = ''
     if (CLOSED.has(contact.status)) stopReason = `contact_${String(contact.status).toLowerCase()}`
