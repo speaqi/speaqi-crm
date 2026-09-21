@@ -39,6 +39,7 @@ interface TodoKanbanProps {
   onToggleDone: (task: Task) => void
   onMove: (task: Task, columnKey: string) => void
   onQuickAdd: (columnKey: string, title: string) => Promise<void>
+  onAddColumn: (label: string) => Promise<void>
 }
 
 export function TodoKanban({
@@ -53,6 +54,7 @@ export function TodoKanban({
   onToggleDone,
   onMove,
   onQuickAdd,
+  onAddColumn,
 }: TodoKanbanProps) {
   const columns = useMemo(() => {
     const hidden = new Set(hiddenKeys)
@@ -69,6 +71,8 @@ export function TodoKanban({
   const [addTitle, setAddTitle] = useState('')
   const [adding, setAdding] = useState(false)
   const [expanded, setExpanded] = useState<Record<string, number>>({})
+  const [newColumn, setNewColumn] = useState<string | null>(null)
+  const [addingColumn, setAddingColumn] = useState(false)
 
   const grouped = useMemo(() => {
     const map = new Map<string, Task[]>(columns.map((column) => [column.key, []]))
@@ -117,6 +121,18 @@ export function TodoKanban({
     if (!taskId) return
     const task = tasks.find((candidate) => candidate.id === taskId)
     if (task) onMove(task, key)
+  }
+
+  async function submitNewColumn() {
+    const label = String(newColumn || '').trim()
+    if (!label || addingColumn) return
+    setAddingColumn(true)
+    try {
+      await onAddColumn(label)
+      setNewColumn(null)
+    } finally {
+      setAddingColumn(false)
+    }
   }
 
   async function submitQuickAdd(key: string) {
@@ -235,6 +251,56 @@ export function TodoKanban({
           </section>
         )
       })}
+
+      {/* Il riquadro per aggiungere una colonna sta sulla lavagna, in fondo:
+          una colonna la si vuole vedere comparire dove si sta guardando. */}
+      <section className="todo-col todo-col-new">
+        {newColumn === null ? (
+          <button type="button" className="todo-col-new-open" onClick={() => setNewColumn('')}>
+            <span aria-hidden>＋</span>
+            Aggiungi colonna
+          </button>
+        ) : (
+          <form
+            className="todo-col-new-form"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void submitNewColumn()
+            }}
+          >
+            <label htmlFor="todo-new-column">Nome della colonna</label>
+            <input
+              id="todo-new-column"
+              className="fi"
+              autoFocus
+              type="text"
+              value={newColumn}
+              disabled={addingColumn}
+              placeholder="Es. Da fatturare"
+              onChange={(event) => setNewColumn(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') setNewColumn(null)
+              }}
+            />
+            <div className="todo-col-add-actions">
+              <button
+                type="submit"
+                className="btn btn-primary btn-sm"
+                disabled={addingColumn || !String(newColumn).trim()}
+              >
+                Crea
+              </button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setNewColumn(null)}>
+                Annulla
+              </button>
+            </div>
+            <p className="todo-col-new-note">
+              Le colonne che aggiungi si vedono in tutti i raggruppamenti. Una scheda ci resta finché non la
+              trascini via.
+            </p>
+          </form>
+        )}
+      </section>
     </div>
   )
 }

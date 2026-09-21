@@ -184,16 +184,13 @@ export function resolveProgress(current: ResolvedProgress, levers: ProgressLever
  * ------------------------------------------------------------------ */
 
 /**
- * Come si divide la lavagna. I quattro raggruppamenti calcolati hanno **al
- * massimo quattro** colonne: fin qui la lavagna sta tutta nella finestra, che
- * e' il motivo per cui ci si guarda anche le colonne di destra.
- *
- * `custom` e' l'eccezione voluta: le colonne le scrive chi lavora, sono quante
- * gliene servono e dalla quinta in poi la lavagna scorre di lato. Una scheda ci
- * finisce solo perche' qualcuno ce l'ha trascinata — nessun cambio di data o di
- * stato la sposta, e questa e' la differenza con gli altri quattro.
+ * Come si divide la lavagna. Ogni raggruppamento porta le sue colonne
+ * calcolate — da fare/in corso, oggi/questa settimana, le aree, le priorità —
+ * e **in coda** le colonne aggiunte a mano, che valgono su tutti i
+ * raggruppamenti: una colonna chiamata "Da fatturare" ha senso sia guardando
+ * l'avanzamento sia guardando le date.
  */
-export type TodoGrouping = 'progress' | 'when' | 'area' | 'priority' | 'custom'
+export type TodoGrouping = 'progress' | 'when' | 'area' | 'priority'
 
 /** Ordinamento delle schede dentro una colonna. */
 export type TodoSort = 'priority' | 'due' | 'progress' | 'recent' | 'title'
@@ -203,6 +200,8 @@ export type TodoPriority = 'low' | 'medium' | 'high'
 export interface TodoColumnDef {
   key: string
   label: string
+  /** Vera per le colonne aggiunte a mano: sono le uniche che si rinominano e si cancellano. */
+  custom?: boolean
   /** Riga sotto il titolo: dice cosa significa la colonna, non quante schede ha. */
   hint: string
   /** Suffisso della classe CSS, per il colore della colonna. */
@@ -214,20 +213,6 @@ export const TODO_PRIORITIES: { key: TodoPriority; label: string; short: string 
   { key: 'medium', label: 'Media', short: '!!' },
   { key: 'low', label: 'Bassa', short: '!' },
 ]
-
-/**
- * La chiave della colonna che raccoglie le schede senza colonna. Non è una
- * riga del database: esiste sempre, anche quando di colonne non ce n'è ancora
- * nessuna, perché la lavagna deve pur mostrare qualcosa.
- */
-export const TODO_UNASSIGNED_KEY = 'unassigned'
-
-export const TODO_UNASSIGNED_COLUMN: TodoColumnDef = {
-  key: TODO_UNASSIGNED_KEY,
-  label: 'Da smistare',
-  hint: 'Ancora senza colonna',
-  tone: 'unplanned',
-}
 
 export const TODO_GROUPINGS: { key: TodoGrouping; label: string; columns: TodoColumnDef[] }[] = [
   {
@@ -270,14 +255,6 @@ export const TODO_GROUPINGS: { key: TodoGrouping; label: string; columns: TodoCo
       { key: 'low', label: 'Bassa', hint: 'Quando avanza tempo', tone: 'low' },
     ],
   },
-  {
-    // Le colonne vere arrivano dal database: qui resta solo la voce del menù e
-    // "Da smistare", che non si può cancellare perché è dove tornano le schede
-    // quando una colonna sparisce.
-    key: 'custom',
-    label: 'Le mie colonne',
-    columns: [TODO_UNASSIGNED_COLUMN],
-  },
 ]
 
 /** Tavolozza dei colori scegliibili per una colonna personalizzata. */
@@ -305,22 +282,22 @@ export const TODO_SORTS: { key: TodoSort; label: string }[] = [
 ]
 
 /**
- * Le colonne da disegnare. Per i quattro raggruppamenti calcolati sono fisse;
- * per `custom` sono quelle salvate, precedute da "Da smistare".
+ * Le colonne da disegnare: quelle calcolate del raggruppamento scelto, poi in
+ * coda quelle aggiunte a mano — che sono le stesse qualunque raggruppamento si
+ * guardi.
  */
 export function todoColumns(grouping: TodoGrouping, customColumns: TodoBoardColumn[] = []): TodoColumnDef[] {
-  if (grouping === 'custom') {
-    return [
-      TODO_UNASSIGNED_COLUMN,
-      ...sortBoardColumns(customColumns).map((column) => ({
-        key: column.id,
-        label: column.label,
-        hint: String(column.hint || '').trim(),
-        tone: normalizeColumnTone(column.tone),
-      })),
-    ]
-  }
-  return (TODO_GROUPINGS.find((g) => g.key === grouping) || TODO_GROUPINGS[0]).columns
+  const base = (TODO_GROUPINGS.find((g) => g.key === grouping) || TODO_GROUPINGS[0]).columns
+  return [
+    ...base,
+    ...sortBoardColumns(customColumns).map((column) => ({
+      key: column.id,
+      label: column.label,
+      hint: String(column.hint || '').trim(),
+      tone: normalizeColumnTone(column.tone),
+      custom: true,
+    })),
+  ]
 }
 
 /** Ordine di disegno delle colonne: posizione, poi creazione, poi id. */
@@ -340,11 +317,21 @@ export function taskPriority(task: Task): TodoPriority {
 }
 
 /**
- * In quale colonna cade l'attività, dato il raggruppamento scelto.
- *
- * Per `custom` serve anche l'elenco delle colonne esistenti: una scheda che
- * punta a una colonna cancellata altrove (altra scheda del browser, altro
- * dispositivo) deve ricomparire in "Da smistare", non sparire dalla lavagna.
+ * La colonna aggiunta a mano in cui la scheda è stata messa, se c'è ancora.
+ * Una scheda appesa a una colonna cancellata altrove (altro browser, altro
+ * dispositivo) deve tornare nella sua colonna calcolata, non sparire.
+ */
+export function pinnedColumnId(task: Task, customColumns: TodoBoardColumn[] = []): string | null {
+  const columnId = String(task.board_column_id || '').trim()
+  if (!columnId) return null
+  return customColumns.some((column) => column.id === columnId) ? columnId : null
+}
+
+/**
+ * In quale colonna cade l'attività. Una colonna aggiunta a mano vince sempre
+ * sul calcolo: ce l'ha messa qualcuno, e nessuna data o cambio di stato deve
+ * portarla via da lì. Per riportarla fra le colonne calcolate la si trascina
+ * fuori.
  */
 export function todoColumnKey(
   task: Task,
@@ -352,12 +339,10 @@ export function todoColumnKey(
   today: Date,
   customColumns: TodoBoardColumn[] = []
 ): string {
+  const pinned = pinnedColumnId(task, customColumns)
+  if (pinned) return pinned
+
   switch (grouping) {
-    case 'custom': {
-      const columnId = String(task.board_column_id || '').trim()
-      if (!columnId) return TODO_UNASSIGNED_KEY
-      return customColumns.some((column) => column.id === columnId) ? columnId : TODO_UNASSIGNED_KEY
-    }
     case 'progress':
       return taskProgressState(task)
     case 'area':
@@ -459,17 +444,39 @@ export function todoDropPatch(
   today: Date,
   customColumns: TodoBoardColumn[] = []
 ): { patch: StandaloneTaskPatch; message: string } | null {
-  const current = todoColumnKey(task, grouping, today, customColumns)
+  const pinned = pinnedColumnId(task, customColumns)
+  const target = customColumns.find((candidate) => candidate.id === columnKey)
 
-  if (grouping === 'custom') {
-    if (current === columnKey) return null
-    if (columnKey === TODO_UNASSIGNED_KEY) {
-      return { patch: { board_column_id: null }, message: 'Tolta dalla colonna: è in “Da smistare”' }
-    }
-    const column = customColumns.find((candidate) => candidate.id === columnKey)
-    if (!column) return null
-    return { patch: { board_column_id: column.id }, message: `Spostata in “${column.label}”` }
+  // Una colonna aggiunta a mano non cambia nient'altro dell'attività: non ha
+  // una data né uno stato da imporre, la scheda sta lì e basta.
+  if (target) {
+    if (pinned === target.id) return null
+    return { patch: { board_column_id: target.id }, message: `Spostata in “${target.label}”` }
   }
+
+  const base = builtinDropPatch(task, grouping, columnKey, today)
+
+  // Riportare una scheda appesa a una colonna aggiunta a mano su una colonna
+  // calcolata vuol dire prima sganciarla — altrimenti tornerebbe da sola dov'era.
+  if (pinned) {
+    const label = customColumns.find((candidate) => candidate.id === pinned)?.label || 'colonna'
+    return {
+      patch: { board_column_id: null, ...(base?.patch || {}) },
+      message: base?.message || `Tolta da “${label}”`,
+    }
+  }
+
+  return base
+}
+
+/** Le colonne calcolate: la colonna d'arrivo dice cosa cambia sull'attività. */
+function builtinDropPatch(
+  task: Task,
+  grouping: TodoGrouping,
+  columnKey: string,
+  today: Date
+): { patch: StandaloneTaskPatch; message: string } | null {
+  const current = todoColumnKey(task, grouping, today)
 
   if (grouping === 'when') {
     const overdue = todoBucket(task, today) === 'overdue'
@@ -528,11 +535,9 @@ export function todoColumnDefaults(
   today: Date,
   customColumns: TodoBoardColumn[] = []
 ): Pick<StandaloneTaskInput, 'area' | 'priority' | 'progress_state' | 'due_date' | 'board_column_id'> {
-  if (grouping === 'custom') {
-    if (columnKey === TODO_UNASSIGNED_KEY) return {}
-    const column = customColumns.find((candidate) => candidate.id === columnKey)
-    return column ? { board_column_id: column.id } : {}
-  }
+  const custom = customColumns.find((candidate) => candidate.id === columnKey)
+  if (custom) return { board_column_id: custom.id }
+
   if (grouping === 'area') {
     const area = TODO_AREAS.find((option) => option.key === columnKey)
     return area ? { area: area.key } : {}

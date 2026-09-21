@@ -6485,10 +6485,24 @@ textarea.form-input::placeholder { color: var(--text3); }
 .todo-select { display: inline-flex; align-items: center; gap: 6px; color: var(--text2); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; white-space: nowrap; }
 .todo-select .fi { padding: 5px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font-size: 12px; font-weight: 600; color: var(--text); text-transform: none; letter-spacing: 0; }
 
-.todo-board { display: grid; grid-template-columns: repeat(var(--todo-board-cols, 4), minmax(0, 1fr)); gap: 12px; padding-bottom: 8px; }
+/* L'ultima traccia, stretta, è il riquadro "aggiungi colonna": non è una
+   colonna di lavoro e non deve rubare larghezza a quelle che lo sono. */
+.todo-board { display: grid; grid-template-columns: repeat(var(--todo-board-cols, 4), minmax(0, 1fr)) 168px; gap: 12px; padding-bottom: 8px; }
 /* Dalla quinta colonna in poi non si restringe più: si scorre di lato. Colonne
    da 230px si leggono ancora; quattro colonne spalmate su dieci no. */
-.todo-board.is-scrolling { grid-template-columns: repeat(var(--todo-board-cols, 4), minmax(230px, 1fr)); overflow-x: auto; overscroll-behavior-x: contain; }
+.todo-board.is-scrolling { grid-template-columns: repeat(var(--todo-board-cols, 4), minmax(230px, 1fr)) 168px; overflow-x: auto; overscroll-behavior-x: contain; }
+
+/* Il riquadro per aggiungere: tratteggiato, senza intestazione, alto quanto
+   serve — deve leggersi come un invito, non come una colonna vuota. */
+.todo-col-new { align-self: start; border-style: dashed; background: transparent; }
+.todo-col-new-open { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; padding: 18px 10px; border: none; background: none; color: var(--text3); font-size: 11.5px; font-weight: 700; line-height: 1.3; cursor: pointer; transition: color var(--transition); }
+.todo-col-new-open span { font-size: 18px; }
+.todo-col-new:hover { border-color: var(--accent); }
+.todo-col-new-open:hover { color: var(--accent); }
+.todo-col-new-form { display: flex; flex-direction: column; gap: 7px; padding: 11px; }
+.todo-col-new-form label { color: var(--text2); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+.todo-col-new-form .fi { width: 100%; padding: 7px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); font-size: 12.5px; }
+.todo-col-new-note { color: var(--text3); font-size: 10.5px; line-height: 1.4; }
 
 .todo-col { --todo-col-tone: var(--gray); display: flex; flex-direction: column; min-height: 0; min-width: 0; border: 1px solid var(--border); border-radius: 16px; background: var(--surface2); transition: box-shadow var(--transition), background var(--transition); }
 .todo-col.is-drop-target { background: var(--accent-light); box-shadow: inset 0 0 0 2px var(--accent); }
@@ -6598,6 +6612,7 @@ textarea.form-input::placeholder { color: var(--text3); }
   /* Colonne alte quanto il loro contenuto: affiancate a due a due, tirarle
      tutte all'altezza della più piena lascerebbe mezzo schermo vuoto. */
   .todo-board, .todo-board.is-scrolling { grid-template-columns: repeat(2, minmax(0, 1fr)); overflow-x: visible; align-items: start; }
+  .todo-col-new { min-height: 90px; }
   .todo-col-body { max-height: 46vh; }
 }
 

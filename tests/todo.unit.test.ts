@@ -7,7 +7,6 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import {
   TODO_GROUPINGS,
-  TODO_UNASSIGNED_KEY,
   compareTodoTasks,
   sortTodoTasks,
   todoColumnDefaults,
@@ -172,58 +171,80 @@ describe('attività scritta dentro una colonna', () => {
   })
 })
 
-describe('colonne personalizzate', () => {
+describe('colonne aggiunte a mano', () => {
   const columns = [
     { id: 'col-a', label: 'Da fatturare', tone: 'green', position: 0, created_at: dayIso(-5) },
     { id: 'col-b', label: 'In attesa di risposta', tone: 'yellow', position: 1, created_at: dayIso(-4) },
   ]
 
-  test('le colonne si disegnano in ordine, con "Da smistare" sempre per prima', () => {
-    const drawn = todoColumns('custom', [
+  test('stanno in coda alle colonne calcolate, in ogni raggruppamento', () => {
+    const board = todoColumns('progress', columns)
+    assert.deepEqual(board.map((column) => column.key), [
+      'todo',
+      'in_progress',
+      'blocked',
+      'done',
+      'col-a',
+      'col-b',
+    ])
+    assert.equal(board[4].label, 'Da fatturare')
+    assert.equal(board[4].custom, true)
+
+    const byDate = todoColumns('when', columns)
+    assert.deepEqual(byDate.slice(-2).map((column) => column.key), ['col-a', 'col-b'])
+  })
+
+  test('le colonne si riordinano per posizione, non per ordine di arrivo', () => {
+    const drawn = todoColumns('area', [
       { ...columns[1], position: 5 },
       { ...columns[0], position: 2 },
     ])
-    assert.deepEqual(drawn.map((column) => column.key), [TODO_UNASSIGNED_KEY, 'col-a', 'col-b'])
-    assert.equal(drawn[1].label, 'Da fatturare')
+    assert.deepEqual(drawn.slice(-2).map((column) => column.key), ['col-a', 'col-b'])
   })
 
-  test("un'attività senza colonna sta in Da smistare", () => {
-    assert.equal(todoColumnKey(task(), 'custom', TODAY, columns), TODO_UNASSIGNED_KEY)
+  test("un'attività senza colonna resta in quella calcolata", () => {
+    assert.equal(todoColumnKey(task({ due_date: dayIso(0) }), 'when', TODAY, columns), 'today')
+  })
+
+  test('una colonna scelta a mano vince sul calcolo, in ogni raggruppamento', () => {
+    const pinned = task({ board_column_id: 'col-a', due_date: dayIso(0), progress_state: 'in_progress' })
+    assert.equal(todoColumnKey(pinned, 'when', TODAY, columns), 'col-a')
+    assert.equal(todoColumnKey(pinned, 'progress', TODAY, columns), 'col-a')
   })
 
   test('una colonna cancellata altrove non fa sparire la scheda', () => {
-    const orphan = task({ board_column_id: 'col-sparita' })
-    assert.equal(todoColumnKey(orphan, 'custom', TODAY, columns), TODO_UNASSIGNED_KEY)
+    const orphan = task({ board_column_id: 'col-sparita', due_date: dayIso(0) })
+    assert.equal(todoColumnKey(orphan, 'when', TODAY, columns), 'today')
   })
 
-  test('trascinare in una colonna scrive solo board_column_id', () => {
-    const move = todoDropPatch(task(), 'custom', 'col-b', TODAY, columns)
+  test('trascinare in una colonna aggiunta a mano non tocca data né stato', () => {
+    const move = todoDropPatch(task({ due_date: dayIso(3) }), 'when', 'col-b', TODAY, columns)
     assert.deepEqual(move?.patch, { board_column_id: 'col-b' })
     assert.match(move?.message || '', /In attesa di risposta/)
   })
 
   test('rilasciare dove la scheda già sta non scrive niente', () => {
-    const inColumn = task({ board_column_id: 'col-a' })
-    assert.equal(todoDropPatch(inColumn, 'custom', 'col-a', TODAY, columns), null)
+    const pinned = task({ board_column_id: 'col-a' })
+    assert.equal(todoDropPatch(pinned, 'progress', 'col-a', TODAY, columns), null)
   })
 
-  test('tornare in Da smistare azzera la colonna', () => {
-    const inColumn = task({ board_column_id: 'col-a' })
-    const move = todoDropPatch(inColumn, 'custom', TODO_UNASSIGNED_KEY, TODAY, columns)
+  test('tornare su una colonna calcolata sgancia la scheda e applica la colonna', () => {
+    const pinned = task({ board_column_id: 'col-a', progress_state: 'todo' })
+    const move = todoDropPatch(pinned, 'progress', 'in_progress', TODAY, columns)
+    assert.deepEqual(move?.patch, { board_column_id: null, progress_state: 'in_progress' })
+  })
+
+  test('tornare sulla colonna che le spetterebbe la sgancia comunque', () => {
+    // Senza questo la scheda resterebbe appesa: la colonna calcolata coincide
+    // già, quindi la vecchia logica non avrebbe scritto niente.
+    const pinned = task({ board_column_id: 'col-a', progress_state: 'todo' })
+    const move = todoDropPatch(pinned, 'progress', 'todo', TODAY, columns)
     assert.deepEqual(move?.patch, { board_column_id: null })
+    assert.match(move?.message || '', /Da fatturare/)
   })
 
-  test('una colonna che non esiste non produce nessuna scrittura', () => {
-    assert.equal(todoDropPatch(task(), 'custom', 'col-inventata', TODAY, columns), null)
-  })
-
-  test("il + di una colonna crea l'attività già dentro quella colonna", () => {
-    assert.deepEqual(todoColumnDefaults('custom', 'col-b', TODAY, columns), { board_column_id: 'col-b' })
-    assert.deepEqual(todoColumnDefaults('custom', TODO_UNASSIGNED_KEY, TODAY, columns), {})
-  })
-
-  test('il trascinamento sugli altri raggruppamenti non tocca la colonna', () => {
-    const move = todoDropPatch(task({ board_column_id: 'col-a' }), 'area', 'personale', TODAY, columns)
-    assert.deepEqual(move?.patch, { area: 'personale' })
+  test("il + di una colonna aggiunta a mano crea l'attività già dentro", () => {
+    assert.deepEqual(todoColumnDefaults('progress', 'col-b', TODAY, columns), { board_column_id: 'col-b' })
+    assert.deepEqual(todoColumnDefaults('progress', 'todo', TODAY, columns), { progress_state: 'todo' })
   })
 })

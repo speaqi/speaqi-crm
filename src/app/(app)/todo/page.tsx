@@ -446,7 +446,7 @@ export default function TodoPage() {
               className={`btn btn-ghost btn-sm todo-columns-toggle ${columnsPanelOpen ? 'active' : ''}`}
               onClick={() => setColumnsPanelOpen((open) => !open)}
             >
-              ⚙ Personalizza
+              ⚙ Colonne
             </button>
           )}
 
@@ -496,7 +496,6 @@ export default function TodoPage() {
           customColumns={boardColumns}
           hiddenKeys={hiddenColumnKeys}
           onToggleHidden={toggleHiddenColumn}
-          onCreate={(label) => runColumnAction(() => createBoardColumn({ label }), 'Colonna aggiunta')}
           onRename={(columnId, label) =>
             runColumnAction(() => updateBoardColumn(columnId, { label }), 'Colonna rinominata')
           }
@@ -504,10 +503,7 @@ export default function TodoPage() {
             runColumnAction(() => updateBoardColumn(columnId, { tone }), 'Colore aggiornato')
           }
           onDelete={(columnId) =>
-            runColumnAction(
-              () => deleteBoardColumn(columnId),
-              'Colonna eliminata: le attività sono in “Da smistare”'
-            )
+            runColumnAction(() => deleteBoardColumn(columnId), 'Colonna eliminata: le attività restano')
           }
           onReorder={(orderedIds) =>
             runColumnAction(() => reorderBoardColumns(orderedIds), 'Ordine aggiornato')
@@ -529,6 +525,7 @@ export default function TodoPage() {
           onToggleDone={toggleDone}
           onMove={moveTask}
           onQuickAdd={quickAdd}
+          onAddColumn={(label) => runColumnAction(() => createBoardColumn({ label }), `Colonna “${label}” aggiunta`)}
         />
       )}
 
