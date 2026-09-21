@@ -24,6 +24,32 @@ function normalizePercent(value: unknown): number | null {
   return Math.max(0, Math.min(100, Math.round(parsed)))
 }
 
+/**
+ * La colonna personalizzata dev'essere di chi scrive: `board_column_id` arriva
+ * dal corpo della richiesta, e senza questo controllo basterebbe indovinare un
+ * uuid per appoggiare un'attività sulla lavagna di qualcun altro. `null` è un
+ * valore legittimo: significa "rimettila in Da smistare".
+ */
+async function resolveBoardColumnId(
+  supabase: { from: (table: string) => any },
+  workspaceUserId: string,
+  value: unknown
+): Promise<{ id: string | null } | { error: string }> {
+  const id = String(value || '').trim()
+  if (!id) return { id: null }
+
+  const { data, error } = await supabase
+    .from('todo_board_columns')
+    .select('id')
+    .eq('user_id', workspaceUserId)
+    .eq('id', id)
+    .maybeSingle()
+
+  if (error) return { error: 'Colonna non verificabile' }
+  if (!data) return { error: 'Colonna non trovata' }
+  return { id: data.id as string }
+}
+
 function calendarEventForTask(task: { title?: string | null; note?: string | null; due_date?: string | null }) {
   return {
     summary: `CRM · ${task.title || 'Attività'}`,
@@ -97,6 +123,10 @@ export async function POST(request: NextRequest) {
       { status: 'pending', progress_state: 'todo', progress_percent: 0 },
       levers
     )
+
+    const column = await resolveBoardColumnId(auth.supabase, auth.workspaceUserId, body.board_column_id)
+    if ('error' in column) return Response.json({ error: column.error }, { status: 400 })
+
     const now = new Date().toISOString()
 
     const { data, error } = await auth.supabase
@@ -114,6 +144,7 @@ export async function POST(request: NextRequest) {
         progress_state: progress.progress_state,
         progress_percent: progress.progress_percent,
         status: progress.status,
+        board_column_id: column.id,
         started_at: progress.progress_state === 'in_progress' ? now : null,
         completed_at: progress.status === 'done' ? now : null,
       })
@@ -158,6 +189,12 @@ export async function PATCH(request: NextRequest) {
       const area = normalizeArea(body.area)
       if (!area) return Response.json({ error: 'Area non valida' }, { status: 400 })
       updatePayload.area = area
+    }
+
+    if (body.board_column_id !== undefined) {
+      const column = await resolveBoardColumnId(auth.supabase, auth.workspaceUserId, body.board_column_id)
+      if ('error' in column) return Response.json({ error: column.error }, { status: 400 })
+      updatePayload.board_column_id = column.id
     }
 
     const touchesProgress =

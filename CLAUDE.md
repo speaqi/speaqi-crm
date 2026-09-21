@@ -65,6 +65,10 @@ Copy `.env.local.example` to `.env.local`. Required keys:
 | `OPENWA_SESSION_ID` | OpenWA session **UUID** (not its name) |
 | `WHATSAPP_NOTIFY_TO` | Starting recipient, used only until the number is saved in the CRM (`/impostazioni/whatsapp`) |
 | `WHATSAPP_NOTIFY_ENABLED` | Emergency brake: `false` kills every notification whatever the CRM toggle says |
+| `TELEGRAM_BOT_TOKEN` | Bot Telegram da cui arrivano le note vocali del To Do |
+| `TELEGRAM_WEBHOOK_SECRET` | Segreto dell'header `x-telegram-bot-api-secret-token` |
+| `TELEGRAM_ALLOWED_CHAT_IDS` | Chat autorizzate a scrivere nel CRM (elenco separato da virgole). Senza, il bot non accetta niente |
+| `TELEGRAM_WORKSPACE_USER_ID` | Workspace su cui scrivono le note vocali; default `AUTOMATION_WORKSPACE_USER_ID` |
 | `SPEAQI_WEBHOOK_SECRET` | Auth secret for Acumbamail webhook |
 | `REMINDER_EMAIL` | From address for reminder emails |
 | `ACUMBAMAIL_WEBHOOK_USER_ID` | Acumbamail integration user ID |
@@ -102,6 +106,8 @@ supabase migration up
 | `whatsapp_notification_events` | Queue of CRM facts to notify on WhatsApp (`notified_at` only once the message really went out; `email_sent/open/click/reply/unsubscribe` + `wine_demo_ready`) |
 | `whatsapp_notification_sends` | History of the messages pushed to the WhatsApp gateway |
 | `whatsapp_notification_settings` | Per-workspace WhatsApp recipient, toggle and event selection (edited from the UI, not from env) |
+| `todo_board_columns` | Colonne personalizzate della lavagna `/todo` (nome, colore, ordine) |
+| `telegram_inbox` | Un messaggio ricevuto dal bot Telegram: trascrizione, intento, attività scritte (`update_id` unico = idempotenza) |
 | `gmail_accounts` | Connected Gmail accounts (encrypted tokens) |
 | `gmail_messages` | Synced Gmail threads linked to contacts |
 | `team_members` | Multi-user team management (with `auth_user_id` linking) |
@@ -147,6 +153,7 @@ src/
 │   │   │   └── [id]/activities, emails, emails/sync, tasks
 │   │   ├── leads/              # AI-ready lead API + [id]/memory, status
 │   │   ├── tasks/              # CRUD + create + pending + standalone + [id]/complete
+│   │   ├── todo/columns/       # Colonne personalizzate della lavagna (CRUD + riordino)
 │   │   ├── activities/         # Activity log
 │   │   ├── activity/log        # Activity logging
 │   │   ├── pipeline-stages/
@@ -156,7 +163,7 @@ src/
 │   │   ├── automation/         # n8n endpoints: orchestrator, followups, send-batch, reconcile-sends, …
 │   │   ├── email/              # Email sending + reminder
 │   │   ├── import/             # csv, legacy, ocr
-│   │   ├── integrations/       # Acumbamail webhook
+│   │   ├── integrations/       # Acumbamail webhook + Telegram (webhook, setup)
 │   │   ├── commercial/         # campaigns (CRUD + [id] + [id]/steps) + hospitality (alias)
 │   │   ├── quotes/             # CRUD + [id]/checkout
 │   │   │   └── public/         # Public quote access + checkout + accept-contract
@@ -175,7 +182,7 @@ src/
 ├── components/
 │   ├── crm/                    # ContactDrawer, ContactModal, CallOutcomeModal, EmailDraftPanel
 │   ├── layout/                 # Sidebar, Topbar, BrandLockup
-│   ├── todo/                   # TodoKanban, TodoCard, TodoRow, TodoGantt, TodoDateField (pagina /todo)
+│   ├── todo/                   # TodoKanban, TodoCard, TodoRow, TodoGantt, TodoDateField, TodoColumnManager (pagina /todo)
 │   └── ui/                     # Modal, Toast
 ├── lib/
 │   ├── server/                 # Server-only utilities
@@ -191,6 +198,9 @@ src/
 │   │   ├── automation-auth.ts  # x-automation-secret check + server-side AutomationContext
 │   │   ├── automation-send.ts  # Autonomous send engine: guardrails, atomic claim, quota
 │   │   ├── draft-reconcile.ts  # Closes drafts sent by hand from Gmail
+│   │   ├── telegram.ts         # Bot Telegram in ingresso: segreto, elenco chat, download media
+│   │   ├── todo-voice.ts       # Dal parlato alle azioni sul To Do (proposta del modello → cosa si scrive)
+│   │   ├── transcribe.ts       # Trascrizione vocale (una sola, per browser e Telegram)
 │   │   ├── whatsapp.ts         # OpenWA gateway client (fail-soft, never breaks a send)
 │   │   ├── whatsapp-notify.ts  # Event queue + immediate replies + digest builder
 │   │   ├── scope-filters.ts    # applyPipelineScope / applyCrmScope
@@ -242,6 +252,11 @@ Il workspace contiene decine di migliaia di contatti (quasi tutti `holding`, imp
 - **To Do board** (`/todo`): standalone tasks (`tasks.contact_id is null`, `type = 'todo'`) are the one place for everything to do, Speaqi and non-Speaqi. They carry `area` (`speaqi` / `personale` / `altro`), `progress_state` (`todo` / `in_progress` / `blocked` / `done`), `progress_percent` and `start_date` (with `due_date` it draws the Gantt bar). `status` stays the binary flag the rest of the CRM reads: `/api/tasks/standalone` is the only place where the two are kept in sync. Standalone tasks are visible **only to the workspace owner** — the `tasks_workspace` RLS policy joins through `contacts`, which they don't have
 - **To Do — la lavagna è la vista di partenza**: `/todo` apre sul kanban (`TodoKanban`), con Lista e Gantt come viste alternative. Le colonne vengono da `TODO_GROUPINGS` in `src/lib/todo.ts` e sono **al massimo quattro**, perché la lavagna deve stare tutta nella finestra: sotto i 1180 px scende a due colonne e la pagina torna a scorrere. Quattro raggruppamenti: *Avanzamento* (da fare / in corso / in attesa / fatte), *Quando* (oggi / questa settimana / più avanti / da pianificare), *Progetto* (le tre aree) e *Priorità*. Le **arretrate non hanno una colonna propria**: cadono in "Oggi", perché restano da fare oggi e una colonna di rimproveri in testa alla pagina non si guarda volentieri. Anche la lista apre su "Oggi", non più sulle arretrate
 - **To Do — trascinare è l'unica scrittura implicita**: `todoDropPatch()` traduce la colonna d'arrivo nella modifica da salvare e nella frase da mostrare, e restituisce `null` quando la scheda è già dove è stata lasciata — un trascinamento a vuoto non deve contare come rinvio, visto che ogni cambio di `due_date` incrementa `reschedule_count` lato server. L'unica eccezione è una arretrata rilasciata su "Oggi": lì la colonna coincide già, ma l'intenzione è ridatarla. Il `+` in testa a ogni colonna crea l'attività **già** con i valori di quella colonna (`todoColumnDefaults()`)
+- **To Do — le colonne si possono scrivere** (`TodoColumnManager`, pulsante «⚙ Personalizza»): il pannello fa due cose diverse che sembrano una sola. Su qualunque raggruppamento decide **cosa guardare** — spegnere «Fatte» non cancella niente, quindi la scelta sta in `localStorage` (`hiddenColumns` dentro `speaqi.todo.prefs`), per raggruppamento e per postazione; nascondere l'ultima colonna rimasta non svuota la lavagna, si torna a mostrarle tutte. Su «Le mie colonne» (`grouping = 'custom'`) decide **cosa esiste**: nome, colore, ordine, salvati su `todo_board_columns` (`GET|POST|PATCH|DELETE /api/todo/columns`, `PATCH` con `order: [id]` per il riordino completo — scrivere una posizione per volta lascerebbe un ordine intermedio se la seconda scrittura non parte). Massimo 12 colonne
+- **To Do — «Le mie colonne» è l'unico raggruppamento che non si calcola**: gli altri quattro sanno da soli dove va una scheda (data, stato, area, priorità), quindi una colonna aggiunta a mano lì dentro resterebbe vuota o si svuoterebbe da sola. Qui la scheda ci sta perché qualcuno ce l'ha trascinata: `tasks.board_column_id` è l'unico campo che lo dice e nessun automatismo lo tocca. `null` = «Da smistare», la colonna che c'è sempre e non si cancella. Cancellare una colonna **non** cancella le attività: `on delete set null` sul database le rimanda in «Da smistare», e lo fa il vincolo, non il codice, così non resta scoperto nessun percorso. `board_column_id` arriva dal corpo della richiesta e viene sempre verificato contro le colonne di chi scrive (`resolveBoardColumnId`): senza, basterebbe indovinare un uuid per appoggiare un'attività sulla lavagna di qualcun altro
+- **To Do — oltre le quattro colonne la lavagna scorre**: fino a quattro sta tutta in finestra come prima; dalla quinta le colonne prendono una larghezza minima di 230 px e si scorre di lato (`.todo-board.is-scrolling`). Restringerle ancora significherebbe colonne dove il titolo di un'attività non ci sta, che è il motivo per cui il tetto delle quattro esisteva
+- **To Do — un vocale su Telegram diventa un'attività** (`POST /api/integrations/telegram/webhook`, guida in `docs/TELEGRAM-TODO.md`): si manda una nota vocale e il CRM la trascrive (`transcribeAudio`, lo stesso percorso del microfono nel browser), ne ricava le azioni e le scrive. Serve soprattutto ad **aggiornare** mentre si fa altro — «ho chiuso il preventivo Rossi, domani chiamo Bianchi» è un fatto solo e resta un gesto solo. Tre garanzie da non smontare: la rotta risponde **sempre 200** (Telegram riconsegna finché non lo riceve, quindi un 500 diventerebbe un ciclo: l'errore si dice in chat e in `telegram_inbox.error`); l'unicità sta sul **database** (`telegram_inbox.update_id` unico, scritto *prima* di qualunque lavoro) più un `idempotency_key` `telegram:<update_id>:<n>` su ogni attività creata; e alle chat fuori da `TELEGRAM_ALLOWED_CHAT_IDS` non si risponde nemmeno — un bot risponde a chiunque ne conosca il nome, e rispondere confermerebbe che è vivo
+- **To Do — il modello propone, `normalizeTodoActions` decide**: le azioni che tornano da OpenAI vengono filtrate contro le attività e le colonne che esistono davvero (`src/lib/server/todo-voice.ts`, puro e coperto da test). Un `task_id` inventato, una creazione senza titolo, una colonna che non c'è o un aggiornamento che non aggiorna niente vengono buttati senza rumore: un'allucinazione non deve poter scrivere sul database. Una percentuale fra 1 e 99 senza stato esplicito diventa «in corso» — dalla pagina la barra e la colonna si vedono entrambe, da un vocale no, e un'attività al 50% ferma in «Da fare» non si ritroverebbe più
 - **To Do — ordinamenti**: `TODO_SORTS` (priorità, scadenza, avanzamento, aggiunte di recente, alfabetico) vale dentro ogni colonna e nella lista; a parità di criterio si scende sempre su scadenza → inserimento → id, altrimenti due schede identiche si scambiano di posto a ogni render. La colonna "Fatte" ignora l'ordinamento scelto e mostra le ultime chiuse per prime. Vista, raggruppamento, ordinamento, filtro area e "mostra fatte" restano in `localStorage` (`speaqi.todo.prefs`), applicati dopo l'idratazione perché il primo render deve coincidere con quello del server
 - **To Do — il campo data non salva mentre si digita** (`TodoDateField`): un `input[type=date]` emette un `change` a ogni segmento e finché la data non è completa il valore letto è la stringa vuota. Salvando a ogni evento si scriveva `due_date: null` a metà digitazione, il componente si ri-renderizzava vuoto e i segmenti già inseriti sparivano: si riusciva a mettere una cifra per volta. Il valore vive in locale e si salva solo a data completa, o all'uscita dal campo quando è stata svuotata davvero
 - **Admin collaborator filter**: Admin can toggle `workspace=all` to see all contacts, otherwise sees only assigned contacts (matching `responsible` or `assigned_agent` via `contactMatchesAssigneeName`)
@@ -393,7 +408,9 @@ Guida operativa e deploy Railway in `docs/WHATSAPP-OPENWA.md`.
 ## Voice Commands
 
 - Voice FAB on dashboard for quick access to `/voice`
-- `POST /api/voice/command` — process voice commands via OpenAI
+- `POST /api/voice/command` — process voice commands via OpenAI (pipeline: solo `schedule_followup` su un contatto)
+- `POST /api/ai/transcribe` — trascrizione di un vocale dal browser; la logica vive in `src/lib/server/transcribe.ts` ed è condivisa con il bot Telegram
+- **Telegram → To Do**: `POST /api/integrations/telegram/webhook` (registrazione con `POST /api/integrations/telegram/setup`, protetta da `AUTOMATION_SECRET`). Scrive solo attività standalone, mai sulla pipeline: per i contatti resta `/voice`, che ha la ricerca della scheda giusta
 
 ## MCP Server
 
@@ -580,7 +597,7 @@ migrarlo e un lavoro separato, da fare a motore collaudato.
 Nessuna dipendenza di test oltre `tsx`: si usa `node:test`.
 
 ```bash
-npm run test:unit   # motore campagne, Wine Project, WhatsApp e lavagna To Do
+npm run test:unit   # motore campagne, Wine Project, WhatsApp, lavagna To Do e Telegram
 npm run test:db     # integrazione e concorrenza su un Postgres locale usa-e-getta
 npm test            # entrambi
 ```

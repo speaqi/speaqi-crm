@@ -179,4 +179,6 @@ automazioni di holding.
   `responsible`: la coda è già segnata con l'agente, quindi è un'aggiunta, non
   una riscrittura.
 - Nessun comando in ingresso: i webhook di OpenWA verso il CRM non sono
-  collegati, il canale è di sola uscita.
+  collegati, il canale è di sola uscita. I comandi a voce entrano da Telegram
+  (`docs/TELEGRAM-TODO.md`), che riconsegna finché il CRM non risponde 200 —
+  qui una sessione sganciata perderebbe i messaggi in silenzio.

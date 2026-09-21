@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { TodoDateField } from '@/components/todo/TodoDateField'
 import { TodoGantt } from '@/components/todo/TodoGantt'
+import { TodoColumnManager } from '@/components/todo/TodoColumnManager'
 import { TodoKanban } from '@/components/todo/TodoKanban'
 import { TodoRow } from '@/components/todo/TodoRow'
 import { shiftDays, startOfDay } from '@/lib/schedule'
@@ -46,6 +47,12 @@ interface TodoPrefs {
   sort: TodoSort
   area: AreaFilter
   showDone: boolean
+  /**
+   * Colonne spente, per raggruppamento. Sta nel browser come il resto delle
+   * preferenze: nascondere "Fatte" è una scelta di questa postazione, non un
+   * cambio di dati — e il giorno che si cambia idea si riaccende da qui.
+   */
+  hiddenColumns: Partial<Record<TodoGrouping, string[]>>
 }
 
 const DEFAULT_PREFS: TodoPrefs = {
@@ -54,6 +61,19 @@ const DEFAULT_PREFS: TodoPrefs = {
   sort: 'priority',
   area: 'all',
   showDone: false,
+  hiddenColumns: {},
+}
+
+function readHiddenColumns(value: unknown): Partial<Record<TodoGrouping, string[]>> {
+  if (!value || typeof value !== 'object') return {}
+  const parsed: Partial<Record<TodoGrouping, string[]>> = {}
+  for (const grouping of TODO_GROUPINGS) {
+    const keys = (value as Record<string, unknown>)[grouping.key]
+    if (Array.isArray(keys)) {
+      parsed[grouping.key] = keys.map((key) => String(key)).filter(Boolean)
+    }
+  }
+  return parsed
 }
 
 /** Le preferenze della lavagna vivono nel browser: sono di questa postazione. */
@@ -74,6 +94,7 @@ function readPrefs(): TodoPrefs {
           ? (parsed.area as AreaFilter)
           : 'all',
       showDone: Boolean(parsed.showDone),
+      hiddenColumns: readHiddenColumns(parsed.hiddenColumns),
     }
   } catch {
     return DEFAULT_PREFS
@@ -88,6 +109,11 @@ export default function TodoPage() {
     createStandaloneTask,
     updateStandaloneTask,
     deleteStandaloneTask,
+    boardColumns,
+    createBoardColumn,
+    updateBoardColumn,
+    reorderBoardColumns,
+    deleteBoardColumn,
     showToast,
   } = useCRMContext()
 
@@ -98,10 +124,12 @@ export default function TodoPage() {
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [ganttOffset, setGanttOffset] = useState(0)
+  const [columnsPanelOpen, setColumnsPanelOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const today = useMemo(() => startOfDay(new Date()), [])
   const { view, grouping, sort, area: areaFilter, showDone } = prefs
+  const hiddenColumnKeys = useMemo(() => prefs.hiddenColumns[grouping] || [], [prefs.hiddenColumns, grouping])
 
   // Il primo render deve coincidere con quello del server (niente localStorage
   // durante l'idratazione): le preferenze si applicano subito dopo.
@@ -220,7 +248,7 @@ export default function TodoPage() {
   /** Trascinamento: la colonna d'arrivo decide cosa cambia sull'attività. */
   const moveTask = useCallback(
     async (task: Task, columnKey: string) => {
-      const move = todoDropPatch(task, grouping, columnKey, today)
+      const move = todoDropPatch(task, grouping, columnKey, today, boardColumns)
       if (!move) return
       setBusyId(task.id)
       try {
@@ -233,7 +261,7 @@ export default function TodoPage() {
         setBusyId(null)
       }
     },
-    [grouping, today, updateStandaloneTask, showToast]
+    [grouping, today, boardColumns, updateStandaloneTask, showToast]
   )
 
   const toggleDone = useCallback(
@@ -256,7 +284,7 @@ export default function TodoPage() {
         await createStandaloneTask({
           title,
           area: areaFilter === 'all' ? 'speaqi' : areaFilter,
-          ...todoColumnDefaults(grouping, columnKey, today),
+          ...todoColumnDefaults(grouping, columnKey, today, boardColumns),
         })
         setError(null)
         showToast('Aggiunta')
@@ -264,7 +292,32 @@ export default function TodoPage() {
         showToast(reason instanceof Error ? reason.message : 'Impossibile aggiungere l’attività')
       }
     },
-    [createStandaloneTask, areaFilter, grouping, today, showToast]
+    [createStandaloneTask, areaFilter, grouping, today, boardColumns, showToast]
+  )
+
+  const toggleHiddenColumn = useCallback(
+    (columnKey: string) => {
+      const current = prefs.hiddenColumns[grouping] || []
+      const next = current.includes(columnKey)
+        ? current.filter((key) => key !== columnKey)
+        : [...current, columnKey]
+      updatePrefs({ hiddenColumns: { ...prefs.hiddenColumns, [grouping]: next } })
+    },
+    [prefs.hiddenColumns, grouping, updatePrefs]
+  )
+
+  /** Ogni scrittura sulle colonne passa da qui: un errore si dice, non si perde. */
+  const runColumnAction = useCallback(
+    async (action: () => Promise<unknown>, done: string) => {
+      try {
+        await action()
+        setError(null)
+        showToast(done)
+      } catch (reason) {
+        showToast(reason instanceof Error ? reason.message : 'Operazione sulle colonne non riuscita')
+      }
+    },
+    [showToast]
   )
 
   function renderRow(task: Task) {
@@ -387,6 +440,16 @@ export default function TodoPage() {
             </label>
           )}
 
+          {view === 'board' && (
+            <button
+              type="button"
+              className={`btn btn-ghost btn-sm todo-columns-toggle ${columnsPanelOpen ? 'active' : ''}`}
+              onClick={() => setColumnsPanelOpen((open) => !open)}
+            >
+              ⚙ Personalizza
+            </button>
+          )}
+
           {view !== 'gantt' && (
             <label className="todo-select">
               <span>Ordina per</span>
@@ -427,11 +490,39 @@ export default function TodoPage() {
         </div>
       </div>
 
+      {view === 'board' && columnsPanelOpen && (
+        <TodoColumnManager
+          grouping={grouping}
+          customColumns={boardColumns}
+          hiddenKeys={hiddenColumnKeys}
+          onToggleHidden={toggleHiddenColumn}
+          onCreate={(label) => runColumnAction(() => createBoardColumn({ label }), 'Colonna aggiunta')}
+          onRename={(columnId, label) =>
+            runColumnAction(() => updateBoardColumn(columnId, { label }), 'Colonna rinominata')
+          }
+          onRetone={(columnId, tone) =>
+            runColumnAction(() => updateBoardColumn(columnId, { tone }), 'Colore aggiornato')
+          }
+          onDelete={(columnId) =>
+            runColumnAction(
+              () => deleteBoardColumn(columnId),
+              'Colonna eliminata: le attività sono in “Da smistare”'
+            )
+          }
+          onReorder={(orderedIds) =>
+            runColumnAction(() => reorderBoardColumns(orderedIds), 'Ordine aggiornato')
+          }
+          onClose={() => setColumnsPanelOpen(false)}
+        />
+      )}
+
       {view === 'board' && (
         <TodoKanban
           tasks={boardTasks}
           today={today}
           grouping={grouping}
+          customColumns={boardColumns}
+          hiddenKeys={hiddenColumnKeys}
           sort={sort}
           busyId={busyId}
           onOpen={setOpenTaskId}

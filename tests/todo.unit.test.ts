@@ -7,10 +7,12 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import {
   TODO_GROUPINGS,
+  TODO_UNASSIGNED_KEY,
   compareTodoTasks,
   sortTodoTasks,
   todoColumnDefaults,
   todoColumnKey,
+  todoColumns,
   todoDropPatch,
 } from '../src/lib/todo'
 import type { Task } from '../src/types'
@@ -167,5 +169,61 @@ describe('attività scritta dentro una colonna', () => {
     const todayDefaults = todoColumnDefaults('when', 'today', TODAY)
     assert.ok(todayDefaults.due_date)
     assert.equal(new Date(String(todayDefaults.due_date)).getDate(), TODAY.getDate())
+  })
+})
+
+describe('colonne personalizzate', () => {
+  const columns = [
+    { id: 'col-a', label: 'Da fatturare', tone: 'green', position: 0, created_at: dayIso(-5) },
+    { id: 'col-b', label: 'In attesa di risposta', tone: 'yellow', position: 1, created_at: dayIso(-4) },
+  ]
+
+  test('le colonne si disegnano in ordine, con "Da smistare" sempre per prima', () => {
+    const drawn = todoColumns('custom', [
+      { ...columns[1], position: 5 },
+      { ...columns[0], position: 2 },
+    ])
+    assert.deepEqual(drawn.map((column) => column.key), [TODO_UNASSIGNED_KEY, 'col-a', 'col-b'])
+    assert.equal(drawn[1].label, 'Da fatturare')
+  })
+
+  test("un'attività senza colonna sta in Da smistare", () => {
+    assert.equal(todoColumnKey(task(), 'custom', TODAY, columns), TODO_UNASSIGNED_KEY)
+  })
+
+  test('una colonna cancellata altrove non fa sparire la scheda', () => {
+    const orphan = task({ board_column_id: 'col-sparita' })
+    assert.equal(todoColumnKey(orphan, 'custom', TODAY, columns), TODO_UNASSIGNED_KEY)
+  })
+
+  test('trascinare in una colonna scrive solo board_column_id', () => {
+    const move = todoDropPatch(task(), 'custom', 'col-b', TODAY, columns)
+    assert.deepEqual(move?.patch, { board_column_id: 'col-b' })
+    assert.match(move?.message || '', /In attesa di risposta/)
+  })
+
+  test('rilasciare dove la scheda già sta non scrive niente', () => {
+    const inColumn = task({ board_column_id: 'col-a' })
+    assert.equal(todoDropPatch(inColumn, 'custom', 'col-a', TODAY, columns), null)
+  })
+
+  test('tornare in Da smistare azzera la colonna', () => {
+    const inColumn = task({ board_column_id: 'col-a' })
+    const move = todoDropPatch(inColumn, 'custom', TODO_UNASSIGNED_KEY, TODAY, columns)
+    assert.deepEqual(move?.patch, { board_column_id: null })
+  })
+
+  test('una colonna che non esiste non produce nessuna scrittura', () => {
+    assert.equal(todoDropPatch(task(), 'custom', 'col-inventata', TODAY, columns), null)
+  })
+
+  test("il + di una colonna crea l'attività già dentro quella colonna", () => {
+    assert.deepEqual(todoColumnDefaults('custom', 'col-b', TODAY, columns), { board_column_id: 'col-b' })
+    assert.deepEqual(todoColumnDefaults('custom', TODO_UNASSIGNED_KEY, TODAY, columns), {})
+  })
+
+  test('il trascinamento sugli altri raggruppamenti non tocca la colonna', () => {
+    const move = todoDropPatch(task({ board_column_id: 'col-a' }), 'area', 'personale', TODAY, columns)
+    assert.deepEqual(move?.patch, { area: 'personale' })
   })
 })

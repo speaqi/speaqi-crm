@@ -17,6 +17,7 @@ import type {
   TaskInput,
   TaskWithContact,
   StandaloneTaskPatch,
+  TodoBoardColumn,
   TeamMember,
   VoiceNote,
 } from '@/types'
@@ -155,6 +156,7 @@ export function useCRM(_pathname = '') {
   const [vNotes, setVNotes] = useState<VoiceNote[]>([])
   const [standaloneTasks, setStandaloneTasks] = useState<Task[]>([])
   const [completedStandaloneTasks, setCompletedStandaloneTasks] = useState<Task[]>([])
+  const [boardColumns, setBoardColumns] = useState<TodoBoardColumn[]>([])
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
   const [isAdmin, setIsAdmin] = useState(true)
   /** Nome nel team per il collaboratore loggato (dal server); null per admin o non risolto. */
@@ -743,15 +745,69 @@ export function useCRM(_pathname = '') {
 
   const loadStandaloneTasks = useCallback(async () => {
     try {
-      const [pendingRes, doneRes] = await Promise.all([
+      // Le colonne stanno qui dentro perché senza di loro la lavagna non si
+      // disegna: caricarle a parte vorrebbe dire mostrarla mezza vuota per il
+      // tempo della seconda richiesta.
+      const [pendingRes, doneRes, columnsRes] = await Promise.all([
         apiFetch<{ tasks: Task[] }>('/api/tasks/standalone?status=pending'),
         apiFetch<{ tasks: Task[] }>('/api/tasks/standalone?status=done'),
+        apiFetch<{ columns: TodoBoardColumn[] }>('/api/todo/columns'),
       ])
       setStandaloneTasks(pendingRes.tasks || [])
       setCompletedStandaloneTasks(doneRes.tasks || [])
+      setBoardColumns(columnsRes.columns || [])
     } catch {
       // silently ignore
     }
+  }, [])
+
+  const createBoardColumn = useCallback(async (payload: { label: string; tone?: string; hint?: string | null }) => {
+    const response = await apiFetch<{ column: TodoBoardColumn }>('/api/todo/columns', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    setBoardColumns((previous) => [...previous, response.column])
+    return response.column
+  }, [])
+
+  const updateBoardColumn = useCallback(
+    async (columnId: string, payload: { label?: string; tone?: string; hint?: string | null }) => {
+      const response = await apiFetch<{ column: TodoBoardColumn }>('/api/todo/columns', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: columnId, ...payload }),
+      })
+      setBoardColumns((previous) =>
+        previous.map((column) => (column.id === columnId ? response.column : column))
+      )
+      return response.column
+    },
+    []
+  )
+
+  const reorderBoardColumns = useCallback(async (orderedIds: string[]) => {
+    const response = await apiFetch<{ columns: TodoBoardColumn[] }>('/api/todo/columns', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order: orderedIds }),
+    })
+    setBoardColumns(response.columns || [])
+    return response.columns || []
+  }, [])
+
+  const deleteBoardColumn = useCallback(async (columnId: string) => {
+    await apiFetch<{ ok: boolean }>(`/api/todo/columns?id=${encodeURIComponent(columnId)}`, {
+      method: 'DELETE',
+    })
+    setBoardColumns((previous) => previous.filter((column) => column.id !== columnId))
+    // Le schede che ci stavano dentro non spariscono: il database le ha già
+    // riportate a `board_column_id = null`, e qui si fa lo stesso senza
+    // ricaricare tutto.
+    const detach = (previous: Task[]) =>
+      previous.map((task) => (task.board_column_id === columnId ? { ...task, board_column_id: null } : task))
+    setStandaloneTasks(detach)
+    setCompletedStandaloneTasks(detach)
   }, [])
 
   const createStandaloneTask = useCallback(async (payload: StandaloneTaskInput) => {
@@ -912,7 +968,12 @@ export function useCRM(_pathname = '') {
     userId,
     standaloneTasks,
     completedStandaloneTasks,
+    boardColumns,
     loadStandaloneTasks,
+    createBoardColumn,
+    updateBoardColumn,
+    reorderBoardColumns,
+    deleteBoardColumn,
     createStandaloneTask,
     completeStandaloneTask,
     reopenStandaloneTask,

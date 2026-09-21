@@ -126,6 +126,8 @@ export interface Task {
   progress_state?: TodoProgressState | null
   progress_percent?: number | null
   start_date?: string | null
+  /** Colonna personalizzata della lavagna (raggruppamento "Le mie colonne"); null = Da smistare. */
+  board_column_id?: string | null
   calendar_event_id?: string | null
   calendar_event_link?: string | null
   calendar_synced_at?: string | null
@@ -412,6 +414,7 @@ export interface StandaloneTaskInput {
   area?: TodoArea
   progress_state?: TodoProgressState
   progress_percent?: number
+  board_column_id?: string | null
 }
 
 /** Campi aggiornabili di un task standalone via PATCH /api/tasks/standalone. */
@@ -426,7 +429,23 @@ export interface StandaloneTaskPatch {
   area?: TodoArea
   progress_state?: TodoProgressState
   progress_percent?: number
+  board_column_id?: string | null
   calendar_action?: 'sync' | 'unsync'
+}
+
+/**
+ * Una colonna della lavagna To Do scritta a mano (tabella `todo_board_columns`).
+ * Le schede ci arrivano solo trascinandole: nessun automatismo le sposta.
+ */
+export interface TodoBoardColumn {
+  id: string
+  user_id?: string
+  label: string
+  hint?: string | null
+  tone: string
+  position: number
+  created_at?: string
+  updated_at?: string
 }
 
 export interface GmailAccountStatus {

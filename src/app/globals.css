@@ -6486,6 +6486,9 @@ textarea.form-input::placeholder { color: var(--text3); }
 .todo-select .fi { padding: 5px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font-size: 12px; font-weight: 600; color: var(--text); text-transform: none; letter-spacing: 0; }
 
 .todo-board { display: grid; grid-template-columns: repeat(var(--todo-board-cols, 4), minmax(0, 1fr)); gap: 12px; padding-bottom: 8px; }
+/* Dalla quinta colonna in poi non si restringe più: si scorre di lato. Colonne
+   da 230px si leggono ancora; quattro colonne spalmate su dieci no. */
+.todo-board.is-scrolling { grid-template-columns: repeat(var(--todo-board-cols, 4), minmax(230px, 1fr)); overflow-x: auto; overscroll-behavior-x: contain; }
 
 .todo-col { --todo-col-tone: var(--gray); display: flex; flex-direction: column; min-height: 0; min-width: 0; border: 1px solid var(--border); border-radius: 16px; background: var(--surface2); transition: box-shadow var(--transition), background var(--transition); }
 .todo-col.is-drop-target { background: var(--accent-light); box-shadow: inset 0 0 0 2px var(--accent); }
@@ -6504,6 +6507,44 @@ textarea.form-input::placeholder { color: var(--text3); }
 .todo-col.tone-high { --todo-col-tone: var(--red); }
 .todo-col.tone-medium { --todo-col-tone: var(--accent); }
 .todo-col.tone-low { --todo-col-tone: var(--gray); }
+/* Tavolozza delle colonne scritte a mano: il nome lo sceglie chi la crea, il
+   colore lo sceglie da qui (TODO_COLUMN_TONES). */
+.todo-col.tone-accent { --todo-col-tone: var(--accent); }
+.todo-col.tone-blue { --todo-col-tone: var(--blue); }
+.todo-col.tone-green { --todo-col-tone: var(--green); }
+.todo-col.tone-yellow { --todo-col-tone: var(--yellow); }
+.todo-col.tone-red { --todo-col-tone: var(--red); }
+.todo-col.tone-purple { --todo-col-tone: var(--purple); }
+.todo-col.tone-gray { --todo-col-tone: var(--gray); }
+
+/* Pannello delle colonne: si apre sopra la lavagna, non in una finestra —
+   mentre si sistemano le colonne si vuole vedere l'effetto. */
+.todo-columns-panel { margin-bottom: 12px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); }
+.todo-columns-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.todo-columns-head h2 { font-size: 13px; font-weight: 700; }
+.todo-columns-section { margin-top: 12px; }
+.todo-columns-section:first-of-type { margin-top: 0; }
+.todo-columns-section h3 { margin-bottom: 4px; color: var(--text2); font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+.todo-columns-note { margin: 4px 0 8px; color: var(--text3); font-size: 11.5px; line-height: 1.45; }
+.todo-columns-visibility { display: flex; flex-wrap: wrap; gap: 8px; }
+.todo-columns-check { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface2); font-size: 12px; font-weight: 600; cursor: pointer; }
+.todo-columns-check input { accent-color: var(--accent); }
+.todo-columns-list { display: flex; flex-direction: column; gap: 7px; margin: 0 0 10px; padding: 0; list-style: none; }
+.todo-columns-item { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 10px; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 11px; background: var(--surface2); }
+.todo-columns-item.tone-blue { border-left-color: var(--blue); }
+.todo-columns-item.tone-green { border-left-color: var(--green); }
+.todo-columns-item.tone-yellow { border-left-color: var(--yellow); }
+.todo-columns-item.tone-red { border-left-color: var(--red); }
+.todo-columns-item.tone-purple { border-left-color: var(--purple); }
+.todo-columns-item.tone-gray { border-left-color: var(--gray); }
+.todo-columns-name { flex: 1; min-width: 120px; padding: 2px 0; border: none; background: none; color: var(--text); font-size: 12.5px; font-weight: 600; text-align: left; }
+.todo-columns-item .fi { padding: 5px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); font-size: 12px; }
+.todo-columns-tone { flex: none; }
+.todo-columns-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.todo-columns-delete { color: var(--red); }
+.todo-columns-add { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.todo-columns-add .fi { flex: 1; min-width: 160px; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); font-size: 12.5px; }
+.todo-columns-toggle.active { border-color: var(--accent); color: var(--accent); }
 
 .todo-col-head { position: relative; flex: none; padding: 11px 40px 10px 13px; border-bottom: 1px solid var(--border); border-top: 3px solid var(--todo-col-tone); border-radius: 15px 15px 0 0; background: var(--surface); }
 .todo-col-title { display: flex; align-items: center; gap: 7px; }
@@ -6556,7 +6597,7 @@ textarea.form-input::placeholder { color: var(--text3); }
   .todo-page.is-board .todo-board { flex: none; }
   /* Colonne alte quanto il loro contenuto: affiancate a due a due, tirarle
      tutte all'altezza della più piena lascerebbe mezzo schermo vuoto. */
-  .todo-board { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .todo-board, .todo-board.is-scrolling { grid-template-columns: repeat(2, minmax(0, 1fr)); overflow-x: visible; align-items: start; }
   .todo-col-body { max-height: 46vh; }
 }
 
@@ -6569,7 +6610,7 @@ textarea.form-input::placeholder { color: var(--text3); }
 }
 
 @media (max-width: 620px) {
-  .todo-board { grid-template-columns: minmax(0, 1fr); }
+  .todo-board, .todo-board.is-scrolling { grid-template-columns: minmax(0, 1fr); }
   .todo-counters { width: 100%; }
   .todo-counter { flex: 1; min-width: 0; }
   .todo-row-detail { grid-template-columns: minmax(0, 1fr); padding-left: 12px; }

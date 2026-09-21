@@ -3,11 +3,17 @@
 import { useMemo, useState, type DragEvent } from 'react'
 import { TodoCard } from '@/components/todo/TodoCard'
 import { sortTodoTasks, todoColumnKey, todoColumns, type TodoGrouping, type TodoSort } from '@/lib/todo'
-import type { Task } from '@/types'
+import type { Task, TodoBoardColumn } from '@/types'
 
 const DRAG_MIME = 'application/x-speaqi-todo'
 /** Schede montate per colonna: una colonna con mille righe non si scorre comunque. */
 const COLUMN_PAGE_SIZE = 40
+/**
+ * Fin qui la lavagna sta tutta in finestra; oltre, le colonne prendono una
+ * larghezza fissa e ci si scorre di lato. Restringerle ancora vorrebbe dire
+ * colonne dove il titolo di un'attività non ci sta.
+ */
+const COLUMNS_IN_WINDOW = 4
 
 function closedTime(task: Task) {
   const raw = task.completed_at || task.updated_at
@@ -24,6 +30,9 @@ interface TodoKanbanProps {
   tasks: Task[]
   today: Date
   grouping: TodoGrouping
+  customColumns: TodoBoardColumn[]
+  /** Colonne che questa postazione ha scelto di non vedere. */
+  hiddenKeys: string[]
   sort: TodoSort
   busyId: string | null
   onOpen: (taskId: string) => void
@@ -36,6 +45,8 @@ export function TodoKanban({
   tasks,
   today,
   grouping,
+  customColumns,
+  hiddenKeys,
   sort,
   busyId,
   onOpen,
@@ -43,7 +54,15 @@ export function TodoKanban({
   onMove,
   onQuickAdd,
 }: TodoKanbanProps) {
-  const columns = todoColumns(grouping)
+  const columns = useMemo(() => {
+    const hidden = new Set(hiddenKeys)
+    const all = todoColumns(grouping, customColumns)
+    const visible = all.filter((column) => !hidden.has(column.key))
+    // Nascondere l'ultima colonna lascerebbe una lavagna senza colonne, cioè
+    // una pagina bianca senza modo di tornare indietro trascinando.
+    return visible.length > 0 ? visible : all
+  }, [grouping, customColumns, hiddenKeys])
+
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverKey, setDragOverKey] = useState<string | null>(null)
   const [addingKey, setAddingKey] = useState<string | null>(null)
@@ -54,7 +73,7 @@ export function TodoKanban({
   const grouped = useMemo(() => {
     const map = new Map<string, Task[]>(columns.map((column) => [column.key, []]))
     for (const task of tasks) {
-      const key = todoColumnKey(task, grouping, today)
+      const key = todoColumnKey(task, grouping, today, customColumns)
       const bucket = map.get(key)
       if (bucket) bucket.push(task)
     }
@@ -64,7 +83,7 @@ export function TodoKanban({
       map.set(key, key === 'done' ? [...list].sort(byMostRecentlyClosed) : sortTodoTasks(list, sort))
     }
     return map
-  }, [tasks, columns, grouping, sort, today])
+  }, [tasks, columns, customColumns, grouping, sort, today])
 
   function handleDragStart(event: DragEvent<HTMLElement>, task: Task) {
     event.dataTransfer.setData(DRAG_MIME, task.id)
@@ -113,7 +132,10 @@ export function TodoKanban({
   }
 
   return (
-    <div className="todo-board" style={{ ['--todo-board-cols' as string]: String(columns.length) }}>
+    <div
+      className={`todo-board ${columns.length > COLUMNS_IN_WINDOW ? 'is-scrolling' : ''}`}
+      style={{ ['--todo-board-cols' as string]: String(columns.length) }}
+    >
       {columns.map((column) => {
         const items = grouped.get(column.key) || []
         const limit = expanded[column.key] || COLUMN_PAGE_SIZE
