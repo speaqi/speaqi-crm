@@ -173,6 +173,7 @@ export default function PreventiviPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [sendingQuoteId, setSendingQuoteId] = useState<string | null>(null)
+  const [duplicatingQuoteId, setDuplicatingQuoteId] = useState<string | null>(null)
   const [qrBottleCount, setQrBottleCount] = useState(1)
   const [error, setError] = useState<string | null>(null)
   const [origin, setOrigin] = useState('https://crm.speaqi.com')
@@ -243,7 +244,7 @@ export default function PreventiviPage() {
     })
   }
 
-  function applyPreset(key: SpeaqiPackageKey) {
+  function addSpeaqiBlock(key: SpeaqiPackageKey) {
     const p = SPEAQI_PACKAGES[key]
     setDraft((previous) => {
       const shouldUsePackageTitle =
@@ -493,6 +494,49 @@ export default function PreventiviPage() {
     }
   }
 
+  async function duplicateQuote(quote: Quote) {
+    setDuplicatingQuoteId(quote.id)
+    try {
+      const response = await apiFetch<{ quote: Quote }>('/api/quotes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contact_id: quote.contact_id || null,
+          status: 'draft',
+          title: `Copia — ${quote.title}`,
+          customer_name: quote.customer_name,
+          customer_email: quote.customer_email || '',
+          customer_company: quote.customer_company || '',
+          customer_tax_id: quote.customer_tax_id || '',
+          customer_pec: quote.customer_pec || '',
+          customer_sdi: quote.customer_sdi || '',
+          customer_address: quote.customer_address || '',
+          customer_zip: quote.customer_zip || '',
+          customer_city: quote.customer_city || '',
+          items: quote.items.map((item) => ({ ...item, id: makeLineId() })),
+          discount_amount: quote.discount_amount,
+          tax_rate: quote.tax_rate,
+          payment_terms_mode: quote.payment_terms_mode || 'percent',
+          deposit_percent: quote.deposit_percent,
+          deposit_manual_amount: quote.deposit_manual_amount ?? null,
+          payment_method: quote.payment_method,
+          payment_terms_note: quote.payment_terms_note || '',
+          bank_transfer_instructions: quote.bank_transfer_instructions || '',
+          contract_terms: quote.contract_terms || '',
+          valid_until: quote.valid_until || '',
+          public_note: quote.public_note || '',
+          internal_note: quote.internal_note || '',
+        }),
+      })
+      setQuotes((previous) => [response.quote, ...previous])
+      showToast('Preventivo duplicato in bozza')
+    } catch (duplicateError) {
+      showToast(duplicateError instanceof Error ? duplicateError.message : 'Impossibile duplicare il preventivo')
+    } finally {
+      setDuplicatingQuoteId(null)
+    }
+  }
+
   async function copyLink(quote: Quote) {
     const url = quoteUrl(origin, quote.public_token)
     await navigator.clipboard.writeText(url)
@@ -581,13 +625,15 @@ export default function PreventiviPage() {
             {PACKAGE_KEYS.map((key) => {
               const p = SPEAQI_PACKAGES[key]
               return (
-                <button key={key} type="button" className="quote-preset" onClick={() => applyPreset(key)}>
-                  <span className="quote-preset-name">{p.label}</span>
-                  <span className="quote-preset-sub">{p.subtitle}</span>
-                  <span className="quote-preset-tagline">{p.tagline}</span>
-                  <span className="quote-preset-prices">
-                    <span className="quote-preset-was">{formatMoney(p.list_unit_price)}</span>
+                <button key={key} type="button" className="quote-preset" onClick={() => addSpeaqiBlock(key)}>
+                  <span className="quote-preset-copy">
+                    <span className="quote-preset-name">{p.label}</span>
+                    <span className="quote-preset-sub">{p.subtitle}</span>
+                    <span className="quote-preset-tagline">{p.tagline}</span>
+                  </span>
+                  <span className="quote-preset-action">
                     <span className="quote-preset-now">{formatMoney(p.unit_price)} + IVA</span>
+                    <span className="quote-preset-add">+ Aggiungi al preventivo</span>
                   </span>
                 </button>
               )
@@ -1067,6 +1113,14 @@ export default function PreventiviPage() {
                     </select>
                     <button type="button" className="btn btn-ghost btn-sm" onClick={() => editQuote(quote)}>
                       Modifica
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => duplicateQuote(quote)}
+                      disabled={duplicatingQuoteId === quote.id}
+                    >
+                      {duplicatingQuoteId === quote.id ? 'Duplicazione…' : 'Duplica'}
                     </button>
                     <button type="button" className="btn btn-ghost btn-sm" onClick={() => copyLink(quote)}>
                       Copia visione

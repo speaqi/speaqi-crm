@@ -1,6 +1,6 @@
 import type { QuoteLineItem } from '@/types'
 
-export type SpeaqiPackageKey = 'start' | 'experience' | 'signature'
+export type SpeaqiPackageKey = 'platform'
 
 export interface SpeaqiPackageDef {
   key: SpeaqiPackageKey
@@ -11,70 +11,27 @@ export interface SpeaqiPackageDef {
   lineDescription: string
   details: string
   unit_price: number
-  list_unit_price: number
 }
 
-const START_DETAILS = `Perfetto per introdurre Speaqi nella tua struttura.
+const PLATFORM_DETAILS = `Un progetto Speaqi centralizza la conoscenza della tua organizzazione e la distribuisce in un'esperienza digitale sempre aggiornata.
 
-👉 Inizia a parlare la lingua dei tuoi clienti
+• Pagine web multilingua, QR Code dinamici e AI Concierge
+• Traduzioni testuali e audio multilingua inclusi
+• Hosting, analytics e aggiornamenti inclusi
+• Un solo piano completo per progetto, senza limiti per utenti o funzioni
 
-• 1 video multilingua con lip-sync realistico fino a 1 min*
-• Traduzione fino a 7 lingue
-• QR dinamico`
-
-const EXPERIENCE_DETAILS = `La base per un'esperienza completa e professionale.
-
-👉 Costruisci audience internazionale
-
-• Fino a 3 video multilingua fino a 1 min*
-• Traduzione fino a 7 lingue
-• QR dinamico
-• Analytics su lingue e utilizzo
-• Supporto prioritario`
-
-const SIGNATURE_DETAILS = `La soluzione completa per trasformare la percezione della tua struttura.
-
-👉 Rendi la tua cantina davvero globale
-
-• Fino a 6 video multilingua fino a 1 min*
-• Traduzione fino a 7 lingue
-• QR dinamico
-• Analytics avanzate (paesi, engagement, performance)
-• Supporto dedicato`
+La produzione di video AI è separata dall'abbonamento e viene definita in minuti in base alle esigenze del progetto.`
 
 export const SPEAQI_PACKAGES: Record<SpeaqiPackageKey, SpeaqiPackageDef> = {
-  start: {
-    key: 'start',
-    label: 'START',
-    subtitle: '1 video',
-    tagline: '👉 Inizia a parlare la lingua dei tuoi clienti',
-    quoteTitle: 'Speaqi START — 1 video',
-    lineDescription: 'Speaqi START — 1 video multilingua',
-    details: START_DETAILS,
-    unit_price: 349.99,
-    list_unit_price: 699,
-  },
-  experience: {
-    key: 'experience',
-    label: 'EXPERIENCE',
-    subtitle: '3 video',
-    tagline: '👉 Costruisci audience internazionale',
-    quoteTitle: 'Speaqi EXPERIENCE — 3 video',
-    lineDescription: 'Speaqi EXPERIENCE — 3 video multilingua',
-    details: EXPERIENCE_DETAILS,
-    unit_price: 699.99,
-    list_unit_price: 1099,
-  },
-  signature: {
-    key: 'signature',
-    label: 'SIGNATURE',
-    subtitle: '6 video',
-    tagline: '👉 Rendi la tua cantina davvero globale',
-    quoteTitle: 'Speaqi SIGNATURE — 6 video',
-    lineDescription: 'Speaqi SIGNATURE — 6 video multilingua',
-    details: SIGNATURE_DETAILS,
-    unit_price: 999.99,
-    list_unit_price: 1999,
+  platform: {
+    key: 'platform',
+    label: 'PIATTAFORMA SPEAQI',
+    subtitle: 'Abbonamento annuale per progetto',
+    tagline: 'Genera il blocco completo, poi personalizza liberamente righe, quantità e condizioni.',
+    quoteTitle: 'Progetto Speaqi — abbonamento annuale',
+    lineDescription: 'Piattaforma Speaqi — abbonamento annuale per progetto',
+    details: PLATFORM_DETAILS,
+    unit_price: 990,
   },
 }
 
@@ -86,6 +43,5 @@ export function quoteLineFromPackage(key: SpeaqiPackageKey, lineId: string): Quo
     details: p.details,
     quantity: 1,
     unit_price: p.unit_price,
-    list_unit_price: p.list_unit_price,
   }
 }

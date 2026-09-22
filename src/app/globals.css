@@ -4209,7 +4209,7 @@ textarea.form-input::placeholder { color: var(--text3); }
 }
 .quotes-preset-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   margin-bottom: 14px;
 }
@@ -4220,7 +4220,9 @@ textarea.form-input::placeholder { color: var(--text3); }
 }
 .quote-preset {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
   text-align: left;
   background: #fff7ed;
   border: 1px solid #fed7aa;
@@ -4257,22 +4259,14 @@ textarea.form-input::placeholder { color: var(--text3); }
   margin-bottom: 10px;
   flex: 1;
 }
-.quote-preset-prices {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: auto;
-}
-.quote-preset-was {
-  font-size: 12px;
-  text-decoration: line-through;
-  color: #78716c;
-}
+.quote-preset-copy { min-width: 0; }
+.quote-preset-action { display: grid; justify-items: end; gap: 5px; flex: 0 0 auto; }
 .quote-preset-now {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
   color: #ea580c;
 }
+.quote-preset-add { font-size: 12px; font-weight: 700; color: #c2410c; }
 .quotes-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5237,6 +5231,12 @@ textarea.form-input::placeholder { color: var(--text3); }
   .quote-line {
     grid-template-columns: 1fr;
   }
+  .quote-preset {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .quote-preset-action { justify-items: start; }
   .quote-line-numbers,
   .quotes-extra-controls,
   .quotes-summary-strip {
