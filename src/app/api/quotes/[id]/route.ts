@@ -1,11 +1,12 @@
 import { NextRequest } from 'next/server'
-import { completePendingCallTasks, createActivities } from '@/lib/server/crm'
-import { syncDealWithContactStatus } from '@/lib/server/deal-ops'
+import { createActivities } from '@/lib/server/crm'
 import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { errorMessage } from '@/lib/server/http'
+import { applyQuotePaidToContact } from '@/lib/server/quote-payments'
 import {
   DEFAULT_BANK_TRANSFER_INSTRUCTIONS,
   DEFAULT_CONTRACT_TERMS,
+  applyBillingRules,
   calculateQuoteTotals,
   currencyCode,
   normalizeNumber,
@@ -209,7 +210,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const current = await readQuote(auth.supabase, auth.workspaceUserId, id)
     if (!current) return Response.json({ error: 'Preventivo non trovato' }, { status: 404 })
 
-    const body = await request.json()
+    const rawBody = await request.json()
+    // Un abbonamento resta tale finche' il costruttore non lo rende "pagamento
+    // unico": se il PATCH non tocca billing_interval vale quello salvato.
+    const body = applyBillingRules({
+      ...rawBody,
+      billing_interval: rawBody.billing_interval ?? current.billing_interval ?? 'one_time',
+      payment_terms_note: rawBody.payment_terms_note ?? current.payment_terms_note,
+    })
     const currentContact = Array.isArray(current.contact) ? current.contact[0] : current.contact
     let nextContact = currentContact || null
     let nextContactId = current.contact_id || null
@@ -360,6 +368,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       paid_at: nextStatus === 'paid' ? current.paid_at || now : current.paid_at,
     }
 
+    // Scritto solo quando e' un abbonamento o lo era: i preventivi una tantum
+    // non dipendono dalla migration dell'abbonamento.
+    if (body.billing_interval === 'year' || current.billing_interval === 'year') {
+      updatePayload.billing_interval = body.billing_interval
+    }
+
     let updatedId: string | null = null
     let updateError: unknown = null
 
@@ -416,23 +430,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     // Preventivo pagato → il contatto va a Paid e la trattativa si chiude won
     // (prima status contatto e preventivi erano del tutto scollegati).
     if (quoteData.contact_id && current.status !== 'paid' && quoteData.status === 'paid') {
-      const nowIso = new Date().toISOString()
-      const { data: paidContact } = await auth.supabase
-        .from('contacts')
-        .update({
-          status: 'Paid',
-          won_at: nowIso,
-          next_followup_at: null,
-          next_action_at: null,
-        })
-        .eq('user_id', auth.workspaceUserId)
-        .eq('id', quoteData.contact_id)
-        .select('id')
-        .maybeSingle()
-      if (paidContact) {
-        await syncDealWithContactStatus(auth.supabase, auth.workspaceUserId, quoteData.contact_id, 'Paid')
-        await completePendingCallTasks(auth.supabase, auth.workspaceUserId, quoteData.contact_id)
-      }
+      await applyQuotePaidToContact(auth.supabase, auth.workspaceUserId, quoteData.contact_id)
     }
 
     return Response.json({ quote: normalizeQuoteRow(quoteData) })

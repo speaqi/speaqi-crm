@@ -1,8 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { apiFetch } from '@/lib/api'
+import type { SalesLinkStatus } from '@/types'
 import { useCRMContext } from '../../layout'
+
+function formatDay(value?: string | null) {
+  if (!value) return null
+  return new Date(value).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })
+}
 
 export default function TeamAdminPage() {
   const { teamMembers, isAdmin, createTeamMember, updateTeamMember, deleteTeamMember, showToast } = useCRMContext()
@@ -11,6 +18,70 @@ export default function TeamAdminPage() {
   const [password, setPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [salesLinks, setSalesLinks] = useState<Map<string, SalesLinkStatus>>(new Map())
+  const [salesLinkBusy, setSalesLinkBusy] = useState<string | null>(null)
+  // Il link completo si vede solo appena generato: sul database resta l'hash.
+  const [revealed, setRevealed] = useState<{ memberId: string; url: string } | null>(null)
+
+  useEffect(() => {
+    if (!isAdmin) return
+    let mounted = true
+    apiFetch<{ links: SalesLinkStatus[] }>('/api/sales-links')
+      .then((response) => {
+        if (mounted) setSalesLinks(new Map((response.links || []).map((link) => [link.team_member_id, link])))
+      })
+      .catch(() => {
+        // tabella non ancora migrata: la sezione link resta vuota
+      })
+    return () => {
+      mounted = false
+    }
+  }, [isAdmin])
+
+  async function handleGenerateSalesLink(id: string, memberName: string, regenerate: boolean) {
+    if (regenerate && !window.confirm(`Rigenerare il link vendita di "${memberName}"? Quello attuale smette subito di funzionare.`)) return
+    setSalesLinkBusy(id)
+    try {
+      const response = await apiFetch<{ url: string; link: SalesLinkStatus }>(`/api/team-members/${id}/sales-link`, {
+        method: 'POST',
+      })
+      setSalesLinks((previous) => new Map(previous).set(id, response.link))
+      setRevealed({ memberId: id, url: response.url })
+    } catch (linkError) {
+      showToast(`Errore: ${linkError instanceof Error ? linkError.message : 'link non generato'}`)
+    } finally {
+      setSalesLinkBusy(null)
+    }
+  }
+
+  async function handleRevokeSalesLink(id: string, memberName: string) {
+    if (!window.confirm(`Revocare il link vendita di "${memberName}"? Il link smette subito di funzionare.`)) return
+    setSalesLinkBusy(id)
+    try {
+      await apiFetch(`/api/team-members/${id}/sales-link`, { method: 'DELETE' })
+      setSalesLinks((previous) => {
+        const next = new Map(previous)
+        next.delete(id)
+        return next
+      })
+      if (revealed?.memberId === id) setRevealed(null)
+      showToast('Link vendita revocato')
+    } catch (linkError) {
+      showToast(`Errore: ${linkError instanceof Error ? linkError.message : 'revoca non riuscita'}`)
+    } finally {
+      setSalesLinkBusy(null)
+    }
+  }
+
+  async function copyRevealed() {
+    if (!revealed) return
+    try {
+      await navigator.clipboard.writeText(revealed.url)
+      showToast('Link copiato')
+    } catch {
+      showToast('Copia non riuscita: seleziona il link a mano')
+    }
+  }
 
   async function handleAdd(event: React.FormEvent) {
     event.preventDefault()
@@ -126,8 +197,47 @@ export default function TeamAdminPage() {
                   {member.is_current_admin && <span className="team-role-badge">Admin</span>}
                 </div>
                 {member.email && <span className="team-row-email">{member.email}</span>}
+                {isAdmin && salesLinks.get(member.id) && (
+                  <span className="team-row-email">
+                    Link vendita attivo dal {formatDay(salesLinks.get(member.id)?.created_at)} (…
+                    {salesLinks.get(member.id)?.token_hint})
+                    {salesLinks.get(member.id)?.last_used_at
+                      ? ` · ultimo uso ${formatDay(salesLinks.get(member.id)?.last_used_at)}`
+                      : ''}
+                  </span>
+                )}
+                {revealed?.memberId === member.id && (
+                  <div className="team-sales-link-reveal">
+                    <code>{revealed.url}</code>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={copyRevealed}>
+                      Copia
+                    </button>
+                    <span>Visibile solo ora: se lo perdi, rigeneralo.</span>
+                  </div>
+                )}
               </div>
               <div className="team-row-actions">
+                {isAdmin && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    disabled={salesLinkBusy === member.id}
+                    onClick={() => handleGenerateSalesLink(member.id, member.name, salesLinks.has(member.id))}
+                    title="Link personale per creare preventivi davanti al cliente, senza login"
+                  >
+                    {salesLinks.has(member.id) ? 'Rigenera link vendita' : 'Link vendita'}
+                  </button>
+                )}
+                {isAdmin && salesLinks.has(member.id) && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    disabled={salesLinkBusy === member.id}
+                    onClick={() => handleRevokeSalesLink(member.id, member.name)}
+                  >
+                    Revoca link
+                  </button>
+                )}
                 {!member.is_current_admin && (
                   <button
                     type="button"

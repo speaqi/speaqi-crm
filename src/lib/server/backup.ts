@@ -20,6 +20,8 @@ export const BACKUP_TABLES = [
   'activities',
   'tasks',
   'quotes',
+  // Firme disegnate dei contratti in abbonamento: sono prove, vanno salvate.
+  'quote_signatures',
   'lead_memories',
   'pipeline_stages',
   'team_members',

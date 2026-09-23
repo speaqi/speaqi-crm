@@ -1,17 +1,16 @@
 import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
-import { createPublicServerClient } from '@/lib/server/supabase'
-
-const STRIPE_API_VERSION = '2026-02-25.clover'
+import {
+  StripeApiError,
+  buildSubscriptionCheckoutParams,
+  stripeFetch,
+  toCents,
+} from '@/lib/server/stripe'
+import { createPublicServerClient, createServiceRoleClient } from '@/lib/server/supabase'
 
 function normalizeText(value: unknown) {
   const normalized = String(value || '').trim()
   return normalized || null
-}
-
-function toCents(value: unknown) {
-  const amount = Number(value || 0)
-  return Math.max(0, Math.round(amount * 100))
 }
 
 function pickOrigin(request: NextRequest) {
@@ -24,6 +23,90 @@ function pickOrigin(request: NextRequest) {
   return request.nextUrl.origin
 }
 
+/** Stati Stripe in cui l'abbonamento esiste gia': un secondo checkout sarebbe un doppione. */
+const LIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing', 'past_due', 'incomplete'])
+
+/**
+ * Abbonamento annuale: si paga solo dopo la firma, e solo l'importo firmato.
+ * Il client service role serve per leggere la firma (tabella senza accesso
+ * pubblico) e gli id Stripe, che get_public_quote non espone.
+ */
+async function startSubscriptionCheckout(request: NextRequest, token: string) {
+  const admin = createServiceRoleClient()
+  const { data: quote, error } = await admin
+    .from('quotes')
+    .select(
+      'id, quote_number, public_token, title, status, total_amount, currency, customer_email, quote_acceptance_email, contract_signer_email, billing_interval, subscription_status, stripe_checkout_session_id, stripe_checkout_url'
+    )
+    .eq('public_token', token)
+    .neq('status', 'cancelled')
+    .maybeSingle()
+  if (error) throw error
+  if (!quote) return Response.json({ error: 'Preventivo non trovato' }, { status: 404 })
+
+  if (quote.status === 'paid' || LIVE_SUBSCRIPTION_STATUSES.has(String(quote.subscription_status || ''))) {
+    return Response.json({ error: 'Abbonamento già attivo per questo preventivo' }, { status: 409 })
+  }
+
+  const { data: signature } = await admin
+    .from('quote_signatures')
+    .select('amounts_snapshot')
+    .eq('quote_id', quote.id)
+    .maybeSingle()
+  if (!signature) {
+    return Response.json({ error: 'Firma il contratto prima di procedere al pagamento' }, { status: 409 })
+  }
+  // Importi cambiati dopo la firma: il cliente pagherebbe una cifra che non ha firmato.
+  if (toCents(signature.amounts_snapshot?.total) !== toCents(quote.total_amount)) {
+    return Response.json(
+      { error: 'L’offerta è cambiata dopo la firma: chiedi al team Speaqi un nuovo link di firma' },
+      { status: 409 }
+    )
+  }
+  if (toCents(quote.total_amount) < 50) {
+    return Response.json({ error: 'Importo troppo basso per Stripe' }, { status: 400 })
+  }
+
+  // Una sessione ancora aperta si riusa: due clic non creano due abbonamenti.
+  if (quote.stripe_checkout_session_id && quote.stripe_checkout_url) {
+    try {
+      const existing = await stripeFetch<any>(
+        `/checkout/sessions/${encodeURIComponent(quote.stripe_checkout_session_id)}`
+      )
+      if (existing?.status === 'open' && existing?.mode === 'subscription' && existing?.url) {
+        return Response.json({ url: existing.url })
+      }
+    } catch {
+      // sessione scaduta o illeggibile: se ne crea una nuova
+    }
+  }
+
+  const params = buildSubscriptionCheckoutParams({
+    token,
+    quoteId: quote.id,
+    quoteNumber: quote.quote_number,
+    totalAmount: quote.total_amount,
+    currency: quote.currency,
+    customerEmail: quote.contract_signer_email || quote.quote_acceptance_email || quote.customer_email,
+    productName: `${quote.title || 'Abbonamento Speaqi'} (${quote.quote_number})`,
+    origin: pickOrigin(request),
+  })
+  const session = await stripeFetch<any>('/checkout/sessions', { params })
+  const checkoutUrl = normalizeText(session?.url)
+  const sessionId = normalizeText(session?.id)
+  if (!checkoutUrl || !sessionId) {
+    return Response.json({ error: 'Stripe non ha restituito un link valido' }, { status: 502 })
+  }
+
+  await admin.rpc('mark_quote_checkout_created', {
+    p_public_token: token,
+    p_session_id: sessionId,
+    p_checkout_url: checkoutUrl,
+  })
+
+  return Response.json({ url: checkoutUrl })
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -32,8 +115,7 @@ export async function POST(request: NextRequest) {
 
     if (!token) return Response.json({ error: 'Token preventivo mancante' }, { status: 400 })
 
-    const stripeSecretKey = process.env.STRIPE_SECRET_KEY
-    if (!stripeSecretKey) {
+    if (!process.env.STRIPE_SECRET_KEY) {
       return Response.json(
         { error: 'Stripe non configurato: imposta STRIPE_SECRET_KEY sul deploy' },
         { status: 501 }
@@ -46,6 +128,10 @@ export async function POST(request: NextRequest) {
 
     const quote = Array.isArray(data) ? data[0] : null
     if (!quote) return Response.json({ error: 'Preventivo non trovato' }, { status: 404 })
+
+    if (quote.billing_interval === 'year') {
+      return await startSubscriptionCheckout(request, token)
+    }
 
     if (quote.payment_method !== 'stripe' && quote.payment_method !== 'both') {
       return Response.json({ error: 'Pagamento Stripe non previsto per questo preventivo' }, { status: 400 })
@@ -77,24 +163,7 @@ export async function POST(request: NextRequest) {
     params.set('metadata[payment_part]', amountKind)
     if (quote.customer_email) params.set('customer_email', String(quote.customer_email))
 
-    const stripeResponse = await fetch('https://api.stripe.com/v1/checkout/sessions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${stripeSecretKey}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Stripe-Version': STRIPE_API_VERSION,
-      },
-      body: params,
-      cache: 'no-store',
-    })
-
-    const stripePayload = await stripeResponse.json().catch(() => null)
-    if (!stripeResponse.ok) {
-      return Response.json(
-        { error: stripePayload?.error?.message || 'Errore creando il pagamento Stripe' },
-        { status: 502 }
-      )
-    }
+    const stripePayload = await stripeFetch<any>('/checkout/sessions', { params })
 
     const checkoutUrl = normalizeText(stripePayload?.url)
     const sessionId = normalizeText(stripePayload?.id)
@@ -110,6 +179,9 @@ export async function POST(request: NextRequest) {
 
     return Response.json({ url: checkoutUrl })
   } catch (error) {
+    if (error instanceof StripeApiError) {
+      return Response.json({ error: error.message }, { status: error.status })
+    }
     return Response.json({ error: errorMessage(error, 'Impossibile avviare il pagamento') }, { status: 500 })
   }
 }

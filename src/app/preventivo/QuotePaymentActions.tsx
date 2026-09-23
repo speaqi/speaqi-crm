@@ -8,6 +8,8 @@ interface QuotePaymentActionsProps {
   hasBankTransfer: boolean
   depositLabel: string
   totalLabel: string
+  /** Abbonamento annuale: un solo pulsante, l'importo lo decide il server. */
+  subscriptionLabel?: string | null
 }
 
 export function QuotePaymentActions({
@@ -16,11 +18,12 @@ export function QuotePaymentActions({
   hasBankTransfer,
   depositLabel,
   totalLabel,
+  subscriptionLabel = null,
 }: QuotePaymentActionsProps) {
-  const [loading, setLoading] = useState<'deposit' | 'total' | null>(null)
+  const [loading, setLoading] = useState<'deposit' | 'total' | 'subscription' | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  async function startCheckout(amount: 'deposit' | 'total') {
+  async function startCheckout(amount: 'deposit' | 'total' | 'subscription') {
     setLoading(amount)
     setError(null)
     try {
@@ -45,7 +48,19 @@ export function QuotePaymentActions({
 
   return (
     <div className="public-quote-actions">
-      {canUseStripe && (
+      {canUseStripe && subscriptionLabel && (
+        <div className="public-quote-action-row">
+          <button
+            type="button"
+            className="public-quote-pay"
+            disabled={Boolean(loading)}
+            onClick={() => startCheckout('subscription')}
+          >
+            {loading === 'subscription' ? 'Apertura pagamento…' : `Paga con carta ${subscriptionLabel}`}
+          </button>
+        </div>
+      )}
+      {canUseStripe && !subscriptionLabel && (
         <div className="public-quote-action-row">
           <button
             type="button"

@@ -204,6 +204,8 @@ export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'paid' | 'cancelled'
 export type QuotePaymentMethod = 'bank_transfer' | 'stripe' | 'both'
 export type QuotePaymentState = 'pending' | 'deposit_requested' | 'paid' | 'waived'
 export type QuotePaymentTermsMode = 'percent' | 'manual'
+/** `year` = abbonamento annuale pagato con carta e rinnovato da Stripe. */
+export type QuoteBillingInterval = 'one_time' | 'year'
 
 export interface QuoteLineItem {
   id?: string
@@ -292,6 +294,38 @@ export interface Quote {
   paid_at?: string | null
   created_at: string
   updated_at?: string
+  deal_id?: string | null
+  billing_interval?: QuoteBillingInterval
+  stripe_customer_id?: string | null
+  stripe_subscription_id?: string | null
+  /** Stato Stripe dell'abbonamento, cosi' come arriva (active, past_due, canceled…). */
+  subscription_status?: string | null
+  current_period_end?: string | null
+  cancel_at_period_end?: boolean
+  /** Membro del team che ha creato il preventivo dal link vendita. */
+  sales_team_member_id?: string | null
+  contract_signer_name?: string | null
+  /** Solo da get_public_quote: la firma esiste, l'immagine resta nel CRM. */
+  has_signature?: boolean
+  contract_signed_at?: string | null
+}
+
+export interface QuoteSignature {
+  quote_id: string
+  signer_name: string
+  signer_email?: string | null
+  signature_png: string
+  ip?: string | null
+  user_agent?: string | null
+  channel: 'email' | 'in_person'
+  signed_at: string
+}
+
+export interface SalesLinkStatus {
+  team_member_id: string
+  created_at: string
+  token_hint?: string | null
+  last_used_at?: string | null
 }
 
 export type OperatingQueueMode = 'calls' | 'overdue' | 'quotes' | 'all'
@@ -334,6 +368,7 @@ export interface QuoteInput {
   valid_until?: string | null
   public_note?: string | null
   internal_note?: string | null
+  billing_interval?: QuoteBillingInterval
 }
 
 export interface VoiceNote {

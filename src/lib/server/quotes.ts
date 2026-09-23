@@ -1,5 +1,15 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import type { QuoteLineItem, QuotePaymentMethod, QuotePaymentTermsMode, QuoteStatus } from '@/types'
+import {
+  SUBSCRIPTION_PAYMENT_TERMS,
+  SUBSCRIPTION_PAYMENT_TERMS_NOTE,
+} from '@/lib/speaqi-quote-packages'
+import type {
+  QuoteBillingInterval,
+  QuoteLineItem,
+  QuotePaymentMethod,
+  QuotePaymentTermsMode,
+  QuoteStatus,
+} from '@/types'
 
 export { DEFAULT_BANK_TRANSFER_INSTRUCTIONS, DEFAULT_CONTRACT_TERMS } from '@/lib/quote-defaults'
 
@@ -37,6 +47,41 @@ export function normalizePaymentTermsMode(
 ): QuotePaymentTermsMode {
   const normalized = String(value || '').trim() as QuotePaymentTermsMode
   return VALID_PAYMENT_TERMS_MODES.has(normalized) ? normalized : fallback
+}
+
+export function normalizeBillingInterval(
+  value: unknown,
+  fallback: QuoteBillingInterval = 'one_time'
+): QuoteBillingInterval {
+  const normalized = String(value || '').trim()
+  if (normalized === 'year' || normalized === 'one_time') return normalized
+  return fallback
+}
+
+/**
+ * Un abbonamento annuale si paga solo con carta e per intero: qualunque cosa
+ * arrivi dal costruttore, metodo, acconto e condizioni vengono riallineati
+ * qui, cosi' non esiste un abbonamento "a bonifico con acconto 30%" che
+ * Stripe non saprebbe rinnovare.
+ */
+export function applyBillingRules<
+  T extends {
+    billing_interval?: unknown
+    payment_method?: unknown
+    payment_terms_mode?: unknown
+    deposit_percent?: unknown
+    deposit_manual_amount?: unknown
+    payment_terms_note?: unknown
+  },
+>(body: T): T & { billing_interval: QuoteBillingInterval } {
+  const billingInterval = normalizeBillingInterval(body.billing_interval)
+  if (billingInterval !== 'year') return { ...body, billing_interval: billingInterval }
+  return {
+    ...body,
+    ...SUBSCRIPTION_PAYMENT_TERMS,
+    payment_terms_note: normalizeText(body.payment_terms_note) || SUBSCRIPTION_PAYMENT_TERMS_NOTE,
+    billing_interval: billingInterval,
+  }
 }
 
 export function roundMoney(value: number) {

@@ -65,6 +65,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const { id } = await context.params
     const body = await request.json().catch(() => ({}))
     const explicitEmail = normalizeText((body as { email?: unknown }).email)
+    // "Firma in presenza": il link di firma si apre sul dispositivo del
+    // commerciale davanti al cliente, senza email. Rigenera il token come
+    // l'invio, quindi un link mandato prima smette di valere.
+    const linkOnly = (body as { link_only?: unknown }).link_only === true
 
     const { data: quote, error: readError } = await auth.supabase
       .from('quotes')
@@ -113,6 +117,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const origin = requestOrigin(request)
     const publicUrl = publicQuoteUrl(origin, quote.public_token)
     const acceptanceUrl = quoteAcceptanceUrl(origin, quote.public_token, acceptanceToken)
+
+    if (linkOnly) {
+      if (quote.status === 'draft') {
+        await auth.supabase
+          .from('quotes')
+          .update({ status: 'sent', sent_at: new Date().toISOString() })
+          .eq('user_id', auth.workspaceUserId)
+          .eq('id', id)
+      }
+      return Response.json({ success: true, acceptance_url: acceptanceUrl })
+    }
 
     await sendQuoteAcceptanceRequestEmail(recipient, {
       quoteNumber: String(quote.quote_number || ''),

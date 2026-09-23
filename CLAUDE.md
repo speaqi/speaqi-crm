@@ -41,6 +41,7 @@ Copy `.env.local.example` to `.env.local`. Required keys:
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role key (server-only admin ops) |
 | `STRIPE_SECRET_KEY` | Stripe secret key for quote payments |
+| `STRIPE_WEBHOOK_SECRET` | Segreto di firma dell'endpoint `/api/integrations/stripe/webhook` (abbonamenti annuali). Senza, il webhook risponde 500 e Stripe riprova |
 | `RESEND_API_KEY` | Resend email API key |
 | `GOOGLE_CLIENT_ID` | Gmail OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Gmail OAuth secret |
@@ -111,7 +112,10 @@ supabase migration up
 | `gmail_accounts` | Connected Gmail accounts (encrypted tokens) |
 | `gmail_messages` | Synced Gmail threads linked to contacts |
 | `team_members` | Multi-user team management (with `auth_user_id` linking) |
-| `quotes` | Preventivi/preventivi with Stripe integration |
+| `quotes` | Preventivi/preventivi with Stripe integration (`billing_interval = 'year'` = abbonamento annuale con carta, rinnovato da Stripe) |
+| `quote_signatures` | Firma disegnata di un preventivo (PNG, nome, IP, user-agent, copia di termini e importi). Immutabile, scritta solo dalla RPC `sign_public_quote_contract` |
+| `stripe_webhook_events` | Idempotenza del webhook Stripe: un evento gia' processato non si rifa' |
+| `sales_links` | Link vendita personali (`/vendita/<token>`): solo lo SHA-256 del token, uno attivo per membro del team |
 | `user_settings` | Per-user settings (e.g. email AI configuration) |
 | `commercial_campaigns` | Motore campagne generico: un verticale = una riga (`slug`, `event_tag`, mittente, `landing_url`, filtri import, tetti) |
 | `commercial_campaign_steps` | Fino a 20 email per campagna; uno step gia inviato e immutabile (trigger) |
@@ -163,10 +167,12 @@ src/
 │   │   ├── automation/         # n8n endpoints: orchestrator, followups, send-batch, reconcile-sends, …
 │   │   ├── email/              # Email sending + reminder
 │   │   ├── import/             # csv, legacy, ocr
-│   │   ├── integrations/       # Acumbamail webhook + Telegram (webhook, setup)
+│   │   ├── integrations/       # Acumbamail webhook + Telegram (webhook, setup) + Stripe (webhook abbonamenti)
 │   │   ├── commercial/         # campaigns (CRUD + [id] + [id]/steps) + hospitality (alias)
-│   │   ├── quotes/             # CRUD + [id]/checkout
-│   │   │   └── public/         # Public quote access + checkout + accept-contract
+│   │   ├── quotes/             # CRUD + [id]/signature + [id]/send-acceptance-email
+│   │   │   └── public/         # checkout + accept-contract + sign (firma disegnata) + select-choice
+│   │   ├── vendita/[token]/quote # Preventivo creato dal link vendita (senza login)
+│   │   ├── sales-links/        # Link vendita attivi (admin); generazione/revoca in team-members/[id]/sales-link
 │   │   ├── mcp/                # Model Context Protocol server
 │   │   ├── openapi/            # speaqi-call spec
 │   │   ├── voice/              # Voice command processing
@@ -175,7 +181,8 @@ src/
 │   │   ├── speaqi/leads        # Speaqi lead API
 │   │   └── health/             # Health check
 │   ├── login/                  # Login page (email + password)
-│   ├── preventivo/             # Preventivo pubblico con pagamento Stripe
+│   ├── preventivo/             # Preventivo pubblico: firma disegnata + pagamento con carta per gli abbonamenti
+│   ├── vendita/[token]/        # Area del commerciale senza login: dati del cliente → firma e pagamento
 │   ├── termini-speaqi/         # Terms of service
 │   ├── api-docs/               # Swagger UI
 │   └── page.tsx                # Root → redirect('/login')
@@ -292,18 +299,30 @@ Each stage has a `system_key` and `color`. Closed statuses: `closed`, `paid`, `l
 
 ## Quotes / Preventivi
 
-- **Internal management**: `/preventivi` — full CRUD for quotes
-- **Public page**: `/preventivo?id=TOKEN` — customer-facing quote with Stripe checkout
-- **Packages**: START (€349.99), EXPERIENCE (€699.99), SIGNATURE (€999.99) — defined in `src/lib/speaqi-quote-packages.ts`
+- **Internal management**: `/preventivi` — full CRUD for quotes. La fascia «Offerte generate» parte **chiusa**: il costruttore prende tutta la larghezza e il pulsante «Preventivi fatti (N)» la apre; la scelta resta in `localStorage` (`speaqi.preventivi.prefs`), letta dopo l'idratazione
+- **Public page**: `/preventivo?id=TOKEN` — customer-facing quote
+- **Packages** (scritti nel codice, `src/lib/speaqi-quote-packages.ts`): `platform` PIATTAFORMA SPEAQI €990 (una tantum, bonifico) e `video_map` VIDEO NELLA MAPPA €300 + IVA/anno, listino €400 barrato, `billing: 'yearly'`. `quoteDraftFromPackage()` e' la definizione unica di "preventivo di un pacchetto": la usano il costruttore e `/vendita`
 - **Pricing display**: net price + IVA, total with IVA
 - **Payment methods**: bank transfer, Stripe, or both
 - **Contract**: auto-accept or email-based acceptance with Resend
 - **Status flow**: draft → sent → accepted → paid (or cancelled)
 - **Payment state**: pending → deposit_requested → paid → waived
 - Key API endpoints:
-  - `GET /api/quotes/public?token=X` — public quote view
-  - `POST /api/quotes/public/checkout` — Stripe checkout session
-  - `POST /api/quotes/public/accept-contract` — contract acceptance
+  - `get_public_quote` (RPC, letta dalla pagina server) — public quote view
+  - `POST /api/quotes/public/checkout` — Stripe checkout session (ramo abbonamento per `billing_interval = 'year'`)
+  - `POST /api/quotes/public/accept-contract` — contract acceptance (spunta)
+  - `POST /api/quotes/public/sign` — firma disegnata
+  - `POST /api/integrations/stripe/webhook` — eventi Stripe degli abbonamenti
+
+### Abbonamenti annuali (Video nella mappa)
+
+- **Un abbonamento si paga solo con carta e per intero**: `applyBillingRules` (`src/lib/server/quotes.ts`) forza `payment_method = 'stripe'`, acconto 100% e saldo 0 su ogni POST/PATCH con `billing_interval = 'year'`. Acconto 100% e non 0: con un acconto a zero il preventivo risulterebbe `waived`, cioe' niente da pagare. €300 + 22% = €366, e Stripe addebita esattamente `toCents(total_amount)`
+- **Stripe solo dopo la firma, solo per gli abbonamenti**: sulla pagina pubblica `canUseStripe = billing_interval === 'year' && has_signature && non pagato`. Tutti gli altri preventivi restano a bonifico come prima. Il checkout risponde 409 se manca la firma, se l'abbonamento esiste gia' o se il totale e' cambiato dopo la firma (`quote_signatures.amounts_snapshot`); una sessione Stripe ancora aperta si riusa, cosi' due clic non fanno due abbonamenti
+- **Firma disegnata** (`QuoteSignatureForm` + `SignaturePad`): nome e cognome, firma nel riquadro, accettazione dei termini e — per l'abbonamento — approvazione specifica del rinnovo automatico (artt. 1341-1342 c.c.). Stesso cancello dell'accettazione con spunta: servono token pubblico **e** token di accettazione. La RPC `sign_public_quote_contract` e' eseguibile **solo dal service role**, perche' IP e user-agent li legge la rotta: esposta ad `anon`, chiunque potrebbe scriverli a piacere. L'immagine non esce mai dal CRM: `get_public_quote` espone solo `has_signature`, nome e data; il PNG si legge da `GET /api/quotes/[id]/signature` (RLS ereditata da `quotes`)
+- **Webhook** (`/api/integrations/stripe/webhook`, firma verificata a mano in `src/lib/server/stripe.ts`, nessun SDK): `checkout.session.completed` → preventivo pagato, contatto Paid, trattativa vinta (`markQuotePaidFromStripe` + `applyQuotePaidToContact`, lo stesso effetto del PATCH manuale); `invoice.paid` → rinnovo registrato, `current_period_end` aggiornato e task «Emettere fattura elettronica» (le ricevute Stripe non sono fatture SDI); `invoice.payment_failed` → `past_due` + chiamata ad alta priorita'; `customer.subscription.updated/deleted` → stato e disdetta. I `mode=payment` si ignorano. Idempotenza su due livelli: `stripe_webhook_events` e update condizionato `status <> 'paid'`, cosi' riconsegne, `invoice.paid` arrivato prima del checkout e la verifica della sessione sulla pagina di ritorno (`?session_id=`) non raddoppiano mai attivita' e passaggio a Paid. Le versioni API recenti hanno spostato l'id dell'abbonamento in `invoice.parent.subscription_details`: le letture accettano entrambi i formati
+- **Configurazione Stripe**: endpoint `https://<APP_BASE_URL>/api/integrations/stripe/webhook` con gli eventi `checkout.session.completed`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`, versione API uguale a `STRIPE_API_VERSION`; il segreto va in `STRIPE_WEBHOOK_SECRET`
+- **Link vendita** (`/vendita/<token>`): ogni membro del team ha un link personale, generato/rigenerato/revocato da Impostazioni → Team (solo admin). Si salva solo lo SHA-256 del token (tabella `sales_links`, non `team_members`, che i collaboratori leggono): il link si vede una volta, poi si rigenera. Il commerciale compila i dati dell'attivita' davanti al cliente; il server (service role) trova o crea il contatto per email (scope crm, stato Quote, `responsible` = il commerciale), crea il preventivo con `createQuoteRecord` (`src/lib/server/quote-create.ts`, lo stesso di `POST /api/quotes`) e reindirizza a `/preventivo?id=…&accept=…`, senza email. Tetto di 10 preventivi l'ora per link; un reinvio entro 10 minuti riusa il preventivo. Pagina `noindex` e `no-referrer`, perche' il token sta nel percorso
+- **Firma in presenza dal CRM**: sulla scheda di un abbonamento non firmato, «Firma in presenza» chiede a `send-acceptance-email` il link con `link_only: true` e lo apre senza mandare email. Rigenera il token: un link inviato prima smette di valere
 
 ## Collaborator / Workspace Access
 
@@ -429,6 +448,7 @@ Guida operativa e deploy Railway in `docs/WHATSAPP-OPENWA.md`.
 |---|---|
 | `/login` | Login page (email + password) |
 | `/preventivo?id=TOKEN` | Public quote with Stripe payment, contract, urgency |
+| `/vendita/<token>` | Area del commerciale senza login (link personale): dati del cliente → firma e pagamento |
 | `/termini-speaqi` | Terms of service |
 | `/api-docs` | Swagger UI |
 
@@ -598,7 +618,7 @@ migrarlo e un lavoro separato, da fare a motore collaudato.
 Nessuna dipendenza di test oltre `tsx`: si usa `node:test`.
 
 ```bash
-npm run test:unit   # motore campagne, Wine Project, WhatsApp, lavagna To Do e Telegram
+npm run test:unit   # motore campagne, Wine Project, WhatsApp, lavagna To Do, Telegram e abbonamenti/firma/link vendita
 npm run test:db     # integrazione e concorrenza su un Postgres locale usa-e-getta
 npm test            # entrambi
 ```

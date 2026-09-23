@@ -1,10 +1,12 @@
 import { BrandLockup } from '@/components/layout/BrandLockup'
 import { resolvePublicBankInstructions } from '@/lib/quote-defaults'
-import { createPublicServerClient } from '@/lib/server/supabase'
+import { confirmSubscriptionCheckout } from '@/lib/server/quote-payments'
+import { createPublicServerClient, createServiceRoleClient } from '@/lib/server/supabase'
 import type { Quote, QuoteLineItem } from '@/types'
 import { QuoteContractAcceptance } from './QuoteContractAcceptance'
 import { QuoteChoiceGroup } from './QuoteChoiceGroup'
 import { QuotePaymentActions } from './QuotePaymentActions'
+import { QuoteSignatureForm } from './QuoteSignatureForm'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +15,7 @@ type PreventivoPageProps = {
     id?: string
     checkout?: string
     accept?: string
+    session_id?: string
   }>
 }
 
@@ -104,17 +107,45 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
   }
 
   const supabase = createPublicServerClient()
-  const { data, error } = await supabase.rpc('get_public_quote', { p_public_token: token })
-  const quote = (Array.isArray(data) ? data[0] : null) as Quote | null
+  const loadQuote = async () => {
+    const { data, error } = await supabase.rpc('get_public_quote', { p_public_token: token })
+    return error ? null : ((Array.isArray(data) ? data[0] : null) as Quote | null)
+  }
+  let loaded = await loadQuote()
 
-  if (error || !quote) {
+  if (!loaded) {
     return <MissingQuote message="Il link non esiste oppure il preventivo è stato annullato." />
   }
 
+  // Ritorno da Stripe prima che arrivi il webhook: la sessione si verifica qui,
+  // cosi' il cliente vede subito l'abbonamento attivo. Idempotente, non lancia.
+  const sessionId = String(params.session_id || '').trim()
+  if (
+    loaded.billing_interval === 'year' &&
+    params.checkout === 'success' &&
+    sessionId &&
+    loaded.payment_state !== 'paid'
+  ) {
+    try {
+      if (await confirmSubscriptionCheckout(createServiceRoleClient(), sessionId, token)) {
+        loaded = (await loadQuote()) || loaded
+      }
+    } catch {
+      // senza service role la conferma resta al webhook
+    }
+  }
+  const quote: Quote = loaded
+
   const items = safeItems(quote.items)
   const lockedChoices = quote.status === 'accepted' || quote.status === 'paid' || Boolean(quote.contract_signer_email)
-  const canUseStripe = false
-  const hasBankTransfer = true
+  // Stripe solo per l'abbonamento annuale, e solo dopo la firma. Gli altri
+  // preventivi restano a bonifico come prima.
+  const isSubscription = quote.billing_interval === 'year'
+  const hasSignature = Boolean(quote.has_signature)
+  const isPaid = quote.payment_state === 'paid' || quote.status === 'paid'
+  const canUseStripe = isSubscription && hasSignature && !isPaid
+  const hasBankTransfer = !isSubscription
+  const renewalDate = formatDate(quote.current_period_end)
   const validUntil = formatDate(quote.valid_until)
   const checkoutStatus = params.checkout
   const acceptanceToken = String(params.accept || '').trim()
@@ -149,7 +180,9 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
 
         {checkoutStatus === 'success' && (
           <div className="public-quote-success">
-            Pagamento avviato correttamente. Riceverai conferma dal team Speaqi.
+            {isSubscription && isPaid
+              ? 'Pagamento ricevuto: l’abbonamento è attivo. Grazie!'
+              : 'Pagamento avviato correttamente. Riceverai conferma dal team Speaqi.'}
           </div>
         )}
         {checkoutStatus === 'cancelled' && (
@@ -248,96 +281,165 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
             </div>
           </section>
 
-          <aside className="public-quote-card public-quote-side">
-            <h2>Pagamento</h2>
-            <div className="public-quote-price-summary">
-              {hasInitialListTotal && (
-                <div className="public-quote-list-total">
-                  <span>Prezzo iniziale</span>
+          {isSubscription ? (
+            <aside className="public-quote-card public-quote-side">
+              <h2>Abbonamento annuale</h2>
+              <div className="public-quote-price-summary">
+                {hasInitialListTotal && (
+                  <div className="public-quote-list-total">
+                    <span>Prezzo di listino</span>
+                    <div>
+                      <strong>{formatMoney(initialNetTotal, quote.currency)}</strong>
+                      <small>+ IVA / anno</small>
+                    </div>
+                  </div>
+                )}
+                <div className="public-quote-final-total">
+                  <span>Prezzo per te</span>
                   <div>
-                    <strong>{formatMoney(initialNetTotal, quote.currency)}</strong>
-                    <small>+ IVA</small>
+                    <strong>{formatMoney(totalNet, quote.currency)}</strong>
+                    <small>+ IVA {taxRate}% / anno</small>
                   </div>
                 </div>
-              )}
-              <div className="public-quote-final-total">
-                <span>Prezzo totale</span>
-                <div>
-                  <strong>{formatMoney(totalNet, quote.currency)}</strong>
-                  <small>+ IVA {taxRate}%</small>
+                <div className="public-quote-due-now">
+                  <span>Totale annuo</span>
+                  <strong>{formatMoney(quote.total_amount, quote.currency)}</strong>
+                  <small>IVA inclusa · rinnovo automatico · solo carta</small>
                 </div>
               </div>
-              {!isManualPaymentTerms && (
-                <div className="public-quote-due-now">
-                  <span>{depositSummaryLabel}</span>
+
+              {isPaid ? (
+                <div className="public-quote-subscription-active">
+                  <strong>Abbonamento attivo</strong>
+                  {renewalDate && <span>Prossimo rinnovo: {renewalDate}</span>}
+                  {quote.cancel_at_period_end && <span>Disdetta registrata: non si rinnoverà.</span>}
+                </div>
+              ) : hasSignature ? (
+                <QuotePaymentActions
+                  token={quote.public_token}
+                  canUseStripe={canUseStripe}
+                  hasBankTransfer={false}
+                  depositLabel={formatMoney(quote.total_amount, quote.currency)}
+                  totalLabel={formatMoney(quote.total_amount, quote.currency)}
+                  subscriptionLabel={`${formatMoney(quote.total_amount, quote.currency)} / anno`}
+                />
+              ) : (
+                <p className="public-quote-muted">Firma il contratto qui sotto per procedere al pagamento con carta.</p>
+              )}
+
+              <p className="public-quote-muted">
+                Il pagamento è gestito da Stripe. Ogni anno la carta viene addebitata automaticamente allo stesso prezzo;
+                puoi disdire in qualsiasi momento prima del rinnovo scrivendo a info@speaqi.com.
+              </p>
+            </aside>
+          ) : (
+            <aside className="public-quote-card public-quote-side">
+              <h2>Pagamento</h2>
+              <div className="public-quote-price-summary">
+                {hasInitialListTotal && (
+                  <div className="public-quote-list-total">
+                    <span>Prezzo iniziale</span>
+                    <div>
+                      <strong>{formatMoney(initialNetTotal, quote.currency)}</strong>
+                      <small>+ IVA</small>
+                    </div>
+                  </div>
+                )}
+                <div className="public-quote-final-total">
+                  <span>Prezzo totale</span>
                   <div>
-                    <strong>{formatMoney(depositNet, quote.currency)}</strong>
+                    <strong>{formatMoney(totalNet, quote.currency)}</strong>
                     <small>+ IVA {taxRate}%</small>
                   </div>
                 </div>
-              )}
-              {!isManualPaymentTerms && (
-                <div className="public-quote-due-now">
-                  <span>Da pagare ora</span>
-                  <strong>{formatMoney(quote.deposit_amount, quote.currency)}</strong>
-                  <small>IVA inclusa</small>
+                {!isManualPaymentTerms && (
+                  <div className="public-quote-due-now">
+                    <span>{depositSummaryLabel}</span>
+                    <div>
+                      <strong>{formatMoney(depositNet, quote.currency)}</strong>
+                      <small>+ IVA {taxRate}%</small>
+                    </div>
+                  </div>
+                )}
+                {!isManualPaymentTerms && (
+                  <div className="public-quote-due-now">
+                    <span>Da pagare ora</span>
+                    <strong>{formatMoney(quote.deposit_amount, quote.currency)}</strong>
+                    <small>IVA inclusa</small>
+                  </div>
+                )}
+              </div>
+
+              <div className="public-quote-money-row">
+                <span>Subtotale</span>
+                <strong>{formatMoney(quote.subtotal_amount, quote.currency)}</strong>
+              </div>
+              {Number(quote.discount_amount || 0) > 0 && (
+                <div className="public-quote-money-row">
+                  <span>Sconto</span>
+                  <strong>-{formatMoney(quote.discount_amount, quote.currency)}</strong>
                 </div>
               )}
-            </div>
-
-            <div className="public-quote-money-row">
-              <span>Subtotale</span>
-              <strong>{formatMoney(quote.subtotal_amount, quote.currency)}</strong>
-            </div>
-            {Number(quote.discount_amount || 0) > 0 && (
               <div className="public-quote-money-row">
-                <span>Sconto</span>
-                <strong>-{formatMoney(quote.discount_amount, quote.currency)}</strong>
+                <span>IVA {Number(quote.tax_rate || 0)}%</span>
+                <strong>{formatMoney(quote.tax_amount, quote.currency)}</strong>
               </div>
-            )}
-            <div className="public-quote-money-row">
-              <span>IVA {Number(quote.tax_rate || 0)}%</span>
-              <strong>{formatMoney(quote.tax_amount, quote.currency)}</strong>
-            </div>
-            {!isManualPaymentTerms && (
-              <div className="public-quote-money-row main">
-                <span>{depositSummaryLabel}</span>
-                <strong>{formatMoney(quote.deposit_amount, quote.currency)}</strong>
+              {!isManualPaymentTerms && (
+                <div className="public-quote-money-row main">
+                  <span>{depositSummaryLabel}</span>
+                  <strong>{formatMoney(quote.deposit_amount, quote.currency)}</strong>
+                </div>
+              )}
+              <div className="public-quote-money-row">
+                <span>{balanceSummaryLabel}</span>
+                <strong>{formatMoney(quote.balance_amount, quote.currency)}</strong>
               </div>
-            )}
-            <div className="public-quote-money-row">
-              <span>{balanceSummaryLabel}</span>
-              <strong>{formatMoney(quote.balance_amount, quote.currency)}</strong>
-            </div>
 
-            {quote.payment_terms_note && (
-              <div className="public-quote-payment-terms">
-                <div className="public-quote-payment-terms-title">Condizioni di pagamento</div>
-                <div className="public-quote-payment-terms-body">{quote.payment_terms_note}</div>
-              </div>
-            )}
+              {quote.payment_terms_note && (
+                <div className="public-quote-payment-terms">
+                  <div className="public-quote-payment-terms-title">Condizioni di pagamento</div>
+                  <div className="public-quote-payment-terms-body">{quote.payment_terms_note}</div>
+                </div>
+              )}
 
-            <QuotePaymentActions
-              token={quote.public_token}
-              canUseStripe={canUseStripe}
-              hasBankTransfer={hasBankTransfer}
-              depositLabel={formatMoney(quote.deposit_amount, quote.currency)}
-              totalLabel={formatMoney(quote.total_amount, quote.currency)}
-            />
+              <QuotePaymentActions
+                token={quote.public_token}
+                canUseStripe={canUseStripe}
+                hasBankTransfer={hasBankTransfer}
+                depositLabel={formatMoney(quote.deposit_amount, quote.currency)}
+                totalLabel={formatMoney(quote.total_amount, quote.currency)}
+              />
 
-            {validUntil && (
-              <div className="public-quote-urgency">
-                <div className="public-quote-urgency-badge">⏳ Scadenza offerta</div>
-                <div className="public-quote-urgency-date">{validUntil}</div>
-              </div>
-            )}
-          </aside>
+              {validUntil && (
+                <div className="public-quote-urgency">
+                  <div className="public-quote-urgency-badge">⏳ Scadenza offerta</div>
+                  <div className="public-quote-urgency-date">{validUntil}</div>
+                </div>
+              )}
+            </aside>
+          )}
         </div>
 
         <div className="public-quote-grid lower">
           <section className="public-quote-card">
             <h2>Contratto</h2>
-            {quote.contract_signer_email ? (
+            {isSubscription && hasSignature ? (
+              <div>
+                <div className="public-quote-contract-badge">Contratto firmato</div>
+                <p className="public-quote-contract-email-note">
+                  Firmato da <strong>{quote.contract_signer_name || quote.contract_signer_email}</strong>
+                  {formatDate(quote.contract_signed_at) ? ` il ${formatDate(quote.contract_signed_at)}` : ''}
+                  {quote.contract_signer_email ? ` · conferma inviata a ${quote.contract_signer_email}` : ''}
+                </p>
+              </div>
+            ) : isSubscription && acceptanceToken ? (
+              <QuoteSignatureForm
+                token={quote.public_token}
+                acceptanceToken={acceptanceToken}
+                defaultSignerName={quote.customer_name}
+                isSubscription
+              />
+            ) : quote.contract_signer_email ? (
               <QuoteContractAcceptance
                 token={quote.public_token}
                 acceptanceToken=""
@@ -389,15 +491,24 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
             </div>
           </section>
 
-          <section className="public-quote-card">
-            <h2>Bonifico</h2>
-            {bankBody ? (
-              <div className="public-quote-bank-body">{bankBody}</div>
-            ) : (
-              <p className="public-quote-muted">Coordinate bonifico non specificate.</p>
-            )}
-            {quote.public_note && <p className="public-quote-note">{quote.public_note}</p>}
-          </section>
+          {isSubscription ? (
+            quote.public_note ? (
+              <section className="public-quote-card">
+                <h2>Note</h2>
+                <p className="public-quote-note">{quote.public_note}</p>
+              </section>
+            ) : null
+          ) : (
+            <section className="public-quote-card">
+              <h2>Bonifico</h2>
+              {bankBody ? (
+                <div className="public-quote-bank-body">{bankBody}</div>
+              ) : (
+                <p className="public-quote-muted">Coordinate bonifico non specificate.</p>
+              )}
+              {quote.public_note && <p className="public-quote-note">{quote.public_note}</p>}
+            </section>
+          )}
         </div>
 
         <p className="public-quote-legal-footer">
