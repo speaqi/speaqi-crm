@@ -1,11 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Modal } from '@/components/ui/Modal'
 import { apiFetch } from '@/lib/api'
 import { DEFAULT_BANK_TRANSFER_INSTRUCTIONS, DEFAULT_CONTRACT_TERMS } from '@/lib/quote-defaults'
 import {
   SPEAQI_PACKAGES,
+  SUBSCRIPTION_PAYMENT_TERMS,
+  SUBSCRIPTION_PAYMENT_TERMS_NOTE,
   quoteLineFromPackage,
   type SpeaqiPackageKey,
 } from '@/lib/speaqi-quote-packages'
@@ -15,6 +18,7 @@ import type {
   QuoteInput,
   QuoteLineItem,
   QuotePaymentTermsMode,
+  QuoteSignature,
   QuoteStatus,
 } from '@/types'
 import { useCRMContext } from '../layout'
@@ -37,6 +41,45 @@ const STATUS_LABELS: Record<QuoteStatus, string> = {
 
 const DEFAULT_QUOTE_TITLE = 'Offerta Speaqi'
 const DEFAULT_PUBLIC_NOTE = 'Acconto 30%. Saldo alla consegna.'
+const SUBSCRIPTION_PUBLIC_NOTE = 'Abbonamento annuale, pagamento con carta, rinnovo automatico.'
+
+const SUBSCRIPTION_STATUS_LABELS: Record<string, string> = {
+  active: 'attivo',
+  trialing: 'in prova',
+  past_due: 'pagamento non riuscito',
+  unpaid: 'non pagato',
+  canceled: 'cessato',
+  incomplete: 'in attesa di pagamento',
+  incomplete_expired: 'pagamento scaduto',
+  paused: 'in pausa',
+}
+
+// La fascia "Offerte generate" parte chiusa: il costruttore prende tutta la
+// larghezza e la lista si apre a richiesta. La scelta resta sul browser.
+const PREFS_KEY = 'speaqi.preventivi.prefs'
+
+function readListOpen() {
+  try {
+    const raw = window.localStorage.getItem(PREFS_KEY)
+    if (!raw) return false
+    return JSON.parse(raw)?.listOpen === true
+  } catch {
+    return false
+  }
+}
+
+function writeListOpen(listOpen: boolean) {
+  try {
+    window.localStorage.setItem(PREFS_KEY, JSON.stringify({ listOpen }))
+  } catch {
+    // storage non disponibile: la scelta vale solo per questa visita
+  }
+}
+
+function formatDay(value?: string | null) {
+  if (!value) return null
+  return new Date(value).toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })
+}
 const QR_WASTE_LINE_ID = 'speaqi-qr-waste-sheets'
 
 function makeQrWasteLine(bottleCount: number): QuoteLineItem {
@@ -96,6 +139,7 @@ function blankDraft(): QuoteDraft {
     valid_until: '',
     public_note: DEFAULT_PUBLIC_NOTE,
     internal_note: '',
+    billing_interval: 'one_time',
   }
 }
 
@@ -163,7 +207,7 @@ function contactMatchesSearch(contact: CRMContact, query: string) {
 }
 
 export default function PreventiviPage() {
-  const { contacts, showToast } = useCRMContext()
+  const { contacts, showToast, teamMembers } = useCRMContext()
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [draft, setDraft] = useState<QuoteDraft>(() => blankDraft())
   const [contactMenuOpen, setContactMenuOpen] = useState(false)
@@ -177,10 +221,23 @@ export default function PreventiviPage() {
   const [qrBottleCount, setQrBottleCount] = useState(1)
   const [error, setError] = useState<string | null>(null)
   const [origin, setOrigin] = useState('https://crm.speaqi.com')
+  const [listOpen, setListOpen] = useState(false)
+  const [signatureView, setSignatureView] = useState<{ quote: Quote; signature: QuoteSignature | null } | null>(null)
+  const [signingLinkQuoteId, setSigningLinkQuoteId] = useState<string | null>(null)
 
   useEffect(() => {
     setOrigin(window.location.origin)
+    // Dopo l'idratazione: il primo render deve coincidere con quello del server.
+    setListOpen(readListOpen())
   }, [])
+
+  function toggleList(next: boolean) {
+    setListOpen(next)
+    writeListOpen(next)
+  }
+
+  const memberNames = useMemo(() => new Map(teamMembers.map((member) => [member.id, member.name])), [teamMembers])
+  const isSubscriptionDraft = draft.billing_interval === 'year'
 
   useEffect(() => {
     let mounted = true
@@ -246,6 +303,35 @@ export default function PreventiviPage() {
 
   function addSpeaqiBlock(key: SpeaqiPackageKey) {
     const p = SPEAQI_PACKAGES[key]
+    if (p.billing === 'yearly') {
+      // Tutto il preventivo diventa un abbonamento: Stripe rinnova l'intero importo ogni anno.
+      if (
+        draft.items.length > 0 &&
+        draft.billing_interval !== 'year' &&
+        !window.confirm(
+          `${p.label} è un abbonamento annuale con carta: tutto il preventivo si rinnoverà ogni anno. Continuare?`
+        )
+      ) {
+        return
+      }
+      setDraft((previous) => {
+        const shouldUsePackageTitle =
+          previous.items.length === 0 && previous.title.trim() === DEFAULT_QUOTE_TITLE
+        return {
+          ...previous,
+          title: shouldUsePackageTitle ? p.quoteTitle : previous.title,
+          items: [...previous.items, quoteLineFromPackage(key, makeLineId())],
+          ...SUBSCRIPTION_PAYMENT_TERMS,
+          billing_interval: 'year',
+          payment_terms_note: previous.payment_terms_note || SUBSCRIPTION_PAYMENT_TERMS_NOTE,
+          public_note:
+            !previous.public_note || previous.public_note === DEFAULT_PUBLIC_NOTE
+              ? SUBSCRIPTION_PUBLIC_NOTE
+              : previous.public_note,
+        }
+      })
+      return
+    }
     setDraft((previous) => {
       const shouldUsePackageTitle =
         previous.items.length === 0 && previous.title.trim() === DEFAULT_QUOTE_TITLE
@@ -258,6 +344,19 @@ export default function PreventiviPage() {
         public_note: previous.public_note || DEFAULT_PUBLIC_NOTE,
       }
     })
+  }
+
+  function makeOneTimePayment() {
+    setDraft((previous) => ({
+      ...previous,
+      billing_interval: 'one_time',
+      payment_method: 'both',
+      payment_terms_mode: 'percent',
+      deposit_percent: 30,
+      deposit_manual_amount: null,
+      payment_terms_note: previous.payment_terms_note === SUBSCRIPTION_PAYMENT_TERMS_NOTE ? '' : previous.payment_terms_note,
+      public_note: previous.public_note === SUBSCRIPTION_PUBLIC_NOTE ? DEFAULT_PUBLIC_NOTE : previous.public_note,
+    }))
   }
 
   function handleContactChange(contactId: string) {
@@ -432,6 +531,7 @@ export default function PreventiviPage() {
       valid_until: quote.valid_until || '',
       public_note: quote.public_note || '',
       internal_note: quote.internal_note || '',
+      billing_interval: quote.billing_interval || 'one_time',
     })
   }
 
@@ -526,6 +626,7 @@ export default function PreventiviPage() {
           valid_until: quote.valid_until || '',
           public_note: quote.public_note || '',
           internal_note: quote.internal_note || '',
+          billing_interval: quote.billing_interval || 'one_time',
         }),
       })
       setQuotes((previous) => [response.quote, ...previous])
@@ -534,6 +635,39 @@ export default function PreventiviPage() {
       showToast(duplicateError instanceof Error ? duplicateError.message : 'Impossibile duplicare il preventivo')
     } finally {
       setDuplicatingQuoteId(null)
+    }
+  }
+
+  const closeSignature = useCallback(() => setSignatureView(null), [])
+
+  async function openSignature(quote: Quote) {
+    setSignatureView({ quote, signature: null })
+    try {
+      const response = await apiFetch<{ signature: QuoteSignature }>(`/api/quotes/${quote.id}/signature`)
+      setSignatureView({ quote, signature: response.signature })
+    } catch (signatureError) {
+      setSignatureView(null)
+      showToast(signatureError instanceof Error ? signatureError.message : 'Firma non disponibile')
+    }
+  }
+
+  // Firma in presenza: il link di firma si apre qui, davanti al cliente, senza email.
+  async function openInPersonSigning(quote: Quote) {
+    setSigningLinkQuoteId(quote.id)
+    try {
+      const response = await apiFetch<{ acceptance_url: string }>(`/api/quotes/${quote.id}/send-acceptance-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ link_only: true }),
+      })
+      window.open(response.acceptance_url, '_blank', 'noopener')
+      if (quote.status === 'draft') {
+        setQuotes((previous) => previous.map((item) => (item.id === quote.id ? { ...item, status: 'sent' } : item)))
+      }
+    } catch (linkError) {
+      showToast(linkError instanceof Error ? linkError.message : 'Impossibile aprire la firma')
+    } finally {
+      setSigningLinkQuoteId(null)
     }
   }
 
@@ -594,6 +728,15 @@ export default function PreventiviPage() {
           </p>
         </div>
         <div className="quotes-hero-stats">
+          <button
+            type="button"
+            className="btn btn-ghost quotes-list-toggle"
+            aria-expanded={listOpen}
+            aria-controls="quotes-list-panel"
+            onClick={() => toggleList(!listOpen)}
+          >
+            {listOpen ? 'Nascondi preventivi fatti' : `Preventivi fatti (${activeQuotes.length})`}
+          </button>
           <div>
             <strong>{activeQuotes.length}</strong>
             <span>attivi</span>
@@ -607,7 +750,7 @@ export default function PreventiviPage() {
 
       {error && <div className="inline-error quotes-inline-error">{error}</div>}
 
-      <div className="quotes-layout">
+      <div className={`quotes-layout${listOpen ? ' is-list-open' : ''}`}>
         <form className="quotes-builder" onSubmit={handleSubmit}>
           <div className="quotes-panel-head">
             <div>
@@ -632,7 +775,12 @@ export default function PreventiviPage() {
                     <span className="quote-preset-tagline">{p.tagline}</span>
                   </span>
                   <span className="quote-preset-action">
-                    <span className="quote-preset-now">{formatMoney(p.unit_price)} + IVA</span>
+                    {p.list_unit_price ? (
+                      <span className="quote-preset-was">{formatMoney(p.list_unit_price)}</span>
+                    ) : null}
+                    <span className="quote-preset-now">
+                      {formatMoney(p.unit_price)} + IVA{p.billing === 'yearly' ? ' / anno' : ''}
+                    </span>
                     <span className="quote-preset-add">+ Aggiungi al preventivo</span>
                   </span>
                 </button>
@@ -936,6 +1084,21 @@ export default function PreventiviPage() {
             </div>
           </div>
 
+          {isSubscriptionDraft && (
+            <div className="quotes-subscription-banner">
+              <div>
+                <strong>Abbonamento annuale con carta — rinnovo automatico</strong>
+                <span>
+                  Il cliente firma online e paga {formatMoney(totals.total)} IVA inclusa; Stripe rinnova ogni anno.
+                  Niente acconto né bonifico.
+                </span>
+              </div>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={makeOneTimePayment}>
+                Rendi pagamento unico
+              </button>
+            </div>
+          )}
+
           <div className="quotes-form-grid quotes-money-grid">
             <label className="fg">
               <span className="fl">Sconto</span>
@@ -964,6 +1127,7 @@ export default function PreventiviPage() {
               <select
                 className="fi"
                 value={draft.payment_terms_mode || 'percent'}
+                disabled={isSubscriptionDraft}
                 onChange={(event) => setPaymentTermsMode(event.target.value as QuotePaymentTermsMode)}
               >
                 <option value="percent">Acconto %</option>
@@ -991,6 +1155,7 @@ export default function PreventiviPage() {
                   max="100"
                   step="1"
                   value={draft.deposit_percent || 0}
+                  disabled={isSubscriptionDraft}
                   onChange={(event) => patchDraft({ deposit_percent: Number(event.target.value) })}
                 />
               )}
@@ -1000,6 +1165,7 @@ export default function PreventiviPage() {
               <select
                 className="fi"
                 value={draft.payment_method || 'bank_transfer'}
+                disabled={isSubscriptionDraft}
                 onChange={(event) => patchDraft({ payment_method: event.target.value as QuoteDraft['payment_method'] })}
               >
                 <option value="bank_transfer">Bonifico</option>
@@ -1043,13 +1209,19 @@ export default function PreventiviPage() {
           <div className="quotes-summary-strip">
             <span>Subtotale {formatMoney(totals.subtotal)}</span>
             <span>IVA {formatMoney(totals.tax)}</span>
-            <strong>Totale {formatMoney(totals.total)}</strong>
-            <strong>
-              Acconto{' '}
-              {draft.payment_terms_mode === 'manual'
-                ? formatMoney(totals.deposit)
-                : `${Math.round(totals.depositPercent)}% · ${formatMoney(totals.deposit)}`}
-            </strong>
+            {isSubscriptionDraft ? (
+              <strong>Totale annuo {formatMoney(totals.total)} IVA inclusa</strong>
+            ) : (
+              <>
+                <strong>Totale {formatMoney(totals.total)}</strong>
+                <strong>
+                  Acconto{' '}
+                  {draft.payment_terms_mode === 'manual'
+                    ? formatMoney(totals.deposit)
+                    : `${Math.round(totals.depositPercent)}% · ${formatMoney(totals.deposit)}`}
+                </strong>
+              </>
+            )}
           </div>
 
           <button className="btn btn-primary quotes-submit" disabled={saving} type="submit">
@@ -1057,12 +1229,16 @@ export default function PreventiviPage() {
           </button>
         </form>
 
-        <section className="quotes-list-panel">
+        {listOpen && (
+        <section className="quotes-list-panel" id="quotes-list-panel">
           <div className="quotes-panel-head">
             <div>
               <h2>Offerte generate</h2>
               <p>{loading ? 'Caricamento…' : `${activeQuotes.length} preventivi visibili`}</p>
             </div>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => toggleList(false)}>
+              Chiudi
+            </button>
           </div>
 
           <div className="quotes-list">
@@ -1071,6 +1247,9 @@ export default function PreventiviPage() {
             )}
             {activeQuotes.map((quote) => {
               const url = quoteUrl(origin, quote.public_token)
+              const isSubscription = quote.billing_interval === 'year'
+              const soldBy = quote.sales_team_member_id ? memberNames.get(quote.sales_team_member_id) : null
+              const renewal = formatDay(quote.current_period_end)
               return (
                 <article key={quote.id} className="quote-card">
                   <div className="quote-card-top">
@@ -1082,15 +1261,39 @@ export default function PreventiviPage() {
                     <strong>{formatMoney(quote.total_amount, quote.currency)}</strong>
                   </div>
 
-                  <div className="quote-card-meta">
-                    <span>Acconto {formatMoney(quote.deposit_amount, quote.currency)}</span>
-                    <span>Saldo {formatMoney(quote.balance_amount, quote.currency)}</span>
-                    <span>{quote.payment_method === 'both' ? 'Stripe + bonifico' : quote.payment_method === 'stripe' ? 'Stripe' : 'Bonifico'}</span>
-                  </div>
+                  {isSubscription ? (
+                    <div className="quote-card-meta">
+                      <span className="quote-card-subscription">Abbonamento annuale</span>
+                      <span>
+                        Stripe:{' '}
+                        {quote.subscription_status
+                          ? SUBSCRIPTION_STATUS_LABELS[quote.subscription_status] || quote.subscription_status
+                          : 'non ancora pagato'}
+                      </span>
+                      {renewal && <span>Rinnovo il {renewal}</span>}
+                      {quote.cancel_at_period_end && <span>Disdetta a fine periodo</span>}
+                      {soldBy && <span>Venduto da {soldBy}</span>}
+                    </div>
+                  ) : (
+                    <div className="quote-card-meta">
+                      <span>Acconto {formatMoney(quote.deposit_amount, quote.currency)}</span>
+                      <span>Saldo {formatMoney(quote.balance_amount, quote.currency)}</span>
+                      <span>{quote.payment_method === 'both' ? 'Stripe + bonifico' : quote.payment_method === 'stripe' ? 'Stripe' : 'Bonifico'}</span>
+                      {soldBy && <span>Venduto da {soldBy}</span>}
+                    </div>
+                  )}
 
                   <div className="quote-card-url">{url}</div>
                   <div className="quote-card-email-state">
-                    {quote.contract_signer_email ? (
+                    {quote.contract_signer_name ? (
+                      <span className="quote-card-email-state-ok">
+                        Firmato da {quote.contract_signer_name}
+                        {quote.contract_signer_email ? ` (${quote.contract_signer_email})` : ''}{' '}
+                        <button type="button" className="quote-card-link" onClick={() => openSignature(quote)}>
+                          Vedi firma
+                        </button>
+                      </span>
+                    ) : quote.contract_signer_email ? (
                       <span className="quote-card-email-state-ok">Accettato da {quote.contract_signer_email}</span>
                     ) : quote.quote_acceptance_sent_at && quote.quote_acceptance_email ? (
                       <span>Link accettazione inviato a {quote.quote_acceptance_email}</span>
@@ -1133,6 +1336,17 @@ export default function PreventiviPage() {
                     >
                       {sendingQuoteId === quote.id ? 'Invio…' : 'Invia email'}
                     </button>
+                    {isSubscription && !quote.contract_signer_name && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => openInPersonSigning(quote)}
+                        disabled={signingLinkQuoteId === quote.id}
+                        title="Apre la firma su questo dispositivo, senza email: il link inviato prima smette di valere"
+                      >
+                        {signingLinkQuoteId === quote.id ? 'Apertura…' : 'Firma in presenza'}
+                      </button>
+                    )}
                     <Link className="btn btn-primary btn-sm" href={url} target="_blank">
                       Apri
                     </Link>
@@ -1145,7 +1359,48 @@ export default function PreventiviPage() {
             })}
           </div>
         </section>
+        )}
       </div>
+
+      <Modal
+        open={Boolean(signatureView)}
+        onClose={closeSignature}
+        title={signatureView ? `Firma — ${signatureView.quote.quote_number}` : 'Firma'}
+      >
+        {signatureView && !signatureView.signature && <p>Caricamento…</p>}
+        {signatureView?.signature && (
+          <div className="quote-signature-view">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={signatureView.signature.signature_png} alt={`Firma di ${signatureView.signature.signer_name}`} />
+            <dl>
+              <dt>Firmatario</dt>
+              <dd>{signatureView.signature.signer_name}</dd>
+              {signatureView.signature.signer_email && (
+                <>
+                  <dt>Email</dt>
+                  <dd>{signatureView.signature.signer_email}</dd>
+                </>
+              )}
+              <dt>Data</dt>
+              <dd>{new Date(signatureView.signature.signed_at).toLocaleString('it-IT')}</dd>
+              <dt>Canale</dt>
+              <dd>{signatureView.signature.channel === 'in_person' ? 'In presenza (link vendita)' : 'Link via email'}</dd>
+              {signatureView.signature.ip && (
+                <>
+                  <dt>IP</dt>
+                  <dd>{signatureView.signature.ip}</dd>
+                </>
+              )}
+              {signatureView.signature.user_agent && (
+                <>
+                  <dt>Dispositivo</dt>
+                  <dd className="quote-signature-ua">{signatureView.signature.user_agent}</dd>
+                </>
+              )}
+            </dl>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

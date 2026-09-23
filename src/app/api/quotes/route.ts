@@ -1,163 +1,16 @@
 import { NextRequest } from 'next/server'
-import { createActivities } from '@/lib/server/crm'
-import { getOpenDeal } from '@/lib/server/deal-ops'
-import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { errorMessage } from '@/lib/server/http'
 import {
-  DEFAULT_BANK_TRANSFER_INSTRUCTIONS,
-  DEFAULT_CONTRACT_TERMS,
-  buildPublicToken,
-  buildQuoteNumber,
-  calculateQuoteTotals,
-  currencyCode,
-  normalizeNumber,
-  normalizePaymentMethod,
-  normalizePaymentTermsMode,
-  normalizeQuoteItems,
-  normalizeStatus,
-  normalizeText,
-} from '@/lib/server/quotes'
+  CONTACT_SELECT_BASE,
+  CONTACT_SELECT_BILLING,
+  QuoteInputError,
+  createQuoteRecord,
+  isMissingContactBillingColumnError,
+  normalizeQuoteRow,
+  readContactForQuote,
+} from '@/lib/server/quote-create'
+import { normalizeText } from '@/lib/server/quotes'
 import { requireRouteUser } from '@/lib/server/supabase'
-
-const CONTACT_SELECT_BASE = 'id, name, email, company, phone, status, responsible, assigned_agent'
-const CONTACT_SELECT_BILLING =
-  'id, name, email, company, phone, status, responsible, assigned_agent, billing_tax_id, billing_pec, billing_sdi, billing_address, billing_zip, billing_city'
-
-async function readContactForQuote(
-  supabase: any,
-  userId: string,
-  contactId: string,
-  responsible?: string | null
-) {
-  const selectContact = async (selectClause: string) => {
-    let query = supabase.from('contacts').select(selectClause).eq('user_id', userId).eq('id', contactId)
-
-    if (responsible) {
-      const assigneeOr = contactAssigneeMatchOrFilter(responsible)
-      if (assigneeOr) query = query.or(assigneeOr)
-    }
-
-    return await query.maybeSingle()
-  }
-
-  const first = await selectContact(CONTACT_SELECT_BILLING)
-  if (!first.error) return first.data || null
-
-  if (isMissingContactBillingColumnError(first.error)) {
-    const retry = await selectContact(CONTACT_SELECT_BASE)
-    if (retry.error) throw retry.error
-    return retry.data || null
-  }
-
-  throw first.error
-}
-
-function normalizeQuoteRow(row: any) {
-  return {
-    ...row,
-    contact: Array.isArray(row.contact) ? row.contact[0] : row.contact,
-    items: Array.isArray(row.items) ? row.items : [],
-  }
-}
-
-type OptionalQuoteColumn =
-  | 'customer_pec'
-  | 'customer_sdi'
-  | 'customer_zip'
-  | 'customer_city'
-
-const OPTIONAL_QUOTE_COLUMNS: OptionalQuoteColumn[] = [
-  'customer_pec',
-  'customer_sdi',
-  'customer_zip',
-  'customer_city',
-]
-
-type RequiredPaymentTermsColumn = 'payment_terms_mode' | 'deposit_manual_amount' | 'payment_terms_note'
-
-const REQUIRED_PAYMENT_TERMS_COLUMNS: RequiredPaymentTermsColumn[] = [
-  'payment_terms_mode',
-  'deposit_manual_amount',
-  'payment_terms_note',
-]
-
-function isMissingContactBillingColumnError(error: unknown) {
-  const message = errorText(error)
-  return (
-    (
-      message.includes('billing_tax_id') ||
-      message.includes('billing_pec') ||
-      message.includes('billing_sdi') ||
-      message.includes('billing_address') ||
-      message.includes('billing_zip') ||
-      message.includes('billing_city')
-    ) &&
-    (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
-  )
-}
-
-function errorText(error: unknown) {
-  if (error instanceof Error) return error.message.toLowerCase()
-  if (error && typeof error === 'object') {
-    if ('message' in error && (error as { message?: unknown }).message) {
-      return String((error as { message?: unknown }).message).toLowerCase()
-    }
-    if ('details' in error && (error as { details?: unknown }).details) {
-      return String((error as { details?: unknown }).details).toLowerCase()
-    }
-    if ('hint' in error && (error as { hint?: unknown }).hint) {
-      return String((error as { hint?: unknown }).hint).toLowerCase()
-    }
-  }
-  return ''
-}
-
-function isMissingOptionalQuoteColumn(error: unknown, column: OptionalQuoteColumn) {
-  const message = errorText(error)
-  return (
-    message.includes(column) &&
-    (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
-  )
-}
-
-function hasOptionalQuoteColumnSchemaError(error: unknown) {
-  return OPTIONAL_QUOTE_COLUMNS.some((column) => isMissingOptionalQuoteColumn(error, column))
-}
-
-function hasMissingPaymentTermsSchemaError(error: unknown) {
-  return REQUIRED_PAYMENT_TERMS_COLUMNS.some((column) => {
-    const message = errorText(error)
-    return (
-      message.includes(column) &&
-      (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
-    )
-  })
-}
-
-function stripOptionalQuoteColumns(payload: Record<string, unknown>) {
-  const fallback = { ...payload }
-  OPTIONAL_QUOTE_COLUMNS.forEach((column) => {
-    delete fallback[column]
-  })
-  return fallback
-}
-
-function buildQuotePayloadFallback(payload: Record<string, unknown>, error: unknown) {
-  const fallback = { ...payload }
-  let changed = false
-
-  if (hasMissingPaymentTermsSchemaError(error)) {
-    throw new Error(
-      'Il database non ha ancora le colonne per le condizioni di pagamento manuali. Applica la migration Supabase più recente e riprova.'
-    )
-  }
-
-  if (hasOptionalQuoteColumnSchemaError(error)) {
-    return stripOptionalQuoteColumns(fallback)
-  }
-
-  return changed ? fallback : null
-}
 
 async function fetchQuotesForWorkspace(supabase: any, userId: string) {
   const selectQuotes = async (selectClause: string) =>
@@ -174,27 +27,6 @@ async function fetchQuotesForWorkspace(supabase: any, userId: string) {
     const retry = await selectQuotes(`*, contact:contacts(${CONTACT_SELECT_BASE})`)
     if (retry.error) throw retry.error
     return retry.data || []
-  }
-
-  throw first.error
-}
-
-async function fetchQuoteById(supabase: any, userId: string, id: string) {
-  const selectQuote = async (selectClause: string) =>
-    await supabase
-      .from('quotes')
-      .select(selectClause)
-      .eq('user_id', userId)
-      .eq('id', id)
-      .maybeSingle()
-
-  const first = await selectQuote(`*, contact:contacts(${CONTACT_SELECT_BILLING})`)
-  if (!first.error) return first.data || null
-
-  if (isMissingContactBillingColumnError(first.error)) {
-    const retry = await selectQuote(`*, contact:contacts(${CONTACT_SELECT_BASE})`)
-    if (retry.error) throw retry.error
-    return retry.data || null
   }
 
   throw first.error
@@ -232,133 +64,12 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Contatto non trovato o non assegnato a te' }, { status: 404 })
     }
 
-    const customerName =
-      normalizeText(body.customer_name) ||
-      normalizeText(contact?.name) ||
-      normalizeText(contact?.company)
-    const title = normalizeText(body.title) || 'Preventivo Speaqi'
-    const items = normalizeQuoteItems(body.items)
-
-    if (!customerName) {
-      return Response.json({ error: 'Nome cliente obbligatorio' }, { status: 400 })
-    }
-    if (!items.length) {
-      return Response.json({ error: 'Aggiungi almeno una riga offerta' }, { status: 400 })
-    }
-
-    const totals = calculateQuoteTotals(items, {
-      discountAmount: normalizeNumber(body.discount_amount, 0),
-      taxRate: normalizeNumber(body.tax_rate, 22),
-      paymentTermsMode: normalizePaymentTermsMode(body.payment_terms_mode, 'percent'),
-      depositPercent: normalizeNumber(body.deposit_percent, 30),
-      depositManualAmount: normalizeNumber(body.deposit_manual_amount, 0),
-    })
-    const status = normalizeStatus(body.status, 'sent')
-    const now = new Date().toISOString()
-
-    const insertPayload = {
-      user_id: auth.workspaceUserId,
-      contact_id: contact?.id || null,
-      quote_number: normalizeText(body.quote_number) || buildQuoteNumber(),
-      public_token: buildPublicToken(),
-      status,
-      title,
-      customer_name: customerName,
-      customer_email: normalizeText(body.customer_email) || normalizeText(contact?.email),
-      customer_company: normalizeText(body.customer_company) || normalizeText(contact?.company),
-      customer_tax_id: normalizeText(body.customer_tax_id) || normalizeText(contact?.billing_tax_id),
-      customer_pec: normalizeText(body.customer_pec) || normalizeText(contact?.billing_pec),
-      customer_sdi: normalizeText(body.customer_sdi) || normalizeText(contact?.billing_sdi),
-      customer_address: normalizeText(body.customer_address) || normalizeText(contact?.billing_address),
-      customer_zip: normalizeText(body.customer_zip) || normalizeText(contact?.billing_zip),
-      customer_city: normalizeText(body.customer_city) || normalizeText(contact?.billing_city),
-      items,
-      currency: currencyCode(body.currency),
-      ...totals,
-      payment_method: normalizePaymentMethod(body.payment_method),
-      payment_state: totals.deposit_amount > 0 ? 'pending' : 'waived',
-      payment_terms_note: normalizeText(body.payment_terms_note),
-      bank_transfer_instructions:
-        normalizeText(body.bank_transfer_instructions) || DEFAULT_BANK_TRANSFER_INSTRUCTIONS,
-      contract_auto_accepted: false,
-      contract_terms: normalizeText(body.contract_terms) || DEFAULT_CONTRACT_TERMS,
-      contract_accepted_at: null,
-      valid_until: normalizeText(body.valid_until),
-      public_note: normalizeText(body.public_note),
-      internal_note: normalizeText(body.internal_note),
-      sent_at: status === 'draft' ? null : now,
-      accepted_at: status === 'accepted' || status === 'paid' ? now : null,
-      paid_at: status === 'paid' ? now : null,
-    }
-
-    let insertedId: string | null = null
-    let insertError: unknown = null
-
-    const firstInsert = await auth.supabase
-      .from('quotes')
-      .insert(insertPayload)
-      .select('id')
-      .single()
-
-    if (!firstInsert.error) {
-      insertedId = firstInsert.data?.id || null
-    } else {
-      const fallbackPayload = buildQuotePayloadFallback(insertPayload, firstInsert.error)
-      if (fallbackPayload) {
-        const retry = await auth.supabase
-          .from('quotes')
-          .insert(fallbackPayload)
-          .select('id')
-          .single()
-
-        insertedId = retry.data?.id || null
-        insertError = retry.error
-      } else {
-        insertError = firstInsert.error
-      }
-    }
-
-    if (insertError) throw insertError
-    if (!insertedId) throw new Error('Impossibile creare il preventivo')
-
-    // Aggancia il preventivo alla trattativa aperta del contatto (best-effort:
-    // se la tabella deals o la colonna deal_id non esistono ancora, si ignora).
-    if (contact?.id) {
-      try {
-        const openDeal = await getOpenDeal(auth.supabase, auth.workspaceUserId, contact.id)
-        if (openDeal) {
-          await auth.supabase
-            .from('quotes')
-            .update({ deal_id: openDeal.id })
-            .eq('user_id', auth.workspaceUserId)
-            .eq('id', insertedId)
-        }
-      } catch {
-        // colonna/tabella non ancora migrata: il preventivo resta senza deal_id
-      }
-    }
-
-    const data = await fetchQuoteById(auth.supabase, auth.workspaceUserId, insertedId)
-    if (!data) throw new Error('Preventivo non trovato dopo la creazione')
-
-    if (contact?.id) {
-      await createActivities(auth.supabase, [
-        {
-          user_id: auth.workspaceUserId,
-          contact_id: contact.id,
-          type: 'system',
-          content: `Preventivo ${data.quote_number} creato: ${data.total_amount} ${data.currency}.`,
-          metadata: {
-            quote_id: data.id,
-            quote_number: data.quote_number,
-            quote_total: data.total_amount,
-          },
-        },
-      ])
-    }
-
-    return Response.json({ quote: normalizeQuoteRow(data) }, { status: 201 })
+    const quote = await createQuoteRecord(auth.supabase, auth.workspaceUserId, contact, body)
+    return Response.json({ quote }, { status: 201 })
   } catch (error) {
+    if (error instanceof QuoteInputError) {
+      return Response.json({ error: error.message }, { status: 400 })
+    }
     return Response.json({ error: errorMessage(error, 'Impossibile creare il preventivo') }, { status: 500 })
   }
 }
