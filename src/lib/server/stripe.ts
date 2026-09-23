@@ -95,6 +95,38 @@ export function verifyStripeSignature(
   return { ok: true, timestamp }
 }
 
+export type StripeCatalogPricing = { priceId: string; couponId: string }
+
+/**
+ * Quanto addebita Stripe con prezzo di catalogo + coupon, in centesimi.
+ * `null` quando la coppia non e' adatta a un abbonamento annuale in euro con
+ * sconto permanente: prezzo spento, non annuale o in altra valuta, coupon non
+ * valido o non "per sempre". Un coupon "una volta" farebbe rinnovare a prezzo
+ * pieno, mentre il contratto firmato dice "stesso prezzo".
+ */
+export function catalogAmountCents(price: any, coupon: any): number | null {
+  if (!price || price.active === false) return null
+  if (price.type !== 'recurring' || price.recurring?.interval !== 'year' || Number(price.recurring?.interval_count || 1) !== 1) {
+    return null
+  }
+  if (String(price.currency || '').toLowerCase() !== 'eur') return null
+  const unit = Number(price.unit_amount)
+  if (!Number.isInteger(unit) || unit <= 0) return null
+
+  if (!coupon || coupon.valid === false || coupon.duration !== 'forever') return null
+  let discounted: number
+  if (coupon.amount_off != null) {
+    if (String(coupon.currency || '').toLowerCase() !== 'eur') return null
+    discounted = unit - Number(coupon.amount_off)
+  } else if (coupon.percent_off != null) {
+    discounted = Math.round(unit * (1 - Number(coupon.percent_off) / 100))
+  } else {
+    return null
+  }
+  if (!Number.isFinite(discounted) || discounted <= 0) return null
+  return discounted
+}
+
 export function buildSubscriptionCheckoutParams(input: {
   token: string
   quoteId: string
@@ -104,6 +136,8 @@ export function buildSubscriptionCheckoutParams(input: {
   customerEmail?: string | null
   productName: string
   origin: string
+  /** Prodotto del catalogo Stripe + coupon; senza, il prezzo si scrive al volo. */
+  catalog?: StripeCatalogPricing | null
 }) {
   const origin = input.origin.replace(/\/$/, '')
   const tokenParam = encodeURIComponent(input.token)
@@ -117,14 +151,20 @@ export function buildSubscriptionCheckoutParams(input: {
   params.set('success_url', `${origin}/preventivo?id=${tokenParam}&checkout=success&session_id={CHECKOUT_SESSION_ID}`)
   params.set('cancel_url', `${origin}/preventivo?id=${tokenParam}&checkout=cancelled`)
   params.set('line_items[0][quantity]', '1')
-  params.set('line_items[0][price_data][currency]', String(input.currency || 'EUR').toLowerCase())
-  params.set('line_items[0][price_data][unit_amount]', String(toCents(input.totalAmount)))
-  params.set('line_items[0][price_data][recurring][interval]', 'year')
-  params.set('line_items[0][price_data][product_data][name]', input.productName)
+  if (input.catalog) {
+    params.set('line_items[0][price]', input.catalog.priceId)
+    params.set('discounts[0][coupon]', input.catalog.couponId)
+  } else {
+    params.set('line_items[0][price_data][currency]', String(input.currency || 'EUR').toLowerCase())
+    params.set('line_items[0][price_data][unit_amount]', String(toCents(input.totalAmount)))
+    params.set('line_items[0][price_data][recurring][interval]', 'year')
+    params.set('line_items[0][price_data][product_data][name]', input.productName)
+  }
   for (const [key, value] of [
     ['quote_token', input.token],
     ['quote_id', input.quoteId],
     ['quote_number', input.quoteNumber],
+    ['pricing', input.catalog ? 'catalog' : 'inline'],
   ]) {
     params.set(`metadata[${key}]`, value)
     // Anche sull'abbonamento: le fatture di rinnovo arrivano senza la sessione.

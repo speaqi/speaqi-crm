@@ -14,6 +14,7 @@ import {
 } from '../src/lib/server/quotes'
 import {
   buildSubscriptionCheckoutParams,
+  catalogAmountCents,
   invoicePeriodEnd,
   invoiceSubscriptionId,
   invoiceSubscriptionMetadata,
@@ -164,6 +165,7 @@ describe('buildSubscriptionCheckoutParams', () => {
   })
 
   test('abbonamento annuale solo carta', () => {
+    assert.equal(params.get('metadata[pricing]'), 'inline')
     assert.equal(params.get('mode'), 'subscription')
     assert.equal(params.get('payment_method_types[0]'), 'card')
     assert.equal(params.get('line_items[0][price_data][recurring][interval]'), 'year')
@@ -183,6 +185,47 @@ describe('buildSubscriptionCheckoutParams', () => {
       params.get('success_url'),
       'https://crm.speaqi.com/preventivo?id=tok123&checkout=success&session_id={CHECKOUT_SESSION_ID}'
     )
+  })
+})
+
+describe('catalogo Stripe: Video nella mappa', () => {
+  const price = { active: true, type: 'recurring', recurring: { interval: 'year', interval_count: 1 }, currency: 'eur', unit_amount: 48800 }
+  const coupon = { valid: true, duration: 'forever', amount_off: 12200, currency: 'eur' }
+
+  test('488 € − 122 € per sempre = 366 €, cioè l’importo firmato', () => {
+    assert.equal(catalogAmountCents(price, coupon), 36600)
+    assert.equal(catalogAmountCents(price, coupon), toCents(366))
+  })
+
+  test('coupon in percentuale', () => {
+    assert.equal(catalogAmountCents(price, { valid: true, duration: 'forever', percent_off: 25 }), 36600)
+  })
+
+  test('scarta ciò che farebbe addebitare altro', () => {
+    assert.equal(catalogAmountCents(price, { ...coupon, duration: 'once' }), null)
+    assert.equal(catalogAmountCents(price, { ...coupon, valid: false }), null)
+    assert.equal(catalogAmountCents(price, { ...coupon, currency: 'usd' }), null)
+    assert.equal(catalogAmountCents({ ...price, recurring: { interval: 'month' } }, coupon), null)
+    assert.equal(catalogAmountCents({ ...price, active: false }, coupon), null)
+    assert.equal(catalogAmountCents({ ...price, currency: 'usd' }, coupon), null)
+    assert.equal(catalogAmountCents(price, { ...coupon, amount_off: 48800 }), null)
+  })
+
+  test('parametri del checkout col catalogo', () => {
+    const params = buildSubscriptionCheckoutParams({
+      token: 'tok',
+      quoteId: 'q',
+      quoteNumber: 'PREV-1',
+      totalAmount: 366,
+      productName: 'Video',
+      origin: 'https://crm.speaqi.com',
+      catalog: { priceId: 'price_123', couponId: 'coupon_abc' },
+    })
+    assert.equal(params.get('line_items[0][price]'), 'price_123')
+    assert.equal(params.get('discounts[0][coupon]'), 'coupon_abc')
+    assert.equal(params.get('line_items[0][price_data][unit_amount]'), null)
+    assert.equal(params.get('metadata[pricing]'), 'catalog')
+    assert.equal(params.get('subscription_data[metadata][pricing]'), 'catalog')
   })
 })
 

@@ -3,8 +3,10 @@ import { errorMessage } from '@/lib/server/http'
 import {
   StripeApiError,
   buildSubscriptionCheckoutParams,
+  catalogAmountCents,
   stripeFetch,
   toCents,
+  type StripeCatalogPricing,
 } from '@/lib/server/stripe'
 import { createPublicServerClient, createServiceRoleClient } from '@/lib/server/supabase'
 
@@ -25,6 +27,31 @@ function pickOrigin(request: NextRequest) {
 
 /** Stati Stripe in cui l'abbonamento esiste gia': un secondo checkout sarebbe un doppione. */
 const LIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing', 'past_due', 'incomplete'])
+
+/**
+ * Prodotto "Video nella mappa" del catalogo Stripe (prezzo pieno + coupon
+ * permanente). Si usa solo se l'importo che ne risulta coincide al centesimo
+ * con quello firmato: un preventivo con un importo diverso fatto a mano nel
+ * CRM torna al prezzo scritto al volo, cosi' non si addebita mai una cifra
+ * diversa da quella firmata.
+ */
+async function resolveCatalogPricing(totalAmount: unknown, quoteNumber: string): Promise<StripeCatalogPricing | null> {
+  const priceId = process.env.STRIPE_VIDEO_MAP_PRICE_ID?.trim()
+  const couponId = process.env.STRIPE_VIDEO_MAP_COUPON_ID?.trim()
+  if (!priceId || !couponId) return null
+  try {
+    const [price, coupon] = await Promise.all([
+      stripeFetch<any>(`/prices/${encodeURIComponent(priceId)}`),
+      stripeFetch<any>(`/coupons/${encodeURIComponent(couponId)}`),
+    ])
+    const amount = catalogAmountCents(price, coupon)
+    if (amount !== null && amount === toCents(totalAmount)) return { priceId, couponId }
+    console.warn('checkout: catalogo Stripe non allineato, prezzo inline', { quoteNumber, catalog: amount, signed: toCents(totalAmount) })
+  } catch (error) {
+    console.warn('checkout: catalogo Stripe illeggibile, prezzo inline', error instanceof Error ? error.message : error)
+  }
+  return null
+}
 
 /**
  * Abbonamento annuale: si paga solo dopo la firma, e solo l'importo firmato.
@@ -67,14 +94,25 @@ async function startSubscriptionCheckout(request: NextRequest, token: string) {
     return Response.json({ error: 'Importo troppo basso per Stripe' }, { status: 400 })
   }
 
+  const catalog = await resolveCatalogPricing(quote.total_amount, quote.quote_number)
+  const pricing = catalog ? 'catalog' : 'inline'
+
   // Una sessione ancora aperta si riusa: due clic non creano due abbonamenti.
+  // Se il prezzo e' passato da inline a catalogo (o viceversa) la vecchia si
+  // chiude prima di aprirne una nuova, per non lasciarne due pagabili.
   if (quote.stripe_checkout_session_id && quote.stripe_checkout_url) {
     try {
       const existing = await stripeFetch<any>(
         `/checkout/sessions/${encodeURIComponent(quote.stripe_checkout_session_id)}`
       )
       if (existing?.status === 'open' && existing?.mode === 'subscription' && existing?.url) {
-        return Response.json({ url: existing.url })
+        if ((existing?.metadata?.pricing || 'inline') === pricing) {
+          return Response.json({ url: existing.url })
+        }
+        await stripeFetch(`/checkout/sessions/${encodeURIComponent(existing.id)}/expire`, {
+          method: 'POST',
+          params: new URLSearchParams(),
+        })
       }
     } catch {
       // sessione scaduta o illeggibile: se ne crea una nuova
@@ -90,6 +128,7 @@ async function startSubscriptionCheckout(request: NextRequest, token: string) {
     customerEmail: quote.contract_signer_email || quote.quote_acceptance_email || quote.customer_email,
     productName: `${quote.title || 'Abbonamento Speaqi'} (${quote.quote_number})`,
     origin: pickOrigin(request),
+    catalog,
   })
   const session = await stripeFetch<any>('/checkout/sessions', { params })
   const checkoutUrl = normalizeText(session?.url)
