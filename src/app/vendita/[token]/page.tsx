@@ -25,6 +25,9 @@ function InvalidLink() {
         <BrandLockup tone="light" size="hero" centered />
         <h1>Link non valido</h1>
         <p>Il link vendita non esiste più oppure è stato revocato. Chiedi un nuovo link all’amministratore.</p>
+        <p>
+          Vuoi diventare commerciale Speaqi? <a href="/diventa-commerciale">Scopri come funziona</a>.
+        </p>
       </section>
     </main>
   )
