@@ -26,6 +26,8 @@ export const BACKUP_TABLES = [
   'pipeline_stages',
   'team_members',
   'user_settings',
+  // Soldi da ricevere (/incassi): pochi, ma sono soldi.
+  'receivables',
 ] as const
 
 /** PostgREST tronca a 1000 righe: senza paginazione il backup e silenziosamente incompleto. */

@@ -6832,3 +6832,45 @@ textarea.form-input::placeholder { color: var(--text3); }
   word-break: break-all;
   color: var(--text);
 }
+
+/* ── DA INCASSARE (/incassi) ───────────────────── */
+.rc-page { max-width: 820px; }
+.rc-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+.rc-total { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
+.rc-total span { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; }
+.rc-total strong { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rc-total small { font-size: 12px; color: var(--text3); }
+.rc-total.is-pending strong { color: var(--accent); }
+.rc-total.is-collected strong { color: var(--green); }
+.rc-add { display: flex; gap: 10px; align-items: flex-end; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 16px; }
+.rc-field { flex: 1; min-width: 0; }
+.rc-field-amount { flex: 0 0 150px; }
+.rc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.rc-row { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; }
+.rc-row.is-collected { background: var(--surface2); }
+.rc-row.is-collected .rc-name, .rc-row.is-collected .rc-amount { color: var(--text2); }
+.rc-check { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--border); background: var(--surface); color: #fff; font-size: 13px; font-weight: 700; line-height: 1; cursor: pointer; display: grid; place-items: center; }
+.rc-check:hover:not(:disabled) { border-color: var(--green); }
+.rc-check[aria-pressed='true'] { background: var(--green); border-color: var(--green); }
+.rc-main { flex: 1; min-width: 0; }
+.rc-name { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.rc-meta { font-size: 12px; color: var(--text3); }
+.rc-amount { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rc-actions { display: flex; gap: 6px; }
+.rc-edit { display: flex; gap: 8px; align-items: center; width: 100%; }
+.rc-edit .fi { flex: 1; min-width: 0; }
+.rc-edit .rc-amount-input { flex: 0 0 130px; }
+.rc-empty { text-align: center; color: var(--text3); padding: 28px 10px; font-size: 13px; }
+.rc-collected { margin-top: 20px; }
+.rc-collected-toggle { background: none; border: 0; padding: 4px 0; margin-bottom: 8px; font-size: 13px; font-weight: 600; color: var(--text2); cursor: pointer; }
+.rc-collected-toggle:hover { color: var(--text); }
+@media (max-width: 640px) {
+  .rc-page { padding: 16px; }
+  .rc-add { flex-wrap: wrap; }
+  .rc-field, .rc-field-amount { flex: 1 1 100%; }
+  .rc-add .btn { width: 100%; justify-content: center; }
+  .rc-row { flex-wrap: wrap; }
+  .rc-actions { flex: 1 1 100%; justify-content: flex-end; }
+  .rc-edit { flex-wrap: wrap; }
+  .rc-edit .fi, .rc-edit .rc-amount-input { flex: 1 1 100%; }
+}

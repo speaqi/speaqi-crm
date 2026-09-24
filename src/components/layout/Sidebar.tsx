@@ -26,6 +26,8 @@ interface SidebarProps {
 // Hospitality e i verticali che verranno stanno tutti li dentro.
 // "To Do" sta subito dopo "Oggi" perché è la lista che si guarda per prima la
 // mattina, e raccoglie anche le cose che con Speaqi non c'entrano.
+// "Da incassare" sta in fondo, separato dal core loop: sono soldi personali
+// che con Speaqi non c'entrano.
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Oggi', icon: '🏠', badgeKey: 'oggi' as const, badgeRed: true },
   { href: '/todo', label: 'To Do', icon: '✅', badgeKey: 'todo' as const, badgeRed: true },
@@ -74,6 +76,13 @@ export function Sidebar({ counts }: SidebarProps) {
       </nav>
 
       <div className="sidebar-footer">
+        <Link
+          href="/incassi"
+          className={`nav-item sidebar-footer-item ${pathname === '/incassi' ? 'active' : ''}`}
+        >
+          <span className="icon">💰</span>
+          Da incassare
+        </Link>
         <Link href="/import" className="nav-item sidebar-footer-item">
           <span className="icon">📥</span>
           Importa

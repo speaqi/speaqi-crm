@@ -32,6 +32,8 @@ const DEFAULT_TABLES = [
   'pipeline_stages',
   'team_members',
   'user_settings',
+  'quote_signatures',
+  'receivables',
 ]
 
 /** PostgREST tronca a 1000 righe: senza paginazione un backup e silenziosamente incompleto. */
