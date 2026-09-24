@@ -13,6 +13,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/personali': '🗂️ Personali',
   '/kanban': '🔀 Pipeline',
   '/preventivi': '💶 Preventivi',
+  '/incassi': '💰 Da incassare',
   '/import': '📥 Importa',
   '/impostazioni': '⚙️ Impostazioni',
   '/impostazioni/team': '👥 Team',
