@@ -95,16 +95,15 @@ export function verifyStripeSignature(
   return { ok: true, timestamp }
 }
 
-export type StripeCatalogPricing = { priceId: string; couponId: string }
+/** `couponId: null` = prezzo di catalogo pieno, senza sconto. */
+export type StripeCatalogPricing = { priceId: string; couponId: string | null }
 
 /**
- * Quanto addebita Stripe con prezzo di catalogo + coupon, in centesimi.
- * `null` quando la coppia non e' adatta a un abbonamento annuale in euro con
- * sconto permanente: prezzo spento, non annuale o in altra valuta, coupon non
- * valido o non "per sempre". Un coupon "una volta" farebbe rinnovare a prezzo
- * pieno, mentre il contratto firmato dice "stesso prezzo".
+ * Quanto addebita Stripe col prezzo di catalogo da solo, in centesimi.
+ * `null` quando il prezzo non e' adatto a un abbonamento annuale in euro:
+ * spento, non annuale o in altra valuta.
  */
-export function catalogAmountCents(price: any, coupon: any): number | null {
+export function catalogPriceCents(price: any): number | null {
   if (!price || price.active === false) return null
   if (price.type !== 'recurring' || price.recurring?.interval !== 'year' || Number(price.recurring?.interval_count || 1) !== 1) {
     return null
@@ -112,6 +111,19 @@ export function catalogAmountCents(price: any, coupon: any): number | null {
   if (String(price.currency || '').toLowerCase() !== 'eur') return null
   const unit = Number(price.unit_amount)
   if (!Number.isInteger(unit) || unit <= 0) return null
+  return unit
+}
+
+/**
+ * Quanto addebita Stripe con prezzo di catalogo + coupon, in centesimi.
+ * `null` quando la coppia non e' adatta a un abbonamento annuale in euro con
+ * sconto permanente: prezzo non valido (vedi `catalogPriceCents`), coupon non
+ * valido o non "per sempre". Un coupon "una volta" farebbe rinnovare a prezzo
+ * pieno, mentre il contratto firmato dice "stesso prezzo".
+ */
+export function catalogAmountCents(price: any, coupon: any): number | null {
+  const unit = catalogPriceCents(price)
+  if (unit === null) return null
 
   if (!coupon || coupon.valid === false || coupon.duration !== 'forever') return null
   let discounted: number
@@ -136,7 +148,7 @@ export function buildSubscriptionCheckoutParams(input: {
   customerEmail?: string | null
   productName: string
   origin: string
-  /** Prodotto del catalogo Stripe + coupon; senza, il prezzo si scrive al volo. */
+  /** Prodotto del catalogo Stripe (con o senza coupon); senza, il prezzo si scrive al volo. */
   catalog?: StripeCatalogPricing | null
 }) {
   const origin = input.origin.replace(/\/$/, '')
@@ -153,7 +165,7 @@ export function buildSubscriptionCheckoutParams(input: {
   params.set('line_items[0][quantity]', '1')
   if (input.catalog) {
     params.set('line_items[0][price]', input.catalog.priceId)
-    params.set('discounts[0][coupon]', input.catalog.couponId)
+    if (input.catalog.couponId) params.set('discounts[0][coupon]', input.catalog.couponId)
   } else {
     params.set('line_items[0][price_data][currency]', String(input.currency || 'EUR').toLowerCase())
     params.set('line_items[0][price_data][unit_amount]', String(toCents(input.totalAmount)))

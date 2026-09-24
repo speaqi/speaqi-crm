@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { BrandLockup } from '@/components/layout/BrandLockup'
-import { SALES_PROGRAM, commissionExamples, salesProgramProduct } from '@/lib/sales-program'
+import { SALES_PROGRAM, commissionEstimate, salesProgramProduct } from '@/lib/sales-program'
 import { ApplicationForm } from './ApplicationForm'
+import { CommissionCalculator } from './CommissionCalculator'
 
 export const metadata: Metadata = {
   title: 'Diventa commerciale Speaqi',
@@ -54,7 +55,7 @@ const FAQ = [
 
 export default function DiventaCommercialePage() {
   const product = salesProgramProduct()
-  const examples = commissionExamples(10)
+  const perVideo = commissionEstimate(1, 1).perVideo
 
   return (
     <main className="public-quote-page">
@@ -91,9 +92,8 @@ export default function DiventaCommercialePage() {
               </p>
             </div>
             <div className="recruit-price">
-              {product.listPrice ? <s>{euro(product.listPrice)}</s> : null}
               <strong>{euro(product.netPrice)} + IVA</strong>
-              <span>all’anno, rinnovo automatico</span>
+              <span>a video, all’anno · rinnovo automatico</span>
             </div>
           </div>
         </section>
@@ -104,18 +104,16 @@ export default function DiventaCommercialePage() {
             <div className="recruit-stat">
               <strong>{SALES_PROGRAM.firstYearPercent}%</strong>
               <span>sul primo anno di ogni cliente</span>
-              <small>{euro(examples.perSale.firstYear)} per ogni abbonamento venduto</small>
+              <small>{euro(perVideo.firstYear)} per ogni video venduto</small>
             </div>
             <div className="recruit-stat">
               <strong>{SALES_PROGRAM.renewalPercent}%</strong>
               <span>su ogni rinnovo, finché il cliente resta</span>
-              <small>{euro(examples.perSale.renewal)} all’anno per cliente</small>
+              <small>{euro(perVideo.renewal)} all’anno per ogni video rinnovato</small>
             </div>
           </div>
-          <p className="recruit-example">
-            Con <strong>{examples.portfolio.clients} clienti</strong>: {euro(examples.portfolio.firstYear)} il primo anno,
-            poi {euro(examples.portfolio.renewalPerYear)} ogni anno dai soli rinnovi, senza doverli rivendere.
-          </p>
+          <h3 className="recruit-calc-title">Fai i tuoi conti</h3>
+          <CommissionCalculator />
           <p className="public-quote-muted">
             Provvigioni calcolate sull’importo netto (IVA esclusa) effettivamente incassato, liquidate{' '}
             {SALES_PROGRAM.payoutTerms}.

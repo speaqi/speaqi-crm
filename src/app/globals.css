@@ -6910,3 +6910,34 @@ textarea.form-input::placeholder { color: var(--text3); }
   .recruit-price { align-items: flex-start; }
   .recruit-grid { grid-template-columns: 1fr; }
 }
+
+/* Calcolatore provvigioni su /diventa-commerciale */
+.recruit-calc-title { margin: 18px 0 10px; font-size: 16px; }
+.recruit-calc { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 16px; align-items: stretch; margin-bottom: 12px; }
+.recruit-calc-inputs { display: grid; gap: 14px; padding: 16px; border-radius: 14px; border: 1px solid rgba(17, 24, 39, 0.1); background: #fff; }
+.recruit-calc-field { display: flex; flex-direction: column; gap: 6px; }
+.recruit-calc-field label { font-weight: 700; color: #1b2f4a; }
+.recruit-calc-field small { color: #64748b; font-size: 12px; }
+.recruit-calc-stepper { display: flex; align-items: stretch; border: 1px solid #fed7aa; border-radius: 12px; overflow: hidden; background: #fff; }
+.recruit-calc-stepper button { flex: 0 0 44px; border: 0; background: #fff7ed; color: #c2410c; font-size: 20px; font-weight: 800; cursor: pointer; }
+.recruit-calc-stepper button:disabled { color: #fdba74; cursor: default; }
+.recruit-calc-stepper input { flex: 1; min-width: 0; border: 0; text-align: center; font-size: 22px; font-weight: 800; color: #1b2f4a; padding: 8px 4px; font-variant-numeric: tabular-nums; -moz-appearance: textfield; }
+.recruit-calc-stepper input::-webkit-outer-spin-button,
+.recruit-calc-stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.recruit-calc-range { width: 100%; accent-color: #ea580c; }
+.recruit-calc-results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.recruit-calc-result { display: flex; flex-direction: column; gap: 4px; padding: 16px; border-radius: 14px; background: #fff7ed; border: 1px solid #fed7aa; }
+.recruit-calc-result span { font-weight: 700; color: #1b2f4a; }
+.recruit-calc-result strong { font-size: 28px; line-height: 1.1; color: #c2410c; font-variant-numeric: tabular-nums; }
+.recruit-calc-result small { color: #64748b; }
+.recruit-calc-result.is-main { grid-column: 1 / -1; background: #ea580c; border-color: #ea580c; }
+.recruit-calc-result.is-main span,
+.recruit-calc-result.is-main strong,
+.recruit-calc-result.is-main small { color: #fff; }
+.recruit-calc-result.is-main strong { font-size: 40px; }
+@media (max-width: 760px) {
+  .recruit-calc { grid-template-columns: 1fr; }
+}
+@media (max-width: 420px) {
+  .recruit-calc-results { grid-template-columns: 1fr; }
+}

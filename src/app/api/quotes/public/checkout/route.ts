@@ -4,6 +4,7 @@ import {
   StripeApiError,
   buildSubscriptionCheckoutParams,
   catalogAmountCents,
+  catalogPriceCents,
   stripeFetch,
   toCents,
   type StripeCatalogPricing,
@@ -29,24 +30,31 @@ function pickOrigin(request: NextRequest) {
 const LIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing', 'past_due', 'incomplete'])
 
 /**
- * Prodotto "Video nella mappa" del catalogo Stripe (prezzo pieno + coupon
- * permanente). Si usa solo se l'importo che ne risulta coincide al centesimo
- * con quello firmato: un preventivo con un importo diverso fatto a mano nel
- * CRM torna al prezzo scritto al volo, cosi' non si addebita mai una cifra
- * diversa da quella firmata.
+ * Prodotto "Video nella mappa" del catalogo Stripe. Si usa solo se l'importo
+ * che ne risulta coincide al centesimo con quello firmato: prima il prezzo
+ * pieno da solo (il listino attuale, 400 € + IVA = 488 €), poi — se c'e' —
+ * col coupon permanente, che serve ai preventivi firmati quando il prezzo era
+ * 300 € + IVA. Un preventivo con un importo diverso (piu' video, un prezzo
+ * fatto a mano nel CRM) torna al prezzo scritto al volo, cosi' non si
+ * addebita mai una cifra diversa da quella firmata.
  */
 async function resolveCatalogPricing(totalAmount: unknown, quoteNumber: string): Promise<StripeCatalogPricing | null> {
   const priceId = process.env.STRIPE_VIDEO_MAP_PRICE_ID?.trim()
-  const couponId = process.env.STRIPE_VIDEO_MAP_COUPON_ID?.trim()
-  if (!priceId || !couponId) return null
+  const couponId = process.env.STRIPE_VIDEO_MAP_COUPON_ID?.trim() || null
+  if (!priceId) return null
+  const signed = toCents(totalAmount)
   try {
-    const [price, coupon] = await Promise.all([
-      stripeFetch<any>(`/prices/${encodeURIComponent(priceId)}`),
-      stripeFetch<any>(`/coupons/${encodeURIComponent(couponId)}`),
-    ])
-    const amount = catalogAmountCents(price, coupon)
-    if (amount !== null && amount === toCents(totalAmount)) return { priceId, couponId }
-    console.warn('checkout: catalogo Stripe non allineato, prezzo inline', { quoteNumber, catalog: amount, signed: toCents(totalAmount) })
+    const price = await stripeFetch<any>(`/prices/${encodeURIComponent(priceId)}`)
+    const full = catalogPriceCents(price)
+    if (full !== null && full === signed) return { priceId, couponId: null }
+
+    let discounted: number | null = null
+    if (couponId) {
+      const coupon = await stripeFetch<any>(`/coupons/${encodeURIComponent(couponId)}`)
+      discounted = catalogAmountCents(price, coupon)
+      if (discounted !== null && discounted === signed) return { priceId, couponId }
+    }
+    console.warn('checkout: catalogo Stripe non allineato, prezzo inline', { quoteNumber, full, discounted, signed })
   } catch (error) {
     console.warn('checkout: catalogo Stripe illeggibile, prezzo inline', error instanceof Error ? error.message : error)
   }
