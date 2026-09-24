@@ -59,8 +59,8 @@ export const SPEAQI_PACKAGES: Record<SpeaqiPackageKey, SpeaqiPackageDef> = {
     quoteTitle: 'Video nella mappa — abbonamento annuale',
     lineDescription: 'Video nella mappa — abbonamento annuale',
     details: VIDEO_MAP_DETAILS,
-    unit_price: 300,
-    list_unit_price: 400,
+    unit_price: 400,
+    list_unit_price: null,
     billing: 'yearly',
   },
 }

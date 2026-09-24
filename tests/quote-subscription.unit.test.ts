@@ -15,6 +15,7 @@ import {
 import {
   buildSubscriptionCheckoutParams,
   catalogAmountCents,
+  catalogPriceCents,
   invoicePeriodEnd,
   invoiceSubscriptionId,
   invoiceSubscriptionMetadata,
@@ -78,7 +79,7 @@ describe('verifyStripeSignature', () => {
 })
 
 describe('importi dell’abbonamento video', () => {
-  test('300 + IVA 22% = 366, tutto dovuto subito, saldo zero', () => {
+  test('400 + IVA 22% = 488, tutto dovuto subito, saldo zero', () => {
     const draft = quoteDraftFromPackage('video_map', 'line-1')
     const items = normalizeQuoteItems(draft.items)
     const totals = calculateQuoteTotals(items, {
@@ -86,29 +87,29 @@ describe('importi dell’abbonamento video', () => {
       paymentTermsMode: draft.payment_terms_mode,
       depositPercent: draft.deposit_percent,
     })
-    assert.equal(totals.subtotal_amount, 300)
-    assert.equal(totals.tax_amount, 66)
-    assert.equal(totals.total_amount, 366)
-    assert.equal(totals.deposit_amount, 366)
+    assert.equal(totals.subtotal_amount, 400)
+    assert.equal(totals.tax_amount, 88)
+    assert.equal(totals.total_amount, 488)
+    assert.equal(totals.deposit_amount, 488)
     assert.equal(totals.balance_amount, 0)
   })
 
   test('centesimi esatti per Stripe', () => {
-    assert.equal(toCents(366), 36600)
-    assert.equal(toCents(300 * 1.22), 36600)
-    assert.equal(toCents('366.00'), 36600)
+    assert.equal(toCents(488), 48800)
+    assert.equal(toCents(400 * 1.22), 48800)
+    assert.equal(toCents('488.00'), 48800)
   })
 })
 
 describe('pacchetti', () => {
-  test('video_map: abbonamento annuale con carta, listino 400 barrato', () => {
+  test('video_map: abbonamento annuale con carta, prezzo fisso 400 senza barrato', () => {
     const draft = quoteDraftFromPackage('video_map', 'line-1')
     assert.equal(draft.billing_interval, 'year')
     assert.equal(draft.payment_method, 'stripe')
     assert.equal(draft.deposit_percent, 100)
-    assert.equal(draft.items[0].unit_price, 300)
-    assert.equal(draft.items[0].list_unit_price, 400)
-    assert.equal(normalizeQuoteItems(draft.items)[0].list_unit_price, 400)
+    assert.equal(draft.items[0].unit_price, 400)
+    assert.equal(draft.items[0].list_unit_price, undefined)
+    assert.equal(normalizeQuoteItems(draft.items)[0].list_unit_price, undefined)
   })
 
   test('platform resta una tantum e senza listino', () => {
@@ -192,7 +193,15 @@ describe('catalogo Stripe: Video nella mappa', () => {
   const price = { active: true, type: 'recurring', recurring: { interval: 'year', interval_count: 1 }, currency: 'eur', unit_amount: 48800 }
   const coupon = { valid: true, duration: 'forever', amount_off: 12200, currency: 'eur' }
 
-  test('488 € − 122 € per sempre = 366 €, cioè l’importo firmato', () => {
+  test('prezzo pieno da solo: 488 €, cioè 400 € + IVA', () => {
+    assert.equal(catalogPriceCents(price), 48800)
+    assert.equal(catalogPriceCents(price), toCents(488))
+    assert.equal(catalogPriceCents({ ...price, active: false }), null)
+    assert.equal(catalogPriceCents({ ...price, recurring: { interval: 'month' } }), null)
+    assert.equal(catalogPriceCents({ ...price, currency: 'usd' }), null)
+  })
+
+  test('488 € − 122 € per sempre = 366 €: i preventivi firmati a 300 € + IVA', () => {
     assert.equal(catalogAmountCents(price, coupon), 36600)
     assert.equal(catalogAmountCents(price, coupon), toCents(366))
   })
@@ -226,6 +235,21 @@ describe('catalogo Stripe: Video nella mappa', () => {
     assert.equal(params.get('line_items[0][price_data][unit_amount]'), null)
     assert.equal(params.get('metadata[pricing]'), 'catalog')
     assert.equal(params.get('subscription_data[metadata][pricing]'), 'catalog')
+  })
+
+  test('parametri del checkout col catalogo senza coupon', () => {
+    const params = buildSubscriptionCheckoutParams({
+      token: 'tok',
+      quoteId: 'q',
+      quoteNumber: 'PREV-2',
+      totalAmount: 488,
+      productName: 'Video',
+      origin: 'https://crm.speaqi.com',
+      catalog: { priceId: 'price_123', couponId: null },
+    })
+    assert.equal(params.get('line_items[0][price]'), 'price_123')
+    assert.equal(params.has('discounts[0][coupon]'), false)
+    assert.equal(params.get('metadata[pricing]'), 'catalog')
   })
 })
 

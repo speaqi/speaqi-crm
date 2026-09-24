@@ -3,33 +3,63 @@ import { SPEAQI_PACKAGES } from '@/lib/speaqi-quote-packages'
 /**
  * Programma commerciali: l'unico posto dove stanno le provvigioni mostrate
  * su /diventa-commerciale. Il prezzo arriva dal pacchetto, cosi' se cambia
- * il listino gli esempi della pagina si aggiornano da soli.
+ * il listino la pagina e il calcolatore si aggiornano da soli.
  */
 export const SALES_PROGRAM = {
   productKey: 'video_map' as const,
   /** Percentuale sul netto del primo anno. */
-  firstYearPercent: 30,
+  firstYearPercent: 20,
   /** Percentuale sul netto di ogni rinnovo, finche' il cliente resta. */
   renewalPercent: 10,
   payoutTerms: 'entro 30 giorni dall’incasso',
 }
 
+/** Limiti del calcolatore: oltre, non e' piu' una stima credibile. */
+export const COMMISSION_LIMITS = { clients: 500, videosPerClient: 20 }
+
+/** Valori di partenza del calcolatore. */
+export const COMMISSION_DEFAULTS = { clients: 10, videosPerClient: 1 }
+
 export function salesProgramProduct() {
   const p = SPEAQI_PACKAGES[SALES_PROGRAM.productKey]
-  return { label: p.label, netPrice: p.unit_price, listPrice: p.list_unit_price }
+  return { label: p.label, netPrice: p.unit_price }
 }
 
 function round2(value: number) {
   return Math.round(value * 100) / 100
 }
 
-export function commissionExamples(clients = 10) {
+function clampCount(value: unknown, max: number) {
+  const n = Math.floor(Number(value))
+  if (!Number.isFinite(n) || n < 0) return 0
+  return Math.min(n, max)
+}
+
+/**
+ * Quanto guadagna un commerciale con `clients` clienti che comprano
+ * `videosPerClient` video ciascuno. Tutto sul netto (IVA esclusa): il primo
+ * anno al `firstYearPercent`, poi ogni anno di rinnovo al `renewalPercent`.
+ * `threeYears` suppone che tutti rinnovino due volte: e' un esempio, non una
+ * promessa, e la pagina lo dice.
+ */
+export function commissionEstimate(clients: unknown, videosPerClient: unknown) {
   const { netPrice } = salesProgramProduct()
-  const firstYear = round2((netPrice * SALES_PROGRAM.firstYearPercent) / 100)
-  const renewal = round2((netPrice * SALES_PROGRAM.renewalPercent) / 100)
+  const c = clampCount(clients, COMMISSION_LIMITS.clients)
+  const v = clampCount(videosPerClient, COMMISSION_LIMITS.videosPerClient)
+  const videos = c * v
+  const perVideoFirstYear = round2((netPrice * SALES_PROGRAM.firstYearPercent) / 100)
+  const perVideoRenewal = round2((netPrice * SALES_PROGRAM.renewalPercent) / 100)
+  const firstYear = round2(perVideoFirstYear * videos)
+  const renewalPerYear = round2(perVideoRenewal * videos)
   return {
-    perSale: { firstYear, renewal },
-    portfolio: { clients, firstYear: round2(firstYear * clients), renewalPerYear: round2(renewal * clients) },
+    clients: c,
+    videosPerClient: v,
+    videos,
+    revenue: round2(netPrice * videos),
+    perVideo: { firstYear: perVideoFirstYear, renewal: perVideoRenewal },
+    firstYear,
+    renewalPerYear,
+    threeYears: round2(firstYear + renewalPerYear * 2),
   }
 }
 

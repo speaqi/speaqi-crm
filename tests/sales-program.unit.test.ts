@@ -2,9 +2,10 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import {
   APPLICATION_TEXT_MAX,
+  COMMISSION_LIMITS,
   SALES_PROGRAM,
   applicationSummary,
-  commissionExamples,
+  commissionEstimate,
   parseSalesApplication,
   salesProgramProduct,
 } from '../src/lib/sales-program'
@@ -20,17 +21,39 @@ const valid = {
 }
 
 describe('provvigioni', () => {
-  test('il prodotto viene dal pacchetto video_map', () => {
-    assert.deepEqual(salesProgramProduct(), { label: 'VIDEO NELLA MAPPA', netPrice: 300, listPrice: 400 })
+  test('il prodotto viene dal pacchetto video_map, prezzo fisso', () => {
+    assert.deepEqual(salesProgramProduct(), { label: 'VIDEO NELLA MAPPA', netPrice: 400 })
   })
 
-  test('esempi coerenti con le percentuali', () => {
-    assert.equal(SALES_PROGRAM.firstYearPercent, 30)
+  test('20% il primo anno, 10% sui rinnovi, per ogni video', () => {
+    assert.equal(SALES_PROGRAM.firstYearPercent, 20)
     assert.equal(SALES_PROGRAM.renewalPercent, 10)
-    assert.deepEqual(commissionExamples(10), {
-      perSale: { firstYear: 90, renewal: 30 },
-      portfolio: { clients: 10, firstYear: 900, renewalPerYear: 300 },
+    assert.deepEqual(commissionEstimate(10, 2), {
+      clients: 10,
+      videosPerClient: 2,
+      videos: 20,
+      revenue: 8000,
+      perVideo: { firstYear: 80, renewal: 40 },
+      firstYear: 1600,
+      renewalPerYear: 800,
+      threeYears: 3200,
     })
+  })
+
+  test('un cliente con un video', () => {
+    const one = commissionEstimate(1, 1)
+    assert.equal(one.firstYear, 80)
+    assert.equal(one.renewalPerYear, 40)
+    assert.equal(one.threeYears, 160)
+  })
+
+  test('valori sporchi: niente negativi, decimali troncati, tetti rispettati', () => {
+    assert.equal(commissionEstimate(-3, 1).videos, 0)
+    assert.equal(commissionEstimate('abc', 1).firstYear, 0)
+    assert.equal(commissionEstimate(2.9, 1.5).videos, 2)
+    const capped = commissionEstimate(100000, 1000)
+    assert.equal(capped.clients, COMMISSION_LIMITS.clients)
+    assert.equal(capped.videosPerClient, COMMISSION_LIMITS.videosPerClient)
   })
 })
 
