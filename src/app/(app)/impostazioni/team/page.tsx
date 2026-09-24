@@ -73,6 +73,15 @@ export default function TeamAdminPage() {
     }
   }
 
+  async function copyRecruitLink() {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/diventa-commerciale`)
+      showToast('Link copiato')
+    } catch {
+      showToast('Copia non riuscita')
+    }
+  }
+
   async function copyRevealed() {
     if (!revealed) return
     try {
@@ -145,6 +154,17 @@ export default function TeamAdminPage() {
         <h1>Team</h1>
         <p className="page-subtitle">
           Aggiungi i collaboratori che potranno essere assegnati ai contatti. Se imposti una password, crei anche il loro accesso.
+        </p>
+        <p className="page-subtitle">
+          Pagina per chi vuole diventare commerciale:{' '}
+          <a href="/diventa-commerciale" target="_blank" rel="noopener noreferrer">
+            /diventa-commerciale
+          </a>{' '}
+          <button type="button" className="btn btn-ghost btn-sm" onClick={copyRecruitLink}>
+            Copia link
+          </button>
+          <br />
+          Le candidature arrivano fra i contatti personali, categoria «Candidato commerciale», con una chiamata il giorno dopo.
         </p>
       </div>
 

@@ -187,6 +187,7 @@ src/
 │   ├── login/                  # Login page (email + password)
 │   ├── preventivo/             # Preventivo pubblico: firma disegnata + pagamento con carta per gli abbonamenti
 │   ├── vendita/[token]/        # Area del commerciale senza login: dati del cliente → firma e pagamento
+│   ├── diventa-commerciale/    # Reclutamento commerciali: provvigioni + candidatura
 │   ├── termini-speaqi/         # Terms of service
 │   ├── api-docs/               # Swagger UI
 │   └── page.tsx                # Root → redirect('/login')
@@ -329,6 +330,7 @@ Each stage has a `system_key` and `color`. Closed statuses: `closed`, `paid`, `l
 - **Webhook** (`/api/integrations/stripe/webhook`, firma verificata a mano in `src/lib/server/stripe.ts`, nessun SDK): `checkout.session.completed` → preventivo pagato, contatto Paid, trattativa vinta (`markQuotePaidFromStripe` + `applyQuotePaidToContact`, lo stesso effetto del PATCH manuale); `invoice.paid` → rinnovo registrato, `current_period_end` aggiornato e task «Emettere fattura elettronica» (le ricevute Stripe non sono fatture SDI); `invoice.payment_failed` → `past_due` + chiamata ad alta priorita'; `customer.subscription.updated/deleted` → stato e disdetta. I `mode=payment` si ignorano. Idempotenza su due livelli: `stripe_webhook_events` e update condizionato `status <> 'paid'`, cosi' riconsegne, `invoice.paid` arrivato prima del checkout e la verifica della sessione sulla pagina di ritorno (`?session_id=`) non raddoppiano mai attivita' e passaggio a Paid. Le versioni API recenti hanno spostato l'id dell'abbonamento in `invoice.parent.subscription_details`: le letture accettano entrambi i formati
 - **Configurazione Stripe**: endpoint `https://<APP_BASE_URL>/api/integrations/stripe/webhook` con gli eventi `checkout.session.completed`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`, versione API uguale a `STRIPE_API_VERSION`; il segreto va in `STRIPE_WEBHOOK_SECRET`
 - **Link vendita** (`/vendita/<token>`): ogni membro del team ha un link personale, generato/rigenerato/revocato da Impostazioni → Team (solo admin). Si salva solo lo SHA-256 del token (tabella `sales_links`, non `team_members`, che i collaboratori leggono): il link si vede una volta, poi si rigenera. Il commerciale compila i dati dell'attivita' davanti al cliente; il server (service role) trova o crea il contatto per email (scope crm, stato Quote, `responsible` = il commerciale), crea il preventivo con `createQuoteRecord` (`src/lib/server/quote-create.ts`, lo stesso di `POST /api/quotes`) e reindirizza a `/preventivo?id=…&accept=…`, senza email. Tetto di 10 preventivi l'ora per link; un reinvio entro 10 minuti riusa il preventivo. Pagina `noindex` e `no-referrer`, perche' il token sta nel percorso
+- **Reclutamento commerciali** (`/diventa-commerciale`, indicizzabile): prodotto, provvigioni, passi e candidatura. Le provvigioni stanno **solo** in `SALES_PROGRAM` (`src/lib/sales-program.ts`, oggi 30% del primo anno e 10% di ogni rinnovo sul netto); prezzo ed esempi si calcolano dal pacchetto `video_map`, quindi cambiare il listino aggiorna la pagina. La candidatura (`POST /api/candidature-commerciali`, workspace da `AUTOMATION_WORKSPACE_USER_ID`, mai dal corpo) crea un contatto **personal** — fuori dalla pipeline clienti — con categoria «Candidato commerciale», `source = 'candidatura_commerciale'`, un'attività con le risposte e una chiamata per il giorno dopo; un'email gia' presente riceve solo attivita' e chiamata. Honeypot `website` (risposta 200 finta, nessuna scrittura) e tetto di 30 candidature l'ora. Chi viene scelto riceve il link vendita da Impostazioni → Team, dove c'e' anche il link alla pagina
 - **Firma in presenza dal CRM**: sulla scheda di un abbonamento non firmato, «Firma in presenza» chiede a `send-acceptance-email` il link con `link_only: true` e lo apre senza mandare email. Rigenera il token: un link inviato prima smette di valere
 
 ## Collaborator / Workspace Access
@@ -456,6 +458,7 @@ Guida operativa e deploy Railway in `docs/WHATSAPP-OPENWA.md`.
 | `/login` | Login page (email + password) |
 | `/preventivo?id=TOKEN` | Public quote with Stripe payment, contract, urgency |
 | `/vendita/<token>` | Area del commerciale senza login (link personale): dati del cliente → firma e pagamento |
+| `/diventa-commerciale` | Pagina pubblica per reclutare commerciali: prodotto, provvigioni, come funziona, modulo di candidatura |
 | `/termini-speaqi` | Terms of service |
 | `/api-docs` | Swagger UI |
 
@@ -625,7 +628,7 @@ migrarlo e un lavoro separato, da fare a motore collaudato.
 Nessuna dipendenza di test oltre `tsx`: si usa `node:test`.
 
 ```bash
-npm run test:unit   # motore campagne, Wine Project, WhatsApp, lavagna To Do, Telegram, abbonamenti/firma/link vendita e Da incassare
+npm run test:unit   # motore campagne, Wine Project, WhatsApp, lavagna To Do, Telegram, abbonamenti/firma/link vendita, programma commerciali e Da incassare
 npm run test:db     # integrazione e concorrenza su un Postgres locale usa-e-getta
 npm test            # entrambi
 ```

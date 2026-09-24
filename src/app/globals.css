@@ -6874,3 +6874,39 @@ textarea.form-input::placeholder { color: var(--text3); }
   .rc-edit { flex-wrap: wrap; }
   .rc-edit .fi, .rc-edit .rc-amount-input { flex: 1 1 100%; }
 }
+
+/* Pagina pubblica /diventa-commerciale */
+.recruit-shell { display: flex; flex-direction: column; gap: 16px; }
+.recruit-hero .public-quote-customer-title { max-width: 760px; font-size: clamp(34px, 4.6vw, 56px); line-height: 1.05; }
+.recruit-lead { max-width: 680px; font-size: 16px; line-height: 1.6; color: #334155; margin: 10px 0 18px; }
+.recruit-cta { display: inline-flex; align-items: center; justify-content: center; width: auto; padding: 0 22px; text-decoration: none; }
+.recruit-cta-small { display: inline-flex; align-items: center; justify-content: center; width: auto; padding: 0 16px; text-decoration: none; }
+.recruit-section h2 { margin-bottom: 12px; }
+.recruit-product { display: flex; gap: 24px; justify-content: space-between; align-items: flex-start; }
+.recruit-product h3 { margin: 0 0 6px; }
+.recruit-product p { margin: 0; line-height: 1.6; color: #334155; }
+.recruit-price { display: flex; flex-direction: column; align-items: flex-end; white-space: nowrap; }
+.recruit-price s { color: #94a3b8; font-size: 13px; }
+.recruit-price strong { font-size: 22px; color: #ea580c; }
+.recruit-price span { font-size: 12px; color: #64748b; }
+.recruit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.recruit-stat { display: flex; flex-direction: column; gap: 4px; padding: 16px; border-radius: 14px; background: #fff7ed; border: 1px solid #fed7aa; }
+.recruit-stat strong { font-size: 32px; line-height: 1; color: #c2410c; }
+.recruit-stat span { font-weight: 700; color: #1b2f4a; }
+.recruit-stat small { color: #64748b; }
+.recruit-example { margin: 14px 0 6px; line-height: 1.6; }
+.recruit-steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.recruit-steps li { display: flex; gap: 12px; align-items: flex-start; }
+.recruit-steps p { margin: 2px 0 0; color: #475569; line-height: 1.5; }
+.recruit-step-number { flex: 0 0 28px; height: 28px; border-radius: 999px; background: #1b2f4a; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; }
+.recruit-list { margin: 0; padding-left: 18px; display: grid; gap: 6px; line-height: 1.5; color: #334155; }
+.recruit-faq details { border-top: 1px solid rgba(17, 24, 39, 0.08); padding: 10px 0; }
+.recruit-faq summary { cursor: pointer; font-weight: 700; }
+.recruit-faq p { margin: 8px 0 0; color: #475569; line-height: 1.5; }
+.recruit-privacy { margin-top: 14px; font-size: 13px; }
+.recruit-honeypot { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+@media (max-width: 640px) {
+  .recruit-product { flex-direction: column; }
+  .recruit-price { align-items: flex-start; }
+  .recruit-grid { grid-template-columns: 1fr; }
+}
