@@ -83,6 +83,13 @@ export function Sidebar({ counts }: SidebarProps) {
           <span className="icon">💰</span>
           Da incassare
         </Link>
+        <Link
+          href="/navigazione"
+          className={`nav-item sidebar-footer-item ${pathname === '/navigazione' ? 'active' : ''}`}
+        >
+          <span className="icon">🚢</span>
+          Navigazione
+        </Link>
         <Link href="/import" className="nav-item sidebar-footer-item">
           <span className="icon">📥</span>
           Importa

@@ -1,0 +1,4330 @@
+[
+  {
+    "slug": "adora-cruises",
+    "name": "Adora Cruises",
+    "kind": "cruise",
+    "segment": "mass",
+    "parent_group": "CSSC Carnival Cruise Shipping (CSSC)",
+    "hq_city": "Shanghai",
+    "hq_country": "China",
+    "hq_address": null,
+    "website": null,
+    "phone": null,
+    "email": null,
+    "italy_office": null,
+    "contacts": [],
+    "fleet_size": 2,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Compagnia cinese: nel 2026 Adora Magic City da Shanghai verso Corea (Jeju, Busan), Adora Mediterranean da Guangzhou verso Sud-est asiatico. Nessuno scalo in Italia. Sito ufficiale e recapiti non verificati.",
+    "sources": [
+      "https://en.wikipedia.org/wiki/Adora_Cruises",
+      "https://cruiseindustrynews.com/cruise-news/2025/11/adora-adjusts-2026-itineraries-shifts-focus-to-korea-and-southeast-asia/",
+      "https://regional.chinadaily.com.cn/guangzhou/nansha/2025-12/04/c_1145639.htm"
+    ],
+    "ships": [
+      "Adora Magic City",
+      "Adora Mediterranean"
+    ]
+  },
+  {
+    "slug": "aida-cruises",
+    "name": "AIDA Cruises",
+    "kind": "cruise",
+    "segment": "mass",
+    "parent_group": "Carnival Corporation & plc (German branch di Costa Crociere S.p.A.)",
+    "hq_city": "Rostock",
+    "hq_country": "Germany",
+    "hq_address": "Am Strande 3d, 18055 Rostock, Germany",
+    "website": "https://www.aida.de",
+    "phone": "+49 381 20270600",
+    "email": "info@aida.de",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Ufficio stampa (Communication & Sustainability)",
+        "value": "presse@aida.de / +49 381 444 8020",
+        "source": "https://www.aida.de/en/sales-assistance/imprint.26609.html"
+      },
+      {
+        "label": "Centralino / info",
+        "value": "+49 381 20270600 - info@aida.de",
+        "source": "https://www.aida.com/cruises/imprint.18599.html"
+      }
+    ],
+    "fleet_size": 11,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "AIDAstella/AIDAcosma nel Mediterraneo occidentale da Palma e Barcellona con scali a Napoli e Civitavecchia; mercato tedesco",
+    "sources": [
+      "https://www.aida.de/en/sales-assistance/imprint.26609.html",
+      "https://www.aida.com/cruises/imprint.18599.html",
+      "https://www.kreuzfahrtlupe.de/aida-mittelmeer/",
+      "https://meercheck.de/blog/aida-2026"
+    ],
+    "ships": [
+      "AIDAcosma",
+      "AIDAnova",
+      "AIDAprima",
+      "AIDAstella",
+      "AIDAblu"
+    ]
+  },
+  {
+    "slug": "ambassador-cruise-line",
+    "name": "Ambassador Cruise Line",
+    "kind": "cruise",
+    "segment": "mass",
+    "parent_group": "Ambassador Group (fusione con Compagnie Française de Croisières, 2025)",
+    "hq_city": "Purfleet",
+    "hq_country": "United Kingdom",
+    "hq_address": "Ambassador Cruise Holidays Ltd, Gateway House, Stonehouse Lane, Purfleet, Essex RM19 1NS, United Kingdom",
+    "website": "https://www.ambassadorcruiseline.com",
+    "phone": "+44 808 102 8256",
+    "email": "guestservices@ambassadorcruiseline.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Uffici (centralino)",
+        "value": "+44 808 102 8256",
+        "source": "https://www.bizseek.co.uk/ambassador-cruise-line-offices-0808-102-8256"
+      },
+      {
+        "label": "Shore excursions (Destination Experiences)",
+        "value": "+44 808 102 8229",
+        "source": "https://www.ambassadorcruiseline.com/contact-us/"
+      },
+      {
+        "label": "Trade reservations",
+        "value": "+44 808 102 0127",
+        "source": "https://www.ambassadorcruiseline.com/contact-us/"
+      },
+      {
+        "label": "Trade sales support",
+        "value": "+44 808 102 8207",
+        "source": "https://www.ambassadorcruiseline.com/contact-us/"
+      },
+      {
+        "label": "Guest services",
+        "value": "guestservices@ambassadorcruiseline.com",
+        "source": "https://www.ambassadorcruiseline.com/contact-us/"
+      }
+    ],
+    "fleet_size": 3,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "La pagina ufficiale delle crociere Mediterraneo cita Roma (Civitavecchia) e Napoli (Pompei/Capri) come scali, con partenze dal Regno Unito (Tilbury, Liverpool). Le date precise del 2026 vanno controllate. Il numero 'Destination Experiences' e' il gancio naturale per proporre escursioni e contenuti di destinazione.",
+    "sources": [
+      "https://www.ambassadorcruiseline.com/contact-us/",
+      "https://www.bizseek.co.uk/ambassador-cruise-line-offices-0808-102-8256",
+      "https://www.ambassadorcruiseline.com/destinations/mediterranean/",
+      "https://www.cruisemapper.com/cruise-lines/Ambassador-Cruise-Line-105"
+    ],
+    "ships": [
+      "Ambience",
+      "Ambition",
+      "Renaissance"
+    ]
+  },
+  {
+    "slug": "aranui-cruises",
+    "name": "Aranui Cruises",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": "Compagnie Polynésienne de Transport Maritime (CPTM)",
+    "hq_city": "Papeete",
+    "hq_country": "French Polynesia",
+    "hq_address": "BP 220, Papeete, Tahiti, French Polynesia (casella postale)",
+    "website": "https://www.aranui.com",
+    "phone": "+689 40 42 62 42",
+    "email": "reservations@aranui.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Ufficio Nord America",
+        "value": "cptm@aranui.com",
+        "source": "https://www.aranui.com/us/contact-us"
+      },
+      {
+        "label": "Telefono Nord America",
+        "value": "+1 800 972 7268",
+        "source": "https://www.aranui.com/us/contact-us"
+      },
+      {
+        "label": "Ufficio Europa",
+        "value": "+33 1 43 31 25 34",
+        "source": "https://www.aranui.com/us/contact-us"
+      },
+      {
+        "label": "Email Europa (brochure)",
+        "value": "brochures@aranui.info",
+        "source": "https://www.aranui.com/us/contact-us"
+      },
+      {
+        "label": "Australia/Nuova Zelanda",
+        "value": "info@aranuicruises.com.au",
+        "source": "https://www.aranui.com/us/contact-us"
+      }
+    ],
+    "fleet_size": 1,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Nave mista cargo-passeggeri che rifornisce le Marchesi da Papeete. Nessuna presenza nel Mediterraneo.",
+    "sources": [
+      "https://www.aranui.com/us/contact-us",
+      "https://en.wikipedia.org/wiki/Aranui_5",
+      "https://tahititourisme.pf/en-pf/activities/so-much-to-do/aranui-cruises-papeete-en-en-pf-6114094/"
+    ],
+    "ships": [
+      "Aranui 5"
+    ]
+  },
+  {
+    "slug": "nyk-cruises-asuka",
+    "name": "Asuka Cruise (NYK Cruises)",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": "NYK Line (Nippon Yusen Kaisha)",
+    "hq_city": "Yokohama",
+    "hq_country": "Japan",
+    "hq_address": "47F The Landmark Tower Yokohama, 2-2-1 Minatomirai, Nishi-ku, Yokohama 220-8147, Japan",
+    "website": "https://www.asukacruise.co.jp",
+    "phone": null,
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Sito in inglese",
+        "value": "https://voyage.asukacruise.co.jp/en/",
+        "source": "https://voyage.asukacruise.co.jp/en/"
+      }
+    ],
+    "fleet_size": 2,
+    "calls_naples": null,
+    "calls_civitavecchia": null,
+    "ports_note": "Mercato giapponese, base Yokohama; Asuka III in servizio dal 2025. Soprattutto crociere in Giappone/Asia; eventuali giri del mondo con scali nel Mediterraneo non verificati.",
+    "sources": [
+      "https://www.wikidata.org/wiki/Q18460237",
+      "https://voyage.asukacruise.co.jp/en/",
+      "https://www.bairdmaritime.com/passenger/cruise/vessel-review-asuka-iii-nyk-cruises-newest-ship-to-serve-domestic-and-international-itineraries",
+      "https://www.cruisemapper.com/ships/Asuka-3-2247"
+    ],
+    "ships": [
+      "Asuka III",
+      "Asuka II"
+    ]
+  },
+  {
+    "slug": "atlas-ocean-voyages",
+    "name": "Atlas Ocean Voyages",
+    "kind": "cruise",
+    "segment": "luxury",
+    "parent_group": "Mystic Invest",
+    "hq_city": "Fort Lauderdale",
+    "hq_country": "United States",
+    "hq_address": "1 East Broward Blvd., Suite 800, Fort Lauderdale, FL 33301, United States",
+    "website": "https://atlasoceanvoyages.com",
+    "phone": "+1 844 442 8527",
+    "email": "info@atlasoceanvoyages.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina contatti",
+        "value": "https://atlasoceanvoyages.com/contact",
+        "source": "https://atlasoceanvoyages.com/contact"
+      },
+      {
+        "label": "Email generale",
+        "value": "info@atlasoceanvoyages.com",
+        "source": "https://atlasoceanvoyages.com/contact"
+      }
+    ],
+    "fleet_size": 3,
+    "calls_naples": null,
+    "calls_civitavecchia": true,
+    "ports_note": "Crociere 'Epicurean' nel Mediterraneo nel 2026, fra cui Civitavecchia (Roma)-Pireo dall'1 al 10 luglio 2026 e Pireo-Civitavecchia dal 27 agosto al 9 settembre. Gli itinerari toccano Capri, Positano e Lipari; lo scalo a Napoli non e' confermato.",
+    "sources": [
+      "https://www.yelp.com/biz/atlas-ocean-voyages-fort-lauderdale",
+      "https://atlasoceanvoyages.com/contact",
+      "https://atlasoceanvoyages.com/news/atlas-ocean-voyages-highlights-limited-availability-for-2026-mediterranean-epicurean-expeditions-featuring-included-atlas-immersive-experiences",
+      "https://www.cruisemapper.com/ships/World-Navigator-1840"
+    ],
+    "ships": [
+      "World Navigator",
+      "World Traveller",
+      "World Seeker"
+    ]
+  },
+  {
+    "slug": "azamara",
+    "name": "Azamara",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": "Sycamore Partners",
+    "hq_city": "Miami",
+    "hq_country": "United States",
+    "hq_address": "3059 Grand Avenue, Suite 205, Coconut Grove, Miami, FL 33133, USA",
+    "website": "https://www.azamara.com",
+    "phone": null,
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Modulo contatti ufficiale",
+        "value": "https://www.azamara.com/about-azamara/contact-us",
+        "source": "https://www.azamara.com/about-azamara/contact-us"
+      }
+    ],
+    "fleet_size": 4,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Scali a Napoli nel 2026; Civitavecchia usata per imbarchi Mediterraneo",
+    "sources": [
+      "https://www.seatrade-cruise.com/news/azamara-opens-new-headquarters-miamis-coconut-grove",
+      "https://www.travelpulse.com/news/cruise/azamara-debuts-new-miami-headquarters",
+      "https://www.azamara.com/about-azamara/contact-us"
+    ],
+    "ships": [
+      "Azamara Journey",
+      "Azamara Quest",
+      "Azamara Pursuit",
+      "Azamara Onward"
+    ]
+  },
+  {
+    "slug": "carnival-cruise-line",
+    "name": "Carnival Cruise Line",
+    "kind": "cruise",
+    "segment": "mass",
+    "parent_group": "Carnival Corporation & plc",
+    "hq_city": "Miami",
+    "hq_country": "United States",
+    "hq_address": "3655 NW 87th Avenue, Miami, FL 33178-2428, USA",
+    "website": "https://www.carnival.com",
+    "phone": "+1 305 599 2600",
+    "email": "media@carnival.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Ufficio stampa (solo giornalisti)",
+        "value": "media@carnival.com",
+        "source": "https://www.carnival-news.com/about-us/media-contacts"
+      },
+      {
+        "label": "Creator / social team",
+        "value": "creators@carnival.com",
+        "source": "https://www.carnival-news.com/about-us/media-contacts"
+      },
+      {
+        "label": "Centralino sede Miami",
+        "value": "+1 305 599 2600",
+        "source": "https://www.miamiandbeaches.com/l/cruises/carnival-cruise-line/2466"
+      }
+    ],
+    "fleet_size": 29,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Autunno 2026 Carnival Legend in partenza da Civitavecchia (crociere 9-12 notti) con scalo a Napoli; Carnival Freedom da Barcellona tocca Civitavecchia e Napoli",
+    "sources": [
+      "https://www.miamiandbeaches.com/l/cruises/carnival-cruise-line/2466",
+      "https://my.mobilechamber.com/chambermemberdirectory/Details/carnival-cruise-line-2503380?rendermode=print",
+      "https://www.carnival-news.com/about-us/media-contacts",
+      "https://cruiseindustrynews.com/cruise-news/2026/09/carnival-legend-repositions-to-rome-for-mediterranean-cruises/",
+      "https://www.carnival.com/itinerary/9-day-mediterranean-cruise/civitavecchia/legend/9-days/meb?sailDate=10232026",
+      "https://www.cruisemapper.com/cruise-lines/Carnival-Cruise-Line-9"
+    ],
+    "ships": [
+      "Carnival Celebration",
+      "Mardi Gras",
+      "Carnival Jubilee",
+      "Carnival Legend",
+      "Carnival Firenze"
+    ]
+  },
+  {
+    "slug": "celebrity-cruises",
+    "name": "Celebrity Cruises",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": "Royal Caribbean Group",
+    "hq_city": "Miami",
+    "hq_country": "United States",
+    "hq_address": "1050 Caribbean Way, Miami, FL 33132, USA",
+    "website": "https://www.celebritycruises.com",
+    "phone": "+1 305 539 6000",
+    "email": "pr@celebrity.com",
+    "italy_office": {
+      "city": "Genova",
+      "address": null,
+      "phone": "848 000977",
+      "email": "servizioclienti.it@celebrity.com"
+    },
+    "contacts": [
+      {
+        "label": "Media relations",
+        "value": "pr@celebrity.com",
+        "source": "https://royalcaribbeangrouppresscenter.com/contact/"
+      },
+      {
+        "label": "Servizio clienti Italia",
+        "value": "848 000977 - servizioclienti.it@celebrity.com",
+        "source": "https://www.celebritycruises.it/info/contact-us"
+      },
+      {
+        "label": "Incentive, meeting e charter",
+        "value": "https://www.celebritycorporatekit.com/contact-us/",
+        "source": "https://www.celebritycorporatekit.com/contact-us/"
+      }
+    ],
+    "fleet_size": 16,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Mediterraneo 2026 con partenze da Civitavecchia e scali a Napoli",
+    "sources": [
+      "https://craft.co/celebrity-cruises/locations",
+      "https://www.miamiandbeaches.com/l/cruises/celebrity-cruises/4413",
+      "https://royalcaribbeangrouppresscenter.com/contact/",
+      "https://www.celebritycruises.it/info/contact-us"
+    ],
+    "ships": [
+      "Celebrity Xcel",
+      "Celebrity Ascent",
+      "Celebrity Beyond",
+      "Celebrity Apex",
+      "Celebrity Edge"
+    ]
+  },
+  {
+    "slug": "celestyal-cruises",
+    "name": "Celestyal Cruises",
+    "kind": "cruise",
+    "segment": "mass",
+    "parent_group": "Louis Group",
+    "hq_city": "Piraeus",
+    "hq_country": "Greece",
+    "hq_address": "8 Antoniou Ampatielou Street, 18536 Piraeus, Attica, Greece",
+    "website": "https://celestyal.com",
+    "phone": "+30 216 4009600",
+    "email": "info@celestyalcruises.gr",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Contatti (Louis Group)",
+        "value": "https://www.louisgroup.com/companies/celestyal-cruises/contact",
+        "source": "https://www.louisgroup.com/companies/celestyal-cruises/contact"
+      },
+      {
+        "label": "Call center",
+        "value": "+30 216 4009999",
+        "source": "https://www.louisgroup.com/companies/celestyal-cruises/contact"
+      },
+      {
+        "label": "Prenotazioni (email)",
+        "value": "cruising@celestyalcruises.com",
+        "source": "https://celestyal.com/gb/contact/"
+      },
+      {
+        "label": "Ufficio Francia (Parigi, 77 avenue Parmentier)",
+        "value": "+33 1 40 21 11 02",
+        "source": "https://www.louisgroup.com/companies/celestyal-cruises/contact"
+      }
+    ],
+    "fleet_size": 2,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Celestyal Discovery fa la crociera 'Mediterranean Rivieras' Atene-Barcellona in partenza il 27/11/2026, con Napoli (8:00-19:00) e Civitavecchia/Roma (7:00-20:00). Il programma 'Western Med Discovery' e' nuovo per il 2026-27. Nessun GSA in Italia trovato.",
+    "sources": [
+      "https://www.louisgroup.com/companies/celestyal-cruises/contact",
+      "https://celestyal.com/gb/contact/",
+      "https://celestyal.com/us/our-cruises/discovery-western-med-cruises",
+      "https://promos.tpi.events/wp-content/uploads/2026/08/Celestyalitineraries.pdf"
+    ],
+    "ships": [
+      "Celestyal Journey",
+      "Celestyal Discovery"
+    ]
+  },
+  {
+    "slug": "cordelia-cruises",
+    "name": "Cordelia Cruises",
+    "kind": "cruise",
+    "segment": "mass",
+    "parent_group": "Waterways Leisure Tourism Pvt Ltd (Dream Hotel Group)",
+    "hq_city": "Mumbai",
+    "hq_country": "India",
+    "hq_address": "1st Floor, Continental Building, 135 Dr. Annie Besant Road, next to Doordarshan Building, Worli, Mumbai 400018, India",
+    "website": "https://www.cordeliacruises.com",
+    "phone": null,
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina chi siamo",
+        "value": "https://www.cordeliacruises.com/about-us",
+        "source": "https://www.cordeliacruises.com/about-us"
+      }
+    ],
+    "fleet_size": 1,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Crociere in India (Mumbai, Goa, Kochi, Chennai) e Sri Lanka. Nessuno scalo in Italia. Centralino non riportato: le fonti trovate danno due numeri diversi (+91 22 6111 1111 e +91 22 6881 1111), quindi va verificato.",
+    "sources": [
+      "https://www.hotfrog.in/company/1496472674140160/cordelia-cruises/mumbai/cruises",
+      "https://en.wikipedia.org/wiki/Cordelia_Cruises",
+      "https://www.cordeliacruises.com/about-us",
+      "https://www.zoominfo.com/c/cordelia-cruises/557920014"
+    ],
+    "ships": [
+      "Empress"
+    ]
+  },
+  {
+    "slug": "costa-crociere",
+    "name": "Costa Crociere",
+    "kind": "cruise",
+    "segment": "mass",
+    "parent_group": "Carnival Corporation & plc",
+    "hq_city": "Genova",
+    "hq_country": "Italy",
+    "hq_address": "Piazza Piccapietra 48, 16121 Genova, Italy",
+    "website": "https://www.costacrociere.it",
+    "phone": "+39 010 54831",
+    "email": "costapressoffice@costa.it",
+    "italy_office": {
+      "city": "Genova",
+      "address": "Piazza Piccapietra 48, 16121 Genova (sede)",
+      "phone": "+39 010 54831",
+      "email": "costapressoffice@costa.it"
+    },
+    "contacts": [
+      {
+        "label": "Ufficio stampa (gestisce anche proposte di partnership/collaborazioni commerciali)",
+        "value": "+39 010 5483523 / +39 010 5483068 - costapressoffice@costa.it",
+        "source": "https://noicrocieristi.it/contatti-costa-crociere/"
+      },
+      {
+        "label": "Contatti ufficiali",
+        "value": "https://www.costacrociere.it/informazioni/contatti.html",
+        "source": "https://www.costacrociere.it/informazioni/contatti.html"
+      },
+      {
+        "label": "Escursioni a terra (catalogo)",
+        "value": "https://www.costacrociere.it/cerca-escursioni.html",
+        "source": "https://www.costacrociere.it/cerca-escursioni.html"
+      }
+    ],
+    "fleet_size": 9,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Napoli porto d'imbarco 2026 con Costa Toscana (partenze 7 notti); scali a Civitavecchia nel Mediterraneo occidentale",
+    "sources": [
+      "https://noicrocieristi.it/contatti-costa-crociere/",
+      "https://www.paginebianche.it/scheda/genova/costa-crociere.6290001",
+      "https://aziende.virgilio.it/navigazione/genova-ge/costa-crociere",
+      "https://www.crociere.com/f-5899301-costa-crociere-costa-toscana-mediterraneo",
+      "https://www.ticketcrociere.it/it/co/costa-crociere/partenze-da/napoli/luglio"
+    ],
+    "ships": [
+      "Costa Smeralda",
+      "Costa Toscana",
+      "Costa Diadema",
+      "Costa Fascinosa",
+      "Costa Favolosa"
+    ]
+  },
+  {
+    "slug": "crystal-cruises",
+    "name": "Crystal",
+    "kind": "cruise",
+    "segment": "luxury",
+    "parent_group": "A&K Travel Group",
+    "hq_city": "Hallandale Beach",
+    "hq_country": "United States",
+    "hq_address": "1010 S. Federal Highway, Suite 1500, Hallandale Beach, FL 33009, USA",
+    "website": "https://www.crystalcruises.com",
+    "phone": "+1 800-446-6620",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Press / news",
+        "value": "https://www.crystalcruises.com/press/crystal-north-american-trade-reservations-team-relocates-to-miami-headquarters",
+        "source": "https://www.crystalcruises.com/press/crystal-north-american-trade-reservations-team-relocates-to-miami-headquarters"
+      }
+    ],
+    "fleet_size": 2,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "2026: imbarchi/sbarchi a Civitavecchia e scali a Napoli con entrambe le navi",
+    "sources": [
+      "https://www.yelp.com/biz/crystal-cruises-hallandale",
+      "https://commercialobserver.com/2022/12/crystal-cruises-optima-onyx-tower/",
+      "https://www.crystalcruises.com/cruises/none-cse-007-260915",
+      "https://www.crystalcruises.com/cruises/none-cse-009-260830",
+      "https://en.wikipedia.org/wiki/Crystal_Cruises"
+    ],
+    "ships": [
+      "Crystal Serenity",
+      "Crystal Symphony"
+    ]
+  },
+  {
+    "slug": "cunard",
+    "name": "Cunard",
+    "kind": "cruise",
+    "segment": "luxury",
+    "parent_group": "Carnival Corporation & plc (Carnival UK)",
+    "hq_city": "Southampton",
+    "hq_country": "United Kingdom",
+    "hq_address": "Carnival House, 100 Harbour Parade, Southampton, Hampshire SO15 1ST, United Kingdom",
+    "website": "https://www.cunard.com",
+    "phone": null,
+    "email": "press@cunard.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Media contacts",
+        "value": "https://www.cunard.com/en-us/contact-us/media-contacts",
+        "source": "https://www.cunard.com/en-us/contact-us/media-contacts"
+      },
+      {
+        "label": "Stampa (richieste foto)",
+        "value": "press@cunard.com",
+        "source": "https://www.cunard.com/en-us/contact-us/media-contacts"
+      },
+      {
+        "label": "Informazioni societarie",
+        "value": "https://www.cunard.com/en-gb/about-cunard/company-information",
+        "source": "https://www.cunard.com/en-gb/about-cunard/company-information"
+      }
+    ],
+    "fleet_size": 4,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Queen Victoria nel Mediterraneo estate 2026: partenze da Civitavecchia e scalo a Napoli (es. 9 agosto 2026)",
+    "sources": [
+      "https://en.wikipedia.org/wiki/Cunard_Line",
+      "https://www.cunard.com/en-us/contact-us/media-contacts",
+      "https://www.cunard.com/en-us/find-a-cruise/V614E/V614E",
+      "https://www.cunard.com/en-us/find-a-cruise/V615D/V615D"
+    ],
+    "ships": [
+      "Queen Mary 2",
+      "Queen Anne",
+      "Queen Victoria",
+      "Queen Elizabeth"
+    ]
+  },
+  {
+    "slug": "disney-cruise-line",
+    "name": "Disney Cruise Line",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": "The Walt Disney Company",
+    "hq_city": "Celebration",
+    "hq_country": "United States",
+    "hq_address": "210 Celebration Place, Celebration, FL 34747, USA",
+    "website": "https://disneycruise.disney.go.com",
+    "phone": "+1 407-566-3500",
+    "email": null,
+    "italy_office": null,
+    "contacts": [],
+    "fleet_size": 8,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Disney Dream nel Mediterraneo estate 2026: scali a Napoli e Civitavecchia, anche imbarchi da Civitavecchia",
+    "sources": [
+      "https://en.wikipedia.org/wiki/Disney_Cruise_Line",
+      "https://www.waze.com/live-map/directions/disney-cruise-line-celebration-pl-210-celebration?to=place.w.182518043.1824983825.709231",
+      "https://magicguides.com/disney-cruise-line-customer-service/",
+      "https://disneycruiselineblog.com/2025/02/disney-cruise-line-announces-summer-2026-itineraries-may-september/",
+      "https://www.iglucruise.com/disney-dream/16th-may-2026_c396806"
+    ],
+    "ships": [
+      "Disney Dream",
+      "Disney Wish",
+      "Disney Treasure",
+      "Disney Destiny",
+      "Disney Fantasy"
+    ]
+  },
+  {
+    "slug": "emerald-cruises",
+    "name": "Emerald Cruises (Emerald Yacht Cruises)",
+    "kind": "cruise",
+    "segment": "luxury",
+    "parent_group": "Scenic Group",
+    "hq_city": "Zug",
+    "hq_country": "Switzerland",
+    "hq_address": null,
+    "website": "https://www.emeraldcruises.com",
+    "phone": null,
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Contatti / prenotazioni",
+        "value": "https://emeraldcruises.com/contact-us",
+        "source": "https://emeraldcruises.com/contact-us"
+      },
+      {
+        "label": "Scenic Group USA (indirizzo postale)",
+        "value": "4000 Hollywood Blvd, Suite 625-S, Hollywood, FL 33021",
+        "source": "https://emeraldcruises.com/contact-us"
+      }
+    ],
+    "fleet_size": 2,
+    "calls_naples": null,
+    "calls_civitavecchia": true,
+    "ports_note": "Imbarchi da Civitavecchia 2026; nel golfo scali a Sorrento, Capri e Amalfi (itinerario 'Gulf of Naples'), Napoli porto non verificato. Flotta: 2 yacht oltre alle navi fluviali",
+    "sources": [
+      "https://en.wikipedia.org/wiki/Emerald_Cruises",
+      "https://emeraldcruises.com/contact-us",
+      "https://www.globaljourneys.com/trip/emerald-cruises-e16m-1",
+      "https://www.rolcruise.co.uk/cruise-detail/2157894-malta-sicily-amalfi-coast-from-valletta-2026-05-05"
+    ],
+    "ships": [
+      "Emerald Azzurra",
+      "Emerald Sakara"
+    ]
+  },
+  {
+    "slug": "explora-journeys",
+    "name": "Explora Journeys",
+    "kind": "cruise",
+    "segment": "luxury",
+    "parent_group": "MSC Group (Mediterranean Shipping Company)",
+    "hq_city": "Geneva",
+    "hq_country": "Switzerland",
+    "hq_address": "Avenue Eugène-Pittard 16, 1206 Geneva, Switzerland",
+    "website": "https://explorajourneys.com",
+    "phone": "+41 43 508 6478",
+    "email": "contact@explorajourneys.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Ufficio stampa",
+        "value": "press@explorajourneys.com",
+        "source": "https://explorajourneys.com/int/en/press-and-media/media-contacts"
+      },
+      {
+        "label": "Contatti generali / Experience Centre",
+        "value": "contact@explorajourneys.com",
+        "source": "https://explorajourneys.com/us/en/contact-us"
+      },
+      {
+        "label": "Travel advisors portal",
+        "value": "https://explorajourneys.com/us/en/contact-us/travel-advisors-portal",
+        "source": "https://explorajourneys.com/us/en/contact-us/travel-advisors-portal"
+      }
+    ],
+    "fleet_size": 3,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Scali a Napoli nel 2026; Civitavecchia nei viaggi del Mediterraneo (Explora III consegnata a luglio 2026)",
+    "sources": [
+      "https://explorajourneys.com/int/en/press-and-media/media-contacts",
+      "https://explorajourneys.com/us/en/contact-us",
+      "https://www.fincantieri.com/en/newsroom/press-releases/2026/explora-journeys-and-fincantieri-celebrate-the-delivery-of-explora-iii-msc-group-s-luxury-ocean-travel-brand-reaches-the-halfway-milestone-of-its-planned-fleet"
+    ],
+    "ships": [
+      "Explora I",
+      "Explora II",
+      "Explora III"
+    ]
+  },
+  {
+    "slug": "four-seasons-yachts",
+    "name": "Four Seasons Yachts",
+    "kind": "cruise",
+    "segment": "luxury",
+    "parent_group": "Four Seasons Hotels and Resorts / Marc-Henry Cruise Holdings (joint venture)",
+    "hq_city": "Miami Beach",
+    "hq_country": "United States",
+    "hq_address": "960 Alton Road, Miami Beach, FL 33139, USA",
+    "website": "https://www.fourseasonsyachts.com",
+    "phone": null,
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Sito ufficiale / chi siamo",
+        "value": "https://www.fourseasonsyachts.com/about-us",
+        "source": "https://www.fourseasonsyachts.com/about-us"
+      },
+      {
+        "label": "Press room Four Seasons",
+        "value": "https://press.fourseasons.com/news-releases/2026/four-seasons-yacht-launch/",
+        "source": "https://press.fourseasons.com/news-releases/2026/four-seasons-yacht-launch/"
+      }
+    ],
+    "fleet_size": 1,
+    "calls_naples": null,
+    "calls_civitavecchia": null,
+    "ports_note": "Four Seasons I in servizio da marzo 2026 nel Mediterraneo (Capri, Positano, Taormina); Napoli e Civitavecchia non verificate",
+    "sources": [
+      "https://www.zoominfo.com/pic/four-seasons-yachts/1327577717",
+      "https://press.fourseasons.com/news-releases/2024/fourseasonsyachts-mediterranean-itineraries/",
+      "https://www.boatinternational.com/yachts/news/four-seasons-yacht-liner-fincantieri-enters-service",
+      "https://www.seatrade-cruise.com/ship-operations/four-seasons-yacht-s-inaugural-is-delayed-to-march-2026"
+    ],
+    "ships": [
+      "Four Seasons I"
+    ]
+  },
+  {
+    "slug": "fred-olsen-cruise-lines",
+    "name": "Fred. Olsen Cruise Lines",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": "Bonheur ASA (Fred. Olsen)",
+    "hq_city": "Ipswich",
+    "hq_country": "United Kingdom",
+    "hq_address": "Fred. Olsen House, White House Road, Ipswich, Suffolk IP1 5LL, United Kingdom",
+    "website": "https://www.fredolsencruises.com",
+    "phone": "+44 1473 742424",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Sede Ipswich (centralino)",
+        "value": "+44 1473 742424",
+        "source": "https://www.businessmagnet.co.uk/company/fredolsencruiselinesltd-8037.htm"
+      },
+      {
+        "label": "Sede Ipswich (numero alternativo in un'altra directory)",
+        "value": "+44 1473 292200",
+        "source": "https://www.yelp.com/biz/fred-olsen-cruise-lines-ipswich"
+      },
+      {
+        "label": "Pagina contatti ufficiale",
+        "value": "https://www.fredolsencruises.com/about-us/contact-us",
+        "source": "https://www.fredolsencruises.com/about-us/contact-us"
+      }
+    ],
+    "fleet_size": 3,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "La pagina ufficiale 'Italy cruise' cita Napoli (Pompei/Ercolano) e Civitavecchia (Roma) come scali delle crociere Italia di 14-21 notti; le date 2026 dei singoli scali non sono verificate. Due numeri di centralino diversi nelle directory.",
+    "sources": [
+      "https://www.businessmagnet.co.uk/company/fredolsencruiselinesltd-8037.htm",
+      "https://www.yelp.com/biz/fred-olsen-cruise-lines-ipswich",
+      "https://www.fredolsencruises.com/about-us/contact-us",
+      "https://www.fredolsencruises.com/destination/italy",
+      "https://www.cruisemapper.com/cruise-lines/Fred-Olsen-Cruise-Lines-26"
+    ],
+    "ships": [
+      "Balmoral",
+      "Borealis",
+      "Bolette"
+    ]
+  },
+  {
+    "slug": "grand-circle-cruise-line",
+    "name": "Grand Circle Cruise Line",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": "Grand Circle Corporation",
+    "hq_city": "Boston",
+    "hq_country": "United States",
+    "hq_address": "347 Congress Street, Boston, MA, United States",
+    "website": "https://www.gct.com",
+    "phone": "+1 800 221 2610",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina contatti",
+        "value": "https://www.gct.com/about-us/contact-us",
+        "source": "https://www.gct.com/about-us/contact-us"
+      },
+      {
+        "label": "Sede Boston (centralino)",
+        "value": "+1 617 350 7500",
+        "source": "https://www.yelp.com/biz/grand-circle-travel-boston-5"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": null,
+    "calls_civitavecchia": null,
+    "ports_note": "Piccole navi e crociere fluviali per il mercato statunitense, stesso gruppo di Overseas Adventure Travel e Grand Circle Travel. Ha itinerari nel Mediterraneo, ma gli scali 2026 a Napoli e Civitavecchia e i nomi delle navi non sono verificati.",
+    "sources": [
+      "https://www.gct.com/about-us/contact-us",
+      "https://www.yelp.com/biz/grand-circle-travel-boston-5",
+      "https://ustoa.com/grand-circle-cruise"
+    ],
+    "ships": []
+  },
+  {
+    "slug": "hapag-lloyd-cruises",
+    "name": "Hapag-Lloyd Cruises",
+    "kind": "cruise",
+    "segment": "luxury",
+    "parent_group": "TUI Cruises GmbH (joint venture TUI AG / Royal Caribbean Group)",
+    "hq_city": "Hamburg",
+    "hq_country": "Germany",
+    "hq_address": "Heidenkampsweg 58, 20097 Hamburg, Germany",
+    "website": "https://www.hl-cruises.com",
+    "phone": "+49 40 307030 0",
+    "email": "service@hl-cruises.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Ufficio stampa (solo giornalisti)",
+        "value": "presse@hl-cruises.com / +49 40 307030 396",
+        "source": "https://www.hl-cruises.com/press/contacts"
+      },
+      {
+        "label": "Contatti / form",
+        "value": "https://www.hl-cruises.com/contact",
+        "source": "https://www.hl-cruises.com/contact"
+      }
+    ],
+    "fleet_size": 5,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Europa 2 nel Mediterraneo 2026 con partenze/arrivi a Civitavecchia e scali a Napoli e Capri (anche crociere ART2SEA); lusso, mercato tedesco. Include anche navi da spedizione (Hanseatic)",
+    "sources": [
+      "https://www.hl-cruises.com/legal/imprint",
+      "https://www.hl-cruises.com/press/contacts",
+      "https://www.kreuzfahrten-und-weltreisen.de/kreuzfahrt/region-europa-schiffe-ms_europa_2.html",
+      "https://www.schiffe-und-kreuzfahrten.de/news/art2sea-reisen-im-sommer-2026-auf-europa2/383745/"
+    ],
+    "ships": [
+      "Europa",
+      "Europa 2",
+      "Hanseatic nature",
+      "Hanseatic inspiration",
+      "Hanseatic spirit"
+    ]
+  },
+  {
+    "slug": "holland-america-line",
+    "name": "Holland America Line",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": "Carnival Corporation & plc",
+    "hq_city": "Seattle",
+    "hq_country": "United States",
+    "hq_address": "450 Third Avenue West, Seattle, WA 98119, USA",
+    "website": "https://www.hollandamerica.com",
+    "phone": "+1 206 281 3535",
+    "email": "PR@hollandamerica.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Media relations",
+        "value": "PR@hollandamerica.com / +1 206 281 3535",
+        "source": "https://www.hollandamerica.com/en/us/about/contact-us"
+      },
+      {
+        "label": "Newsroom",
+        "value": "https://www.hollandamerica.com/en/us/newsroom",
+        "source": "https://www.hollandamerica.com/en/us/newsroom"
+      }
+    ],
+    "fleet_size": 11,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Crociere Mediterraneo 2026 con scalo a Napoli; Civitavecchia usata come porto d'imbarco/sbarco",
+    "sources": [
+      "https://www.hollandamerica.com/en/us/about/contact-us",
+      "https://www.hollandamerica.com/en/us/faq/contact-us/mailing-address",
+      "https://winmo.com/open/company/travel-and-hospitality-cruise-lines/wa/seattle/holland-america-line-inc/4781"
+    ],
+    "ships": [
+      "Rotterdam",
+      "Nieuw Statendam",
+      "Koningsdam",
+      "Eurodam",
+      "Oosterdam"
+    ]
+  },
+  {
+    "slug": "marella-cruises",
+    "name": "Marella Cruises",
+    "kind": "cruise",
+    "segment": "mass",
+    "parent_group": "TUI Group (TUI UK)",
+    "hq_city": "Luton",
+    "hq_country": "United Kingdom",
+    "hq_address": "Wigmore House, Wigmore Lane, Luton, Bedfordshire LU2 9TN, United Kingdom",
+    "website": "https://www.tui.co.uk/cruise",
+    "phone": "+44 20 3636 1862",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Shore excursions",
+        "value": "+44 20 3451 2728",
+        "source": "https://www.tui.co.uk/destinations/faq/marella-cruises"
+      },
+      {
+        "label": "Ufficio stampa TUI UK",
+        "value": "https://www.tui.co.uk/press/contact/",
+        "source": "https://www.tui.co.uk/press/contact/"
+      },
+      {
+        "label": "Trade (TUITradeHub agenzie)",
+        "value": "https://www.tui.co.uk/press/tui-and-marella-cruises-introduce-tuitradehub-to-support-agent-bookings/",
+        "source": "https://www.tui.co.uk/press/tui-and-marella-cruises-introduce-tuitradehub-to-support-agent-bookings/"
+      }
+    ],
+    "fleet_size": 5,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Marella Explorer 2 'Treasures of the Mediterranean' da Palma (2026) con scali a Napoli e Civitavecchia; mercato britannico, solo adulti",
+    "sources": [
+      "https://www.tui.co.uk/destinations/faq/marella-cruises",
+      "https://lei.bloomberg.com/leis/view/2138001DQQSBL2THR819",
+      "https://www.tui.co.uk/press/contact/",
+      "https://www.planetcruise.com/en/marella-cruises/marella-explorer-2/31-march-2026/372365",
+      "https://www.cruisekings.co.uk/cruise-details/marella-cruises/marella-explorer-2/treasures-of-mediterranean-/depart-31-mar-2026-for-7-nights/2189668/"
+    ],
+    "ships": [
+      "Marella Explorer",
+      "Marella Explorer 2",
+      "Marella Discovery",
+      "Marella Discovery 2",
+      "Marella Voyager"
+    ]
+  },
+  {
+    "slug": "margaritaville-at-sea",
+    "name": "Margaritaville at Sea",
+    "kind": "cruise",
+    "segment": "mass",
+    "parent_group": null,
+    "hq_city": "Deerfield Beach",
+    "hq_country": "United States",
+    "hq_address": "431 Fairway Drive, Suite 300, Deerfield Beach, FL 33441, USA",
+    "website": "https://www.margaritavilleatsea.com",
+    "phone": "+1 800 814 7100",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina contatti",
+        "value": "https://www.margaritavilleatsea.com/mv-at-sea/contact-us",
+        "source": "https://www.margaritavilleatsea.com/mv-at-sea/contact-us"
+      }
+    ],
+    "fleet_size": 2,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Crociere brevi verso Bahamas/Caraibi da Palm Beach e Tampa. Nessuno scalo italiano.",
+    "sources": [
+      "https://craft.co/margaritaville-at-sea/locations",
+      "https://www.margaritavilleatsea.com/mv-at-sea/contact-us",
+      "https://en.wikipedia.org/wiki/Margaritaville_at_Sea"
+    ],
+    "ships": [
+      "Margaritaville at Sea Paradise",
+      "Margaritaville at Sea Islander"
+    ]
+  },
+  {
+    "slug": "mitsui-ocean-cruises",
+    "name": "Mitsui Ocean Cruises",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": "Mitsui O.S.K. Lines (MOL)",
+    "hq_city": "Tokyo",
+    "hq_country": "Japan",
+    "hq_address": null,
+    "website": "https://www.mitsuioceancruises.com",
+    "phone": null,
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Comunicato MOL sulla nuova nave Mitsui Ocean Sakura",
+        "value": "https://www.mol.co.jp/en/info/article/2025/1106.html",
+        "source": "https://www.mol.co.jp/en/info/article/2025/1106.html"
+      }
+    ],
+    "fleet_size": 3,
+    "calls_naples": null,
+    "calls_civitavecchia": null,
+    "ports_note": "Operatore di MOL Cruises Ltd (sede a Chiyoda-ku, Tokyo), mercato giapponese; Mitsui Ocean Sakura entra in servizio a settembre 2026. Soprattutto crociere in Giappone/Asia; eventuali giri del mondo con scali nel Mediterraneo non verificati. Sito web da verificare.",
+    "sources": [
+      "https://www.mol.co.jp/en/info/article/2025/0819b.html",
+      "https://www.mol.co.jp/en/info/article/2025/1106.html",
+      "https://www.cruisemapper.com/cruise-lines/MOL-Mitsui-Ocean-Cruises-128"
+    ],
+    "ships": [
+      "Mitsui Ocean Fuji",
+      "Mitsui Ocean Sakura",
+      "Nippon Maru"
+    ]
+  },
+  {
+    "slug": "msc-crociere",
+    "name": "MSC Crociere",
+    "kind": "cruise",
+    "segment": "mass",
+    "parent_group": "MSC Group (Mediterranean Shipping Company)",
+    "hq_city": "Geneva",
+    "hq_country": "Switzerland",
+    "hq_address": "Chemin Rieu 12-14, 1208 Geneva, Switzerland",
+    "website": "https://www.msccrociere.it",
+    "phone": null,
+    "email": null,
+    "italy_office": {
+      "city": "Napoli",
+      "address": "Via Agostino Depretis 31, 80133 Napoli (NA)",
+      "phone": "+39 081 7942111",
+      "email": null
+    },
+    "contacts": [
+      {
+        "label": "Centralino MSC Crociere S.p.A. Napoli",
+        "value": "+39 081 7942111",
+        "source": "https://www.paginebianche.it/scheda/napoli/msc-crociere.314025"
+      },
+      {
+        "label": "Numero verde Italia",
+        "value": "800 672112",
+        "source": "https://www.paginebianche.it/scheda/napoli/msc-crociere.314025"
+      },
+      {
+        "label": "Ufficio stampa Italia (Press Area)",
+        "value": "https://www.mscpressarea.com/it_IT/contact/",
+        "source": "https://www.mscpressarea.com/it_IT/contact/"
+      }
+    ],
+    "fleet_size": 23,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Sede italiana a Napoli; Napoli e Civitavecchia porti d'imbarco tutto l'anno",
+    "sources": [
+      "https://www.paginebianche.it/scheda/napoli/msc-crociere.314025",
+      "https://www.paginegialle.it/campania/napoli/msc_crociere/Via-Agostino-Depretis.html",
+      "https://www.wikidata.org/wiki/Q663626",
+      "https://www.mscpressarea.com/it_IT/contact/",
+      "https://www.ufficiocamerale.it/6389/msc-crociere-spa"
+    ],
+    "ships": [
+      "MSC World Europa",
+      "MSC World America",
+      "MSC Euribia",
+      "MSC Seashore",
+      "MSC Grandiosa"
+    ]
+  },
+  {
+    "slug": "nicko-cruises",
+    "name": "nicko cruises",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": "Mystic Invest",
+    "hq_city": "Stuttgart",
+    "hq_country": "Germany",
+    "hq_address": "nicko cruises Schiffsreisen GmbH, Mittlerer Pfad 2, 70499 Stuttgart, Germany",
+    "website": "https://www.nicko-cruises.de",
+    "phone": "+49 711 24898044",
+    "email": "hochsee@nicko-cruises.de",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Crociere oceaniche (email)",
+        "value": "hochsee@nicko-cruises.de",
+        "source": "https://www.nicko-cruises.de/kontaktieren"
+      },
+      {
+        "label": "Ufficio stampa (pagina)",
+        "value": "https://www.nicko-cruises.de/presse",
+        "source": "https://www.nicko-cruises.de/presse"
+      }
+    ],
+    "fleet_size": 2,
+    "calls_naples": null,
+    "calls_civitavecchia": true,
+    "ports_note": "Vasco da Gama fa nel 2026 la crociera Mediterraneo Atene-Roma-Barcellona-Malaga, con scalo a Civitavecchia/Roma. In Campania l'itinerario tocca Sorrento, non Napoli: Napoli non e' confermata. La flotta oceanica e' di 2 navi; ci sono inoltre circa 25 navi fluviali.",
+    "sources": [
+      "https://www.nicko-cruises.de/impressum",
+      "https://www.nicko-cruises.de/kontaktieren",
+      "https://www.nicko-cruises.de/en/reise/pim-vdg",
+      "https://cruiseindustrynews.com/cruise-news/2025/06/nicko-announces-vasco-da-gamas-2026-27-world-cruise/"
+    ],
+    "ships": [
+      "Vasco da Gama",
+      "World Voyager"
+    ]
+  },
+  {
+    "slug": "norwegian-cruise-line",
+    "name": "Norwegian Cruise Line",
+    "kind": "cruise",
+    "segment": "mass",
+    "parent_group": "Norwegian Cruise Line Holdings Ltd.",
+    "hq_city": "Miami",
+    "hq_country": "United States",
+    "hq_address": "7665 Corporate Center Drive, Miami, FL 33126, USA",
+    "website": "https://www.ncl.com/it/it/",
+    "phone": "+1 305-468-2339",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Contatti NCL Italia (pagina ufficiale)",
+        "value": "https://www.ncl.com/it/it/Informazioni-Ncl/Contattaci-39bsz/",
+        "source": "https://www.ncl.com/it/it/Informazioni-Ncl/Contattaci-39bsz/"
+      },
+      {
+        "label": "Partner internazionali / uffici esteri",
+        "value": "https://www.ncl.com/faq/international-offices",
+        "source": "https://www.ncl.com/faq/international-offices"
+      },
+      {
+        "label": "Sede di gruppo NCLH (contatti corporate)",
+        "value": "https://www.nclhltd.com/contact",
+        "source": "https://www.nclhltd.com/contact"
+      }
+    ],
+    "fleet_size": 20,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Scali a Napoli nel 2026; Civitavecchia usata come porto d'imbarco per il Mediterraneo",
+    "sources": [
+      "https://www.nclhltd.com/contact",
+      "https://www.zoominfo.com/hq/norwegian-cruise-line-holdings-ltd-office-address/40289755",
+      "https://www.ncl.com/it/it/Informazioni-Ncl/Contattaci-39bsz/",
+      "https://www.ncl.com/faq/international-offices"
+    ],
+    "ships": [
+      "Norwegian Aqua",
+      "Norwegian Prima",
+      "Norwegian Viva",
+      "Norwegian Epic",
+      "Norwegian Breakaway"
+    ]
+  },
+  {
+    "slug": "oceania-cruises",
+    "name": "Oceania Cruises",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": "Norwegian Cruise Line Holdings Ltd.",
+    "hq_city": "Miami",
+    "hq_country": "United States",
+    "hq_address": "7665 NW 19th Street, Suite 100, Miami, FL 33126, USA",
+    "website": "https://www.oceaniacruises.com",
+    "phone": "+1 305-436-4000",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina corporate / chi siamo",
+        "value": "https://www.oceaniacruises.com/corporate",
+        "source": "https://www.oceaniacruises.com/corporate"
+      },
+      {
+        "label": "Gruppo NCLH (contatti corporate)",
+        "value": "https://www.nclhltd.com/contact",
+        "source": "https://www.nclhltd.com/contact"
+      }
+    ],
+    "fleet_size": 8,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Scali a Napoli nel 2026; Civitavecchia frequente come imbarco/sbarco per Roma (upper premium)",
+    "sources": [
+      "https://www.dnb.com/business-directory/company-profiles.oceania_cruises_inc.f0a5ec95763a693922428071ab20c9f6.html",
+      "https://www.zoominfo.com/c/oceania-cruises-inc/28558507",
+      "https://www.oceaniacruises.com/corporate"
+    ],
+    "ships": [
+      "Oceania Allura",
+      "Oceania Vista",
+      "Oceania Marina",
+      "Oceania Riviera",
+      "Oceania Insignia"
+    ]
+  },
+  {
+    "slug": "orient-express-sailing-yachts",
+    "name": "Orient Express Sailing Yachts",
+    "kind": "cruise",
+    "segment": "luxury",
+    "parent_group": "Accor (marchio Orient Express)",
+    "hq_city": "Paris",
+    "hq_country": "France",
+    "hq_address": null,
+    "website": "https://www.orient-express.com/en/sailing-yachts",
+    "phone": "+33 1 87 21 34 50",
+    "email": "reservations.sailingyachts@orient-express.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Contatti / richieste (Francia +33 1 87 21 34 50; worldwide +44 20 8163 9430)",
+        "value": "https://www.orient-express.com/en/sailing-yachts/contact/get-in-touch",
+        "source": "https://www.orient-express.com/en/sailing-yachts/contact/get-in-touch"
+      },
+      {
+        "label": "Gruppi e charter",
+        "value": "https://www.orient-express.com/en/sailing-yachts/groups-charters",
+        "source": "https://www.orient-express.com/en/sailing-yachts/groups-charters"
+      }
+    ],
+    "fleet_size": 1,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Stagione inaugurale 2026 (mag-ott): Napoli, Amalfi e Civitavecchia negli itinerari Costiera e Sicilia",
+    "sources": [
+      "https://www.orient-express.com/en/sailing-yachts/contact/get-in-touch",
+      "https://www.icruise.com/itineraries/8-night-amalfi-coast-and-sicily-cruise_orient-express-corinthian_8-3-2026.html",
+      "https://www.cruisemapper.com/ships/Orient-Express-Corinthian-2245",
+      "https://en.wikipedia.org/wiki/Orient_Express_(Accor)"
+    ],
+    "ships": [
+      "Orient Express Corinthian"
+    ]
+  },
+  {
+    "slug": "p-and-o-cruises",
+    "name": "P&O Cruises",
+    "kind": "cruise",
+    "segment": "mass",
+    "parent_group": "Carnival Corporation & plc (Carnival UK)",
+    "hq_city": "Southampton",
+    "hq_country": "United Kingdom",
+    "hq_address": "Carnival House, 100 Harbour Parade, Southampton, Hampshire SO15 1ST, United Kingdom",
+    "website": "https://www.pocruises.com",
+    "phone": "+44 344 338 8635",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Ufficio stampa (pagina media)",
+        "value": "https://www.pocruises.com/en-au/media-contacts",
+        "source": "https://www.pocruises.com/en-au/media-contacts"
+      },
+      {
+        "label": "Contatti clienti",
+        "value": "https://www.pocruises.com/contact-us",
+        "source": "https://www.pocruises.com/contact-us"
+      },
+      {
+        "label": "Informazioni societarie",
+        "value": "https://www.pocruises.com/company-information",
+        "source": "https://www.pocruises.com/company-information"
+      }
+    ],
+    "fleet_size": 7,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Crociere Mediterraneo 2026 (da Southampton e fly-cruise) con scali a Napoli e Civitavecchia; mercato britannico",
+    "sources": [
+      "https://www.elliott.org/company-contacts/po-cruises/",
+      "https://www.pocruises.com/company-information",
+      "https://www.pocruises.com/en-au/media-contacts"
+    ],
+    "ships": [
+      "Arvia",
+      "Iona",
+      "Britannia",
+      "Azura",
+      "Ventura"
+    ]
+  },
+  {
+    "slug": "paul-gauguin-cruises",
+    "name": "Paul Gauguin Cruises",
+    "kind": "cruise",
+    "segment": "luxury",
+    "parent_group": "Ponant Explorations Group (Compagnie du Ponant)",
+    "hq_city": "New York",
+    "hq_country": "United States",
+    "hq_address": "110 E 25th St, Suite 212, New York, NY 10010, USA",
+    "website": "https://www.pgcruises.com",
+    "phone": "+1 800 848 6172",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina contatti",
+        "value": "https://www.pgcruises.com/contact-us",
+        "source": "https://www.pgcruises.com/contact-us"
+      },
+      {
+        "label": "Comunicati stampa",
+        "value": "https://www.pgcruises.com/press/press-releases/paul-gauguin-cruises-announces-2026-voyages",
+        "source": "https://www.pgcruises.com/press/press-releases/paul-gauguin-cruises-announces-2026-voyages"
+      }
+    ],
+    "fleet_size": 1,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Una sola nave, tutto l'anno da Papeete (Tahiti): Isole della Societa, Tuamotu, Marchesi, Cook. Nessuno scalo in Italia. Il gruppo Ponant invece e presente nel Mediterraneo.",
+    "sources": [
+      "https://www.pgcruises.com/contact-us",
+      "https://leadiq.com/c/paul-gauguin-cruises/5a1d934e540000510077c262",
+      "https://www.pgcruises.com/press/press-releases/paul-gauguin-cruises-releases-2026-voyages-brochure",
+      "https://www.cruisemapper.com/ships/Paul-Gauguin-796",
+      "https://en.wikipedia.org/wiki/Paul_Gauguin_Cruises"
+    ],
+    "ships": [
+      "Paul Gauguin"
+    ]
+  },
+  {
+    "slug": "phoenix-reisen",
+    "name": "Phoenix Reisen",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": null,
+    "hq_city": "Bonn",
+    "hq_country": "Germany",
+    "hq_address": "Pfälzer Straße 14, 53111 Bonn, Germany",
+    "website": "https://www.phoenixreisen.com",
+    "phone": "+49 228 92600",
+    "email": "info@phoenixreisen.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Sede Bonn (centralino)",
+        "value": "+49 228 9260-0",
+        "source": "https://www.phoenixreisen.com/impressum.html"
+      },
+      {
+        "label": "Email generale",
+        "value": "info@phoenixreisen.com",
+        "source": "https://www.phoenixreisen.com/impressum.html"
+      }
+    ],
+    "fleet_size": 3,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "MS Amadea fa nel 2026 una crociera nel Mediterraneo con scali a Napoli e Civitavecchia/Roma (15 giorni, 16-30 maggio 2026). La flotta conta 3 navi da crociera oceaniche, piu' circa 40 navi fluviali noleggiate. Azienda familiare tedesca.",
+    "sources": [
+      "https://www.phoenixreisen.com/impressum.html",
+      "https://www.seniorenportal.de/dienstleister/reisen-unterhaltung/kreuzfahrten-seereisen/phoenix-reisen-gmbh-pfaelzer-strasse-14-53111-bonn",
+      "https://www.flussreisen.de/kreuzfahrt/ms-amadea-das-beste-vom-mittelmeer~37575-75340/",
+      "https://www.phoenixreisen.com/italien-kreuzfahrt-idyllisches-dolce-vita-am-mittelmeer.html"
+    ],
+    "ships": [
+      "Amadea",
+      "Artania",
+      "Amera"
+    ]
+  },
+  {
+    "slug": "plantours-kreuzfahrten",
+    "name": "Plantours Kreuzfahrten",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": "plantours & Partner GmbH",
+    "hq_city": "Hamburg",
+    "hq_country": "Germany",
+    "hq_address": "Holzdamm 28-32, 20099 Hamburg, Germany",
+    "website": "https://www.plantours-kreuzfahrten.de",
+    "phone": "+49 40 23936800",
+    "email": "info@plantours-kreuzfahrten.de",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Ufficio stampa (pagina)",
+        "value": "https://www.plantours-kreuzfahrten.de/en/press-contact/",
+        "source": "https://www.plantours-kreuzfahrten.de/en/press-contact/"
+      },
+      {
+        "label": "Ufficio Bremen (Martinistraße 50-52, 28195 Bremen)",
+        "value": "+49 421 173690",
+        "source": "https://www.gruppentouristik.com/anbieter/plantours-kreuzfahrten"
+      },
+      {
+        "label": "Email generale (impressum)",
+        "value": "info@plantours-kreuzfahrten.de",
+        "source": "https://www.plantours-kreuzfahrten.de/en/imprint/"
+      }
+    ],
+    "fleet_size": 1,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "MS Hamburg ha in programma a ottobre 2026 una rotta con scalo a Civitavecchia (16-23 ottobre) e una con scalo a Napoli (23 ottobre-1 novembre). Una sola nave oceanica da circa 400 ospiti. Sede: l'impressum indica Amburgo (Holzdamm), le directory piu' vecchie Brema.",
+    "sources": [
+      "https://www.plantours-kreuzfahrten.de/en/imprint/",
+      "https://www.plantours-kreuzfahrten.de/en/press-contact/",
+      "https://www.gruppentouristik.com/anbieter/plantours-kreuzfahrten",
+      "https://www.kreuzfahrten-und-weltreisen.de/kreuzfahrt/region-italien-schiffe-ms_hamburg.html",
+      "https://www.kreuzfahrten.de/Schiff/plantours-ms-hamburg.html"
+    ],
+    "ships": [
+      "Hamburg"
+    ]
+  },
+  {
+    "slug": "princess-cruises",
+    "name": "Princess Cruises",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": "Carnival Corporation & plc",
+    "hq_city": "Santa Clarita",
+    "hq_country": "United States",
+    "hq_address": "24305 Town Center Drive, Santa Clarita, CA 91355, USA",
+    "website": "https://www.princess.com",
+    "phone": "+1 661 753 0000",
+    "email": "media@princesscruises.com",
+    "italy_office": {
+      "city": "Genova",
+      "address": "Via Corsica 6/3, 16128 Genova (Gioco Viaggi Srl, rappresentante Princess per l'Italia)",
+      "phone": "+39 010 5531169",
+      "email": "princess@giocoviaggi.com"
+    },
+    "contacts": [
+      {
+        "label": "Media relations",
+        "value": "media@princesscruises.com / +1 661 753 1530",
+        "source": "https://www.princess.com/news/contact.html"
+      },
+      {
+        "label": "Rappresentanza Italia / agenzie (Gioco Viaggi)",
+        "value": "+39 010 5531169 - princess@giocoviaggi.com",
+        "source": "http://www.crociereprincess.it/contatti/"
+      },
+      {
+        "label": "Travel agent Italia",
+        "value": "https://origin-www.princess.com/book/agent/intl_travelagent/italy.html",
+        "source": "https://origin-www.princess.com/book/agent/intl_travelagent/italy.html"
+      }
+    ],
+    "fleet_size": 17,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Scali a Napoli nel Mediterraneo 2026 e partenze/imbarchi da Civitavecchia (Roma); sede in trasferimento a Miami entro ~2028",
+    "sources": [
+      "https://www.yellowpages.com/santa-clarita-ca/princess-cruise-line-corporate-headquarters-24305-town-center-drive",
+      "https://craft.co/princess-cruises/locations",
+      "https://www.princess.com/news/contact.html",
+      "http://www.crociereprincess.it/contatti/",
+      "https://www.giocoviaggi.com/"
+    ],
+    "ships": [
+      "Sun Princess",
+      "Star Princess",
+      "Sky Princess",
+      "Enchanted Princess",
+      "Discovery Princess"
+    ]
+  },
+  {
+    "slug": "regent-seven-seas-cruises",
+    "name": "Regent Seven Seas Cruises",
+    "kind": "cruise",
+    "segment": "luxury",
+    "parent_group": "Norwegian Cruise Line Holdings Ltd.",
+    "hq_city": "Miami",
+    "hq_country": "United States",
+    "hq_address": "7665 NW 19th Street, Miami, FL 33126, USA",
+    "website": "https://www.rssc.com",
+    "phone": "+1 844-473-4368",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Modulo contatti ufficiale",
+        "value": "https://www.rssc.com/about/contact",
+        "source": "https://www.rssc.com/about/contact"
+      },
+      {
+        "label": "Gruppo NCLH (contatti corporate)",
+        "value": "https://www.nclhltd.com/contact",
+        "source": "https://www.nclhltd.com/contact"
+      }
+    ],
+    "fleet_size": 6,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Scali a Napoli nel 2026; Civitavecchia come porto di Roma per imbarchi lusso",
+    "sources": [
+      "https://www.elliott.org/company-contacts/regent-seven-seas/",
+      "https://www.rssc.com/about/contact",
+      "https://en.wikipedia.org/wiki/Regent_Seven_Seas_Cruises"
+    ],
+    "ships": [
+      "Seven Seas Grandeur",
+      "Seven Seas Splendor",
+      "Seven Seas Explorer",
+      "Seven Seas Voyager",
+      "Seven Seas Mariner"
+    ]
+  },
+  {
+    "slug": "resorts-world-cruises",
+    "name": "Resorts World Cruises",
+    "kind": "cruise",
+    "segment": "mass",
+    "parent_group": null,
+    "hq_city": "Singapore",
+    "hq_country": "Singapore",
+    "hq_address": null,
+    "website": "https://www.rwcruises.com",
+    "phone": null,
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Operazioni Hong Kong (Kai Tak Cruise Terminal, 33 Shing Fung Road, Kowloon)",
+        "value": "+852 3465 6888",
+        "source": "https://www.thepoortraveler.net/resorts-world-one-hong-kong-cruise/"
+      }
+    ],
+    "fleet_size": 2,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Crociere in Asia da Singapore, Hong Kong e altri porti asiatici. Societa di Singapore (Resorts World Cruises Pte. Ltd.) nata nel 2022 sulle ceneri di Dream Cruises/Genting Hong Kong. Nessuna presenza nel Mediterraneo.",
+    "sources": [
+      "https://www.sgpbusiness.com/company/Resorts-World-Cruises-Pte-Ltd",
+      "https://www.thepoortraveler.net/resorts-world-one-hong-kong-cruise/",
+      "https://en.wikipedia.org/wiki/Dream_Cruises"
+    ],
+    "ships": [
+      "Genting Dream",
+      "Resorts World One"
+    ]
+  },
+  {
+    "slug": "royal-caribbean-international",
+    "name": "Royal Caribbean International",
+    "kind": "cruise",
+    "segment": "mass",
+    "parent_group": "Royal Caribbean Group",
+    "hq_city": "Miami",
+    "hq_country": "United States",
+    "hq_address": "1050 Caribbean Way, Miami, FL 33132-2096, USA",
+    "website": "https://www.royalcaribbean.com",
+    "phone": "+1 305 539 6000",
+    "email": null,
+    "italy_office": {
+      "city": "Genova",
+      "address": "Via C.R. Ceccardi 4/41, 16121 Genova (RCL Cruises Ltd., sede secondaria in Italia)",
+      "phone": "+39 010 4218202",
+      "email": null
+    },
+    "contacts": [
+      {
+        "label": "Linea agenzie di viaggio Italia (numero verde)",
+        "value": "800 333303",
+        "source": "https://www.royalcaribbeanpresscenter.com/download-press-release/922/"
+      },
+      {
+        "label": "Servizio clienti Italia",
+        "value": "848 000977",
+        "source": "https://www.royalcaribbeanpresscenter.com/download-press-release/922/"
+      },
+      {
+        "label": "Press center (contatti media)",
+        "value": "https://royalcaribbeangrouppresscenter.com/contact/",
+        "source": "https://royalcaribbeangrouppresscenter.com/contact/"
+      },
+      {
+        "label": "Sede Italia (condizioni generali)",
+        "value": "+39 010 4218202",
+        "source": "https://www.royalcaribbean.com/content/dam/royal/countries/ITA/pdf/Condizioni_generali_di_vendita_j.pdf"
+      }
+    ],
+    "fleet_size": 29,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Civitavecchia porto d'imbarco per il Mediterraneo occidentale (crociere 7-8 notti) con scalo a Napoli",
+    "sources": [
+      "https://www.zoominfo.com/hq/royal-caribbean-group-office-address/566142418",
+      "https://royalcaribbeangrouppresscenter.com/contact/",
+      "https://www.royalcaribbean.com/content/dam/royal/countries/ITA/pdf/Condizioni_generali_di_vendita_j.pdf",
+      "https://www.paginebianche.it/scheda/genova/rcl-cruises-ltd_10596461",
+      "https://www.royalcaribbeanpresscenter.com/download-press-release/922/",
+      "https://www.cruisehive.com/royal-caribbeans-massive-legend-of-the-seas-officially-joins-the-fleet/211236",
+      "https://www.royalcaribbean.com/itinerary/8-night-western-mediterranean-from-rome-civitavecchia-on-legend-LE08M173"
+    ],
+    "ships": [
+      "Icon of the Seas",
+      "Star of the Seas",
+      "Legend of the Seas",
+      "Utopia of the Seas",
+      "Wonder of the Seas"
+    ]
+  },
+  {
+    "slug": "saga-cruises",
+    "name": "Saga Cruises",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": "Saga plc",
+    "hq_city": "Folkestone",
+    "hq_country": "United Kingdom",
+    "hq_address": "The Saga Building, Enbrook Park, Folkestone, Kent CT20 3SE, United Kingdom",
+    "website": "https://travel.saga.co.uk/cruises",
+    "phone": "+44 800 300 500",
+    "email": "reservations@saga.co.uk",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina contatti Saga Cruises",
+        "value": "https://travel.saga.co.uk/cruises/contact-us.aspx",
+        "source": "https://travel.saga.co.uk/cruises/contact-us.aspx"
+      },
+      {
+        "label": "Duty Officer 24h (emergenze)",
+        "value": "+44 1303 771999",
+        "source": "https://travel.saga.co.uk/cruises/contact-us.aspx"
+      }
+    ],
+    "fleet_size": 2,
+    "calls_naples": null,
+    "calls_civitavecchia": null,
+    "ports_note": "Esiste una pagina ufficiale 'Italy Cruises 2026/2027', ma gli scali a Napoli e Civitavecchia non sono verificati. La crociera Mediterraneo di 17 notti di Spirit of Adventure (settembre 2026) tocca Elba, La Spezia e la Sardegna, non Napoli ne' Civitavecchia. Il numero 0800 e' un numero verde britannico.",
+    "sources": [
+      "https://travel.saga.co.uk/cruises/contact-us.aspx",
+      "https://find-and-update.company-information.service.gov.uk/company/03267858",
+      "https://travel.saga.co.uk/cruises/ocean/where-we-go/mediterranean-cruises/cruises-to-italy.aspx",
+      "https://cruiseindustrynews.com/cruise-news/2026/08/sagas-spirit-of-adventure-on-17-night-cruise-to-the-mediterranean/"
+    ],
+    "ships": [
+      "Spirit of Discovery",
+      "Spirit of Adventure"
+    ]
+  },
+  {
+    "slug": "sea-cloud-cruises",
+    "name": "Sea Cloud Cruises",
+    "kind": "cruise",
+    "segment": "luxury",
+    "parent_group": null,
+    "hq_city": "Hamburg",
+    "hq_country": "Germany",
+    "hq_address": "An der Alster 9, 20099 Hamburg, Germany",
+    "website": "https://www.seacloud.com",
+    "phone": "+49 40 30959250",
+    "email": "info@seacloud.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Charter e incentive",
+        "value": "+49 40 30959299",
+        "source": "https://www.seacloud.com/charter/kontakt-1"
+      },
+      {
+        "label": "Impressum / dati legali",
+        "value": "https://www.seacloud.com/impressum/",
+        "source": "https://www.seacloud.com/impressum/"
+      }
+    ],
+    "fleet_size": 3,
+    "calls_naples": null,
+    "calls_civitavecchia": null,
+    "ports_note": "Velieri di lusso. Sea Cloud Spirit ha fatto itinerari andata e ritorno da Civitavecchia con scali a Salerno e Napoli, ma nelle fonti viste non c'e' l'anno 2026. Proprieta': nel 2022 The Yacht Portfolio (Ritz-Carlton Yacht Collection) ha firmato una lettera d'intenti per comprare la compagnia; la chiusura dell'acquisizione non e' verificata.",
+    "sources": [
+      "https://www.seacloud.com/impressum/",
+      "https://www.seacloud.com/charter/kontakt-1",
+      "https://www.cruisemapper.com/ships/Sea-Cloud-Spirit-1957",
+      "https://www.seatrade-cruise.com/finance-legal-regulatory/douglas-prothero-s-the-yacht-portfolio-to-acquire-sea-cloud-cruises"
+    ],
+    "ships": [
+      "Sea Cloud",
+      "Sea Cloud II",
+      "Sea Cloud Spirit"
+    ]
+  },
+  {
+    "slug": "seabourn",
+    "name": "Seabourn",
+    "kind": "cruise",
+    "segment": "luxury",
+    "parent_group": "Carnival Corporation & plc",
+    "hq_city": "Seattle",
+    "hq_country": "United States",
+    "hq_address": "450 Third Avenue West, Seattle, WA 98119, USA",
+    "website": "https://www.seabourn.com",
+    "phone": "+1 206 626 9179",
+    "email": "pr@seabourn.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "PR / stampa",
+        "value": "pr@seabourn.com",
+        "source": "https://www.elliott.org/company-contacts/seabourn-cruise-line/"
+      },
+      {
+        "label": "Contatti ufficiali",
+        "value": "https://www.seabourn.com/en/us/about/contact",
+        "source": "https://www.seabourn.com/en/us/about/contact"
+      },
+      {
+        "label": "Rubrica reparti (per agenzie)",
+        "value": "https://assets.travel-media.co/image/upload/v1741621062/traveledge/HQ/Larry%20Cruise%20Promos/Seabourn_Department_Contact_info.pdf",
+        "source": "https://assets.travel-media.co/image/upload/v1741621062/traveledge/HQ/Larry%20Cruise%20Promos/Seabourn_Department_Contact_info.pdf"
+      }
+    ],
+    "fleet_size": 6,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Seabourn Quest e Sojourn nel Mediterraneo maggio-novembre 2026 con home port Roma (Civitavecchia) e itinerari nel Golfo di Napoli",
+    "sources": [
+      "https://www.elliott.org/company-contacts/seabourn-cruise-line/",
+      "https://headquarterlocation.com/washington/seabourn-headquarters-corporate-office/",
+      "https://www.seabourn.com/en/us/plan-a-cruise/seabourn-ocean-deployment-2026/new-seabourn-mediterranean-voyages-2026",
+      "https://www.worldofcruising.co.uk/advice/seabourn-unveils-2026-summer-itineraries"
+    ],
+    "ships": [
+      "Seabourn Encore",
+      "Seabourn Ovation",
+      "Seabourn Quest",
+      "Seabourn Sojourn",
+      "Seabourn Venture"
+    ]
+  },
+  {
+    "slug": "seadream-yacht-club",
+    "name": "SeaDream Yacht Club",
+    "kind": "cruise",
+    "segment": "luxury",
+    "parent_group": null,
+    "hq_city": "Billingstad (Oslo)",
+    "hq_country": "Norway",
+    "hq_address": "Pustutveien 18, NO-1396 Billingstad, Norway",
+    "website": "https://seadream.com",
+    "phone": "+47 67 79 25 85",
+    "email": "info@seadream.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Ufficio Miami",
+        "value": "601 Brickell Key Drive, Suite 700, Miami, FL 33131 · +1 800-707-4911",
+        "source": "https://seadream.com/contact"
+      },
+      {
+        "label": "Media contacts / fact sheet",
+        "value": "https://seadream.com/images/about/media-contacts/SeaDream-Company-Fact-Sheet.pdf",
+        "source": "https://seadream.com/images/about/media-contacts/SeaDream-Company-Fact-Sheet.pdf"
+      }
+    ],
+    "fleet_size": 2,
+    "calls_naples": null,
+    "calls_civitavecchia": null,
+    "ports_note": "Yacht nel Mediterraneo d'estate; scali 2026 a Napoli e Civitavecchia non verificati",
+    "sources": [
+      "https://seadream.com/contact",
+      "https://www.seadream.co.uk/contact/",
+      "https://en.wikipedia.org/wiki/SeaDream_Yacht_Club"
+    ],
+    "ships": [
+      "SeaDream I",
+      "SeaDream II"
+    ]
+  },
+  {
+    "slug": "silversea-cruises",
+    "name": "Silversea Cruises",
+    "kind": "cruise",
+    "segment": "luxury",
+    "parent_group": "Royal Caribbean Group",
+    "hq_city": "Monaco",
+    "hq_country": "Monaco",
+    "hq_address": "Gildo Pastor Center, 7 Rue du Gabian, 98000 Monaco",
+    "website": "https://www.silversea.com",
+    "phone": "+377 97 70 24 24",
+    "email": "pr@silversea.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Ufficio stampa",
+        "value": "pr@silversea.com",
+        "source": "https://www.silversea.com/about-silversea/press-releases/8.html"
+      },
+      {
+        "label": "Contatti ufficiali",
+        "value": "https://www.silversea.com/other-resources/contact-us.html",
+        "source": "https://www.silversea.com/other-resources/contact-us.html"
+      },
+      {
+        "label": "Numero verde Italia (fonte datata, da verificare)",
+        "value": "800 732732",
+        "source": "https://www.advtraining.it/article/notizie/silversea-cruises-in-linea-diretta-con-l-italia-al-numero-verde-800-732732"
+      },
+      {
+        "label": "Press center",
+        "value": "https://royalcaribbeangrouppresscenter.com/silversea/",
+        "source": "https://royalcaribbeangrouppresscenter.com/silversea/"
+      }
+    ],
+    "fleet_size": 12,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Fondata a Roma; nel 2026 Mediterraneo con scali a Napoli e partenze da Civitavecchia (es. Grand Voyage Mediterranean di Silver Spirit). La vecchia Silversea Cruises (Italia) S.p.A. di Roma risulta cessata",
+    "sources": [
+      "https://www.silversea.com/other-resources/contact-us.html",
+      "https://www.silversea.com/about-silversea/press-releases/8.html",
+      "https://www.ufficiocamerale.it/2170/silversea-cruises-italia-spa",
+      "https://www.schiffe-und-kreuzfahrten.de/news/50-tage-durchs-mittelmeer-silver-spirit-auf-die-grand-voyage-mediterranean-2026-gestartet/400231/"
+    ],
+    "ships": [
+      "Silver Nova",
+      "Silver Ray",
+      "Silver Dawn",
+      "Silver Muse",
+      "Silver Spirit"
+    ]
+  },
+  {
+    "slug": "star-clippers",
+    "name": "Star Clippers",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": null,
+    "hq_city": "Monaco",
+    "hq_country": "Monaco",
+    "hq_address": "Clipper Palace, 4 rue de la Turbie, 98000 Monaco",
+    "website": "https://www.starclippers.com",
+    "phone": "+377 97 97 84 00",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Contatti commerciali Italia (pagina)",
+        "value": "https://www.starclippers.com/it/contatti-commerciali.html",
+        "source": "https://www.starclippers.com/it/contatti-commerciali.html"
+      },
+      {
+        "label": "Portale agenti europei",
+        "value": "https://euroagents.starclippers.com/",
+        "source": "https://euroagents.starclippers.com/"
+      },
+      {
+        "label": "Sede Monaco (numero alternativo)",
+        "value": "+377 97 97 84 13",
+        "source": "https://monaco-directory.com/index.php?page=5&id=1228"
+      }
+    ],
+    "fleet_size": 4,
+    "calls_naples": null,
+    "calls_civitavecchia": null,
+    "ports_note": "Velieri; nel Mediterraneo occidentale d'estate. Gli scali 2026 a Napoli e Civitavecchia non sono verificati. Il mercato italiano si segue da Monaco (pagina Facebook 'Star Clippers Italia' con sede a Monaco; pagina ufficiale 'contatti commerciali' in italiano).",
+    "sources": [
+      "https://www.kalidirectory.mc/en/organizations/star-clippers",
+      "https://monaco-directory.com/index.php?page=5&id=1228",
+      "https://www.starclippers.com/it/contatti-commerciali.html",
+      "https://www.facebook.com/starclippersitalia/"
+    ],
+    "ships": [
+      "Royal Clipper",
+      "Star Flyer",
+      "Star Clipper",
+      "Flying Clipper"
+    ]
+  },
+  {
+    "slug": "tauck-small-ship-cruises",
+    "name": "Tauck (Small Ship Cruises)",
+    "kind": "cruise",
+    "segment": "luxury",
+    "parent_group": null,
+    "hq_city": "Wilton",
+    "hq_country": "United States",
+    "hq_address": "10 Westport Road, Wilton, CT, United States",
+    "website": "https://www.tauck.com",
+    "phone": "+1 800 788 7885",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina contatti",
+        "value": "https://www.tauck.com/contact-us",
+        "source": "https://www.tauck.com/contact-us"
+      },
+      {
+        "label": "Indirizzo postale",
+        "value": "PO Box 5020, Norwalk, CT 06856-5020",
+        "source": "https://www.bbb.org/us/ct/wilton/profile/tour-operators/tauck-world-discovery-0111-87014289"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Nel 2026 fa crociere con navi Ponant noleggiate, per esempio Le Bougainville da Roma a Malta con scalo a Napoli e passaggio in Costiera Amalfitana. 'Rome, Amalfi Coast & Sicily' (11 notti) parte da settembre 2026. L'imbarco 'da Roma' e' con ogni probabilita' a Civitavecchia.",
+    "sources": [
+      "https://www.tauck.com/tours/sicily-amalfi-coast-rome-italy-cruise",
+      "https://www.tauck.com/tours-and-cruises/small-ship-cruising/mediterranean-greece-cruises",
+      "https://www.bbb.org/us/ct/wilton/profile/tour-operators/tauck-world-discovery-0111-87014289",
+      "https://www.tauck.com/contact-us"
+    ],
+    "ships": [
+      "Le Bougainville"
+    ]
+  },
+  {
+    "slug": "ritz-carlton-yacht-collection",
+    "name": "The Ritz-Carlton Yacht Collection",
+    "kind": "cruise",
+    "segment": "luxury",
+    "parent_group": "Marriott International (licenza del marchio Ritz-Carlton)",
+    "hq_city": "Fort Lauderdale",
+    "hq_country": "United States",
+    "hq_address": "100 NE 3rd Avenue, Suite 1100, Fort Lauderdale, FL 33301, USA",
+    "website": "https://www.ritzcarltonyachtcollection.com",
+    "phone": "+1 305-907-7099",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Contatti ufficiali (USA +1 833-999-7292; fuori USA +1 305-907-7099)",
+        "value": "https://www.ritzcarltonyachtcollection.com/contactus",
+        "source": "https://www.ritzcarltonyachtcollection.com/contactus"
+      },
+      {
+        "label": "Richiesta di chiamata",
+        "value": "https://www.ritzcarltonyachtcollection.com/request-call",
+        "source": "https://www.ritzcarltonyachtcollection.com/request-call"
+      }
+    ],
+    "fleet_size": 3,
+    "calls_naples": null,
+    "calls_civitavecchia": null,
+    "ports_note": "Yacht nel Mediterraneo (Amalfi/Capri tipici); scali 2026 a Napoli e Civitavecchia non verificati",
+    "sources": [
+      "https://www.zoominfo.com/c/the-ritz-carlton-yacht-collection/452702908",
+      "https://www.ritzcarltonyachtcollection.com/contactus",
+      "https://www.ritzcarltonyachtcollection.com/about"
+    ],
+    "ships": [
+      "Evrima",
+      "Ilma",
+      "Luminara"
+    ]
+  },
+  {
+    "slug": "tui-cruises-mein-schiff",
+    "name": "TUI Cruises (Mein Schiff)",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": "TUI Cruises GmbH (joint venture TUI AG / Royal Caribbean Group)",
+    "hq_city": "Hamburg",
+    "hq_country": "Germany",
+    "hq_address": "Heidenkampsweg 58, 20097 Hamburg, Germany",
+    "website": "https://www.meinschiff.com",
+    "phone": "+49 40 60001 5000",
+    "email": "info@tuicruises.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Centralino / info",
+        "value": "+49 40 60001 5000 - info@tuicruises.com",
+        "source": "https://www.meinschiff.com/en/imprint"
+      },
+      {
+        "label": "Sito corporate (imprint)",
+        "value": "https://corporate.tuicruises.com/en/imprint",
+        "source": "https://corporate.tuicruises.com/en/imprint"
+      }
+    ],
+    "fleet_size": 9,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Mediterraneo occidentale 2026 da Palma e Savona con scali a Napoli e Civitavecchia; mercato tedesco",
+    "sources": [
+      "https://www.meinschiff.com/en/imprint",
+      "https://corporate.tuicruises.com/en/imprint",
+      "https://www.meinschiff.com/de/kreuzfahrten/region/westliches-mittelmeer",
+      "https://en.wikipedia.org/wiki/TUI_Cruises"
+    ],
+    "ships": [
+      "Mein Schiff 7",
+      "Mein Schiff Relax",
+      "Mein Schiff 6",
+      "Mein Schiff 4",
+      "Mein Schiff 1"
+    ]
+  },
+  {
+    "slug": "variety-cruises",
+    "name": "Variety Cruises",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": null,
+    "hq_city": "Athens",
+    "hq_country": "Greece",
+    "hq_address": "214-216 Syngrou Avenue, 17672 Athens (Kallithea), Greece",
+    "website": "https://www.varietycruises.com",
+    "phone": "+30 210 6919191",
+    "email": "info@varietycruises.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina contatti",
+        "value": "https://www.varietycruises.com/contact",
+        "source": "https://www.varietycruises.com/contact"
+      },
+      {
+        "label": "Numero in directory greca",
+        "value": "+30 210 6998484",
+        "source": "https://www.xo.gr/profile/profile-905807154/en/"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": null,
+    "calls_civitavecchia": null,
+    "ports_note": "Piccole navi e yacht a vela, soprattutto in Grecia. Gli itinerari 2026 in Italia (Napoli, Civitavecchia) non sono verificati. Nomi delle navi da memoria, non verificati in questa ricerca.",
+    "sources": [
+      "https://www.varietycruises.com/contact",
+      "https://www.xo.gr/profile/profile-905807154/en/",
+      "https://en.wikipedia.org/wiki/Variety_Cruises"
+    ],
+    "ships": [
+      "Variety Voyager",
+      "Callisto",
+      "Galileo",
+      "Harmony G",
+      "Panorama II"
+    ]
+  },
+  {
+    "slug": "vidantaworld-elegant",
+    "name": "VidantaWorld Voyages (Elegant)",
+    "kind": "cruise",
+    "segment": "luxury",
+    "parent_group": "Grupo Vidanta",
+    "hq_city": "Nuevo Vallarta",
+    "hq_country": "Mexico",
+    "hq_address": "Av. Paseo de las Moras, Fracc. Náutico Turístico, Nuevo Vallarta, Nayarit CP 63735, Mexico",
+    "website": "https://vidantaworld.com/en/voyages",
+    "phone": "+52 322 226 4000",
+    "email": "customerservice@vidanta.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Contatti Grupo Vidanta",
+        "value": "https://www.grupovidanta.com/en/contact-us.html",
+        "source": "https://www.grupovidanta.com/en/contact-us.html"
+      },
+      {
+        "label": "USA/Canada",
+        "value": "+1 866 348 3953",
+        "source": "https://vidanta.com/contact-us"
+      }
+    ],
+    "fleet_size": 1,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Prima stagione nel Mediterraneo dall'aprile 2026: crociere di 7 notti, circa 190 ospiti, soste lunghe e pernottamenti in porto. In estate ci sono partenze da Civitavecchia (13/06/2026) e da Napoli (27/06 e 04/07/2026). Per Speaqi e' un target forte: Napoli e Civitavecchia sono porti d'imbarco.",
+    "sources": [
+      "https://vidanta.com/contact-us",
+      "https://www.grupovidanta.com/en/contact-us.html",
+      "https://brochures.vidantaworld.com/view/771673144",
+      "https://cruiseindustrynews.com/cruise-news/2025/06/bookings-opened-for-vidantaworlds-elegant-inaugural-season/",
+      "https://www.seatrade-cruise.com/ship-operations/vidantaworld-voyages-launches-in-the-mediterranean"
+    ],
+    "ships": [
+      "Elegant"
+    ]
+  },
+  {
+    "slug": "viking-ocean-cruises",
+    "name": "Viking",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": "Viking Holdings Ltd",
+    "hq_city": "Basel",
+    "hq_country": "Switzerland",
+    "hq_address": "Schäferweg 20, 4057 Basel, Switzerland",
+    "website": "https://www.vikingcruises.com",
+    "phone": "+41 61 638 60 11",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Sede operativa Basilea (Viking River Cruises AG)",
+        "value": "+41 61 638 60 11",
+        "source": "https://www.local.ch/en/d/basel/4057/viking-river-cruises-ag-RL_-I6nIEvl24uwd6bDukg"
+      },
+      {
+        "label": "Sede marketing Nord America (Viking Holdings, Woodland Hills CA)",
+        "value": "5700 Canoga Avenue, Woodland Hills, CA",
+        "source": "https://en.wikipedia.org/wiki/Viking_(cruise_line)"
+      }
+    ],
+    "fleet_size": 13,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Civitavecchia home port (es. Viking Sky 30/09/2026); scali a Napoli nel 2026",
+    "sources": [
+      "https://www.local.ch/en/d/basel/4057/viking-river-cruises-ag-RL_-I6nIEvl24uwd6bDukg",
+      "https://www.headquarters-location.com/viking-cruises/",
+      "https://en.wikipedia.org/wiki/Viking_(cruise_line)",
+      "https://m.icruise.com/itineraries/21-night-adriatic-and-mediterranean-sojourn-cruise_viking-sky_9-30-2026.html",
+      "https://www.cruisemapper.com/cruise-lines/Viking-Cruises-78"
+    ],
+    "ships": [
+      "Viking Sky",
+      "Viking Star",
+      "Viking Vesta",
+      "Viking Venus",
+      "Viking Sea"
+    ]
+  },
+  {
+    "slug": "villa-vie-residences",
+    "name": "Villa Vie Residences",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": null,
+    "hq_city": "Fort Lauderdale",
+    "hq_country": "United States",
+    "hq_address": null,
+    "website": "https://villavieresidences.com",
+    "phone": null,
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina contatti",
+        "value": "https://villavieresidences.com/contact",
+        "source": "https://villavieresidences.com/contact"
+      },
+      {
+        "label": "Stampa (pagina)",
+        "value": "https://villavieresidences.com/press",
+        "source": "https://villavieresidences.com/press"
+      }
+    ],
+    "fleet_size": 1,
+    "calls_naples": null,
+    "calls_civitavecchia": null,
+    "ports_note": "Nave residenziale in giro del mondo continuo (Odyssey, 2 anni di navigazione a luglio 2026). La seconda nave, Legacy, e' prevista per l'inizio del 2029. Scali italiani 2026 non verificati. L'email e' nascosta nei risultati di ricerca.",
+    "sources": [
+      "https://villavieresidences.com/contact",
+      "https://www.prnewswire.com/news-releases/villa-vie-to-unveil-legacy-its-second-residential-cruise-ship-during-odysseys-two-year-sailaversary-celebration-as-85-sold-odyssey-expands-into-a-two-ship-fleet-302835263.html"
+    ],
+    "ships": [
+      "Villa Vie Odyssey"
+    ]
+  },
+  {
+    "slug": "virgin-voyages",
+    "name": "Virgin Voyages",
+    "kind": "cruise",
+    "segment": "premium",
+    "parent_group": "Virgin Group / Bain Capital",
+    "hq_city": "Plantation",
+    "hq_country": "United States",
+    "hq_address": "1000 S. Pine Island Road, Suite 600, Plantation, FL 33324, USA",
+    "website": "https://www.virginvoyages.com",
+    "phone": "+1 954-361-9500",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Sede / contatti postali e telefonici (privacy notice)",
+        "value": "+1 954-361-9500",
+        "source": "https://www.virginvoyages.com/privacy-notice"
+      }
+    ],
+    "fleet_size": 4,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Civitavecchia home port estivo 2026; scalo a Napoli/Capri negli itinerari Italia-Francia-Grecia",
+    "sources": [
+      "https://www.virginvoyages.com/privacy-notice",
+      "https://www.virginvoyages.com/terms-and-conditions",
+      "https://vvinsider.com/voyage/sicily-naples-cannes-and-more-22-august-2026-on-scarlet-lady/",
+      "https://www.virginvoyages.com/itinerary/europe/rome-cruise-to-france-italy-9-nights"
+    ],
+    "ships": [
+      "Scarlet Lady",
+      "Valiant Lady",
+      "Resilient Lady",
+      "Brilliant Lady"
+    ]
+  },
+  {
+    "slug": "windstar-cruises",
+    "name": "Windstar Cruises",
+    "kind": "cruise",
+    "segment": "luxury",
+    "parent_group": "Xanterra Travel Collection (Anschutz Corporation)",
+    "hq_city": "Seattle",
+    "hq_country": "United States",
+    "hq_address": "2101 4th Avenue, Suite 210, Seattle, WA 98121, USA",
+    "website": "https://www.windstarcruises.com",
+    "phone": "+1 206-733-2703",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina contatti ufficiale",
+        "value": "https://www.windstarcruises.com/our-company/contact-us/",
+        "source": "https://www.elliott.org/company-contacts/windstar-cruises/"
+      }
+    ],
+    "fleet_size": 6,
+    "calls_naples": null,
+    "calls_civitavecchia": true,
+    "ports_note": "Imbarchi da Civitavecchia 2026 (Wind Surf, Wind Spirit); nel golfo scala a Sorrento e Amalfi, Napoli non verificata. Indirizzo sede da ricontrollare (Yelp lo segna chiuso)",
+    "sources": [
+      "https://www.htz.hr/en/tourism-information/tour-operators/usa/windstar-cruises",
+      "https://www.yelp.com/biz/windstar-cruises-seattle",
+      "https://www.icruise.com/itineraries/14-night-star-collector-corsica-sardinia-and-amalfi-memories-cruise_wind-spirit_7-23-2026.html",
+      "https://www.cruisecritic.com/find-a-cruise/destination-italy/cruise-line-windstar"
+    ],
+    "ships": [
+      "Wind Surf",
+      "Wind Star",
+      "Wind Spirit",
+      "Star Legend",
+      "Star Pride"
+    ]
+  },
+  {
+    "slug": "albatros-expeditions",
+    "name": "Albatros Expeditions",
+    "kind": "expedition",
+    "segment": "expedition",
+    "parent_group": "Polar Latitudes Expeditions",
+    "hq_city": "Copenhagen",
+    "hq_country": "Denmark",
+    "hq_address": "Tøndergade 16, 1752 København V, Denmark",
+    "website": "https://albatros-expeditions.com",
+    "phone": "+45 36 98 97 96",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina contatti (storica Albatros)",
+        "value": "https://albatros-expeditions.com/contact",
+        "source": "https://albatros-expeditions.com/contact"
+      },
+      {
+        "label": "Nuovo marchio: Polar Latitudes Expeditions",
+        "value": "https://polar-latitudes.com",
+        "source": "https://polar-latitudes.com/albatros-expeditions-and-polar-latitudes-join-forces/"
+      },
+      {
+        "label": "Telefono USA (storico)",
+        "value": "+1 888 691 0620",
+        "source": "https://albatros-expeditions.com/contact"
+      }
+    ],
+    "fleet_size": 4,
+    "calls_naples": null,
+    "calls_civitavecchia": null,
+    "ports_note": "CESSATA: marchio confluito in Polar Latitudes Expeditions (fusione annunciata set./ott. 2025, marchio Albatros dismesso entro marzo 2026; sedi Vermont e Copenaghen). Flotta prevalentemente polare; nessuno scalo italiano verificato. Eventuale contatto da fare con Polar Latitudes Expeditions.",
+    "sources": [
+      "https://albatros-expeditions.com/contact",
+      "https://cruiseindustrynews.com/cruise-news/2025/10/polar-latitudes-and-albatros-expeditions-to-merge/",
+      "https://albatros-expeditions.com/lp/becoming-polar-latitudes-expeditions",
+      "https://polar-latitudes.com/albatros-expeditions-and-polar-latitudes-join-forces/",
+      "https://albatros-expeditions.com/ships"
+    ],
+    "ships": [
+      "Ocean Albatros",
+      "Ocean Victory",
+      "Seaventure",
+      "Ocean Nova"
+    ]
+  },
+  {
+    "slug": "aurora-expeditions",
+    "name": "Aurora Expeditions",
+    "kind": "expedition",
+    "segment": "expedition",
+    "parent_group": null,
+    "hq_city": "Sydney",
+    "hq_country": "Australia",
+    "hq_address": "Suite 12, Level 2, 35 Buckingham Street, Surry Hills, NSW 2010, Australia",
+    "website": "https://www.aurora-expeditions.com",
+    "phone": "+61 2 9252 1033",
+    "email": "info@auroraexpeditions.com.au",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Prenotazioni",
+        "value": "reservations@auroraexpeditions.com.au",
+        "source": "https://www.aexpeditions.co.uk/contact-us"
+      },
+      {
+        "label": "Media Centre (contatti PR, press kit)",
+        "value": "https://www.aurora-expeditions.com/media-centre",
+        "source": "https://www.aurora-expeditions.com/media-centre"
+      },
+      {
+        "label": "Numero UK",
+        "value": "+44 808 189 2005",
+        "source": "https://www.aexpeditions.co.uk/contact-us"
+      },
+      {
+        "label": "Numero USA/Canada",
+        "value": "+1 833 826 5828",
+        "source": "https://www.aexpeditions.co.uk/contact-us"
+      }
+    ],
+    "fleet_size": 3,
+    "calls_naples": true,
+    "calls_civitavecchia": null,
+    "ports_note": "Crociere Mediterraneo 2026 con Napoli come porto di sbarco/imbarco: 'Myths of the Mediterranean' Atene-Napoli (partenza 14/09/2026) e 'Mediterranean Feast' Napoli-Lisbona (28/09/2026). Civitavecchia non verificata. Legata commercialmente a Vantage (vantagexplorations.com vende le stesse navi): assetto societario da verificare.",
+    "sources": [
+      "https://www.aexpeditions.co.uk/contact-us",
+      "https://leadiq.com/c/aurora-expeditions/5a1da5e2230000530098dca1",
+      "https://www.aurora-expeditions.com/media-centre",
+      "https://www.aurora-expeditions.com/expedition/myths-of-the-mediterranean",
+      "https://www.aurora-expeditions.com/expedition/mediterranean-feast",
+      "https://www.aurora-expeditions.com/destination/italy",
+      "https://www.travelpulse.com/news/cruise/aurora-expeditions-christens-newest-ship-douglas-mawson-in-sydney-harbor"
+    ],
+    "ships": [
+      "Greg Mortimer",
+      "Sylvia Earle",
+      "Douglas Mawson"
+    ]
+  },
+  {
+    "slug": "heritage-expeditions",
+    "name": "Heritage Expeditions",
+    "kind": "expedition",
+    "segment": "expedition",
+    "parent_group": null,
+    "hq_city": "Christchurch",
+    "hq_country": "New Zealand",
+    "hq_address": "Antarctic House, 53B Montreal Street, PO Box 7218, Christchurch, New Zealand",
+    "website": "https://www.heritage-expeditions.com",
+    "phone": "+64 3 365 3500",
+    "email": "info@heritage-expeditions.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina contatti",
+        "value": "https://www.heritage-expeditions.com/contact/",
+        "source": "https://www.heritage-expeditions.com/contact/"
+      }
+    ],
+    "fleet_size": 2,
+    "calls_naples": null,
+    "calls_civitavecchia": null,
+    "ports_note": "Focus su Nuova Zelanda, subantartico, Pacifico, Mare di Ross e Russia/Asia; nel catalogo 2026-28 compaiono anche Europa e Baltico, ma nessuno scalo a Napoli/Civitavecchia verificato. Da maggio 2027 in flotta Heritage Discoverer (ex Exploris One).",
+    "sources": [
+      "https://www.heritage-expeditions.com/contact/",
+      "https://www.christchurchnz.com/business/growth-sectors/christchurch-antarctic-gateway/christchurch-antarctic-network/listing/heritage-expeditions",
+      "https://en.wikipedia.org/wiki/Heritage_Expeditions",
+      "https://www.heritage-expeditions.com/blog/heritage-expeditions-announces-new-ship-heritage-discoverer-and-new-expedition-cruise-adventures/"
+    ],
+    "ships": [
+      "Heritage Adventurer",
+      "Heritage Explorer"
+    ]
+  },
+  {
+    "slug": "hx-expeditions",
+    "name": "HX Expeditions (HX Hurtigruten Expeditions)",
+    "kind": "expedition",
+    "segment": "expedition",
+    "parent_group": null,
+    "hq_city": "London",
+    "hq_country": "United Kingdom",
+    "hq_address": "210 Pentonville Road, London N1 9JY, United Kingdom",
+    "website": "https://www.travelhx.com",
+    "phone": null,
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Ufficio stampa (Mynewsdesk)",
+        "value": "https://www.mynewsdesk.com/com/hx-group-ltd/contact_people",
+        "source": "https://www.mynewsdesk.com/com/hx-group-ltd/contact_people"
+      },
+      {
+        "label": "CEO Gebhard Rainer (ruolo pubblico)",
+        "value": "https://www.travelagentcentral.com/cruises/hurtigruten-hx-officially-split-acquisitions-are-completed",
+        "source": "https://www.travelagentcentral.com/cruises/hurtigruten-hx-officially-split-acquisitions-are-completed"
+      }
+    ],
+    "fleet_size": 5,
+    "calls_naples": null,
+    "calls_civitavecchia": null,
+    "ports_note": "Crociere di spedizione in Artico, Antartide, Groenlandia e Passaggio a Nord-Ovest. Hurtigruten Group l'ha venduta nel novembre 2024 (140 milioni di euro) a un consorzio di investitori e la sede si e' spostata da Oslo a Londra. Scali nel Mediterraneo nel 2026 non verificati.",
+    "sources": [
+      "https://find-and-update.company-information.service.gov.uk/company/14861217",
+      "https://www.mynewsdesk.com/hx-group-ltd",
+      "https://www.travelagentcentral.com/cruises/hurtigruten-hx-officially-split-acquisitions-are-completed",
+      "https://www.cruisemapper.com/cruise-lines/HX-Expeditions-129"
+    ],
+    "ships": [
+      "Roald Amundsen",
+      "Fridtjof Nansen",
+      "Fram",
+      "Spitsbergen"
+    ]
+  },
+  {
+    "slug": "lindblad-expeditions",
+    "name": "Lindblad Expeditions (National Geographic-Lindblad)",
+    "kind": "expedition",
+    "segment": "expedition",
+    "parent_group": null,
+    "hq_city": "New York",
+    "hq_country": "United States",
+    "hq_address": "96 Morton Street, 9th Floor, New York, NY 10014, USA",
+    "website": "https://www.expeditions.com",
+    "phone": "+1 212 261 9000",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Numero verde / prenotazioni USA",
+        "value": "+1 800 397 3348",
+        "source": "https://investors.expeditions.com/contact/default.aspx"
+      },
+      {
+        "label": "Area agenti di viaggio - contatto email (form)",
+        "value": "https://www.expeditions.com/travel-advisors/contact-us/send-us-an-email",
+        "source": "https://www.expeditions.com/travel-advisors/contact-us/send-us-an-email"
+      },
+      {
+        "label": "Investor Relations",
+        "value": "https://investors.expeditions.com/contact/default.aspx",
+        "source": "https://investors.expeditions.com/contact/default.aspx"
+      }
+    ],
+    "fleet_size": 16,
+    "calls_naples": true,
+    "calls_civitavecchia": null,
+    "ports_note": "Societa quotata (NASDAQ: LIND). Nel Mediterraneo usa velieri Sea Cloud a noleggio: itinerario 'Mediterranean Gems' Dubrovnik-Napoli con Costiera Amalfitana e Pompei; altri viaggi Sicilia/Malta su Sea Cloud II. Civitavecchia non verificata. Flotta propria per lo piu polare/Galapagos/Alaska.",
+    "sources": [
+      "https://investors.expeditions.com/contact/default.aspx",
+      "https://www.yelp.com/biz/lindblad-expeditions-new-york",
+      "https://www.expeditions.com/itineraries/mediterranean-gems-southern-italy-and-sicily-aboard-sea-cloud/",
+      "https://www.expeditions.com/destinations/mediterranean",
+      "https://www.cruisemapper.com/cruise-lines/Lindblad-Expeditions-103",
+      "https://en.wikipedia.org/wiki/Lindblad_Expeditions"
+    ],
+    "ships": [
+      "National Geographic Endurance",
+      "National Geographic Resolution",
+      "National Geographic Explorer",
+      "National Geographic Orion",
+      "National Geographic Islander II"
+    ]
+  },
+  {
+    "slug": "noble-caledonia",
+    "name": "Noble Caledonia",
+    "kind": "expedition",
+    "segment": "expedition",
+    "parent_group": null,
+    "hq_city": "London",
+    "hq_country": "United Kingdom",
+    "hq_address": "2 Chester Close, Belgravia, London SW1X 7BE, United Kingdom",
+    "website": "https://www.noble-caledonia.co.uk",
+    "phone": "+44 20 7752 0000",
+    "email": "info@noble-caledonia.co.uk",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina contatti",
+        "value": "https://www.noble-caledonia.co.uk/about-noble-caledonia/contact-us/",
+        "source": "https://www.noble-caledonia.co.uk/about-noble-caledonia/contact-us/"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": null,
+    "calls_civitavecchia": null,
+    "ports_note": "Tour operator britannico di piccole navi (proprie e noleggiate), anche culturali nel Mediterraneo. Scali a Napoli e Civitavecchia nel 2026 non verificati. Nomi delle navi da memoria, non verificati in questa ricerca.",
+    "sources": [
+      "https://www.noble-caledonia.co.uk/about-noble-caledonia/contact-us/",
+      "https://find-and-update.company-information.service.gov.uk/company/02634366"
+    ],
+    "ships": [
+      "Island Sky",
+      "Hebridean Sky"
+    ]
+  },
+  {
+    "slug": "oceanwide-expeditions",
+    "name": "Oceanwide Expeditions",
+    "kind": "expedition",
+    "segment": "expedition",
+    "parent_group": null,
+    "hq_city": "Vlissingen",
+    "hq_country": "Netherlands",
+    "hq_address": "Visserijkade 5, 4382 ZA Vlissingen, The Netherlands",
+    "website": "https://oceanwide-expeditions.com",
+    "phone": "+31 118 410 410",
+    "email": "info@oceanwide-expeditions.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina contatti",
+        "value": "https://oceanwide-expeditions.com/page/contact",
+        "source": "https://oceanwide-expeditions.com/page/contact"
+      },
+      {
+        "label": "Email generale (citata nella privacy policy)",
+        "value": "info@oceanwide-expeditions.com",
+        "source": "https://oceanwide-expeditions.com/page/privacy-policy"
+      }
+    ],
+    "fleet_size": 6,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Opera solo Antartide e Artide; nessuna crociera nel Mediterraneo. Annunciato nel 2026 un programma di due nuove navi a vela ibrida.",
+    "sources": [
+      "https://oceanwide-expeditions.com/page/contact",
+      "https://oceanwide-expeditions.com/page/privacy-policy",
+      "https://en.wikipedia.org/wiki/Oceanwide_Expeditions",
+      "https://www.cruisemapper.com/ships/MV-Hondius-1624",
+      "https://cruiseindustrynews.com/cruise-news/2026/03/oceanwide-set-for-eco-sail-newbuild-program-with-two-vessels/"
+    ],
+    "ships": [
+      "Hondius",
+      "Janssonius",
+      "Plancius",
+      "Ortelius",
+      "Rembrandt van Rijn"
+    ]
+  },
+  {
+    "slug": "ponant",
+    "name": "Ponant",
+    "kind": "expedition",
+    "segment": "luxury",
+    "parent_group": "Artémis (famiglia Pinault)",
+    "hq_city": "Marseille",
+    "hq_country": "France",
+    "hq_address": "408 Avenue du Prado, 13008 Marseille, France",
+    "website": "https://www.ponant.com",
+    "phone": "+33 4 91 36 41 65",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Sede sociale Compagnie du Ponant (registro imprese)",
+        "value": "https://annuaire-entreprises.data.gouv.fr/entreprise/compagnie-du-ponant-344497011",
+        "source": "https://annuaire-entreprises.data.gouv.fr/entreprise/compagnie-du-ponant-344497011"
+      },
+      {
+        "label": "Centralino Marsiglia",
+        "value": "+33 4 91 36 41 65",
+        "source": "https://www.pagesjaunes.fr/pros/50209024"
+      }
+    ],
+    "fleet_size": 13,
+    "calls_naples": true,
+    "calls_civitavecchia": null,
+    "ports_note": "Scali a Napoli nel 2026 (yacht crociere Mediterraneo); Civitavecchia non verificata",
+    "sources": [
+      "https://annuaire-entreprises.data.gouv.fr/etablissement/34449701100025",
+      "https://www.pagesjaunes.fr/pros/50209024",
+      "https://transport.e-pro.fr/bouches-du-rhone/compagnie-du-ponant_f4504494",
+      "https://en.wikipedia.org/wiki/Compagnie_du_Ponant"
+    ],
+    "ships": [
+      "Le Commandant Charcot",
+      "Le Lyrial",
+      "Le Bellot",
+      "Le Champlain",
+      "Le Ponant"
+    ]
+  },
+  {
+    "slug": "quark-expeditions",
+    "name": "Quark Expeditions",
+    "kind": "expedition",
+    "segment": "expedition",
+    "parent_group": "Travelopia",
+    "hq_city": "Seattle",
+    "hq_country": "United States",
+    "hq_address": "3131 Elliott Avenue, Suite 250, Seattle, WA 98121, USA",
+    "website": "https://www.quarkexpeditions.com",
+    "phone": "+1 866 252 0509",
+    "email": "media@quarkexpeditions.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Ufficio stampa",
+        "value": "media@quarkexpeditions.com",
+        "source": "https://www.quarkexpeditions.com/media-room"
+      },
+      {
+        "label": "Linea prenotazioni",
+        "value": "+1 877 585 1235",
+        "source": "https://www.quarkexpeditions.com/contact-us"
+      },
+      {
+        "label": "Pagina contatti",
+        "value": "https://www.quarkexpeditions.com/contact-us",
+        "source": "https://www.quarkexpeditions.com/contact-us"
+      }
+    ],
+    "fleet_size": 4,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Operatore esclusivamente polare (Artide/Antartide); nessuna crociera nel Mediterraneo, quindi nessuno scalo a Napoli o Civitavecchia.",
+    "sources": [
+      "https://www.quarkexpeditions.com/contact-us",
+      "https://www.bbb.org/us/wa/seattle/profile/cruises/quark-expeditions-inc-1296-90002091",
+      "https://www.quarkexpeditions.com/media-room",
+      "https://www.quarkexpeditions.com/about-us/company-information",
+      "https://www.cruisemapper.com/cruise-lines/Quark-Expeditions-114"
+    ],
+    "ships": [
+      "Ultramarine",
+      "World Explorer",
+      "Ocean Endeavour",
+      "Ocean Diamond"
+    ]
+  },
+  {
+    "slug": "scenic-ocean",
+    "name": "Scenic (Scenic Eclipse)",
+    "kind": "expedition",
+    "segment": "luxury",
+    "parent_group": "Scenic Group",
+    "hq_city": "Sydney",
+    "hq_country": "Australia",
+    "hq_address": "Level 15, 56 Pitt Street, Sydney NSW 2000, Australia",
+    "website": "https://scenic.cruises",
+    "phone": null,
+    "email": "travelagentsupport@scenic.com.au",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Supporto agenzie di viaggio (Australia)",
+        "value": "travelagentsupport@scenic.com.au",
+        "source": "https://hub.scenic.com.au/contact-us"
+      },
+      {
+        "label": "Contatti Scenic",
+        "value": "https://hub.scenic.com.au/contact-us",
+        "source": "https://hub.scenic.com.au/contact-us"
+      }
+    ],
+    "fleet_size": 2,
+    "calls_naples": null,
+    "calls_civitavecchia": true,
+    "ports_note": "Scenic Eclipse II parte da Civitavecchia il 7/6/2026 (Mediterraneo occidentale); Napoli non verificata",
+    "sources": [
+      "https://hub.scenic.com.au/contact-us",
+      "https://www.travelweekly.com/Cruise/Scenic/Scenic-Eclipse-II/Cruise-p60751986",
+      "https://en.wikipedia.org/wiki/Scenic_(cruise_line)",
+      "https://scenic.cruises/AU/en-GB/ocean/destinations/europe-the-mediterranean/france-italy"
+    ],
+    "ships": [
+      "Scenic Eclipse",
+      "Scenic Eclipse II"
+    ]
+  },
+  {
+    "slug": "swan-hellenic",
+    "name": "Swan Hellenic",
+    "kind": "expedition",
+    "segment": "expedition",
+    "parent_group": null,
+    "hq_city": null,
+    "hq_country": "Cyprus",
+    "hq_address": null,
+    "website": "https://www.swanhellenic.com",
+    "phone": null,
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina contatti uffici (ufficiale)",
+        "value": "https://www.swanhellenic.com/contacts",
+        "source": "https://www.swanhellenic.com/contacts"
+      }
+    ],
+    "fleet_size": 3,
+    "calls_naples": null,
+    "calls_civitavecchia": null,
+    "ports_note": "Spedizioni culturali: Antartide e, dal 2026, Asia-Pacifico. SH Minerva e' tornata in servizio a novembre 2025. Sede a Cipro, ma la citta' (Nicosia o Limassol) e l'indirizzo non sono confermati; uffici anche a Londra, Dusseldorf e Monaco. Scali a Napoli e Civitavecchia nel 2026 non verificati.",
+    "sources": [
+      "https://www.swanhellenic.com/contacts",
+      "https://cruiseindustrynews.com/cruise-news/2025/11/sh-minerva-returns-to-swan-hellenic-fleet/",
+      "https://en.wikipedia.org/wiki/Swan_Hellenic"
+    ],
+    "ships": [
+      "SH Minerva",
+      "SH Vega",
+      "SH Diana"
+    ]
+  },
+  {
+    "slug": "uncruise-adventures",
+    "name": "UnCruise Adventures",
+    "kind": "expedition",
+    "segment": "expedition",
+    "parent_group": null,
+    "hq_city": "Seattle",
+    "hq_country": "United States",
+    "hq_address": "3826 18th Ave W, Seattle, WA 98119, USA",
+    "website": "https://uncruise.com",
+    "phone": "+1 888 862 8881",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina contatti",
+        "value": "https://uncruise.com/pages/contact-us",
+        "source": "https://uncruise.com/pages/contact-us"
+      }
+    ],
+    "fleet_size": 7,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Piccole navi da spedizione in Alaska, Pacific Northwest, Hawaii, Messico/Mare di Cortez, Galapagos. Nessuna presenza nel Mediterraneo.",
+    "sources": [
+      "https://www.yelp.com/biz/uncruise-adventures-seattle",
+      "https://www.elliott.org/company-contacts/uncruise-adventures/",
+      "https://en.wikipedia.org/wiki/UnCruise_Adventures"
+    ],
+    "ships": [
+      "Wilderness Adventurer",
+      "Wilderness Discoverer",
+      "Wilderness Legacy",
+      "Safari Endeavour",
+      "Safari Explorer"
+    ]
+  },
+  {
+    "slug": "a-rosa-flussschiff",
+    "name": "A-ROSA Flussschiff",
+    "kind": "river",
+    "segment": "river",
+    "parent_group": null,
+    "hq_city": "Rostock",
+    "hq_country": "Germany",
+    "hq_address": "Loggerweg 5, 18055 Rostock, Germany",
+    "website": "https://www.a-rosa.de",
+    "phone": "+49 381 44040100",
+    "email": "service@a-rosa.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Impressum (dati legali)",
+        "value": "https://extranet.a-rosa.de/kontakt/impressum.html",
+        "source": "https://extranet.a-rosa.de/kontakt/impressum.html"
+      }
+    ],
+    "fleet_size": 13,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Solo crociere fluviali (Danubio, Reno, Rodano, Senna, Douro). Nessuno scalo marittimo in Italia.",
+    "sources": [
+      "https://extranet.a-rosa.de/kontakt/impressum.html",
+      "https://www.dasoertliche.de/Themen/A-ROSA-Flussschiff-GmbH-Rostock-Stadtmitte-Loggerweg",
+      "https://en.wikipedia.org/wiki/A-Rosa_Aqua"
+    ],
+    "ships": [
+      "A-ROSA E-Motion",
+      "A-ROSA Sena",
+      "A-ROSA Flora",
+      "A-ROSA Stella",
+      "A-ROSA Alva"
+    ]
+  },
+  {
+    "slug": "amawaterways",
+    "name": "AmaWaterways",
+    "kind": "river",
+    "segment": "river",
+    "parent_group": null,
+    "hq_city": "Calabasas",
+    "hq_country": "United States",
+    "hq_address": "4500 Park Granada, Suite 200, Calabasas, CA 91302, USA",
+    "website": "https://www.amawaterways.com",
+    "phone": "+1 800 626 0126",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina contatti",
+        "value": "https://www.amawaterways.com/help/contact-us",
+        "source": "https://www.amawaterways.com/help/contact-us"
+      }
+    ],
+    "fleet_size": 30,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Solo crociere fluviali (Europa, Mekong, Nilo, Chobe). Nessuno scalo marittimo a Napoli o Civitavecchia.",
+    "sources": [
+      "https://open.winmo.com/open/company/travel-and-hospitality-cruise-lines/ca/calabasas/amawaterways/53614",
+      "https://www.amawaterways.com/help/contact-us",
+      "https://en.wikipedia.org/wiki/AmaWaterways"
+    ],
+    "ships": [
+      "AmaMagna",
+      "AmaLea",
+      "AmaSiena",
+      "AmaDara",
+      "AmaDahlia"
+    ]
+  },
+  {
+    "slug": "american-cruise-lines",
+    "name": "American Cruise Lines",
+    "kind": "river",
+    "segment": "river",
+    "parent_group": null,
+    "hq_city": "Guilford",
+    "hq_country": "United States",
+    "hq_address": "741 Boston Post Road, Suite 200, Guilford, CT 06437, USA",
+    "website": "https://www.americancruiselines.com",
+    "phone": "+1 203 453 6800",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Prenotazioni / informazioni",
+        "value": "+1 800 460 4518",
+        "source": "https://american-cruise-lines.pissedconsumer.com/customer-service.html"
+      }
+    ],
+    "fleet_size": 20,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Crociere fluviali e costiere solo negli Stati Uniti (Mississippi, Columbia, costa est, Alaska). Nessuno scalo italiano.",
+    "sources": [
+      "https://www.yelp.com/biz/american-cruise-lines-guilford-6",
+      "https://www.chamberofcommerce.com/business-directory/connecticut/guilford/cruise-line-company/2005252858-american-cruise-lines",
+      "https://en.wikipedia.org/wiki/American_Cruise_Lines"
+    ],
+    "ships": [
+      "American Constellation",
+      "American Constitution",
+      "American Jazz",
+      "American Symphony",
+      "Independence"
+    ]
+  },
+  {
+    "slug": "avalon-waterways",
+    "name": "Avalon Waterways",
+    "kind": "river",
+    "segment": "river",
+    "parent_group": "Globus family of brands",
+    "hq_city": "Littleton",
+    "hq_country": "United States",
+    "hq_address": "5301 South Federal Circle, Littleton, CO 80123, USA",
+    "website": "https://www.avalonwaterways.com",
+    "phone": "+1 877 380 1535",
+    "email": "info@avalonwaterways.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Centralino Globus family of brands",
+        "value": "+1 877 245 6287",
+        "source": "https://www.elliott.org/company-contacts/globus/"
+      }
+    ],
+    "fleet_size": 20,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Solo crociere fluviali (Europa, Mekong, Nilo). Nessuno scalo marittimo in Italia.",
+    "sources": [
+      "https://www.elliott.org/company-contacts/avalon-waterways/",
+      "https://www.yelp.com/biz/avalon-waterways-littleton",
+      "https://en.wikipedia.org/wiki/Avalon_Waterways"
+    ],
+    "ships": [
+      "Avalon View",
+      "Avalon Envision",
+      "Avalon Artistry II",
+      "Avalon Tranquility II",
+      "Avalon Alegria"
+    ]
+  },
+  {
+    "slug": "croisieurope",
+    "name": "CroisiEurope",
+    "kind": "river",
+    "segment": "river",
+    "parent_group": null,
+    "hq_city": "Strasbourg",
+    "hq_country": "France",
+    "hq_address": "12 rue de la Division Leclerc, 67080 Strasbourg Cedex, France",
+    "website": "https://www.croisieurope.com",
+    "phone": "+33 3 88 76 44 44",
+    "email": "strasbourg@croisieurope.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Prenotazioni gruppi (20+ persone)",
+        "value": "+33 3 88 76 46 06",
+        "source": "https://www.croisieurope.com/information/agences-croisieurope"
+      },
+      {
+        "label": "Prenotazioni individuali",
+        "value": "+33 3 88 76 40 66",
+        "source": "https://www.croisieurope.com/information/agences-croisieurope"
+      },
+      {
+        "label": "Elenco agenzie CroisiEurope",
+        "value": "https://www.croisieurope.com/information/agences-croisieurope",
+        "source": "https://www.croisieurope.com/information/agences-croisieurope"
+      }
+    ],
+    "fleet_size": 50,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Soprattutto fluviale (anche sul Po con la Michelangelo), ma con la nave da mare La Belle des Océans (130 passeggeri) fa crociere nel Mediterraneo 2026 con Napoli e Civitavecchia/Roma: 'Naples, côte Amalfitaine et Sicile', 'Corse, Sardaigne et parfums d'Italie' (Roma, Pisa, Napoli) e la crociera dei 50 anni (Cagliari-Napoli-Civitavecchia-Portoferraio-Livorno). Societa: Alsace Croisières (famiglia Schmitter). Nessun ufficio in Italia trovato.",
+    "sources": [
+      "https://www.croisieurope.com/information/agences-croisieurope",
+      "https://www.croisieurope.com/information/mentions-legales",
+      "https://annuaire-entreprises.data.gouv.fr/etablissement/99834860100043",
+      "https://www.croisieurope.com/croisiere/naples-cote-amalfitaine-sicile-calabre-classique",
+      "https://www.croisieurope.com/croisiere/arts-splendeurs-mediterraneennes-corse-sardaigne-et-parfums-d-italie-escales-d-exception-de-napoleon-aux-medicis-rome-pise-naples-castelsardo-et-ajaccio-formule-port-port-classique",
+      "https://www.croisieres.fr/b-7971-la-belle-des-oceans",
+      "https://www.croisieurope.com/bateau/mv-la-belle-des-oceans"
+    ],
+    "ships": [
+      "La Belle des Océans",
+      "Michelangelo",
+      "Elbe Princesse",
+      "Loire Princesse",
+      "Douce France"
+    ]
+  },
+  {
+    "slug": "riverside-luxury-cruises",
+    "name": "Riverside Luxury Cruises",
+    "kind": "river",
+    "segment": "river",
+    "parent_group": "Riverside Collection GmbH & Co. KG (Gregor Gerlach, Seaside Collection)",
+    "hq_city": "Hamburg",
+    "hq_country": "Germany",
+    "hq_address": "Wexstraße 16, 20355 Hamburg, Germany",
+    "website": "https://riverside-cruises.com",
+    "phone": "+49 40 357400 0",
+    "email": "info@riverside-cruises.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Imprint (dati legali)",
+        "value": "https://riverside-cruises.com/en/imprint",
+        "source": "https://riverside-cruises.com/en/imprint"
+      }
+    ],
+    "fleet_size": 5,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Solo crociere fluviali di lusso (Danubio, Reno, Rodano/Saona). Nessuno scalo marittimo in Italia. Numero di navi approssimativo.",
+    "sources": [
+      "https://riverside-cruises.com/en/imprint",
+      "https://riverside-cruises.com/en/ships",
+      "https://www.cruisemapper.com/ships/Riverside-Mozart-1215"
+    ],
+    "ships": [
+      "Riverside Mozart",
+      "Riverside Debussy",
+      "Riverside Ravel"
+    ]
+  },
+  {
+    "slug": "uniworld-boutique-river-cruises",
+    "name": "Uniworld Boutique River Cruises",
+    "kind": "river",
+    "segment": "river",
+    "parent_group": "The Travel Corporation (TTC)",
+    "hq_city": "Los Angeles",
+    "hq_country": "United States",
+    "hq_address": "17323 Ventura Blvd, Uniworld Plaza, Los Angeles, CA 91316, USA",
+    "website": "https://www.uniworld.com",
+    "phone": "+1 800 733 7820",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Vendite",
+        "value": "+1 800 868 7905",
+        "source": "https://www.elliott.org/company-contacts/uniworld/"
+      },
+      {
+        "label": "Vendite gruppi",
+        "value": "+1 800 425 0043",
+        "source": "https://www.elliott.org/company-contacts/uniworld/"
+      }
+    ],
+    "fleet_size": 17,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Solo fluviale; in Italia opera a Venezia e sul Po (La Venezia), non a Napoli o Civitavecchia.",
+    "sources": [
+      "https://www.yelp.com/biz/uniworld-boutique-river-cruise-collection-los-angeles",
+      "https://www.elliott.org/company-contacts/uniworld/",
+      "https://en.wikipedia.org/wiki/Uniworld"
+    ],
+    "ships": [
+      "S.S. Maria Theresa",
+      "S.S. Beatrice",
+      "S.S. Catherine",
+      "La Venezia",
+      "S.S. Sphinx"
+    ]
+  },
+  {
+    "slug": "algerie-ferries",
+    "name": "Algérie Ferries (ENTMV)",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": "ENTMV",
+    "hq_city": "Algiers",
+    "hq_country": "Algeria",
+    "hq_address": "5 et 6, rue J. Nehru, Alger",
+    "website": "https://algerieferries.com",
+    "phone": "+213 21 42 30 48",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Delegazione Europa (Marsiglia)",
+        "value": "+33 4 91 90 64 70",
+        "source": "https://www.algerieferry.info/entmv/contact/agence-marseille/"
+      },
+      {
+        "label": "Porti serviti",
+        "value": "https://algerieferries.com/compagnie/ports",
+        "source": "https://algerieferries.com/compagnie/ports"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Algeria–Marsiglia, Alicante, Barcellona; nessuna linea da Napoli o Civitavecchia",
+    "sources": [
+      "https://algerieferries.com/compagnie/ports",
+      "https://www.algerieferry.info/entmv/contact/agence-marseille/"
+    ],
+    "ships": [
+      "Tariq Ibn Ziyad",
+      "El Djazaïr II",
+      "Tassili II",
+      "Badji Mokhtar III"
+    ]
+  },
+  {
+    "slug": "alicost",
+    "name": "Alicost",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": "Gruppo Alilauro",
+    "hq_city": "Salerno",
+    "hq_country": "Italy",
+    "hq_address": "Via Molo Manfredi 14, 84121 Salerno",
+    "website": "https://www.alicost.it",
+    "phone": "+39 089 871483",
+    "email": "booking@alicost.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Biglietterie e contatti",
+        "value": "https://www.alicost.it/tickets-offices-contacts/",
+        "source": "https://www.alicost.it/tickets-offices-contacts/"
+      },
+      {
+        "label": "Ufficio Amalfi",
+        "value": "+39 089 871483",
+        "source": "https://www.alicost.it/tickets-offices-contacts/"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": true,
+    "calls_civitavecchia": false,
+    "ports_note": "Salerno e Costiera (Amalfi, Positano, Maiori, Minori, Cetara) e Cilento verso Capri, Ischia, Procida e Napoli (stagionale, secondo alicost.it); nessuna linea da Civitavecchia",
+    "sources": [
+      "https://www.alicost.it/tickets-offices-contacts/",
+      "https://www.alicost.it/",
+      "https://www.directferries.it/alicost.htm"
+    ],
+    "ships": []
+  },
+  {
+    "slug": "alilauro",
+    "name": "Alilauro",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": "Gruppo Alilauro (famiglia Lauro)",
+    "hq_city": "Napoli",
+    "hq_country": "Italy",
+    "hq_address": "Via Francesco Caracciolo 11, 80122 Napoli",
+    "website": "https://www.alilauro.it",
+    "phone": "+39 081 4972238",
+    "email": "customer@alilauro.it",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Prenotazioni",
+        "value": "reservation@alilauro.it",
+        "source": "https://www.alilauro.it/en/contacts/"
+      },
+      {
+        "label": "Servizio clienti",
+        "value": "+39 081 4972206",
+        "source": "https://www.alilauro.it/en/contacts/"
+      },
+      {
+        "label": "Scalo di Napoli",
+        "value": "https://www.alilauro.it/en/destinazioni/napoli/",
+        "source": "https://www.alilauro.it/en/destinazioni/napoli/"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": true,
+    "calls_civitavecchia": false,
+    "ports_note": "Aliscafi da Napoli (Molo Beverello e Mergellina) per Capri, Ischia, Sorrento e Costiera; nessuna linea da Civitavecchia",
+    "sources": [
+      "https://www.alilauro.it/en/contacts/",
+      "https://www.alilauro.it/en/destinazioni/napoli/",
+      "https://www.paginebianche.it/scheda/napoli/alilauro.816617"
+    ],
+    "ships": []
+  },
+  {
+    "slug": "alilauro-gruson-gescab",
+    "name": "Alilauro Gruson (Gescab)",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": "Gruppo Alilauro",
+    "hq_city": "Sorrento",
+    "hq_country": "Italy",
+    "hq_address": "Via Luigi De Maio 45, 80067 Sorrento (NA)",
+    "website": "https://www.gescab.it",
+    "phone": "+39 081 8071221",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Gescab S.r.l. (sede Napoli)",
+        "value": "Via Guglielmo Melisurgo 4, Napoli",
+        "source": "https://aziende.virgilio.it/agenzie-marittime/sorrento-na/alilauro-gruson"
+      },
+      {
+        "label": "PEC Alilauro Gruson",
+        "value": "alilaurogrusonspa@pec.it",
+        "source": "https://www.ufficiocamerale.it/5307/alilauro-gruson-spa"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": null,
+    "calls_civitavecchia": false,
+    "ports_note": "Aliscafi Sorrento–Capri e collegamenti nel Golfo di Napoli; presenza su Napoli nel 2026 non verificata; nessuna linea da Civitavecchia",
+    "sources": [
+      "https://aziende.virgilio.it/agenzie-marittime/sorrento-na/alilauro-gruson",
+      "https://www.ufficiocamerale.it/5307/alilauro-gruson-spa",
+      "https://www.gescab.it/chisiamo.asp",
+      "https://0818071221.telefono.click/0818071221-alilauro-gruson-srl-servizi-marittimi-napoli.html"
+    ],
+    "ships": []
+  },
+  {
+    "slug": "attica-group",
+    "name": "Attica Group (Blue Star Ferries / Superfast Ferries)",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": "Attica Group",
+    "hq_city": "Athens",
+    "hq_country": "Greece",
+    "hq_address": "1-7 Lysikratous & Evripidou Str., 17674 Kallithea, Athens",
+    "website": "https://www.attica-group.com",
+    "phone": "+30 210 891 9500",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Contatti generali gruppo",
+        "value": "https://www.attica-group.com/en/contact-general",
+        "source": "https://www.attica-group.com/en/contact-general"
+      },
+      {
+        "label": "Superfast / Anek Lines Italia",
+        "value": "https://anekitalia.com/en/ferries-superfast-ferries/",
+        "source": "https://anekitalia.com/en/ferries-superfast-ferries/"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Superfast: Ancona e Bari–Igoumenitsa–Patrasso (d'estate anche Corfù); Blue Star solo rotte interne greche; nessuna linea da Napoli o Civitavecchia",
+    "sources": [
+      "https://www.attica-group.com/en/contact-general",
+      "https://en.wikipedia.org/wiki/Superfast_Ferries",
+      "https://en.wikipedia.org/wiki/Attica_Group"
+    ],
+    "ships": [
+      "Superfast XI",
+      "Blue Star Delos",
+      "Blue Star Patmos"
+    ]
+  },
+  {
+    "slug": "balearia",
+    "name": "Baleària",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": null,
+    "hq_city": "Dénia",
+    "hq_country": "Spain",
+    "hq_address": "Estació Marítima s/n, 03700 Dénia (Alicante)",
+    "website": "https://www.balearia.com",
+    "phone": "+34 966 428 600",
+    "email": "info@balearia.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Uffici e delegazioni",
+        "value": "https://www.balearia.com/es/delegaciones-oficinas",
+        "source": "https://www.balearia.com/es/delegaciones-oficinas"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Spagna–Baleari, Nord Africa e Canarie; nessuna linea in Italia",
+    "sources": [
+      "https://empresite.eleconomista.es/EUROLINEAS-MARITIMAS.html",
+      "https://www.balearia.com/es/delegaciones-oficinas/denia"
+    ],
+    "ships": [
+      "Eleanor Roosevelt",
+      "Hypatia de Alejandría",
+      "Marie Curie",
+      "Abel Matutes",
+      "Rosalind Franklin"
+    ]
+  },
+  {
+    "slug": "blu-navy",
+    "name": "Blu Navy",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": null,
+    "hq_city": "Piombino",
+    "hq_country": "Italy",
+    "hq_address": "Stazione Marittima, Piazzale Premuda 8, 57025 Piombino (LI)",
+    "website": "https://blunavytraghetti.com",
+    "phone": "+39 0565 269710",
+    "email": "info@blunavytraghetti.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Call center Portoferraio",
+        "value": "Calata Italia 8, 57037 Portoferraio (LI)",
+        "source": "https://blunavytraghetti.com/en/contact/"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Piombino–Portoferraio (Isola d'Elba); nessuna linea da Napoli o Civitavecchia",
+    "sources": [
+      "https://blunavytraghetti.com/en/contact/",
+      "https://www.infoelba.com/arriving-getting-about/how-to-get-there/ferries/blu-navy/"
+    ],
+    "ships": []
+  },
+  {
+    "slug": "caremar",
+    "name": "Caremar",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": null,
+    "hq_city": "Napoli",
+    "hq_country": "Italy",
+    "hq_address": "Molo Beverello 1, 80133 Napoli",
+    "website": "https://www.caremar.it",
+    "phone": "+39 081 2444111",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Biglietteria Napoli Molo Beverello",
+        "value": "https://shop.caremar.it/it/biglietterie/napoli-molo-beverello/",
+        "source": "https://shop.caremar.it/it/biglietterie/napoli-molo-beverello/"
+      },
+      {
+        "label": "Pagina contatti",
+        "value": "https://shop.caremar.it/it/contatti/",
+        "source": "https://shop.caremar.it/it/contatti/"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": true,
+    "calls_civitavecchia": false,
+    "ports_note": "Napoli (Molo Beverello / Calata Porta di Massa)–Capri, Ischia, Procida, più Pozzuoli e Sorrento: 7 porti del Golfo di Napoli tutti i giorni; nessuna linea da Civitavecchia",
+    "sources": [
+      "https://shop.caremar.it/it/contatti/",
+      "https://shop.caremar.it/it/destinazioni/napoli/",
+      "https://www.paginebianche.it/napoli/caremar.204699",
+      "https://mobile.caremar.it/en/contacts/"
+    ],
+    "ships": []
+  },
+  {
+    "slug": "caronte-tourist",
+    "name": "Caronte & Tourist",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": "Caronte & Tourist Group",
+    "hq_city": "Messina",
+    "hq_country": "Italy",
+    "hq_address": "Via Ing. Giuseppe Franza 82, 98124 Messina",
+    "website": "https://www.carontetourist.it",
+    "phone": "+39 090 3718511",
+    "email": "servizioclienti@carontetourist.it",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Informazioni e prenotazioni",
+        "value": "+39 090 5737",
+        "source": "https://carontetourist.it/en/contacts"
+      },
+      {
+        "label": "Numero verde",
+        "value": "800 627414",
+        "source": "https://carontetourist.it/en/contacts"
+      },
+      {
+        "label": "Servizio clienti",
+        "value": "https://www.carontetourist.it/en/customer-service",
+        "source": "https://www.carontetourist.it/en/customer-service"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Stretto di Messina e Salerno–Messina; la linea Napoli–Eolie–Milazzo è della controllata Siremar; nessuna linea da Civitavecchia",
+    "sources": [
+      "https://carontetourist.it/en/contacts",
+      "https://www.carontetourist.it/en/customer-service",
+      "https://0903718511.telefono.click/0903718511-caronte-tourist-spa-messina.html"
+    ],
+    "ships": []
+  },
+  {
+    "slug": "corsica-linea",
+    "name": "Corsica Linea",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": "Corsica Maritima",
+    "hq_city": "Marseille",
+    "hq_country": "France",
+    "hq_address": null,
+    "website": "https://www.corsicalinea.com",
+    "phone": "+33 825 88 80 88",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Agenzia Marsiglia Joliette",
+        "value": "agencejoliette@corsicalinea.com",
+        "source": "https://www.corsicalinea.com/contactez-nous/nos-agences/"
+      },
+      {
+        "label": "Modulo contatti",
+        "value": "https://www.corsicalinea.com/la-compagnie/nous-contacter/contactez-nous",
+        "source": "https://www.corsicalinea.com/la-compagnie/nous-contacter/contactez-nous"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Da Marsiglia verso Corsica, Sardegna, Algeria e Tunisia; nessuna linea da Napoli o Civitavecchia",
+    "sources": [
+      "https://www.corsicalinea.com/contactez-nous/nos-agences/",
+      "https://en.wikipedia.org/wiki/Corsica_Linea",
+      "https://fr.mappy.com/poi/5f740e9f5e26a26ef84c937b"
+    ],
+    "ships": [
+      "Pascal Paoli",
+      "Jean Nicoli",
+      "Paglia Orba",
+      "Monte d'Oro",
+      "A Galeota"
+    ]
+  },
+  {
+    "slug": "corsica-sardinia-ferries",
+    "name": "Corsica Sardinia Ferries",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": "Forship S.p.A. (Corsica Ferries)",
+    "hq_city": "Bastia",
+    "hq_country": "France",
+    "hq_address": null,
+    "website": "https://www.corsica-ferries.it",
+    "phone": null,
+    "email": null,
+    "italy_office": {
+      "city": "Vado Ligure",
+      "address": "Calata Nord, 17047 Vado Ligure (SV)",
+      "phone": "+39 019 2156807",
+      "email": null
+    },
+    "contacts": [
+      {
+        "label": "Ufficio commerciale Italia (Vado Ligure)",
+        "value": "+39 019 2156807",
+        "source": "https://aziende.virgilio.it/trasporto-pubblico/vado-ligure-sv/corsica-ferries-sardinia-ferries"
+      },
+      {
+        "label": "Ufficio stampa (scheda media)",
+        "value": "https://windpress.info/it/network/company/6766/CORSICA-SARDINIA-ELBA-FERRIES---FORSHIP-SPA",
+        "source": "https://windpress.info/it/network/company/6766/CORSICA-SARDINIA-ELBA-FERRIES---FORSHIP-SPA"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": false,
+    "calls_civitavecchia": true,
+    "ports_note": "Civitavecchia–Golfo Aranci (estiva, circa 3 partenze/settimana luglio–settembre); nessuna linea da Napoli",
+    "sources": [
+      "https://aziende.virgilio.it/trasporto-pubblico/vado-ligure-sv/corsica-ferries-sardinia-ferries",
+      "https://www.corsica-ferries.co.uk/crossing/sardinia-ferry/civitavecchia-golfo-aranci.html",
+      "https://www.corsica-ferries.co.uk/travel/port/civitavecchia-ferry.html",
+      "https://en.wikipedia.org/wiki/Corsica_Ferries_-_Sardinia_Ferries"
+    ],
+    "ships": [
+      "Mega Express",
+      "Mega Express Two",
+      "Mega Smeralda",
+      "Pascal Lota",
+      "Sardinia Regina"
+    ]
+  },
+  {
+    "slug": "ctn-cotunav",
+    "name": "CTN Compagnie Tunisienne de Navigation (Cotunav)",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": null,
+    "hq_city": "Tunis",
+    "hq_country": "Tunisia",
+    "hq_address": "5, avenue Dag Hammarskjoeld, 1001 Tunis",
+    "website": "http://www.ctn.com.tn",
+    "phone": "+216 71 322 802",
+    "email": null,
+    "italy_office": {
+      "city": "Genova",
+      "address": null,
+      "phone": null,
+      "email": null
+    },
+    "contacts": [
+      {
+        "label": "Agente merci Italia (Fratelli Cosulich, Genova)",
+        "value": "https://liner.cosulich.com/companies-represented/compagnie-tunisienne-de-navigation",
+        "source": "https://liner.cosulich.com/companies-represented/compagnie-tunisienne-de-navigation"
+      }
+    ],
+    "fleet_size": 6,
+    "calls_naples": false,
+    "calls_civitavecchia": null,
+    "ports_note": "Tunisi/Zarzis–Genova e Tunisi–Marsiglia (settimanali, fino a 3/settimana d'estate); Civitavecchia citata solo da fonti terze, non verificata; nessuna linea da Napoli",
+    "sources": [
+      "https://www.tourismag.com/guide/874/compagnies-maritimes/tunis/compagnie-tunisienne-de-navigation-ctn.html",
+      "https://liner.cosulich.com/companies-represented/compagnie-tunisienne-de-navigation",
+      "https://www.traghetti.com/ctn-cotunav",
+      "https://en.wikipedia.org/wiki/Compagnie_Tunisienne_de_Navigation"
+    ],
+    "ships": [
+      "Tanit",
+      "Carthage"
+    ]
+  },
+  {
+    "slug": "delcomar",
+    "name": "Delcomar",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": null,
+    "hq_city": "Carloforte",
+    "hq_country": "Italy",
+    "hq_address": "Piazza Carlo Emanuele III 21, 09014 Carloforte (SU)",
+    "website": "https://delcomar.it",
+    "phone": "+39 0781 857123",
+    "email": "info@delcomar.it",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Numero verde",
+        "value": "800 195 344",
+        "source": "https://delcomar.it/en/contacts/"
+      },
+      {
+        "label": "Biglietteria Carloforte",
+        "value": "+39 345 3683626",
+        "source": "https://delcomar.it/en/contacts/"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Isole minori della Sardegna sud-occidentale (Carloforte–Portovesme, Carloforte–Calasetta); nessuna linea da Napoli o Civitavecchia",
+    "sources": [
+      "https://delcomar.it/en/contacts/",
+      "https://www.paginebianche.it/scheda/carloforte/delcomar-giudica-francesco.425197"
+    ],
+    "ships": []
+  },
+  {
+    "slug": "finnlines",
+    "name": "Finnlines",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": "Gruppo Grimaldi",
+    "hq_city": "Helsinki",
+    "hq_country": "Finland",
+    "hq_address": "Komentosilta 1, 00980 Helsinki",
+    "website": "https://www.finnlines.com",
+    "phone": "+358 10 343 50",
+    "email": "info.fi@finnlines.com",
+    "italy_office": {
+      "city": "Napoli",
+      "address": "Gruppo Grimaldi, Via Marchese Campodisola 13, 80133 Napoli",
+      "phone": "+39 081 496111",
+      "email": null
+    },
+    "contacts": [
+      {
+        "label": "Sede capogruppo Grimaldi (Napoli)",
+        "value": "+39 081 496111",
+        "source": "https://www.grimaldi.napoli.it/it/contatti.html"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Solo Mar Baltico/Mare del Nord (Finlandia, Svezia, Germania, Åland); nessuna linea da Napoli o Civitavecchia",
+    "sources": [
+      "https://www.grimaldi.napoli.it/it/contatti.html",
+      "https://en.wikipedia.org/wiki/Finnlines"
+    ],
+    "ships": [
+      "Finnstar",
+      "Finnmaid",
+      "Finnlady",
+      "Finnsirius",
+      "Finncanopus"
+    ]
+  },
+  {
+    "slug": "gnv-grandi-navi-veloci",
+    "name": "GNV Grandi Navi Veloci",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": "MSC Group",
+    "hq_city": "Genova",
+    "hq_country": "Italy",
+    "hq_address": "Via Balleydier 7, 16149 Genova",
+    "website": "https://www.gnv.it",
+    "phone": "+39 010 2094591",
+    "email": "info@gnv.it",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Contact centre passeggeri",
+        "value": "+39 010 2094591",
+        "source": "https://www.portsofgenoa.com/en/port-basins-logistics/port-activities/operators/passengers/grandi-navi-veloci-s-p-a.html"
+      },
+      {
+        "label": "Contact centre merci",
+        "value": "+39 010 5509339",
+        "source": "https://www.portsofgenoa.com/en/port-basins-logistics/port-activities/operators/passengers/grandi-navi-veloci-s-p-a.html"
+      },
+      {
+        "label": "Pagina porto di Napoli (imbarco e biglietteria)",
+        "value": "https://www.gnv.it/en/ports/campania/naples",
+        "source": "https://www.gnv.it/en/ports/campania/naples"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Napoli–Palermo, Napoli–Termini Imerese; Civitavecchia–Palermo, Civitavecchia–Termini Imerese, Civitavecchia–Tunisi (settimanale, con scalo)",
+    "sources": [
+      "https://www.portsofgenoa.com/en/port-basins-logistics/port-activities/operators/passengers/grandi-navi-veloci-s-p-a.html",
+      "https://aziende.virgilio.it/navigazione/sampierdarena-ge/grandi-navi-veloci",
+      "https://www.gnv.it/en/ferries-destinations/sicily",
+      "https://www.gnv.it/en/ferries-destinations/sicily/civitavecchia-palermo",
+      "https://www.gnv.it/en/ferries-destinations/sicily/naples-termini-imerese"
+    ],
+    "ships": [
+      "La Superba",
+      "La Suprema",
+      "Excellent",
+      "Splendid",
+      "GNV Polaris"
+    ]
+  },
+  {
+    "slug": "gozo-channel-line",
+    "name": "Gozo Channel Line",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": null,
+    "hq_city": "Mġarr",
+    "hq_country": "Malta",
+    "hq_address": "Channel House, Mġarr Harbour, Mġarr, Gozo GSM 2480",
+    "website": "https://www.gozochannel.com",
+    "phone": "+356 2210 9000",
+    "email": "info@gozochannel.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina contatti",
+        "value": "https://www.gozochannel.com/contact/",
+        "source": "https://www.gozochannel.com/contact/"
+      }
+    ],
+    "fleet_size": 4,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Solo Ċirkewwa (Malta)–Mġarr (Gozo); nessuna linea da Napoli o Civitavecchia",
+    "sources": [
+      "https://www.gozochannel.com/contact/",
+      "https://en.wikipedia.org/wiki/Gozo_Channel_Line"
+    ],
+    "ships": [
+      "Ta' Pinu",
+      "Gaudos",
+      "Melita",
+      "Nikolaos"
+    ]
+  },
+  {
+    "slug": "grimaldi-lines",
+    "name": "Grimaldi Lines",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": "Gruppo Grimaldi",
+    "hq_city": "Napoli",
+    "hq_country": "Italy",
+    "hq_address": "Via Marchese Campodisola 13, 80133 Napoli",
+    "website": "https://www.grimaldi-lines.com",
+    "phone": "+39 081 496111",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Grimaldi Tours (gruppi e pacchetti)",
+        "value": "+39 081 496 555",
+        "source": "https://www.grimaldi.napoli.it/it/contatti.html"
+      },
+      {
+        "label": "Grimaldi Tours email",
+        "value": "grimaldi-tours@grimaldi.napoli.it",
+        "source": "https://www.grimaldi.napoli.it/it/contatti.html"
+      },
+      {
+        "label": "Ufficio Roma",
+        "value": "roma@grimaldi.napoli.it",
+        "source": "https://www.grimaldi.napoli.it/it/contatti.html"
+      },
+      {
+        "label": "Call center passeggeri (pagina contatti)",
+        "value": "https://www.grimaldi-lines.com/en/contact-us/",
+        "source": "https://www.grimaldi-lines.com/en/contact-us/"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": true,
+    "calls_civitavecchia": true,
+    "ports_note": "Napoli–Palermo, Napoli–Cagliari–Palermo (continuità, confermata a settembre 2026 per altri 5 anni); Civitavecchia–Barcellona, Civitavecchia–Tunisi, Civitavecchia–Arbatax–Cagliari",
+    "sources": [
+      "https://www.grimaldi.napoli.it/it/contatti.html",
+      "https://www.grimaldi-lines.com/en/contact-us/",
+      "https://www.grimaldi-lines.com/en/route/civitavecchia-barcelona/",
+      "https://www.grimaldi-lines.com/en/route/naples-cagliari/",
+      "https://www.lanuovasardegna.it/regione/2026/09/21/news/navi-grimaldi-si-riprende-le-linee-in-continuita-marittima-per-altri-cinque-anni-quali-sono-1.100920550"
+    ],
+    "ships": [
+      "Cruise Roma",
+      "Cruise Barcelona",
+      "Cruise Bonaria",
+      "Cruise Sardegna",
+      "Cruise Olbia"
+    ]
+  },
+  {
+    "slug": "havila-voyages",
+    "name": "Havila Voyages",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": "Havila Kystruten AS",
+    "hq_city": "Fosnavåg",
+    "hq_country": "Norway",
+    "hq_address": "Mjølstadnesvegen, 6092 Fosnavåg, Norway (P.O. Box 215, 6099 Fosnavåg)",
+    "website": "https://www.havilavoyages.com",
+    "phone": "+47 70 00 70 70",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina contatti",
+        "value": "https://www.havilavoyages.com/about-havila/contact-us",
+        "source": "https://www.havilavoyages.com/about-havila/contact-us"
+      },
+      {
+        "label": "Linea internazionale",
+        "value": "+47 70 00 70 71",
+        "source": "https://www.havilavoyages.com/about-havila/contact-us"
+      },
+      {
+        "label": "Stampa (Mynewsdesk)",
+        "value": "https://www.mynewsdesk.com/havilavoyages",
+        "source": "https://www.mynewsdesk.com/havilavoyages/news/customer-service-center-opened-in-fosnavaag-444772"
+      }
+    ],
+    "fleet_size": 4,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Solo la rotta costiera norvegese Bergen-Kirkenes, nessuno scalo nel Mediterraneo. Target poco adatto.",
+    "sources": [
+      "https://www.havilavoyages.com/about-havila/contact-us",
+      "https://www.mynewsdesk.com/havilavoyages/news/customer-service-center-opened-in-fosnavaag-444772",
+      "https://en.wikipedia.org/wiki/Havila_Kystruten"
+    ],
+    "ships": [
+      "Havila Capella",
+      "Havila Castor",
+      "Havila Polaris",
+      "Havila Pollux"
+    ]
+  },
+  {
+    "slug": "hurtigruten",
+    "name": "Hurtigruten",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": null,
+    "hq_city": "Oslo",
+    "hq_country": "Norway",
+    "hq_address": "Langkaia 1, 0150 Oslo, Norway",
+    "website": "https://www.hurtigruten.com",
+    "phone": "+47 48 20 59 90",
+    "email": "press@hurtigruten.com",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Ufficio stampa",
+        "value": "press@hurtigruten.com",
+        "source": "https://hurtigruten-com.mynewsdesk.com/contact_people"
+      },
+      {
+        "label": "Ufficio stampa (telefono)",
+        "value": "+47 480 27 700",
+        "source": "https://hurtigruten-com.mynewsdesk.com/contact_people"
+      },
+      {
+        "label": "Communication & Public Affairs: SVP Anne Solsvik (ruolo pubblico)",
+        "value": "https://hurtigruten-com.mynewsdesk.com/contact_people",
+        "source": "https://hurtigruten-com.mynewsdesk.com/contact_people"
+      }
+    ],
+    "fleet_size": 10,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Postale costiero norvegese Bergen-Kirkenes, con linee Svalbard e Capo Nord da Amburgo; nessuna crociera nel Mediterraneo. Dal 2024 e' separata da HX. Target poco adatto a Napoli e Roma.",
+    "sources": [
+      "https://www.1881.no/skipsrederier/skipsrederier-oslo/skipsrederier-oslo-sentrum/hurtigruten-norway-as_106861274S1/",
+      "https://opendatalei.com/lei/254900IF4J7328MWPA75",
+      "https://hurtigruten-com.mynewsdesk.com/contact_people",
+      "https://press.hurtigruten.com/pressreleases/hurtigruten-expands-signature-fleet-with-ms-midnatsol-from-summer-2026-3387908"
+    ],
+    "ships": [
+      "Trollfjord",
+      "Finnmarken",
+      "Midnatsol",
+      "Vesterålen",
+      "Richard With"
+    ]
+  },
+  {
+    "slug": "la-meridionale",
+    "name": "La Méridionale",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": "CMA CGM Group",
+    "hq_city": "Marseille",
+    "hq_country": "France",
+    "hq_address": "4 Quai d'Arenc, Boulevard Jacques Saadé, 13002 Marseille",
+    "website": "https://www.lameridionale.fr",
+    "phone": null,
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Agenzie Ajaccio e Marsiglia",
+        "value": "https://www.lameridionale.fr/fr/la-meridionale/contact/les-agences-de-la-meridionale",
+        "source": "https://www.lameridionale.fr/fr/la-meridionale/contact/les-agences-de-la-meridionale"
+      },
+      {
+        "label": "Centralino gruppo CMA CGM",
+        "value": "+33 4 88 91 90 00",
+        "source": "https://www.cma-cgm.fr/local/agences-france/agency/258/cma-cgm-agences-france-marseille?brand=cmacgm"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Marsiglia–Corsica (e Nord Africa); nessuna linea da Napoli o Civitavecchia",
+    "sources": [
+      "https://www.lameridionale.fr/fr/la-meridionale/contact/les-agences-de-la-meridionale",
+      "https://en.wikipedia.org/wiki/La_M%C3%A9ridionale",
+      "https://annuaire-entreprises.data.gouv.fr/etablissement/56202442200486"
+    ],
+    "ships": [
+      "Piana",
+      "Kalliste",
+      "Girolata"
+    ]
+  },
+  {
+    "slug": "laziomar",
+    "name": "Laziomar",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": null,
+    "hq_city": "Napoli",
+    "hq_country": "Italy",
+    "hq_address": "Stazione Marittima, Molo Angioino, 80133 Napoli (sede operativa; sede legale Via Crescenzio 9)",
+    "website": "https://www.laziomar.it",
+    "phone": "+39 081 9631333",
+    "email": "info@laziomar.it",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Call center email",
+        "value": "callcenter@laziomar.it",
+        "source": "https://laziomar.it/en/component/contact/contact/1?Itemid=101"
+      },
+      {
+        "label": "Uffici amministrativi",
+        "value": "+39 081 9631311",
+        "source": "https://laziomar.it/en/component/contact/contact/1?Itemid=101"
+      },
+      {
+        "label": "Ufficio Formia",
+        "value": "+39 0771 700604",
+        "source": "https://laziomar.it/en/component/contact/contact/1?Itemid=101"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Isole Pontine: Formia, Terracina e (giugno–settembre) Anzio verso Ponza e Ventotene; uffici a Napoli ma nessuna linea da Napoli o Civitavecchia",
+    "sources": [
+      "https://laziomar.it/en/component/contact/contact/1?Itemid=101",
+      "https://laziomar.it/en/laziomar/about-us"
+    ],
+    "ships": []
+  },
+  {
+    "slug": "liberty-lines",
+    "name": "Liberty Lines",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": null,
+    "hq_city": "Trapani",
+    "hq_country": "Italy",
+    "hq_address": "Via Francesco Culcasi 18/A (Zona Industriale), 91100 Trapani",
+    "website": "https://www.libertylines.it",
+    "phone": "+39 0923 022022",
+    "email": "callcenter@libertylines.it",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Contatti e assistenza",
+        "value": "https://www.libertylines.it/en/contacts/",
+        "source": "https://www.libertylines.it/en/contacts/"
+      },
+      {
+        "label": "Sede legale Napoli",
+        "value": "Via Guantai Nuovi 11, 80133 Napoli",
+        "source": "https://www.libertylines.it/en/faq/contatti-2/"
+      }
+    ],
+    "fleet_size": 32,
+    "calls_naples": null,
+    "calls_civitavecchia": false,
+    "ports_note": "Aliscafi per Eolie, Egadi, Ustica, Pelagie, Pantelleria da Milazzo, Messina, Trapani, Palermo, Reggio Calabria; una fonte terza cita Napoli–Eolie stagionale (maggio–settembre), non confermata sul sito ufficiale; nessuna linea da Civitavecchia",
+    "sources": [
+      "https://www.libertylines.it/en/contacts/",
+      "https://www.libertylines.it/en/faq/contatti-2/",
+      "https://iltraghetto.it/destinazioni/isole-eolie",
+      "https://www.traghetti-eolie.it/compagnie/traghetti-liberty-lines"
+    ],
+    "ships": []
+  },
+  {
+    "slug": "medmar",
+    "name": "Medmar",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": null,
+    "hq_city": "Napoli",
+    "hq_country": "Italy",
+    "hq_address": "Calata Porta di Massa, 80133 Napoli",
+    "website": "https://www.medmargroup.it",
+    "phone": "+39 081 3334411",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Sede Napoli (numero alternativo)",
+        "value": "+39 081 5513352",
+        "source": "https://www.paginebianche.it/scheda/napoli/medmar-navi.2298268"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": true,
+    "calls_civitavecchia": false,
+    "ports_note": "Traghetti da Napoli Calata Porta di Massa (e Pozzuoli) per Ischia e Procida; nessuna linea da Civitavecchia",
+    "sources": [
+      "https://aziende.virgilio.it/napoli-na/medmar-navi_2",
+      "https://www.paginebianche.it/scheda/napoli/medmar-navi.2298268",
+      "https://italiarecensioni.com/campania/medmar-ships-spa-666782",
+      "https://www.ischiatravels.it/collegamenti/medmar/"
+    ],
+    "ships": []
+  },
+  {
+    "slug": "minoan-lines",
+    "name": "Minoan Lines",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": "Gruppo Grimaldi",
+    "hq_city": "Heraklion",
+    "hq_country": "Greece",
+    "hq_address": "17, 25th August Str., 712 02 Heraklion, Crete",
+    "website": "https://www.minoan.gr",
+    "phone": "+30 2810 399899",
+    "email": "info@minoan.gr",
+    "italy_office": {
+      "city": "Ancona",
+      "address": "Minoan Agencies srl, Lungomare Vanvitelli 18, 60121 Ancona",
+      "phone": "+39 071 201708",
+      "email": "minoan@minoan.it"
+    },
+    "contacts": [
+      {
+        "label": "Prenotazioni (Grecia)",
+        "value": "reservation@minoan.gr",
+        "source": "https://www.minoan.gr/en/webform/1352/contact"
+      },
+      {
+        "label": "Ufficio centrale Italia / call center Ancona",
+        "value": "+39 071 201708",
+        "source": "https://www.minoan.it/it/informazioni/uffici-agenzie-portuali-minoan-lines"
+      },
+      {
+        "label": "Ufficio portuale Ancona (check-in)",
+        "value": "+39 071 56789",
+        "source": "https://www.minoan.it/it/informazioni/uffici-agenzie-portuali-minoan-lines"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Italia–Grecia da Ancona e Venezia (Fusina) verso Igoumenitsa/Patrasso, più Pireo–Creta; nessuna linea propria da Napoli o Civitavecchia (minoan.it rivende anche le rotte Grimaldi)",
+    "sources": [
+      "https://www.minoan.gr/en/webform/1352/contact",
+      "https://www.minoan.it/it/informazioni/uffici-agenzie-portuali-minoan-lines",
+      "https://en.wikipedia.org/wiki/Minoan_Lines"
+    ],
+    "ships": [
+      "Knossos Palace",
+      "Kydon Palace",
+      "Festos Palace",
+      "Cruise Europa",
+      "Cruise Olympia"
+    ]
+  },
+  {
+    "slug": "moby-lines",
+    "name": "Moby Lines",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": "Gruppo Onorato/Moby",
+    "hq_city": "Milano",
+    "hq_country": "Italy",
+    "hq_address": "Via Larga 26, 20122 Milano",
+    "website": "https://www.moby.it",
+    "phone": "+39 02 865231",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Centro prenotazioni (numero verde)",
+        "value": "800 804 020",
+        "source": "https://www.paginebianche.it/scheda/milano/moby.426581"
+      },
+      {
+        "label": "Assistenza clienti",
+        "value": "https://www.mobylines.com/assistance/",
+        "source": "https://www.mobylines.com/assistance/"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": false,
+    "calls_civitavecchia": true,
+    "ports_note": "Civitavecchia–Olbia tutto l'anno (notturne, più diurne giugno–settembre); nessuna linea da Napoli",
+    "sources": [
+      "https://aziende.virgilio.it/agenzie-marittime/milano-mi/moby",
+      "https://www.paginebianche.it/scheda/milano/moby.426581",
+      "https://www.moby.it/rotte/traghetti-sardegna/civitavecchia-olbia-civitavecchia/"
+    ],
+    "ships": [
+      "Moby Tommy",
+      "Moby Wonder",
+      "Moby Aki",
+      "Moby Legacy",
+      "Moby Fantasy"
+    ]
+  },
+  {
+    "slug": "nlg-navigazione-libera-del-golfo",
+    "name": "NLG Navigazione Libera del Golfo",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": null,
+    "hq_city": "Napoli",
+    "hq_country": "Italy",
+    "hq_address": "Via Molo Beverello, 80133 Napoli",
+    "website": "https://www.nlg.it",
+    "phone": "+39 081 5520763",
+    "email": "customercare@nlg.it",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Biglietteria Napoli Molo Beverello",
+        "value": "https://www.nlg.it/en/ticket-office/naples-molo-beverello/",
+        "source": "https://www.nlg.it/en/ticket-office/naples-molo-beverello/"
+      },
+      {
+        "label": "Pagina contatti",
+        "value": "https://www.nlg.it/en/contact/",
+        "source": "https://www.nlg.it/en/contact/"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": true,
+    "calls_civitavecchia": false,
+    "ports_note": "Napoli Molo Beverello–Capri, Sorrento e Costiera Amalfitana; nessuna linea da Civitavecchia",
+    "sources": [
+      "https://aziende.virgilio.it/trasporto-pubblico/napoli-na/nlg-s-r-l",
+      "https://www.nlg.it/en/contact/",
+      "https://www.nlg.it/en/ticket-office/naples-molo-beverello/"
+    ],
+    "ships": []
+  },
+  {
+    "slug": "siremar",
+    "name": "Siremar",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": "Caronte & Tourist Group",
+    "hq_city": "Messina",
+    "hq_country": "Italy",
+    "hq_address": "Via Ing. Giuseppe Franza 82, 98124 Messina",
+    "website": "https://www.siremar.it",
+    "phone": null,
+    "email": "servizioclienti@siremar.it",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "PEC Caronte & Tourist Isole Minori",
+        "value": "ctisoleminori@pec.it",
+        "source": "https://carontetourist.it/en/contacts"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": true,
+    "calls_civitavecchia": false,
+    "ports_note": "Napoli–Eolie–Milazzo tutto l'anno (2 partenze/settimana), più isole minori siciliane; nessuna linea da Civitavecchia",
+    "sources": [
+      "https://carontetourist.it/en/contacts",
+      "https://www.traghetti.com/traghetti-sicilia/traghetti-milazzo-napoli",
+      "https://www.netferry.com/ferry-operators/siremar"
+    ],
+    "ships": []
+  },
+  {
+    "slug": "snav",
+    "name": "SNAV",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": "MSC Group",
+    "hq_city": "Napoli",
+    "hq_country": "Italy",
+    "hq_address": "Stazione Marittima, Molo Angioino, 80133 Napoli",
+    "website": "https://www.snav.it",
+    "phone": "+39 081 4285111",
+    "email": "info@snav.it",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Modulo contatti",
+        "value": "https://www.snav.it/contatti",
+        "source": "https://www.snav.it/contatti"
+      },
+      {
+        "label": "Call center",
+        "value": "https://www.snav.it/en/call-center-2",
+        "source": "https://www.snav.it/en/call-center-2"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": true,
+    "calls_civitavecchia": false,
+    "ports_note": "Napoli Beverello–Ischia (Casamicciola)/Procida; Napoli Mergellina–Eolie (dal 30/05/2026); collegamenti per Ponza e Ventotene; Ancona–Spalato; nessuna linea da Civitavecchia",
+    "sources": [
+      "https://www.snav.it/contatti",
+      "https://www.snav.it/wp-content/uploads/2019/12/ISCHIA-PROCIDA-BUSINNESS-CARD-2020.pdf",
+      "https://www.snav.it/en/orari-e-tratte",
+      "https://magazine.snav.it/isole-eolie-2026-snav-napoli-mergellina/"
+    ],
+    "ships": []
+  },
+  {
+    "slug": "tirrenia-cin",
+    "name": "Tirrenia (CIN – Compagnia Italiana di Navigazione)",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": "Gruppo Onorato/Moby",
+    "hq_city": "Milano",
+    "hq_country": "Italy",
+    "hq_address": "Via Larga 26, 20122 Milano",
+    "website": "https://www.tirrenia.it",
+    "phone": "+39 02 76028132",
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Call center / pagina contatti",
+        "value": "https://en.tirrenia.it/contact/",
+        "source": "https://en.tirrenia.it/contact/"
+      }
+    ],
+    "fleet_size": 8,
+    "calls_naples": null,
+    "calls_civitavecchia": true,
+    "ports_note": "Civitavecchia–Olbia tutto l'anno (più Civitavecchia–Cagliari/Arbatax secondo il sito); Napoli–Palermo non più operata da novembre 2025; Napoli–Cagliari in continuità è di Grimaldi, quindi presenza su Napoli nel 2026 incerta",
+    "sources": [
+      "https://en.tirrenia.it/contact/",
+      "https://en.tirrenia.it/company/",
+      "https://www.traghettilines.it/it/compagnia/traghetti-tirrenia.aspx",
+      "https://www.cagliaritoday.it/economia/continuita-marittima-per-il-sud-sardegna-l-appalto-resta-a-grimaldi-traghetti-per-civitavecchia-napoli-e-palermo-per-altri-5-anni.html"
+    ],
+    "ships": [
+      "Florio",
+      "Rubattino",
+      "Moby Tommy",
+      "Moby Wonder"
+    ]
+  },
+  {
+    "slug": "toremar",
+    "name": "Toremar",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": "Gruppo Onorato/Moby",
+    "hq_city": "Livorno",
+    "hq_country": "Italy",
+    "hq_address": "Piazzale dei Marmi 12 int. 2, Livorno",
+    "website": "https://www.toremar.it",
+    "phone": null,
+    "email": null,
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Call center (numero a tariffa speciale)",
+        "value": "199 117733",
+        "source": "https://www.toremar.it/it/toremar/contatti.html"
+      },
+      {
+        "label": "Moby Imbarchi Stazione Marittima Livorno",
+        "value": "+39 0586 883053",
+        "source": "https://www.toremar.it/it/toremar/contatti.html"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Arcipelago Toscano (Piombino–Elba, Livorno–Capraia, Porto S. Stefano–Giglio); nessuna linea da Napoli o Civitavecchia",
+    "sources": [
+      "https://www.toremar.it/it/toremar/contatti.html",
+      "https://en.wikipedia.org/wiki/Toremar"
+    ],
+    "ships": [
+      "Oglasa",
+      "Aethalia",
+      "Marmorica",
+      "Liburna"
+    ]
+  },
+  {
+    "slug": "travelmar",
+    "name": "Travelmar",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": null,
+    "hq_city": "Amalfi",
+    "hq_country": "Italy",
+    "hq_address": "Largo Duchi Piccolomini 8, 84011 Amalfi (SA)",
+    "website": "https://www.travelmar.it",
+    "phone": "+39 089 872950",
+    "email": "info@travelmar.it",
+    "italy_office": null,
+    "contacts": [
+      {
+        "label": "Pagina azienda",
+        "value": "https://www.travelmar.it/en/company",
+        "source": "https://www.travelmar.it/en/company"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "Salerno–Amalfi–Positano e porti della Costiera Amalfitana; nessuna linea da Napoli o Civitavecchia",
+    "sources": [
+      "https://www.travelmar.it/",
+      "https://www.travelmar.it/en/company"
+    ],
+    "ships": []
+  },
+  {
+    "slug": "virtu-ferries",
+    "name": "Virtu Ferries",
+    "kind": "ferry",
+    "segment": "ferry",
+    "parent_group": "Virtu Holdings",
+    "hq_city": "Marsa",
+    "hq_country": "Malta",
+    "hq_address": "Virtu Passenger Terminal, Xatt L-Għassara tal-Għeneb, Marsa MRS 1917",
+    "website": "https://www.virtuferries.com",
+    "phone": "+356 2206 9022",
+    "email": "res@virtuferries.com",
+    "italy_office": {
+      "city": "Pozzallo",
+      "address": "Virtu Ferries S.r.l., Largo dei Vespri Siciliani 70, 97016 Pozzallo (RG)",
+      "phone": null,
+      "email": null
+    },
+    "contacts": [
+      {
+        "label": "Pagina contatti",
+        "value": "https://www.virtuferries.com/contact_us/13",
+        "source": "https://www.virtuferries.com/contact_us/13"
+      }
+    ],
+    "fleet_size": null,
+    "calls_naples": false,
+    "calls_civitavecchia": false,
+    "ports_note": "La Valletta–Pozzallo (catamarano veloce); nessuna linea da Napoli o Civitavecchia",
+    "sources": [
+      "https://www.virtuferries.com/contact_us/13",
+      "https://en.wikipedia.org/wiki/Virtu_Ferries"
+    ],
+    "ships": [
+      "Saint John Paul II",
+      "Jean de La Valette",
+      "Maria Dolores"
+    ]
+  }
+]

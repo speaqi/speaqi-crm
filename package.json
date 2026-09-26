@@ -7,12 +7,13 @@
     "analyze:legacy": "python3 scripts/analyze_legacy_csv.py",
     "import:contacts-csv": "python3 scripts/import_contacts_csv.py",
     "hospitality:import": "node scripts/import_hospitality_contacts.mjs",
+    "shipping:import": "tsx scripts/import_shipping_companies.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "node start.cjs",
     "lint": "next lint",
     "test": "npm run test:unit && npm run test:db",
-    "test:unit": "tsx --test tests/campaigns.unit.test.ts tests/wine-project.unit.test.ts tests/whatsapp.unit.test.ts tests/todo.unit.test.ts tests/telegram.unit.test.ts tests/acumbamail.unit.test.ts tests/http.unit.test.ts tests/quote-subscription.unit.test.ts tests/sales-program.unit.test.ts tests/receivables.unit.test.ts",
+    "test:unit": "tsx --test tests/campaigns.unit.test.ts tests/wine-project.unit.test.ts tests/whatsapp.unit.test.ts tests/todo.unit.test.ts tests/telegram.unit.test.ts tests/acumbamail.unit.test.ts tests/http.unit.test.ts tests/quote-subscription.unit.test.ts tests/sales-program.unit.test.ts tests/receivables.unit.test.ts tests/shipping-companies.unit.test.ts",
     "test:db": "tsx --test tests/campaigns.db.test.ts"
   },
   "engines": {

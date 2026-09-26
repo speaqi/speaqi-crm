@@ -29,6 +29,8 @@ npm run lint         # ESLint
 # Data import utilities
 npm run analyze:legacy -- "/path/file.csv"
 npm run import:contacts-csv -- "/path/file.csv" --email "user@domain.it" --password "****"
+npm run shipping:import                  # catalogo compagnie di navigazione: prova a secco
+npm run shipping:import -- --apply       # scrive (workspace da AUTOMATION_WORKSPACE_USER_ID o --user-id)
 ```
 
 ## Environment Variables
@@ -118,6 +120,7 @@ supabase migration up
 | `stripe_webhook_events` | Idempotenza del webhook Stripe: un evento gia' processato non si rifa' |
 | `sales_links` | Link vendita personali (`/vendita/<token>`): solo lo SHA-256 del token, uno attivo per membro del team |
 | `user_settings` | Per-user settings (e.g. email AI configuration) |
+| `shipping_companies` | Compagnie di navigazione passeggeri (`/navigazione`): sede, riferimenti, `calls_naples` / `calls_civitavecchia` (null = da verificare), `contact_id` verso il contatto su cui si lavora |
 | `receivables` | Soldi da ricevere, personali e fuori da Speaqi (`/incassi`): nome, cifra, `collected_at` (null = da incassare). Riga di chi l'ha scritta (`auth.uid()`), non del workspace |
 | `commercial_campaigns` | Motore campagne generico: un verticale = una riga (`slug`, `event_tag`, mittente, `landing_url`, filtri import, tetti) |
 | `commercial_campaign_steps` | Fino a 20 email per campagna; uno step gia inviato e immutabile (trigger) |
@@ -151,6 +154,7 @@ src/
 │   │   ├── commerciale/        # Area Commerciale: tutti i progetti + /commerciale/[id]
 │   │   ├── preventivi/         # Quotes management (CRUD)
 │   │   ├── incassi/            # Da incassare: soldi personali da ricevere, fuori da Speaqi
+│   │   ├── navigazione/        # Compagnie di navigazione: chi arriva a Napoli / Civitavecchia
 │   │   └── impostazioni/       # Settings & team admin
 │   │       ├── email-ai/       # Email AI configuration
 │   │       └── team/           # Team management
@@ -162,6 +166,7 @@ src/
 │   │   ├── tasks/              # CRUD + create + pending + standalone + [id]/complete
 │   │   ├── todo/columns/       # Colonne aggiunte a mano alla lavagna (CRUD + riordino)
 │   │   ├── receivables/        # Da incassare (CRUD, solo le righe di chi e' loggato)
+│   │   ├── shipping-companies/ # Catalogo compagnie di navigazione (lettura + correzione scali)
 │   │   ├── activities/         # Activity log
 │   │   ├── activity/log        # Activity logging
 │   │   ├── pipeline-stages/
@@ -230,6 +235,7 @@ src/
 │   ├── schedule.ts             # Scheduling utilities
 │   ├── todo.ts                 # Aree, stati di avanzamento e span Gantt per /todo
 │   ├── receivables.ts          # Da incassare: lettura importi "1.250,50", totali in centesimi, ordinamento
+│   ├── shipping-companies.ts   # Compagnie di navigazione: validazione catalogo, filtri porto, contatto da creare
 │   ├── openapi/speaqi-call.ts  # OpenAPI spec
 │   ├── supabase.ts             # Supabase browser client
 │   └── db.ts                   # DB utilities
@@ -261,8 +267,9 @@ Il workspace contiene decine di migliaia di contatti (quasi tutti `holding`, imp
 - Vinitaly/Acumbamail leads enter as `holding` scope until engaged
 - Every status change also syncs the contact's open deal (`syncDealWithContactStatus`); closed contacts re-enter the pipeline via "Nuova opportunità" (`POST /api/deals`)
 - Dashboard "Da recuperare" panel surfaces open contacts with no next step (including Waiting contacts whose recall date has passed) with quick reschedule/dismiss actions
-- Sidebar shows only the core loop (Oggi, To Do, Pipeline, Contatti, Follow-up, Preventivi, Commerciale, Analytics, Impostazioni); other pages stay reachable by URL. In fondo, separato dal core loop, c'è «Da incassare»
+- Sidebar shows only the core loop (Oggi, To Do, Pipeline, Contatti, Follow-up, Preventivi, Commerciale, Analytics, Impostazioni); other pages stay reachable by URL. In fondo, separato dal core loop, ci sono «Da incassare» e «Navigazione»
 - **Da incassare** (`/incassi`, `GET|POST|PATCH|DELETE /api/receivables`): soldi personali da ricevere, che con Speaqi non c'entrano — solo nome, cifra e se è già incassato. Non tocca contatti, preventivi o finanza. Ogni riga è di chi l'ha scritta (`user_id = auth.uid()`, anche in RLS), non del workspace: un collaboratore non vede quelle del proprietario e viceversa. L'importo si scrive come viene (`parseReceivableAmount`: "1.250,50", "300 €", "12.5") e i totali si sommano in centesimi
+- **Compagnie di navigazione** (`/navigazione`, voce in fondo alla sidebar, `GET|PATCH /api/shipping-companies`): crociere, expedition, fluviali e traghetti di tutto il mondo, per vendere Speaqi Maps alle compagnie le cui navi arrivano a Napoli o a Civitavecchia (Roma). Il catalogo sta in `scripts/data/shipping-companies.json` (ricerca web di settembre 2026: telefono ed email solo se visti in una fonte, altrimenti null; ogni voce porta le sue `sources`) e lo scrive `npm run shipping:import`, prova a secco di default (`--csv` per un file Excel, `--apply` per scrivere). Uno scalo `null` vuol dire **da verificare**, non "no": la pagina lo mostra tratteggiato e il filtro «Da verificare» lo ritrova. Lo script crea per ogni compagnia un contatto `holding` nella cartella «Compagnie di navigazione» (`legacy_id = shipping-<slug>`, `marketing_eligibility = review`: nessuna campagna automatica deve scrivere all'ufficio stampa di una compagnia di crociera), con il telefono dell'ufficio italiano quando c'è e priorità 2/1/0 secondo quanti dei due porti tocca. Un rilancio riempie sul contatto solo i campi vuoti e non tocca gli scali corretti a mano dalla pagina (`ports_manual`)
 - **To Do board** (`/todo`): standalone tasks (`tasks.contact_id is null`, `type = 'todo'`) are the one place for everything to do, Speaqi and non-Speaqi. They carry `area` (`speaqi` / `personale` / `altro`), `progress_state` (`todo` / `in_progress` / `blocked` / `done`), `progress_percent` and `start_date` (with `due_date` it draws the Gantt bar). `status` stays the binary flag the rest of the CRM reads: `/api/tasks/standalone` is the only place where the two are kept in sync. Standalone tasks are visible **only to the workspace owner** — the `tasks_workspace` RLS policy joins through `contacts`, which they don't have
 - **To Do — la lavagna è la vista di partenza**: `/todo` apre sul kanban (`TodoKanban`), con Lista e Gantt come viste alternative. Le colonne vengono da `TODO_GROUPINGS` in `src/lib/todo.ts` e sono **al massimo quattro**, perché la lavagna deve stare tutta nella finestra: sotto i 1180 px scende a due colonne e la pagina torna a scorrere. Quattro raggruppamenti: *Avanzamento* (da fare / in corso / in attesa / fatte), *Quando* (oggi / questa settimana / più avanti / da pianificare), *Progetto* (le tre aree) e *Priorità*. Le **arretrate non hanno una colonna propria**: cadono in "Oggi", perché restano da fare oggi e una colonna di rimproveri in testa alla pagina non si guarda volentieri. Anche la lista apre su "Oggi", non più sulle arretrate
 - **To Do — trascinare è l'unica scrittura implicita**: `todoDropPatch()` traduce la colonna d'arrivo nella modifica da salvare e nella frase da mostrare, e restituisce `null` quando la scheda è già dove è stata lasciata — un trascinamento a vuoto non deve contare come rinvio, visto che ogni cambio di `due_date` incrementa `reschedule_count` lato server. L'unica eccezione è una arretrata rilasciata su "Oggi": lì la colonna coincide già, ma l'intenzione è ridatarla. Il `+` in testa a ogni colonna crea l'attività **già** con i valori di quella colonna (`todoColumnDefaults()`)
@@ -546,6 +553,7 @@ Main page for sales team monitoring. Structure:
 | Path | Purpose |
 |---|---|
 | `scripts/backup_supabase.mjs` | Local dated backup (`npm run backup`) — the Free plan has no PITR/daily backups. Paginates at 1000 rows; writes JSON per table + `contacts.csv` + manifest into gitignored `backups/` |
+| `scripts/import_shipping_companies.ts` | Catalogo compagnie di navigazione (`scripts/data/shipping-companies.json`) → `shipping_companies` + contatti holding (`npm run shipping:import`, dry-run di default) |
 | `scripts/analyze_legacy_csv.py` | Analyze legacy CSV format |
 | `scripts/import_contacts_csv.py` | Import contacts from CSV |
 | `scripts/restore_dmo_contacts.py` | Restore DMO contacts |
@@ -628,7 +636,7 @@ migrarlo e un lavoro separato, da fare a motore collaudato.
 Nessuna dipendenza di test oltre `tsx`: si usa `node:test`.
 
 ```bash
-npm run test:unit   # motore campagne, Wine Project, WhatsApp, lavagna To Do, Telegram, abbonamenti/firma/link vendita, programma commerciali e Da incassare
+npm run test:unit   # motore campagne, Wine Project, WhatsApp, lavagna To Do, Telegram, abbonamenti/firma/link vendita, programma commerciali, Da incassare e compagnie di navigazione
 npm run test:db     # integrazione e concorrenza su un Postgres locale usa-e-getta
 npm test            # entrambi
 ```
