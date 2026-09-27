@@ -4,7 +4,10 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useCRMContext } from '../layout'
 import { apiFetch } from '@/lib/api'
+import { CompanyItineraries } from '@/components/navigazione/CompanyItineraries'
+import { PortsView, PortWithUsage } from '@/components/navigazione/PortsView'
 import {
+  effectivePortFlags,
   matchesShippingPortFilter,
   SHIPPING_KIND_LABELS,
   SHIPPING_KINDS,
@@ -18,8 +21,11 @@ import {
 } from '@/lib/shipping-companies'
 
 // Compagnie di navigazione passeggeri: a chi vendere Speaqi Maps come azienda.
-// La domanda che conta e' una sola — le sue navi arrivano a Napoli o a Roma? —
-// quindi gli scali sono il primo filtro e il primo ordinamento.
+// Due porte d'ingresso sugli stessi dati: dalla compagnia (con i suoi itinerari
+// e le tappe) o dal porto (chi ci arriva, con quali crociere). Napoli e Roma
+// restano il primo filtro perche' sono i mercati da cui si parte.
+
+type Tab = 'companies' | 'ports'
 
 type PortKey = 'calls_naples' | 'calls_civitavecchia'
 
@@ -84,6 +90,9 @@ export default function NavigazionePage() {
   const [showInactive, setShowInactive] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [tab, setTab] = useState<Tab>('companies')
+  const [ports, setPorts] = useState<PortWithUsage[] | null>(null)
+  const [scrollTo, setScrollTo] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -95,12 +104,50 @@ export default function NavigazionePage() {
     }
   }, [])
 
+  const loadPorts = useCallback(async () => {
+    try {
+      const response = await apiFetch<{ ports: PortWithUsage[] }>('/api/shipping-ports')
+      setPorts(response.ports)
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Impossibile caricare i porti')
+      setPorts((current) => current || [])
+    }
+  }, [showToast])
+
   useEffect(() => {
     load()
   }, [load])
 
+  useEffect(() => {
+    if (tab === 'ports' && ports === null) loadPorts()
+  }, [tab, ports, loadPorts])
+
+  useEffect(() => {
+    if (!scrollTo) return
+    document.getElementById(`nv-company-${scrollTo}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setScrollTo(null)
+  }, [scrollTo])
+
+  // Un itinerario salvato cambia gli scali della compagnia e i conteggi dei porti.
+  const refreshAfterItinerary = useCallback(() => {
+    load()
+    if (ports !== null) loadPorts()
+  }, [load, loadPorts, ports])
+
+  function openCompany(companyId: string) {
+    const company = (companies || []).find((row) => row.id === companyId)
+    setTab('companies')
+    setPort('all')
+    setKind('all')
+    setCountry('all')
+    setSearch('')
+    if (company && !company.active) setShowInactive(true)
+    setOpenId(companyId)
+    setScrollTo(companyId)
+  }
+
   const active = useMemo(
-    () => (companies || []).filter((company) => showInactive || company.active),
+    () => (companies || []).filter((company) => showInactive || company.active).map(effectivePortFlags),
     [companies, showInactive]
   )
   const summary = useMemo(() => summarizeShipping(active), [active])
@@ -137,7 +184,8 @@ export default function NavigazionePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: company.id, [key]: value }),
       })
-      setCompanies((current) => (current || []).map((row) => (row.id === company.id ? response.company : row)))
+      // Il PATCH restituisce solo la riga: itinerari e porti toccati restano quelli gia' caricati.
+      setCompanies((current) => (current || []).map((row) => (row.id === company.id ? { ...row, ...response.company } : row)))
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Impossibile aggiornare')
     } finally {
@@ -148,12 +196,14 @@ export default function NavigazionePage() {
   function portButton(company: ShippingCompany, key: PortKey, label: string, port: string) {
     const value = company[key]
     const state = value === true ? 'is-yes' : value === false ? 'is-no' : 'is-unknown'
+    // Se lo dice un itinerario caricato, il bollino non si spegne a mano: si corregge l'itinerario.
+    const fromItinerary = (company.itinerary_ports || []).includes(key === 'calls_naples' ? 'napoli' : 'civitavecchia')
     return (
       <button
         type="button"
-        className={`nv-port ${state}`}
-        title={portTitle(port, value)}
-        disabled={busyId === company.id}
+        className={`nv-port ${state}${fromItinerary ? ' is-locked' : ''}`}
+        title={fromItinerary ? `Arriva a ${port}: risulta da un itinerario caricato` : portTitle(port, value)}
+        disabled={busyId === company.id || fromItinerary}
         onClick={() => togglePort(company, key)}
       >
         <span aria-hidden="true">{value === true ? '✓' : value === false ? '✕' : '?'}</span>
@@ -222,6 +272,13 @@ export default function NavigazionePage() {
             {company.checked_at ? <em className="nv-manual"> · verificato il {company.checked_at}</em> : null}
           </div>
         ) : null}
+        <CompanyItineraries
+          company={company}
+          ports={ports || []}
+          loadPorts={loadPorts}
+          onChanged={refreshAfterItinerary}
+          showToast={showToast}
+        />
       </div>
     )
   }
@@ -231,11 +288,30 @@ export default function NavigazionePage() {
       <div className="page-header">
         <h1>Compagnie di navigazione</h1>
         <p className="page-subtitle">
-          Crociere, expedition, fluviali e traghetti di tutto il mondo: sedi, riferimenti e chi arriva a Napoli o a
-          Civitavecchia (Roma). A chi vendere Speaqi Maps come azienda.
+          Crociere, expedition, fluviali e traghetti: sedi, riferimenti, itinerari con tutte le tappe e, per ogni
+          porto, chi ci arriva. A chi vendere Speaqi Maps come azienda.
         </p>
       </div>
 
+      <div className="nv-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={tab === 'companies'} className={`nv-tab${tab === 'companies' ? ' is-active' : ''}`} onClick={() => setTab('companies')}>
+          🚢 Compagnie
+        </button>
+        <button type="button" role="tab" aria-selected={tab === 'ports'} className={`nv-tab${tab === 'ports' ? ' is-active' : ''}`} onClick={() => setTab('ports')}>
+          ⚓ Porti
+        </button>
+      </div>
+
+      {tab === 'ports' ? (
+        <PortsView
+          ports={ports}
+          companies={companies || []}
+          reloadPorts={loadPorts}
+          onOpenCompany={openCompany}
+          showToast={showToast}
+        />
+      ) : (
+      <>
       <div className="nv-stats">
         {[
           { key: 'all' as const, label: 'Compagnie', value: summary.total },
@@ -314,7 +390,7 @@ export default function NavigazionePage() {
               const open = openId === company.id
               const phone = company.italy_office?.phone || company.phone
               return (
-                <li key={company.id} className={`nv-row${company.active ? '' : ' is-inactive'}`}>
+                <li key={company.id} id={`nv-company-${company.id}`} className={`nv-row${company.active ? '' : ' is-inactive'}`}>
                   <div className="nv-main">
                     <div className="nv-name">
                       {company.name}
@@ -324,6 +400,11 @@ export default function NavigazionePage() {
                         <span className="nv-badge">{SHIPPING_KIND_LABELS[company.kind]}</span>
                       )}
                       {!company.active ? <span className="nv-badge nv-badge-off">Cessata</span> : null}
+                      {company.itinerary_count ? (
+                        <span className="nv-badge nv-badge-route">
+                          {company.itinerary_count === 1 ? '1 itinerario' : `${company.itinerary_count} itinerari`}
+                        </span>
+                      ) : null}
                     </div>
                     <div className="nv-meta">
                       {[company.parent_group, shippingHeadquarters(company) ? `Sede: ${shippingHeadquarters(company)}` : null]
@@ -359,6 +440,8 @@ export default function NavigazionePage() {
           </ul>
         </>
       ) : null}
+      </>
+      )}
     </div>
   )
 }

@@ -121,6 +121,9 @@ supabase migration up
 | `sales_links` | Link vendita personali (`/vendita/<token>`): solo lo SHA-256 del token, uno attivo per membro del team |
 | `user_settings` | Per-user settings (e.g. email AI configuration) |
 | `shipping_companies` | Compagnie di navigazione passeggeri (`/navigazione`): sede, riferimenti, `calls_naples` / `calls_civitavecchia` (null = da verificare), `contact_id` verso il contatto su cui si lavora |
+| `shipping_itineraries` | Una crociera o una linea di una compagnia (nome, nave, notti, stagione, date di partenza, fonte) |
+| `shipping_itinerary_stops` | Le soste in porto di un itinerario, in ordine (giorno, ruolo imbarco/scalo/sbarco, orari, pernottamento). I giorni di navigazione non sono tappe |
+| `shipping_ports` | Anagrafica dei porti degli itinerari (nome, paese ISO-2, UN/LOCODE, alias): "Naples" e "Napoli" sono lo stesso porto |
 | `receivables` | Soldi da ricevere, personali e fuori da Speaqi (`/incassi`): nome, cifra, `collected_at` (null = da incassare). Riga di chi l'ha scritta (`auth.uid()`), non del workspace |
 | `commercial_campaigns` | Motore campagne generico: un verticale = una riga (`slug`, `event_tag`, mittente, `landing_url`, filtri import, tetti) |
 | `commercial_campaign_steps` | Fino a 20 email per campagna; uno step gia inviato e immutabile (trigger) |
@@ -167,6 +170,8 @@ src/
 │   │   ├── todo/columns/       # Colonne aggiunte a mano alla lavagna (CRUD + riordino)
 │   │   ├── receivables/        # Da incassare (CRUD, solo le righe di chi e' loggato)
 │   │   ├── shipping-companies/ # Catalogo compagnie di navigazione (lettura + correzione scali)
+│   │   ├── shipping-itineraries/ # Itinerari con tappe (CRUD, salvataggio atomico via RPC)
+│   │   ├── shipping-ports/     # Porti con utilizzo, modifica, unione doppioni
 │   │   ├── activities/         # Activity log
 │   │   ├── activity/log        # Activity logging
 │   │   ├── pipeline-stages/
@@ -200,6 +205,7 @@ src/
 │   ├── crm/                    # ContactDrawer, ContactModal, CallOutcomeModal, EmailDraftPanel
 │   ├── layout/                 # Sidebar, Topbar, BrandLockup
 │   ├── todo/                   # TodoKanban, TodoCard, TodoRow, TodoGantt, TodoDateField, TodoColumnManager (pagina /todo)
+│   ├── navigazione/            # CompanyItineraries, ItineraryEditor, PortsView (pagina /navigazione)
 │   └── ui/                     # Modal, Toast
 ├── lib/
 │   ├── server/                 # Server-only utilities
@@ -236,6 +242,7 @@ src/
 │   ├── todo.ts                 # Aree, stati di avanzamento e span Gantt per /todo
 │   ├── receivables.ts          # Da incassare: lettura importi "1.250,50", totali in centesimi, ordinamento
 │   ├── shipping-companies.ts   # Compagnie di navigazione: validazione catalogo, filtri porto, contatto da creare
+│   ├── shipping-itineraries.ts # Itinerari: lettura del testo incollato, riconoscimento porti, porti di base
 │   ├── openapi/speaqi-call.ts  # OpenAPI spec
 │   ├── supabase.ts             # Supabase browser client
 │   └── db.ts                   # DB utilities
@@ -270,6 +277,9 @@ Il workspace contiene decine di migliaia di contatti (quasi tutti `holding`, imp
 - Sidebar shows only the core loop (Oggi, To Do, Pipeline, Contatti, Follow-up, Preventivi, Commerciale, Analytics, Impostazioni); other pages stay reachable by URL. In fondo, separato dal core loop, ci sono «Da incassare» e «Navigazione»
 - **Da incassare** (`/incassi`, `GET|POST|PATCH|DELETE /api/receivables`): soldi personali da ricevere, che con Speaqi non c'entrano — solo nome, cifra e se è già incassato. Non tocca contatti, preventivi o finanza. Ogni riga è di chi l'ha scritta (`user_id = auth.uid()`, anche in RLS), non del workspace: un collaboratore non vede quelle del proprietario e viceversa. L'importo si scrive come viene (`parseReceivableAmount`: "1.250,50", "300 €", "12.5") e i totali si sommano in centesimi
 - **Compagnie di navigazione** (`/navigazione`, voce in fondo alla sidebar, `GET|PATCH /api/shipping-companies`): crociere, expedition, fluviali e traghetti di tutto il mondo, per vendere Speaqi Maps alle compagnie le cui navi arrivano a Napoli o a Civitavecchia (Roma). Il catalogo sta in `scripts/data/shipping-companies.json` (ricerca web di settembre 2026: telefono ed email solo se visti in una fonte, altrimenti null; ogni voce porta le sue `sources`) e lo scrive `npm run shipping:import`, prova a secco di default (`--csv` per un file Excel, `--apply` per scrivere). Uno scalo `null` vuol dire **da verificare**, non "no": la pagina lo mostra tratteggiato e il filtro «Da verificare» lo ritrova. Lo script crea per ogni compagnia un contatto `holding` nella cartella «Compagnie di navigazione» (`legacy_id = shipping-<slug>`, `marketing_eligibility = review`: nessuna campagna automatica deve scrivere all'ufficio stampa di una compagnia di crociera), con il telefono dell'ufficio italiano quando c'è e priorità 2/1/0 secondo quanti dei due porti tocca. Un rilancio riempie sul contatto solo i campi vuoti e non tocca gli scali corretti a mano dalla pagina (`ports_manual`)
+- **Navigazione — compagnia → itinerario → tappe → porto**: un itinerario (es. «Mediterraneo 7 notti» su MSC World Europa) si carica dalla scheda della compagnia **incollando le tappe come le mostra il sito**, una per riga. `parseItineraryText` (`src/lib/shipping-itineraries.ts`, puro e coperto da test) legge giorno, data e giorno della settimana davanti (saltati), paese dopo la virgola, ruolo fra parentesi (imbarco/sbarco/pernottamento), orari 24 h o AM/PM; le righe di navigazione fanno solo avanzare il giorno. I mesi si riconoscono interi o abbreviati, **mai come prefisso**: prima «8 Marsiglia» e «9 Genova» diventavano date («mar», «gen»). Il porto lo trova `resolvePort` provando **prima il contenuto fra parentesi** («Roma (Civitavecchia)», «Florence/Pisa (La Spezia)»: le compagnie scrivono Città (Porto)), poi il nome, poi i pezzi di «Firenze/Pisa», contro nome, slug, UN/LOCODE e alias. L'anteprima nella pagina mostra per ogni riga il porto riconosciuto e si può cambiare a mano; quello che non trova nulla diventa un porto nuovo, evidenziato in giallo **prima** di salvare
+- **Navigazione — il salvataggio è uno solo**: itinerario e tappe li scrive la RPC `save_shipping_itinerary` in una transazione (security invoker, quindi con la RLS di chi chiama). Controlla esplicitamente che compagnia e porti siano del workspace, perché una foreign key non guarda la RLS. Un aggiornamento sostituisce le tappe; se una tappa è invalida non cambia niente. `merge_shipping_ports` unisce un porto doppione in un altro (tappe spostate, nome e alias del vecchio diventano alias del nuovo); un porto usato da un itinerario non si cancella (`on delete restrict`), si unisce
+- **Navigazione — porti di base e flag Napoli/Roma**: `CORE_PORTS` (una quarantina di porti del Mediterraneo con alias e UN/LOCODE solo dove certo) vengono creati alla prima apertura da `ensureCorePorts`, che salta quelli già coperti da un alias (un porto di base unito a un altro non rinasce). Un itinerario che fa tappa a Napoli o Civitavecchia accende `calls_naples` / `calls_civitavecchia` in lettura (`effectivePortFlags`): vale più del catalogo, e il bollino sulla pagina resta bloccato finché lo dice un itinerario. La scheda **Porti** parte dal porto: compagnie che ci arrivano (da itinerari, più — per Napoli e Civitavecchia — quelle segnate dal catalogo, con asterisco) e itinerari con giorno e orari della sosta
 - **To Do board** (`/todo`): standalone tasks (`tasks.contact_id is null`, `type = 'todo'`) are the one place for everything to do, Speaqi and non-Speaqi. They carry `area` (`speaqi` / `personale` / `altro`), `progress_state` (`todo` / `in_progress` / `blocked` / `done`), `progress_percent` and `start_date` (with `due_date` it draws the Gantt bar). `status` stays the binary flag the rest of the CRM reads: `/api/tasks/standalone` is the only place where the two are kept in sync. Standalone tasks are visible **only to the workspace owner** — the `tasks_workspace` RLS policy joins through `contacts`, which they don't have
 - **To Do — la lavagna è la vista di partenza**: `/todo` apre sul kanban (`TodoKanban`), con Lista e Gantt come viste alternative. Le colonne vengono da `TODO_GROUPINGS` in `src/lib/todo.ts` e sono **al massimo quattro**, perché la lavagna deve stare tutta nella finestra: sotto i 1180 px scende a due colonne e la pagina torna a scorrere. Quattro raggruppamenti: *Avanzamento* (da fare / in corso / in attesa / fatte), *Quando* (oggi / questa settimana / più avanti / da pianificare), *Progetto* (le tre aree) e *Priorità*. Le **arretrate non hanno una colonna propria**: cadono in "Oggi", perché restano da fare oggi e una colonna di rimproveri in testa alla pagina non si guarda volentieri. Anche la lista apre su "Oggi", non più sulle arretrate
 - **To Do — trascinare è l'unica scrittura implicita**: `todoDropPatch()` traduce la colonna d'arrivo nella modifica da salvare e nella frase da mostrare, e restituisce `null` quando la scheda è già dove è stata lasciata — un trascinamento a vuoto non deve contare come rinvio, visto che ogni cambio di `due_date` incrementa `reschedule_count` lato server. L'unica eccezione è una arretrata rilasciata su "Oggi": lì la colonna coincide già, ma l'intenzione è ridatarla. Il `+` in testa a ogni colonna crea l'attività **già** con i valori di quella colonna (`todoColumnDefaults()`)
@@ -636,7 +646,7 @@ migrarlo e un lavoro separato, da fare a motore collaudato.
 Nessuna dipendenza di test oltre `tsx`: si usa `node:test`.
 
 ```bash
-npm run test:unit   # motore campagne, Wine Project, WhatsApp, lavagna To Do, Telegram, abbonamenti/firma/link vendita, programma commerciali, Da incassare e compagnie di navigazione
+npm run test:unit   # motore campagne, Wine Project, WhatsApp, lavagna To Do, Telegram, abbonamenti/firma/link vendita, programma commerciali, Da incassare, compagnie di navigazione e itinerari
 npm run test:db     # integrazione e concorrenza su un Postgres locale usa-e-getta
 npm test            # entrambi
 ```
