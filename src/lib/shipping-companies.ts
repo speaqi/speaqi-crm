@@ -51,6 +51,9 @@ export interface ShippingCompany extends ShippingCatalogEntry {
   checked_at: string | null
   created_at: string
   updated_at: string
+  /** Quanti itinerari sono stati caricati e quali porti (slug) toccano. */
+  itinerary_count?: number
+  itinerary_ports?: string[]
 }
 
 export const SHIPPING_KINDS: ShippingKind[] = ['cruise', 'expedition', 'river', 'ferry']
@@ -241,6 +244,20 @@ export function normalizeShippingCatalog(raw: unknown) {
 }
 
 type PortFlags = Pick<ShippingCatalogEntry, 'calls_naples' | 'calls_civitavecchia'>
+
+/**
+ * Gli scali "veri" di una compagnia: quelli del catalogo piu' quelli che
+ * risultano dagli itinerari caricati. Un itinerario che fa tappa a Napoli vale
+ * piu' di un flag, quindi lo accende anche se il catalogo diceva "no" o "?".
+ */
+export function effectivePortFlags<T extends PortFlags & { itinerary_ports?: string[] }>(company: T): T {
+  const ports = company.itinerary_ports || []
+  return {
+    ...company,
+    calls_naples: ports.includes('napoli') ? true : company.calls_naples,
+    calls_civitavecchia: ports.includes('civitavecchia') ? true : company.calls_civitavecchia,
+  }
+}
 
 export function matchesShippingPortFilter(company: PortFlags, filter: ShippingPortFilter) {
   const naples = company.calls_naples === true

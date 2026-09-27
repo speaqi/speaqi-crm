@@ -32,7 +32,41 @@ export async function GET(request: NextRequest) {
       .order('name', { ascending: true })
 
     if (error) throw error
-    return Response.json({ companies: data || [] })
+
+    // Porti toccati dagli itinerari caricati, per compagnia: la pagina li usa per
+    // dire "ci arriva" anche quando il catalogo non lo sapeva.
+    const [itinerariesResult, stopsResult] = await Promise.all([
+      auth.supabase.from('shipping_itineraries').select('id, company_id').eq('user_id', auth.workspaceUserId),
+      auth.supabase
+        .from('shipping_itinerary_stops')
+        .select('itinerary_id, port:shipping_ports(slug)')
+        .eq('user_id', auth.workspaceUserId),
+    ])
+    if (itinerariesResult.error) throw itinerariesResult.error
+    if (stopsResult.error) throw stopsResult.error
+    const companyOf = new Map<string, string>()
+    const counts = new Map<string, number>()
+    for (const row of itinerariesResult.data || []) {
+      companyOf.set(row.id, row.company_id)
+      counts.set(row.company_id, (counts.get(row.company_id) || 0) + 1)
+    }
+    const portsOf = new Map<string, Set<string>>()
+    for (const stop of (stopsResult.data || []) as Array<{ itinerary_id: string; port: { slug: string } | { slug: string }[] | null }>) {
+      const companyId = companyOf.get(stop.itinerary_id)
+      const port = Array.isArray(stop.port) ? stop.port[0] : stop.port
+      if (!companyId || !port?.slug) continue
+      const set = portsOf.get(companyId) || new Set<string>()
+      set.add(port.slug)
+      portsOf.set(companyId, set)
+    }
+
+    return Response.json({
+      companies: ((data || []) as unknown as Array<{ id: string }>).map((company) => ({
+        ...company,
+        itinerary_count: counts.get(company.id) || 0,
+        itinerary_ports: Array.from(portsOf.get(company.id) || []),
+      })),
+    })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Impossibile caricare le compagnie') }, { status: 500 })
   }

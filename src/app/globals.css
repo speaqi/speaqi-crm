@@ -6998,3 +6998,46 @@ textarea.form-input::placeholder { color: var(--text3); }
   .nv-page { padding: 16px; }
   .nv-select { flex: 1 1 100%; width: 100%; }
 }
+
+/* ── NAVIGAZIONE: schede, porti, itinerari ─────── */
+.nv-tabs { display: flex; gap: 6px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
+.nv-tab { background: none; padding: 8px 14px; font-size: 14px; font-weight: 600; color: var(--text2); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.nv-tab:hover { color: var(--text); }
+.nv-tab.is-active { color: var(--accent); border-bottom-color: var(--accent); }
+.nv-badge-route { background: var(--accent-light); color: var(--accent); border-color: transparent; text-transform: none; letter-spacing: 0; }
+.nv-port.is-locked { cursor: default; opacity: 1; }
+.nv-muted { font-size: 12px; color: var(--text3); }
+.nv-warn { font-size: 12px; color: #b45309; }
+.nv-itineraries { border-top: 1px dashed var(--border); padding-top: 10px; margin-top: 4px; display: flex; flex-direction: column; gap: 8px; }
+.nv-itineraries-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.nv-itinerary { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.nv-itinerary-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.nv-route { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 0; align-items: center; }
+.nv-stop { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 3px 9px; }
+.nv-route-item { display: inline-flex; align-items: center; }
+.nv-route-arrow { color: var(--text3); margin: 0 5px; font-size: 12px; }
+.nv-stop-embark, .nv-stop-disembark, .nv-stop-turnaround { border-color: var(--accent); }
+.nv-stop-day { font-size: 10.5px; font-weight: 700; color: var(--text3); }
+.nv-stop-name { font-weight: 600; }
+.nv-stop-time { color: var(--text2); font-variant-numeric: tabular-nums; }
+.nv-editor { background: var(--surface); border: 1px solid var(--accent); border-radius: var(--radius-sm); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.nv-editor-title { font-weight: 700; font-size: 13px; }
+.nv-editor-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.nv-field { display: flex; flex-direction: column; gap: 3px; flex: 1 1 180px; min-width: 0; }
+.nv-field-wide { flex: 2 1 260px; }
+.nv-field-short { flex: 0 0 90px; }
+.nv-stops-input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; resize: vertical; }
+.nv-preview { display: flex; flex-direction: column; gap: 6px; overflow-x: auto; }
+.nv-preview-head { font-size: 12px; font-weight: 600; color: var(--text2); }
+.nv-preview-table { border-collapse: collapse; font-size: 12.5px; min-width: 560px; }
+.nv-preview-table th { text-align: left; font-size: 11px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .4px; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+.nv-preview-table td { padding: 4px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.nv-preview-table tr.is-new td { background: var(--yellow-light); }
+.nv-preview-read { color: var(--text2); }
+.nv-preview-select { padding: 3px 6px; font-size: 12.5px; }
+.nv-editor-actions { display: flex; gap: 8px; }
+.nv-chip-list { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.nv-port-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.nv-port-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.nv-port-form .fi { flex: 1 1 160px; min-width: 0; }
+.nv-port-form .nv-field-short { flex: 0 0 110px; }
