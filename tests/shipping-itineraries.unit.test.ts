@@ -10,7 +10,9 @@ import {
   newPortFromStop,
   parseDepartureDates,
   parseItineraryText,
+  normalizePortKey,
   resolvePort,
+  slugifyPortName,
 } from '../src/lib/shipping-itineraries'
 
 const index = buildPortIndex(CORE_PORTS.map((port, position) => ({ ...port, id: `p${position}` })))
@@ -100,6 +102,13 @@ describe('porti', () => {
     assert.equal(countryCode('Spain'), 'ES')
     assert.equal(countryCode('gr'), 'GR')
     assert.equal(countryCode('Atlantide'), null)
+  })
+
+  test('le lettere nordiche e turche non spariscono dallo slug', () => {
+    assert.equal(slugifyPortName('Tromsø'), 'tromso')
+    assert.equal(slugifyPortName('Bodø'), 'bodo')
+    assert.equal(slugifyPortName('Ísafjörður'), 'isafjordur')
+    assert.equal(normalizePortKey('Kuşadası'), 'kusadasi')
   })
 
   test('i porti di base hanno slug unici', () => {
