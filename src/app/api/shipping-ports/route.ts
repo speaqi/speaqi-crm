@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
 import { requireRouteUser } from '@/lib/server/supabase'
-import { loadShippingPorts } from '@/lib/server/shipping-ports'
+import { loadShippingPorts, PORT_COLUMNS } from '@/lib/server/shipping-ports'
+import { normalizePortWorldPatch } from '@/lib/shipping-ports'
 import { countryCode, normalizePortKey } from '@/lib/shipping-itineraries'
 
 /**
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/** Modifica un porto: nome, paese, UN/LOCODE, alias, note. */
+/** Modifica un porto: nome, paese, UN/LOCODE, alias, note, regione, statistiche e stato della superguida. */
 export async function PATCH(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
@@ -93,7 +94,9 @@ export async function PATCH(request: NextRequest) {
     const id = String(body.id || '').trim()
     if (!id) return Response.json({ error: 'ID mancante' }, { status: 400 })
 
-    const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    const world = normalizePortWorldPatch(body)
+    if ('error' in world) return Response.json({ error: world.error }, { status: 400 })
+    const payload: Record<string, unknown> = { ...world.patch, updated_at: new Date().toISOString() }
     const name = body.name === undefined ? undefined : String(body.name || '').replace(/\s+/g, ' ').trim().slice(0, 120)
     if (name !== undefined) {
       if (!name) return Response.json({ error: 'Il nome non puo essere vuoto' }, { status: 400 })
@@ -125,9 +128,12 @@ export async function PATCH(request: NextRequest) {
       .update(payload)
       .eq('user_id', auth.workspaceUserId)
       .eq('id', id)
-      .select('id, slug, name, country, unlocode, aliases, latitude, longitude, notes')
+      .select(PORT_COLUMNS)
       .maybeSingle()
-    if (error) throw error
+    if (error) {
+      if (error.code === '23514') return Response.json({ error: 'Valori non validi per il porto (un numero di passeggeri vuole il suo anno)' }, { status: 400 })
+      throw error
+    }
     if (!data) return Response.json({ error: 'Porto non trovato' }, { status: 404 })
     return Response.json({ port: data })
   } catch (error) {

@@ -14,6 +14,16 @@ export interface ShippingPort {
   latitude?: number | null
   longitude?: number | null
   notes?: string | null
+  region?: string | null
+  subregion?: string | null
+  destination?: string | null
+  cruise_passengers?: number | null
+  passengers_year?: number | null
+  cruise_calls?: number | null
+  stats_source?: string | null
+  is_homeport?: boolean | null
+  guide_status?: 'none' | 'planned' | 'in_progress' | 'live' | 'skip'
+  guide_notes?: string | null
 }
 
 export interface ShippingItineraryStop {

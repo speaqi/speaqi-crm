@@ -8,7 +8,8 @@ import {
   ShippingPort,
 } from '@/lib/shipping-itineraries'
 
-const PORT_COLUMNS = 'id, slug, name, country, unlocode, aliases, latitude, longitude, notes'
+export const PORT_COLUMNS =
+  'id, slug, name, country, unlocode, aliases, latitude, longitude, notes, region, subregion, destination, cruise_passengers, passengers_year, cruise_calls, stats_source, is_homeport, guide_status, guide_notes'
 
 // I porti di base si scrivono una volta per workspace: dopo la prima riuscita
 // non serve rifare il controllo a ogni richiesta.
