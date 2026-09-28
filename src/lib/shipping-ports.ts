@@ -5,6 +5,8 @@
 // quanti crocieristi ci passano (dato pubblicato, con fonte), quante compagnie e
 // itinerari del CRM ci fanno tappa, che citta' serve e a che punto e' la guida.
 
+import { validLatLng } from './shipping-routes'
+
 export type GuideStatus = 'none' | 'planned' | 'in_progress' | 'live' | 'skip'
 
 export const GUIDE_STATUSES: GuideStatus[] = ['none', 'planned', 'in_progress', 'live', 'skip']
@@ -84,6 +86,8 @@ export interface PortWorldFields {
   guide_status: GuideStatus
   guide_priority: GuidePriority | null
   guide_notes: string | null
+  latitude: number | null
+  longitude: number | null
 }
 
 export interface RankablePort extends Partial<PortWorldFields> {
@@ -238,6 +242,19 @@ export function normalizePortWorldPatch(body: Record<string, unknown>): { patch:
     const result = cleanCount(body[key], label)
     if ('error' in result) return { error: result.error! }
     patch[key] = result.value
+  }
+  // La posizione va a coppie: una latitudine senza longitudine metterebbe il porto in mezzo al mare.
+  if (body.latitude !== undefined || body.longitude !== undefined) {
+    const empty = (value: unknown) => value === null || value === undefined || value === ''
+    if (empty(body.latitude) && empty(body.longitude)) {
+      patch.latitude = null
+      patch.longitude = null
+    } else {
+      const coords = validLatLng(body.latitude, body.longitude)
+      if (!coords) return { error: 'Posizione non valida: servono latitudine (-90…90) e longitudine (-180…180)' }
+      patch.latitude = Math.round(coords.lat * 1e6) / 1e6
+      patch.longitude = Math.round(coords.lng * 1e6) / 1e6
+    }
   }
   if (patch.cruise_passengers != null && patch.passengers_year === null) return { error: 'Un numero di passeggeri vuole il suo anno' }
   if (patch.passengers_year !== undefined && patch.passengers_year !== null && (patch.passengers_year < 1990 || patch.passengers_year > 2100)) {

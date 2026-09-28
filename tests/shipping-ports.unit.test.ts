@@ -120,3 +120,24 @@ describe('portsToCsv', () => {
     assert.ok(row.includes('Costa, MSC'))
   })
 })
+
+describe('posizione del porto', () => {
+  test('latitudine e longitudine vanno insieme, arrotondate al milionesimo', () => {
+    assert.deepEqual(normalizePortWorldPatch({ latitude: '40.83591234', longitude: 14.2488 }), {
+      patch: { latitude: 40.835912, longitude: 14.2488 },
+    })
+    assert.deepEqual(normalizePortWorldPatch({ latitude: null, longitude: '' }), {
+      patch: { latitude: null, longitude: null },
+    })
+  })
+
+  test('una coordinata sola o fuori scala viene rifiutata', () => {
+    assert.ok('error' in normalizePortWorldPatch({ latitude: 40.8 }))
+    assert.ok('error' in normalizePortWorldPatch({ latitude: 95, longitude: 14 }))
+  })
+
+  test('una modifica che non parla di posizione non la tocca', () => {
+    const result = normalizePortWorldPatch({ guide_status: 'live' })
+    assert.ok('patch' in result && !('latitude' in result.patch))
+  })
+})

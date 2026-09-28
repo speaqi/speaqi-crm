@@ -37,7 +37,7 @@ export interface ShippingItineraryStop {
   departure: string | null
   overnight: boolean
   notes: string | null
-  port?: Pick<ShippingPort, 'id' | 'slug' | 'name' | 'country'> | null
+  port?: Pick<ShippingPort, 'id' | 'slug' | 'name' | 'country' | 'latitude' | 'longitude'> | null
 }
 
 export interface ShippingItinerary {

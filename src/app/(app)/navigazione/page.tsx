@@ -6,6 +6,7 @@ import { useCRMContext } from '../layout'
 import { apiFetch } from '@/lib/api'
 import { CompanyItineraries } from '@/components/navigazione/CompanyItineraries'
 import { PortsView, PortWithUsage } from '@/components/navigazione/PortsView'
+import { RoutesMap } from '@/components/navigazione/RoutesMap'
 import {
   effectivePortFlags,
   matchesShippingPortFilter,
@@ -22,10 +23,11 @@ import {
 
 // Compagnie di navigazione passeggeri: a chi vendere Speaqi Maps come azienda.
 // Due porte d'ingresso sugli stessi dati: dalla compagnia (con i suoi itinerari
-// e le tappe) o dal porto (chi ci arriva, con quali crociere). Napoli e Roma
-// restano il primo filtro perche' sono i mercati da cui si parte.
+// e le tappe) o dal porto (chi ci arriva, con quali crociere), piu' la mappa
+// del mondo con le rotte per compagnia e per nave. Napoli e Roma restano il
+// primo filtro perche' sono i mercati da cui si parte.
 
-type Tab = 'companies' | 'ports'
+type Tab = 'companies' | 'map' | 'ports'
 
 type PortKey = 'calls_naples' | 'calls_civitavecchia'
 
@@ -284,7 +286,7 @@ export default function NavigazionePage() {
   }
 
   return (
-    <div className="page-container nv-page">
+    <div className={`page-container nv-page${tab === 'map' ? ' is-wide' : ''}`}>
       <div className="page-header">
         <h1>Compagnie di navigazione</h1>
         <p className="page-subtitle">
@@ -297,12 +299,17 @@ export default function NavigazionePage() {
         <button type="button" role="tab" aria-selected={tab === 'companies'} className={`nv-tab${tab === 'companies' ? ' is-active' : ''}`} onClick={() => setTab('companies')}>
           🚢 Compagnie
         </button>
+        <button type="button" role="tab" aria-selected={tab === 'map'} className={`nv-tab${tab === 'map' ? ' is-active' : ''}`} onClick={() => setTab('map')}>
+          🗺️ Mappa rotte
+        </button>
         <button type="button" role="tab" aria-selected={tab === 'ports'} className={`nv-tab${tab === 'ports' ? ' is-active' : ''}`} onClick={() => setTab('ports')}>
           ⚓ Porti e superguide
         </button>
       </div>
 
-      {tab === 'ports' ? (
+      {tab === 'map' ? (
+        <RoutesMap onOpenCompany={openCompany} showToast={showToast} />
+      ) : tab === 'ports' ? (
         <PortsView
           ports={ports}
           companies={companies || []}

@@ -21,7 +21,7 @@ import {
 const ITINERARY_SELECT =
   'id, company_id, name, ship, nights, season, departure_dates, source_url, notes, active, created_at, updated_at, ' +
   'company:shipping_companies(id, name, slug), ' +
-  'stops:shipping_itinerary_stops(id, position, day, port_id, role, arrival, departure, overnight, notes, port:shipping_ports(id, slug, name, country))'
+  'stops:shipping_itinerary_stops(id, position, day, port_id, role, arrival, departure, overnight, notes, port:shipping_ports(id, slug, name, country, latitude, longitude))'
 
 const ROLES: ItineraryStopRole[] = ['embark', 'call', 'disembark', 'turnaround']
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/
