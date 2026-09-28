@@ -131,7 +131,7 @@ export async function PATCH(request: NextRequest) {
       .select(PORT_COLUMNS)
       .maybeSingle()
     if (error) {
-      if (error.code === '23514') return Response.json({ error: 'Valori non validi per il porto (un numero di passeggeri vuole il suo anno)' }, { status: 400 })
+      if (error.code === '23514') return Response.json({ error: 'Valori non validi per il porto: un numero di passeggeri vuole il suo anno, e la priorità vale solo per una guida da fare o in lavorazione' }, { status: 400 })
       throw error
     }
     if (!data) return Response.json({ error: 'Porto non trovato' }, { status: 404 })

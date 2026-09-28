@@ -4,6 +4,8 @@ import { describe, test } from 'node:test'
 import {
   comparePorts,
   formatPassengers,
+  guideChoiceOf,
+  guideChoicePatch,
   normalizePortWorldPatch,
   portsToCsv,
   summarizeGuides,
@@ -57,7 +59,8 @@ describe('classifica dei porti', () => {
 
 describe('normalizePortWorldPatch', () => {
   test('tocca solo i campi presenti', () => {
-    assert.deepEqual(normalizePortWorldPatch({ guide_status: 'live' }), { patch: { guide_status: 'live' } })
+    assert.deepEqual(normalizePortWorldPatch({ guide_status: 'planned' }), { patch: { guide_status: 'planned' } })
+    assert.deepEqual(normalizePortWorldPatch({ cruise_calls: '12' }), { patch: { cruise_calls: 12 } })
   })
 
   test('numeri scritti all’italiana e campi svuotati', () => {
@@ -71,6 +74,37 @@ describe('normalizePortWorldPatch', () => {
     assert.ok('error' in normalizePortWorldPatch({ cruise_passengers: '-3' }))
     assert.ok('error' in normalizePortWorldPatch({ cruise_passengers: '5000', passengers_year: '' }))
     assert.ok('error' in normalizePortWorldPatch({ passengers_year: '1850' }))
+  })
+})
+
+describe('priorità della superguida', () => {
+  test('una guida pubblicata o scartata perde la priorità insieme al cambio di stato', () => {
+    assert.deepEqual(normalizePortWorldPatch({ guide_status: 'live' }), { patch: { guide_status: 'live', guide_priority: null } })
+    assert.ok('error' in normalizePortWorldPatch({ guide_status: 'skip', guide_priority: 1 }))
+    assert.ok('error' in normalizePortWorldPatch({ guide_priority: 4 }))
+    assert.deepEqual(normalizePortWorldPatch({ guide_priority: '' }), { patch: { guide_priority: null } })
+  })
+
+  test('la scelta sulla riga è stato + priorità; in lavorazione tiene la priorità che c’era', () => {
+    assert.deepEqual(guideChoicePatch('planned:1'), { guide_status: 'planned', guide_priority: 1 })
+    assert.deepEqual(guideChoicePatch('skip'), { guide_status: 'skip', guide_priority: null })
+    assert.deepEqual(guideChoicePatch('in_progress'), { guide_status: 'in_progress' })
+    assert.equal(guideChoicePatch('forse'), null)
+    assert.equal(guideChoiceOf({ guide_status: 'planned', guide_priority: 3 }), 'planned:3')
+    assert.equal(guideChoiceOf({ guide_status: 'skip', guide_priority: null }), 'skip')
+  })
+
+  test('ordine di lavoro: in corso, poi da fare per priorità e passeggeri, poi il resto; pubblicate e scartate in fondo', () => {
+    const ports = [
+      port('Canaveral', { guide_status: 'skip', cruise_passengers: 8_600_000 }),
+      port('Napoli', { guide_status: 'live', cruise_passengers: 1_800_000 }),
+      port('Sorrento', { guide_status: 'planned', guide_priority: 2 }),
+      port('Barcellona', { guide_status: 'planned', guide_priority: 1, cruise_passengers: 4_000_000 }),
+      port('Nassau', { guide_status: 'planned', guide_priority: 1, cruise_passengers: 6_000_000 }),
+      port('Roma', { guide_status: 'in_progress', guide_priority: 1 }),
+      port('Boh'),
+    ]
+    assert.deepEqual(ports.sort(comparePorts('guide')).map((p) => p.name), ['Roma', 'Nassau', 'Barcellona', 'Sorrento', 'Boh', 'Napoli', 'Canaveral'])
   })
 })
 

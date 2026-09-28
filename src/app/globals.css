@@ -7047,10 +7047,13 @@ textarea.form-input::placeholder { color: var(--text3); }
 .nv-rank { min-width: 26px; font-size: 12px; font-weight: 700; color: var(--text3); font-variant-numeric: tabular-nums; }
 .nv-dest { font-size: 13px; font-weight: 600; color: var(--accent); }
 .nv-guide-select { width: 150px; font-size: 12px; font-weight: 600; }
-.nv-guide-select.is-planned { border-color: #f59e0b; }
+.nv-guide-select.is-planned-1 { border-color: #f59e0b; background: var(--yellow-light); color: #b45309; }
+.nv-guide-select.is-planned-2, .nv-guide-select.is-planned-3 { border-color: #f59e0b; }
 .nv-guide-select.is-in_progress { border-color: var(--accent); color: var(--accent); }
 .nv-guide-select.is-live { border-color: var(--green); color: #047857; background: var(--green-light); }
 .nv-guide-select.is-skip { color: var(--text3); }
+.nv-guide-note { font-size: 12px; color: var(--text3); margin-top: 3px; }
+.nv-guide-skip .nv-name { color: var(--text2); }
 .nv-field-num { flex: 0 0 130px; }
 .nv-more { display: block; margin: 10px auto 0; }
 @media (max-width: 760px) {
