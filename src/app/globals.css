@@ -7060,3 +7060,47 @@ textarea.form-input::placeholder { color: var(--text3); }
   .nv-port-row { grid-template-columns: minmax(0, 1fr); }
   .nv-guide-select { width: 100%; }
 }
+
+/* Navigazione — mappa delle rotte */
+.nv-page.is-wide { max-width: none; }
+.nv-map-wrap { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 12px; align-items: start; }
+.nv-map-side { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 10px; max-height: calc(100vh - 190px); overflow-y: auto; }
+.nv-map-side .nv-field { flex: 0 0 auto; }
+.nv-map-ship { font-size: 13px; background: var(--accent-light); border-radius: var(--radius-sm); padding: 7px 10px; }
+.nv-map-count { font-size: 12px; font-weight: 600; color: var(--text2); }
+.nv-map-bulk { display: flex; gap: 6px; }
+.nv-map-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.nv-map-item { display: grid; grid-template-columns: auto 10px minmax(0, 1fr); gap: 8px; align-items: start; padding: 7px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface2); }
+.nv-map-item input { margin-top: 3px; }
+.nv-map-item.is-off { opacity: .5; }
+.nv-map-item.is-focused { border-color: var(--accent); background: var(--accent-light); }
+.nv-map-swatch { width: 10px; height: 10px; border-radius: 3px; margin-top: 4px; }
+.nv-map-item-body { background: none; padding: 0; text-align: left; display: flex; flex-direction: column; gap: 2px; min-width: 0; color: var(--text); }
+.nv-map-item-name { font-size: 13px; font-weight: 600; }
+.nv-map-item-route { font-size: 11px; color: var(--text2); line-height: 1.35; overflow-wrap: anywhere; }
+.nv-map-main { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.nv-map { height: calc(100vh - 250px); min-height: 440px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: #aad3df; z-index: 0; }
+.nv-map-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: 12px; color: var(--text2); }
+.nv-legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: 1.5px solid #fff; box-shadow: 0 0 0 1px var(--border); vertical-align: -1px; }
+.nv-legend-dot.is-turn { background: #16192e; }
+.nv-legend-dot.is-home { background: var(--surface); border: 3px solid #e8590c; box-shadow: none; }
+.nv-map-missing { background: var(--yellow-light); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
+.nv-map-place { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.nv-map-place .fi { flex: 1 1 280px; min-width: 0; }
+.nv-map-arrow { background: none; border: none; }
+.nv-map-arrow svg { display: block; filter: drop-shadow(0 0 1.5px rgba(0,0,0,.45)); }
+.nv-map-num { background: none; border: none; }
+.nv-map-num span { display: flex; align-items: center; justify-content: center; min-width: 26px; height: 26px; padding: 0 5px; border-radius: 13px; background: #fff; border: 2.5px solid var(--accent); font-size: 11px; font-weight: 700; color: var(--text); box-shadow: var(--shadow); white-space: nowrap; transform: translateX(calc(13px - 50%)); }
+.nv-map-num.is-turn span { background: #16192e; color: #fff; }
+.nv-map-num.is-home span { outline: 3px solid #e8590c; outline-offset: 1px; }
+.leaflet-tooltip.nv-map-label { background: rgba(255,255,255,.92); border: none; box-shadow: var(--shadow); padding: 1px 6px; font-size: 11px; font-weight: 600; color: var(--text); }
+.leaflet-tooltip.nv-map-label::before { display: none; }
+.nv-map-tip { color: var(--text3); font-size: 11px; }
+.nv-map-popup { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12px; max-height: 220px; overflow-y: auto; }
+.nv-map-popup em { color: var(--text2); font-style: normal; }
+.nv-map-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+@media (max-width: 900px) {
+  .nv-map-wrap { grid-template-columns: minmax(0, 1fr); }
+  .nv-map-side { max-height: none; }
+  .nv-map { height: 60vh; min-height: 340px; }
+}

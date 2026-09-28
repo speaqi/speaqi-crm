@@ -13,7 +13,7 @@
     "start": "node start.cjs",
     "lint": "next lint",
     "test": "npm run test:unit && npm run test:db",
-    "test:unit": "tsx --test tests/campaigns.unit.test.ts tests/wine-project.unit.test.ts tests/whatsapp.unit.test.ts tests/todo.unit.test.ts tests/telegram.unit.test.ts tests/acumbamail.unit.test.ts tests/http.unit.test.ts tests/quote-subscription.unit.test.ts tests/sales-program.unit.test.ts tests/receivables.unit.test.ts tests/shipping-companies.unit.test.ts tests/shipping-itineraries.unit.test.ts tests/shipping-ports.unit.test.ts",
+    "test:unit": "tsx --test tests/campaigns.unit.test.ts tests/wine-project.unit.test.ts tests/whatsapp.unit.test.ts tests/todo.unit.test.ts tests/telegram.unit.test.ts tests/acumbamail.unit.test.ts tests/http.unit.test.ts tests/quote-subscription.unit.test.ts tests/sales-program.unit.test.ts tests/receivables.unit.test.ts tests/shipping-companies.unit.test.ts tests/shipping-itineraries.unit.test.ts tests/shipping-ports.unit.test.ts tests/shipping-routes.unit.test.ts",
     "test:db": "tsx --test tests/campaigns.db.test.ts"
   },
   "engines": {
@@ -24,6 +24,7 @@
     "@supabase/ssr": "^0.5.0",
     "@supabase/supabase-js": "^2.45.0",
     "headroom-ai": "^0.22.4",
+    "leaflet": "^1.9.4",
     "next": "^15.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -31,6 +32,7 @@
     "swagger-ui-react": "^5.32.1"
   },
   "devDependencies": {
+    "@types/leaflet": "^1.9.22",
     "@types/node": "^20.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
