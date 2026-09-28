@@ -7041,3 +7041,19 @@ textarea.form-input::placeholder { color: var(--text3); }
 .nv-port-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .nv-port-form .fi { flex: 1 1 160px; min-width: 0; }
 .nv-port-form .nv-field-short { flex: 0 0 110px; }
+
+/* Navigazione — porti del mondo e superguide */
+.nv-port-row { grid-template-columns: minmax(0, 1fr) 150px auto; }
+.nv-rank { min-width: 26px; font-size: 12px; font-weight: 700; color: var(--text3); font-variant-numeric: tabular-nums; }
+.nv-dest { font-size: 13px; font-weight: 600; color: var(--accent); }
+.nv-guide-select { width: 150px; font-size: 12px; font-weight: 600; }
+.nv-guide-select.is-planned { border-color: #f59e0b; }
+.nv-guide-select.is-in_progress { border-color: var(--accent); color: var(--accent); }
+.nv-guide-select.is-live { border-color: var(--green); color: #047857; background: var(--green-light); }
+.nv-guide-select.is-skip { color: var(--text3); }
+.nv-field-num { flex: 0 0 130px; }
+.nv-more { display: block; margin: 10px auto 0; }
+@media (max-width: 760px) {
+  .nv-port-row { grid-template-columns: minmax(0, 1fr); }
+  .nv-guide-select { width: 100%; }
+}

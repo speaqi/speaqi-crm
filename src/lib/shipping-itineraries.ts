@@ -14,6 +14,16 @@ export interface ShippingPort {
   latitude?: number | null
   longitude?: number | null
   notes?: string | null
+  region?: string | null
+  subregion?: string | null
+  destination?: string | null
+  cruise_passengers?: number | null
+  passengers_year?: number | null
+  cruise_calls?: number | null
+  stats_source?: string | null
+  is_homeport?: boolean | null
+  guide_status?: 'none' | 'planned' | 'in_progress' | 'live' | 'skip'
+  guide_notes?: string | null
 }
 
 export interface ShippingItineraryStop {
@@ -148,12 +158,17 @@ const COUNTRY_CODES: Record<string, string> = {
   'stati uniti': 'US', usa: 'US', 'united states': 'US',
 }
 
+// Lettere che la scomposizione Unicode non riduce a una lettera base: senza
+// questa tabella "Tromsø" diventava "troms" e "Bodø" "bod".
+const LATIN_LETTERS: Record<string, string> = { ø: 'o', æ: 'ae', œ: 'oe', ð: 'd', þ: 'th', ß: 'ss', ł: 'l', đ: 'd', ı: 'i', ħ: 'h' }
+
 /** Chiave di confronto: minuscole, senza accenti e punteggiatura. */
 export function normalizePortKey(value: string) {
   return value
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
+    .replace(/[øæœðþßłđıħ]/g, (letter) => LATIN_LETTERS[letter])
     .replace(/&/g, ' and ')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()

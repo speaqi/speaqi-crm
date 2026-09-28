@@ -298,7 +298,7 @@ export default function NavigazionePage() {
           🚢 Compagnie
         </button>
         <button type="button" role="tab" aria-selected={tab === 'ports'} className={`nv-tab${tab === 'ports' ? ' is-active' : ''}`} onClick={() => setTab('ports')}>
-          ⚓ Porti
+          ⚓ Porti e superguide
         </button>
       </div>
 
