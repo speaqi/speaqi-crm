@@ -23,6 +23,7 @@ export interface ShippingPort {
   stats_source?: string | null
   is_homeport?: boolean | null
   guide_status?: 'none' | 'planned' | 'in_progress' | 'live' | 'skip'
+  guide_priority?: 1 | 2 | 3 | null
   guide_notes?: string | null
 }
 

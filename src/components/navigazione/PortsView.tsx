@@ -12,8 +12,11 @@ import {
 import {
   comparePorts,
   formatPassengers,
+  GUIDE_CHOICES,
   GUIDE_STATUS_LABELS,
   GUIDE_STATUSES,
+  guideChoiceOf,
+  guideChoicePatch,
   GuideStatus,
   PORT_REGIONS,
   PORT_SORT_LABELS,
@@ -81,7 +84,7 @@ interface Props {
  */
 export function PortsView({ ports, companies, reloadPorts, onOpenCompany, showToast }: Props) {
   const [search, setSearch] = useState('')
-  const [sort, setSort] = useState<PortSortKey>('passengers')
+  const [sort, setSort] = useState<PortSortKey>('guide')
   const [region, setRegion] = useState('')
   const [guide, setGuide] = useState<GuideStatus | ''>('')
   const [onlyUsed, setOnlyUsed] = useState(false)
@@ -129,13 +132,15 @@ export function PortsView({ ports, companies, reloadPorts, onOpenCompany, showTo
     URL.revokeObjectURL(url)
   }
 
-  async function setGuideStatus(port: PortWithUsage, status: GuideStatus) {
+  async function setGuideChoice(port: PortWithUsage, value: string) {
+    const patch = guideChoicePatch(value)
+    if (!patch) return
     setSavingGuide(port.id)
     try {
       await apiFetch('/api/shipping-ports', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: port.id, guide_status: status }),
+        body: JSON.stringify({ id: port.id, ...patch }),
       })
       await reloadPorts()
     } catch (error) {
@@ -397,6 +402,7 @@ export function PortsView({ ports, companies, reloadPorts, onOpenCompany, showTo
             <strong>{summary.byStatus[status]}</strong>
             <span>
               {status === 'none' ? 'Superguida da valutare' : GUIDE_STATUS_LABELS[status]}
+              {status === 'planned' && summary.urgent ? ` · ${summary.urgent} subito` : ''}
               {status === 'live' && summary.passengers
                 ? ` · ${Math.round((summary.covered / summary.passengers) * 100)}% dei crocieristi`
                 : ''}
@@ -465,16 +471,17 @@ export function PortsView({ ports, companies, reloadPorts, onOpenCompany, showTo
                       .filter(Boolean)
                       .join(' · ')}
                   </div>
+                  {port.guide_notes ? <div className="nv-guide-note">{port.guide_notes}</div> : null}
                 </div>
                 <select
-                  className={`fi nv-select nv-guide-select is-${port.guide_status || 'none'}`}
+                  className={`fi nv-select nv-guide-select is-${guideChoiceOf(port).replace(':', '-')}`}
                   aria-label={`Superguida di ${port.name}`}
-                  value={port.guide_status || 'none'}
+                  value={guideChoiceOf(port)}
                   disabled={savingGuide === port.id}
-                  onChange={(e) => setGuideStatus(port, e.target.value as GuideStatus)}
+                  onChange={(e) => setGuideChoice(port, e.target.value)}
                 >
-                  {GUIDE_STATUSES.map((status) => (
-                    <option key={status} value={status}>{GUIDE_STATUS_LABELS[status]}</option>
+                  {GUIDE_CHOICES.map((choice) => (
+                    <option key={choice.value} value={choice.value}>{choice.label}</option>
                   ))}
                 </select>
                 <div className="nv-actions">
