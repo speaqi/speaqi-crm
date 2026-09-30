@@ -362,6 +362,7 @@ Each stage has a `system_key` and `color`. Closed statuses: `closed`, `paid`, `l
 - Filter logic in `src/lib/server/collaborator-filters.ts` and `src/lib/data.ts` (contact visibility helpers)
 - Team members linked via `auth_user_id` on `team_members` table
 - `team_members` table has `name`, `email`, `color`, `auth_user_id`, `is_current_admin`
+- **Area permissions**: the workspace owner is the super admin (always every area). For each collaborator, `team_members.allowed_areas` (text[], `null` = defaults Pipeline/Contatti/Follow-up) lists the visible areas, edited via checkboxes in `/impostazioni/team`. Areas, defaults and path mapping live in `src/lib/areas.ts` (single source of truth, tested by `node --test scripts/areas.test.mjs`). Enforcement: sidebar + settings cards filtered and blocked URLs redirected to `/dashboard` in `(app)/layout.tsx`; area-specific API routes call `requireArea(auth, '<area>')` right after `requireRouteUser`. Acumbamail, Hospitality, Wine Project and Team management are super-admin only (`SUPER_ADMIN_PATHS`, `auth.isAdmin`) and not delegable. New area-specific routes must add a `requireArea` guard.
 
 ## AI Features
 
