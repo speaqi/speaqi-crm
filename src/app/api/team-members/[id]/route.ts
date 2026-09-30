@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
-import { createServiceRoleClient, requireRouteUser } from '@/lib/server/supabase'
+import { isAreaKey } from '@/lib/areas'
+import { createServiceRoleClient, invalidateRouteUserCaches, requireRouteUser } from '@/lib/server/supabase'
 
 function normalizeText(value: unknown) {
   const normalized = String(value || '').trim()
@@ -24,6 +25,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     if ('email' in body) update.email = normalizeText(body.email)?.toLowerCase() || null
     if ('color' in body) update.color = normalizeText(body.color)
+    if ('allowed_areas' in body) {
+      const areas: unknown = body.allowed_areas
+      if (!Array.isArray(areas) || !areas.every(isAreaKey)) {
+        return Response.json({ error: 'Aree non valide' }, { status: 400 })
+      }
+      update.allowed_areas = Array.from(new Set(areas))
+    }
 
     const admin = createServiceRoleClient()
     if (body.make_admin === true) {
@@ -56,6 +64,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       .single()
 
     if (error) return Response.json({ error: error.message }, { status: 500 })
+    // Permessi e collegamento admin devono valere subito, non dopo il TTL della cache identità.
+    invalidateRouteUserCaches()
 
     if (previousName && nextName && previousName !== nextName) {
       const { error: contactsUpdateError } = await admin

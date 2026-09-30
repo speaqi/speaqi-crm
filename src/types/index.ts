@@ -196,6 +196,7 @@ export interface TeamMember {
   name: string
   email?: string | null
   color?: string | null
+  allowed_areas?: string[] | null
   created_at: string
   updated_at: string
 }

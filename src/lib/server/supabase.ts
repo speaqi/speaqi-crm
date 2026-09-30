@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getSupabaseConfig } from '@/lib/supabase'
+import { resolveAllowedAreas, type AreaKey } from '@/lib/areas'
 
 function createBaseClient(accessToken?: string) {
   const { url, anonKey } = getSupabaseConfig()
@@ -93,6 +94,7 @@ export function getBearerToken(request: NextRequest) {
 }
 
 type TeamMemberCandidate = {
+  id?: string | null
   user_id?: string | null
   name?: string | null
   email?: string | null
@@ -116,7 +118,7 @@ async function resolveTeamMemberWithUserClient(
 ): Promise<TeamMemberCandidate | null> {
   const { data: linkedMembers, error: linkedError } = await userSb
     .from('team_members')
-    .select('user_id, name, created_at')
+    .select('id, user_id, name, created_at')
     .eq('auth_user_id', userId)
     .limit(50)
 
@@ -128,7 +130,7 @@ async function resolveTeamMemberWithUserClient(
 
   const { data: matchedMembers, error: memberError } = await userSb
     .from('team_members')
-    .select('user_id, name, created_at')
+    .select('id, user_id, name, created_at')
     .eq('email', emailLc)
     .limit(50)
 
@@ -138,7 +140,7 @@ async function resolveTeamMemberWithUserClient(
 
   const { data: ilikeMembers, error: ilikeError } = await userSb
     .from('team_members')
-    .select('user_id, name, created_at, email')
+    .select('id, user_id, name, created_at, email')
     .ilike('email', emailLc)
     .limit(50)
 
@@ -160,7 +162,7 @@ async function resolveTeamMemberWithServiceRole(
 
   const { data: linkedMembers, error: linkedError } = await admin
     .from('team_members')
-    .select('user_id, name, created_at')
+    .select('id, user_id, name, created_at')
     .eq('auth_user_id', userId)
     .limit(50)
 
@@ -171,7 +173,7 @@ async function resolveTeamMemberWithServiceRole(
   if (emailLc) {
     const { data: matchedMembers, error: memberError } = await admin
       .from('team_members')
-      .select('user_id, name, created_at')
+      .select('id, user_id, name, created_at')
       .eq('email', emailLc)
       .limit(50)
 
@@ -181,7 +183,7 @@ async function resolveTeamMemberWithServiceRole(
 
     const { data: ilikeMembers, error: ilikeError } = await admin
       .from('team_members')
-      .select('user_id, name, created_at, email')
+      .select('id, user_id, name, created_at, email')
       .ilike('email', emailLc)
       .limit(50)
 
@@ -231,7 +233,12 @@ function cacheSet<T>(store: Map<string, CachedEntry<T>>, key: string, value: T, 
 }
 
 type AuthUser = Awaited<ReturnType<ReturnType<typeof createPublicServerClient>['auth']['getUser']>>['data']['user']
-type ResolvedIdentity = { workspaceUserId: string; isAdmin: boolean; memberName: string | null }
+type ResolvedIdentity = {
+  workspaceUserId: string
+  isAdmin: boolean
+  memberName: string | null
+  allowedAreas: AreaKey[]
+}
 
 const authUserCache = new Map<string, CachedEntry<AuthUser>>()
 const identityCache = new Map<string, CachedEntry<ResolvedIdentity>>()
@@ -276,12 +283,14 @@ export async function requireRouteUser(request: NextRequest) {
       workspaceUserId: cachedIdentity.workspaceUserId,
       isAdmin: cachedIdentity.isAdmin,
       memberName: cachedIdentity.memberName,
+      allowedAreas: cachedIdentity.allowedAreas,
     }
   }
 
   let workspaceUserId = user.id
   let isAdmin = true
   let memberName: string | null = null
+  let memberId: string | null = null
 
   try {
     let resolvedMember =
@@ -299,6 +308,7 @@ export async function requireRouteUser(request: NextRequest) {
       workspaceUserId = resolvedMember.user_id
       isAdmin = resolvedMember.user_id === user.id
       memberName = resolvedMember.name?.trim() || null
+      memberId = resolvedMember.id || null
     }
   } catch {
     // Keep default owner/admin mapping.
@@ -328,7 +338,24 @@ export async function requireRouteUser(request: NextRequest) {
     if (fromMeta) memberName = fromMeta
   }
 
-  cacheSet(identityCache, identityKey, { workspaceUserId, isAdmin, memberName }, MEMBER_TTL_MS)
+  // Query separata e tollerante: se la colonna non esiste ancora (migrazione non
+  // applicata) il collaboratore ricade sui default, senza 500 e senza diventare admin.
+  let allowedAreasRaw: unknown = null
+  if (!isAdmin && memberId) {
+    try {
+      const { data } = await createServiceRoleClient()
+        .from('team_members')
+        .select('allowed_areas')
+        .eq('id', memberId)
+        .maybeSingle()
+      allowedAreasRaw = data?.allowed_areas ?? null
+    } catch {
+      // No service role key: keep defaults.
+    }
+  }
+  const allowedAreas = resolveAllowedAreas(allowedAreasRaw, isAdmin)
+
+  cacheSet(identityCache, identityKey, { workspaceUserId, isAdmin, memberName, allowedAreas }, MEMBER_TTL_MS)
 
   return {
     token,
@@ -337,5 +364,12 @@ export async function requireRouteUser(request: NextRequest) {
     workspaceUserId,
     isAdmin,
     memberName,
+    allowedAreas,
   }
+}
+
+/** 403 se l'utente non ha nessuna delle aree indicate. Il super admin le ha sempre tutte. */
+export function requireArea(auth: { allowedAreas: AreaKey[] }, ...areas: AreaKey[]) {
+  if (areas.some((area) => auth.allowedAreas.includes(area))) return null
+  return Response.json({ error: 'Area non abilitata per questo utente' }, { status: 403 })
 }

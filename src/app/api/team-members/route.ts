@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
     members,
     is_admin: auth.isAdmin,
     member_name: auth.memberName,
+    allowed_areas: auth.allowedAreas,
   })
 }
 
