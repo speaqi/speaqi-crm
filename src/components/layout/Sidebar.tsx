@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { BrandLockup } from '@/components/layout/BrandLockup'
+import { canAccessPath, type AreaKey } from '@/lib/areas'
 
 interface SidebarProps {
   counts: {
@@ -17,6 +18,8 @@ interface SidebarProps {
     todo: number
     tasks: number
   }
+  allowedAreas: AreaKey[] | null
+  isAdmin: boolean
 }
 
 // Menu ridotto al core loop quotidiano. Le altre pagine (progetti, finanza,
@@ -40,8 +43,16 @@ const NAV_ITEMS = [
   { href: '/impostazioni', label: 'Impostazioni', icon: '⚙️' },
 ]
 
-export function Sidebar({ counts }: SidebarProps) {
+const FOOTER_ITEMS = [
+  { href: '/incassi', label: 'Da incassare', icon: '💰' },
+  { href: '/navigazione', label: 'Navigazione', icon: '🚢' },
+  { href: '/import', label: 'Importa', icon: '📥' },
+  { href: '/acumbamail', label: 'Acumbamail', icon: '📧' },
+]
+
+export function Sidebar({ counts, allowedAreas, isAdmin }: SidebarProps) {
   const pathname = usePathname()
+  const visible = (href: string) => canAccessPath(href, allowedAreas, isAdmin)
 
   return (
     <aside className="sidebar">
@@ -50,7 +61,7 @@ export function Sidebar({ counts }: SidebarProps) {
       </div>
 
       <nav className="nav">
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.filter((item) => visible(item.href)).map((item) => {
           const badgeCount = 'badgeKey' in item && item.badgeKey ? counts[item.badgeKey] : null
           const badgeRed = 'badgeRed' in item ? item.badgeRed : false
 
@@ -76,28 +87,16 @@ export function Sidebar({ counts }: SidebarProps) {
       </nav>
 
       <div className="sidebar-footer">
-        <Link
-          href="/incassi"
-          className={`nav-item sidebar-footer-item ${pathname === '/incassi' ? 'active' : ''}`}
-        >
-          <span className="icon">💰</span>
-          Da incassare
-        </Link>
-        <Link
-          href="/navigazione"
-          className={`nav-item sidebar-footer-item ${pathname === '/navigazione' ? 'active' : ''}`}
-        >
-          <span className="icon">🚢</span>
-          Navigazione
-        </Link>
-        <Link href="/import" className="nav-item sidebar-footer-item">
-          <span className="icon">📥</span>
-          Importa
-        </Link>
-        <Link href="/acumbamail" className="nav-item sidebar-footer-item">
-          <span className="icon">📧</span>
-          Acumbamail
-        </Link>
+        {FOOTER_ITEMS.filter((item) => visible(item.href)).map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`nav-item sidebar-footer-item ${pathname === item.href ? 'active' : ''}`}
+          >
+            <span className="icon">{item.icon}</span>
+            {item.label}
+          </Link>
+        ))}
       </div>
     </aside>
   )

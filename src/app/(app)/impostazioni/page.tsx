@@ -1,6 +1,8 @@
 'use client'
 
 import Link from 'next/link'
+import { canAccessPath } from '@/lib/areas'
+import { useCRMContext } from '../layout'
 
 const SETTINGS_ITEMS = [
   {
@@ -66,6 +68,9 @@ const SETTINGS_ITEMS = [
 ]
 
 export default function ImpostazioniPage() {
+  const { allowedAreas, isAdmin } = useCRMContext()
+  const items = SETTINGS_ITEMS.filter((item) => canAccessPath(item.href, allowedAreas, isAdmin))
+
   return (
     <div className="page-container">
       <div className="page-header">
@@ -76,7 +81,7 @@ export default function ImpostazioniPage() {
       </div>
 
       <div className="settings-grid">
-        {SETTINGS_ITEMS.map((item) => (
+        {items.map((item) => (
           <Link key={item.href} href={item.href} className="settings-card">
             <div className="settings-card-icon">{item.icon}</div>
             <div className="settings-card-body">

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api'
+import type { AreaKey } from '@/lib/areas'
 import { contactActivityTimestamp, isClosedStatus, isHiddenContact, isHoldingContact, isPartnerContact, isPersonalContact } from '@/lib/data'
 import { buildScheduledCalls, dueAtLocalDateKey, isCallTaskType, localDayDateKey } from '@/lib/schedule'
 import { createClient } from '@/lib/supabase'
@@ -159,6 +160,8 @@ export function useCRM(_pathname = '') {
   const [boardColumns, setBoardColumns] = useState<TodoBoardColumn[]>([])
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
   const [isAdmin, setIsAdmin] = useState(true)
+  /** Aree abilitate per l'utente loggato; null = non note (chiamata team fallita) → nessun blocco lato client. */
+  const [allowedAreas, setAllowedAreas] = useState<AreaKey[] | null>(null)
   /** Nome nel team per il collaboratore loggato (dal server); null per admin o non risolto. */
   const [viewerMemberName, setViewerMemberName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -328,7 +331,12 @@ export function useCRM(_pathname = '') {
         tasksResult,
         standaloneResult,
       ] = await Promise.allSettled([
-        apiFetch<{ members: TeamMember[]; is_admin?: boolean; member_name?: string | null }>(
+        apiFetch<{
+          members: TeamMember[]
+          is_admin?: boolean
+          member_name?: string | null
+          allowed_areas?: AreaKey[]
+        }>(
           '/api/team-members'
         ),
         apiFetch<{ stages: PipelineStage[] }>('/api/pipeline-stages'),
@@ -344,6 +352,7 @@ export function useCRM(_pathname = '') {
       if (teamResult.status === 'fulfilled') {
         setTeamMembers(teamResult.value.members || [])
         setIsAdmin(Boolean(teamResult.value.is_admin ?? true))
+        setAllowedAreas(Array.isArray(teamResult.value.allowed_areas) ? teamResult.value.allowed_areas : null)
         setViewerMemberName(
           teamResult.value.member_name != null && String(teamResult.value.member_name).trim()
             ? String(teamResult.value.member_name).trim()
@@ -907,7 +916,7 @@ export function useCRM(_pathname = '') {
     return response.member
   }, [])
 
-  const updateTeamMember = useCallback(async (id: string, payload: { name?: string; email?: string | null; color?: string | null; make_admin?: boolean }) => {
+  const updateTeamMember = useCallback(async (id: string, payload: { name?: string; email?: string | null; color?: string | null; make_admin?: boolean; allowed_areas?: string[] }) => {
     const response = await apiFetch<{ member: TeamMember }>(`/api/team-members/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -961,6 +970,7 @@ export function useCRM(_pathname = '') {
     vNotes,
     teamMembers,
     isAdmin,
+    allowedAreas,
     viewerMemberName,
     authEmail,
     loading,

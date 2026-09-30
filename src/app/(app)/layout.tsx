@@ -8,6 +8,7 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { Topbar } from '@/components/layout/Topbar'
 import { Toast } from '@/components/ui/Toast'
 import { useCRM } from '@/hooks/useCRM'
+import { canAccessPath } from '@/lib/areas'
 import { isPipelineVisible } from '@/lib/data'
 import { createClient } from '@/lib/supabase'
 
@@ -55,6 +56,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe()
   }, [router])
 
+  const areaBlocked = !crm.loading && !canAccessPath(pathname, crm.allowedAreas, crm.isAdmin)
+
+  useEffect(() => {
+    if (!authChecked || !areaBlocked) return
+    showToast('Area non abilitata per il tuo utente')
+    router.replace('/dashboard')
+  }, [authChecked, areaBlocked, router, showToast])
+
   if (!authChecked || crm.loading) {
     return (
       <div className="loading-screen">
@@ -98,7 +107,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <CRMContext.Provider value={contextValue}>
       <div className="app-layout">
-        <Sidebar counts={counts} />
+        <Sidebar counts={counts} allowedAreas={crm.allowedAreas} isAdmin={crm.isAdmin} />
         <div className="app-main">
           <Topbar
             pathname={pathname}
@@ -134,7 +143,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   <code>team_members.email</code> o <code>auth_user_id</code> per questo utente.
                 </div>
               )}
-            {children}
+            {areaBlocked ? null : children}
           </div>
         </div>
         {toastMessage && <Toast message={toastMessage} onHide={() => setToastMessage('')} />}
