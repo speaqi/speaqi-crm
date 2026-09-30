@@ -8,7 +8,7 @@ import {
   publicQuoteUrl,
   quoteAcceptanceUrl,
 } from '@/lib/server/quotes'
-import { requireRouteUser } from '@/lib/server/supabase'
+import { requireRouteUser, requireArea } from '@/lib/server/supabase'
 
 type RouteContext = {
   params: Promise<{ id: string }>
@@ -60,6 +60,8 @@ function missingAcceptanceColumns(error: unknown) {
 export async function POST(request: NextRequest, context: RouteContext) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'preventivi')
+  if (areaError) return areaError
 
   try {
     const { id } = await context.params

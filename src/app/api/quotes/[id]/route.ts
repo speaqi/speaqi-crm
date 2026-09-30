@@ -16,7 +16,7 @@ import {
   normalizeStatus,
   normalizeText,
 } from '@/lib/server/quotes'
-import { requireRouteUser } from '@/lib/server/supabase'
+import { requireRouteUser, requireArea } from '@/lib/server/supabase'
 
 type RouteContext = {
   params: Promise<{ id: string }>
@@ -190,6 +190,8 @@ async function readQuote(supabase: any, userId: string, id: string) {
 export async function GET(request: NextRequest, context: RouteContext) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'preventivi')
+  if (areaError) return areaError
 
   try {
     const { id } = await context.params
@@ -204,6 +206,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'preventivi')
+  if (areaError) return areaError
 
   try {
     const { id } = await context.params
@@ -442,6 +446,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 export async function DELETE(request: NextRequest, context: RouteContext) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'preventivi')
+  if (areaError) return areaError
 
   try {
     const { id } = await context.params

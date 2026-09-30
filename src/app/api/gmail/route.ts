@@ -8,7 +8,7 @@ import {
   isMissingRelation,
   refreshAccessToken,
 } from '@/lib/server/gmail'
-import { requireRouteUser } from '@/lib/server/supabase'
+import { requireRouteUser, requireArea } from '@/lib/server/supabase'
 import type { SentMessageHistoryItem } from '@/types'
 
 const GMAIL_MIGRATION_ERROR =
@@ -72,6 +72,8 @@ async function loadSentHistory(supabase: any, userId: string) {
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'email')
+  if (areaError) return areaError
 
   try {
     const config = getGmailConfigStatus()
@@ -144,6 +146,8 @@ export async function GET(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'email')
+  if (areaError) return areaError
 
   try {
     const { error } = await auth.supabase

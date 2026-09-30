@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { errorMessage } from '@/lib/server/http'
 import { applyCrmScope } from '@/lib/server/scope-filters'
-import { requireRouteUser } from '@/lib/server/supabase'
+import { requireRouteUser, requireArea } from '@/lib/server/supabase'
 
 class BadRequestError extends Error {}
 
@@ -68,6 +68,8 @@ function money(value: unknown) {
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'analytics')
+  if (areaError) return areaError
 
   try {
     const start = parseDateParam(request.nextUrl.searchParams.get('start'), 'start')

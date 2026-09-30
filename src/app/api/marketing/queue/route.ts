@@ -5,7 +5,7 @@ import {
   workspaceContactsAllFromRequest,
 } from '@/lib/server/collaborator-filters'
 import { errorMessage } from '@/lib/server/http'
-import { requireRouteUser } from '@/lib/server/supabase'
+import { requireRouteUser, requireArea } from '@/lib/server/supabase'
 import type { CRMContact, MarketingStatus } from '@/types'
 
 type MarketingBucket =
@@ -168,6 +168,8 @@ function deriveQueueItem(contact: CRMContact, now = nowTime()): MarketingQueueIt
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'marketing')
+  if (areaError) return areaError
 
   try {
     let query = auth.supabase

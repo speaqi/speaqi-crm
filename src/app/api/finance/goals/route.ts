@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
-import { requireRouteUser } from '@/lib/server/supabase'
+import { requireRouteUser, requireArea } from '@/lib/server/supabase'
 
 const PERIOD_TYPES = new Set(['annual', 'quarterly', 'monthly'])
 const METRICS = new Set(['revenue', 'paid_revenue', 'new_clients', 'quotes_sent'])
@@ -8,6 +8,8 @@ const METRICS = new Set(['revenue', 'paid_revenue', 'new_clients', 'quotes_sent'
 export async function POST(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'finanza')
+  if (areaError) return areaError
 
   try {
     const body = await request.json().catch(() => null)
@@ -56,6 +58,8 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'finanza')
+  if (areaError) return areaError
 
   try {
     const id = request.nextUrl.searchParams.get('id')

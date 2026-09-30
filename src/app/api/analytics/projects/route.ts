@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { errorMessage } from '@/lib/server/http'
-import { requireRouteUser } from '@/lib/server/supabase'
+import { requireRouteUser, requireArea } from '@/lib/server/supabase'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -43,6 +43,8 @@ function median(values: number[]) {
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'analytics', 'progetti')
+  if (areaError) return areaError
 
   try {
     const now = Date.now()

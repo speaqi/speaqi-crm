@@ -10,7 +10,7 @@ import {
   readContactForQuote,
 } from '@/lib/server/quote-create'
 import { normalizeText } from '@/lib/server/quotes'
-import { requireRouteUser } from '@/lib/server/supabase'
+import { requireArea, requireRouteUser } from '@/lib/server/supabase'
 
 async function fetchQuotesForWorkspace(supabase: any, userId: string) {
   const selectQuotes = async (selectClause: string) =>
@@ -35,6 +35,8 @@ async function fetchQuotesForWorkspace(supabase: any, userId: string) {
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'preventivi')
+  if (areaError) return areaError
 
   try {
     const quotes = await fetchQuotesForWorkspace(auth.supabase, auth.workspaceUserId)
@@ -47,6 +49,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'preventivi')
+  if (areaError) return areaError
 
   try {
     const body = await request.json()

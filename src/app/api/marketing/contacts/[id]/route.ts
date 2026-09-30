@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { errorMessage } from '@/lib/server/http'
-import { requireRouteUser } from '@/lib/server/supabase'
+import { requireRouteUser, requireArea } from '@/lib/server/supabase'
 import type { MarketingStatus } from '@/types'
 
 type RouteContext = {
@@ -59,6 +59,8 @@ function buildMarketingFallbackPayload(payload: Record<string, unknown>, error: 
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'marketing')
+  if (areaError) return areaError
 
   try {
     const { id } = await context.params

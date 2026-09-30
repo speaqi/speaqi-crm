@@ -1,11 +1,13 @@
 import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
-import { requireRouteUser } from '@/lib/server/supabase'
+import { requireRouteUser, requireArea } from '@/lib/server/supabase'
 import { EMPTY_USER_SETTINGS, loadUserSettings, saveUserSettings } from '@/lib/server/user-settings'
 
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'impostazioni')
+  if (areaError) return areaError
 
   try {
     const settings = await loadUserSettings(auth.supabase, auth.workspaceUserId)
@@ -21,6 +23,8 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'impostazioni')
+  if (areaError) return areaError
 
   try {
     const body = await request.json()

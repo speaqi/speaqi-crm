@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { chooseBestContactName } from '@/lib/contact-name'
 import { stringifyCsvRows } from '@/lib/csv-import'
-import { requireRouteUser } from '@/lib/server/supabase'
+import { requireRouteUser, requireArea } from '@/lib/server/supabase'
 
 type OcrExtractedContact = {
   full_name: string | null
@@ -174,6 +174,8 @@ async function extractContactsFromImage(file: File): Promise<OcrExtractedContact
 export async function POST(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'import')
+  if (areaError) return areaError
 
   try {
     const formData = await request.formData()

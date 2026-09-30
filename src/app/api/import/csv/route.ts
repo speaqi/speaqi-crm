@@ -5,7 +5,7 @@ import { detectCsvColumns, extractPrimaryEmail, extractPrimaryPhone, getMappedVa
 import type { CsvImportField } from '@/lib/csv-import'
 import { isClosedStatus } from '@/lib/data'
 import { createActivities, ensurePipelineStages, formatActivityDate } from '@/lib/server/crm'
-import { requireRouteUser } from '@/lib/server/supabase'
+import { requireRouteUser, requireArea } from '@/lib/server/supabase'
 
 const ALLOWED_STATUSES = new Set([
   'New',
@@ -462,6 +462,8 @@ function errorMessage(error: unknown, fallback: string) {
 export async function POST(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'import')
+  if (areaError) return areaError
 
   try {
     const body = await request.json()
