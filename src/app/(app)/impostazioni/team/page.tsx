@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import type { SalesLinkStatus } from '@/types'
+import { AREAS, resolveAllowedAreas, type AreaKey } from '@/lib/areas'
 import { useCRMContext } from '../../layout'
 
 function formatDay(value?: string | null) {
@@ -92,6 +93,23 @@ export default function TeamAdminPage() {
     }
   }
 
+  const [savingAreasFor, setSavingAreasFor] = useState<string | null>(null)
+  const panelAreas = AREAS.filter((area) => !area.alwaysOn)
+
+  async function handleToggleArea(memberId: string, current: AreaKey[], key: AreaKey) {
+    const next = panelAreas
+      .map((area) => area.key)
+      .filter((areaKey) => (areaKey === key ? !current.includes(key) : current.includes(areaKey)))
+    setSavingAreasFor(memberId)
+    try {
+      await updateTeamMember(memberId, { allowed_areas: next })
+    } catch (updateError) {
+      showToast(`Errore: ${updateError instanceof Error ? updateError.message : 'permessi non aggiornati'}`)
+    } finally {
+      setSavingAreasFor(null)
+    }
+  }
+
   async function handleAdd(event: React.FormEvent) {
     event.preventDefault()
     if (!name.trim()) return
@@ -153,7 +171,7 @@ export default function TeamAdminPage() {
         </div>
         <h1>Team</h1>
         <p className="page-subtitle">
-          Aggiungi i collaboratori che potranno essere assegnati ai contatti. Se imposti una password, crei anche il loro accesso.
+          Aggiungi i collaboratori e scegli quali aree del CRM può vedere ciascuno. Se imposti una password, crei anche il loro accesso.
         </p>
         <p className="page-subtitle">
           Pagina per chi vuole diventare commerciale:{' '}
@@ -235,6 +253,28 @@ export default function TeamAdminPage() {
                     <span>Visibile solo ora: se lo perdi, rigeneralo.</span>
                   </div>
                 )}
+                {isAdmin &&
+                  (member.is_current_admin ? (
+                    <span className="team-areas-note">Super admin · accesso completo</span>
+                  ) : (
+                    <div className="team-areas">
+                      <span className="team-areas-label">Aree visibili</span>
+                      {panelAreas.map((area) => {
+                        const current = resolveAllowedAreas(member.allowed_areas, false)
+                        return (
+                          <label key={area.key} className="team-area-check">
+                            <input
+                              type="checkbox"
+                              checked={current.includes(area.key)}
+                              disabled={savingAreasFor === member.id}
+                              onChange={() => handleToggleArea(member.id, current, area.key)}
+                            />
+                            {area.label}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  ))}
               </div>
               <div className="team-row-actions">
                 {isAdmin && (

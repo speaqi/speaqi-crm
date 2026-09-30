@@ -3106,7 +3106,7 @@ textarea.form-input::placeholder { color: var(--text3); }
 .team-list { display: flex; flex-direction: column; gap: 6px; }
 .team-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   padding: 10px 14px;
   background: var(--surface);
@@ -3143,6 +3143,11 @@ textarea.form-input::placeholder { color: var(--text3); }
   font-weight: 700;
   text-transform: uppercase;
 }
+.team-areas { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 8px; }
+.team-areas-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text3); }
+.team-area-check { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; cursor: pointer; }
+.team-area-check input { margin: 0; }
+.team-areas-note { font-size: 12px; color: var(--text3); margin-top: 4px; }
 .team-empty { text-align: center; padding: 32px 16px; color: var(--text2); }
 .team-muted { color: var(--text3); font-size: 13px; margin-top: 6px; }
 
