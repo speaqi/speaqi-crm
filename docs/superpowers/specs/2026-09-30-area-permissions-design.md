@@ -23,9 +23,11 @@ le spunte da Impostazioni → Team.
 
 Gestione team (creare, rinominare, rimuovere, permessi) resta esclusiva del
 super admin, indipendentemente dall'area "Impostazioni". I controlli
-`auth.isAdmin` esistenti restano invariati e si sommano a quelli di area: per
-esempio Acumbamail, Hospitality e Wine Project restano solo super admin anche
-se l'area "Campagne" è concessa (l'area dà al collaboratore solo `/progetti`).
+`auth.isAdmin` esistenti restano invariati.
+
+Le campagne commerciali (Acumbamail, Hospitality, Wine Project) sono
+**esclusive del super admin** e non compaiono nel pannello: non sono
+delegabili. Le loro API sono già protette da `auth.isAdmin`.
 
 La visibilità dei contatti (solo quelli assegnati) non cambia.
 
@@ -44,13 +46,15 @@ Chiave → pagine (prefisso di path):
 | `analytics` | Analytics | `/attivita` | no |
 | `finanza` | Finanza | `/finanza` | no |
 | `marketing` | Marketing | `/marketing` | no |
-| `campagne` | Campagne commerciali | `/acumbamail`, `/hospitality`, `/impostazioni/wine-project`, `/progetti` | no |
+| `progetti` | Progetti | `/progetti` | no |
 | `import` | Import | `/import` | no |
-| `impostazioni` | Impostazioni | `/impostazioni` (incluso `/impostazioni/email-ai`, `/impostazioni/team`) | no |
+| `impostazioni` | Impostazioni | `/impostazioni`, `/impostazioni/email-ai` | no |
 
-Risoluzione del path: vince il prefisso più lungo, così
-`/impostazioni/wine-project` appartiene a `campagne` e non a `impostazioni`.
-Un path che non corrisponde a nessuna area è consentito.
+Path riservati al super admin (`SUPER_ADMIN_PATHS`): `/acumbamail`,
+`/hospitality`, `/impostazioni/wine-project`, `/impostazioni/team`.
+
+Risoluzione del path: prima i path super admin, poi vince il prefisso più
+lungo tra le aree. Un path che non corrisponde a nulla è consentito.
 
 ## Dati
 
@@ -76,8 +80,9 @@ Nessun altro dato viene toccato. Chiavi sconosciute nell'array vengono ignorate.
 - `AreaKey`: unione delle chiavi.
 - `resolveAllowedAreas(raw: unknown, isAdmin: boolean): AreaKey[]` — super
   admin → tutte; altrimenti default o array filtrato, sempre con `oggi`.
+- `SUPER_ADMIN_PATHS`: prefissi riservati al super admin.
 - `areaForPath(pathname): AreaKey | null` — prefisso più lungo.
-- `canAccessPath(pathname, areas): boolean`.
+- `canAccessPath(pathname, areas, isAdmin): boolean`.
 
 ### Server — `src/lib/server/supabase.ts`
 
@@ -99,7 +104,7 @@ Blocco per area sulle route usate solo dalla pagina dell'area:
 | Area | Route |
 |---|---|
 | `analytics` | `GET /api/analytics` |
-| `analytics` o `campagne` | `GET /api/analytics/projects` (usata da `/progetti`) |
+| `analytics` o `progetti` | `GET /api/analytics/projects` (usata da `/progetti`) |
 | `finanza` | `/api/finance/overview`, `/api/finance/goals` |
 | `marketing` | `/api/marketing/queue`, `/api/marketing/contacts/[id]` |
 | `preventivi` | `POST /api/quotes`, `PATCH`/`DELETE /api/quotes/[id]`, `/api/quotes/[id]/send-acceptance-email` |
