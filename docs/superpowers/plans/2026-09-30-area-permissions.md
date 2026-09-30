@@ -422,7 +422,7 @@ If a handler's `requireRouteUser` result is stored under a name other than `auth
 - [ ] **Step 2: Verify coverage and types**
 
 Run: `grep -rc "requireArea(auth" src/app/api | grep -v ":0"`
-Expected: 14 files, counts summing to 21 (one per handler in the table).
+Expected: 14 files, counts summing to 20 (one per handler in the table).
 
 Run: `npx tsc --noEmit`
 Expected: no errors.
