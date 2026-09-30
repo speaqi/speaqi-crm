@@ -107,14 +107,15 @@ Blocco per area sulle route usate solo dalla pagina dell'area:
 | `analytics` o `progetti` | `GET /api/analytics/projects` (usata da `/progetti`) |
 | `finanza` | `/api/finance/overview`, `/api/finance/goals` |
 | `marketing` | `/api/marketing/queue`, `/api/marketing/contacts/[id]` |
-| `preventivi` | `POST /api/quotes`, `PATCH`/`DELETE /api/quotes/[id]`, `/api/quotes/[id]/send-acceptance-email` |
-| `import` | `/api/import/csv`, `/api/import/legacy`, `/api/import/ocr` |
+| `preventivi` | `/api/quotes`, `/api/quotes/[id]`, `/api/quotes/[id]/send-acceptance-email` (lettura e scrittura: le usa solo `/preventivi`) |
+| `import` | `/api/import/csv`, `/api/import/ocr` |
 | `impostazioni` | `/api/user-settings` |
 | `email` | `/api/gmail`, `/api/gmail/connect` |
 
 Non bloccate, perché condivise con aree base:
 
-- `GET /api/quotes*` (scheda contatto).
+- `/api/import/legacy`: chiamata automaticamente da `useCRM` per ogni utente.
+- `/api/quotes/public/*`: pagine pubbliche del cliente.
 - `/api/ai/generate-drafts` e le route sessione di `/api/automation/*` per le
   bozze (usate da dashboard, scheda contatto, calendario). L'area `email`
   blocca quindi le pagine `/email` e `/gmail`, non la bozza dalla scheda.
