@@ -5,6 +5,7 @@ interface Props {
   todayCount: number
   hotCount: number
   briefing?: string | null
+  canImport?: boolean
 }
 
 function greetingForHour(hour: number) {
@@ -22,7 +23,7 @@ function formatItalianDate(date: Date) {
   })
 }
 
-export function DashboardHero({ overdueCount, todayCount, hotCount, briefing }: Props) {
+export function DashboardHero({ overdueCount, todayCount, hotCount, briefing, canImport = true }: Props) {
   const now = new Date()
   const greeting = greetingForHour(now.getHours())
   const dayLabel = formatItalianDate(now)
@@ -54,9 +55,11 @@ export function DashboardHero({ overdueCount, todayCount, hotCount, briefing }: 
         <a href="/contacts?new=1" className="btn btn-primary">
           + Nuovo contatto
         </a>
-        <a href="/import" className="btn btn-ghost">
-          📥 Importa CSV
-        </a>
+        {canImport && (
+          <a href="/import" className="btn btn-ghost">
+            📥 Importa CSV
+          </a>
+        )}
       </div>
     </header>
   )

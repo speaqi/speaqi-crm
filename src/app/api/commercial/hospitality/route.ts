@@ -21,6 +21,7 @@ const EDITABLE = new Set([
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  if (!auth.isAdmin) return Response.json({ error: 'Admin access required' }, { status: 403 })
   try {
     const campaign = await ensureHospitalityCampaign(auth.supabase, auth.workspaceUserId)
     const [{ data: steps, error: stepsError }, { data: batches, error: batchesError }, { data: enrollments, error: enrollmentError }, { data: messages, error: messageError }, technicallyEligible, legallyAttested, sourceDated] = await Promise.all([

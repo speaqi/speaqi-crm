@@ -115,6 +115,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             isAdmin={crm.isAdmin}
             viewerMemberName={crm.viewerMemberName}
             loading={crm.loading}
+            canImport={canAccessPath('/import', crm.allowedAreas, crm.isAdmin)}
           />
           <div className="page-content">
             {crm.error && (

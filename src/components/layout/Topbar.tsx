@@ -32,12 +32,14 @@ export function Topbar({
   isAdmin = true,
   viewerMemberName = null,
   loading = false,
+  canImport = true,
 }: {
   pathname: string
   authEmail?: string | null
   isAdmin?: boolean
   viewerMemberName?: string | null
   loading?: boolean
+  canImport?: boolean
 }) {
   const router = useRouter()
   const title = PAGE_TITLES[pathname] || 'CRM'
@@ -77,9 +79,11 @@ export function Topbar({
         >
           ＋ Nuovo
         </Link>
-        <Link href="/import" className="btn btn-ghost btn-sm" title="Importa CSV">
-          📥 Importa
-        </Link>
+        {canImport && (
+          <Link href="/import" className="btn btn-ghost btn-sm" title="Importa CSV">
+            📥 Importa
+          </Link>
+        )}
         <button className="btn btn-ghost btn-sm" onClick={handleLogout} title="Esci">
           🚪 Esci
         </button>

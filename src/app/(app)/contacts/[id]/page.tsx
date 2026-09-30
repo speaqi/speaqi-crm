@@ -7,6 +7,7 @@ import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
 import { ContactModal } from '@/components/crm/ContactModal'
 import { APIError, apiFetch } from '@/lib/api'
 import { ACTIVITY_TYPES, TASK_TYPES, activityTypeLabel, contactScopeLabel, formatDateTime, fromDatetimeLocalValue, holdingListLabel, isClosedStatus, isHoldingContact, isPartnerContact, isPersonalContact, personalSectionLabel, priorityLabel, sourceLabel, stageColor, statusLabel, toDatetimeLocalValue } from '@/lib/data'
+import { canAccessPath } from '@/lib/areas'
 import { useCRMContext } from '../../layout'
 import type { Activity, ContactDetail, GmailAccountStatus, GmailMessage } from '@/types'
 
@@ -52,7 +53,8 @@ function scoreBadge(score: number) {
 export default function ContactDetailPage() {
   const params = useParams<{ id: string }>()
   const contactId = params.id
-  const { loadContactDetail, stages, teamMembers, updateContact, deleteContact, addActivity, addTask, completeTask, refresh, showToast } = useCRMContext()
+  const { loadContactDetail, stages, teamMembers, updateContact, deleteContact, addActivity, addTask, completeTask, refresh, showToast, allowedAreas, isAdmin } = useCRMContext()
+  const canOpenGmail = canAccessPath('/gmail', allowedAreas, isAdmin)
   const [detail, setDetail] = useState<ContactDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -905,7 +907,7 @@ export default function ContactDetailPage() {
                   {gmailSyncing ? 'Sync...' : 'Sincronizza Gmail'}
                 </button>
               )}
-              {!detail.gmail.connected && (
+              {!detail.gmail.connected && canOpenGmail && (
                 <Link href="/gmail" className="btn btn-primary btn-sm">Collega Gmail</Link>
               )}
             </div>
@@ -914,7 +916,11 @@ export default function ContactDetailPage() {
           {!contact.email ? (
             <p style={{ color: 'var(--text2)' }}>Imposta un'email sul contatto per usare Gmail.</p>
           ) : !detail.gmail.connected ? (
+            canOpenGmail ? (
             <p style={{ color: 'var(--text2)' }}>Nessun account Gmail collegato. Vai su <Link href="/gmail">Gmail</Link> per attivare la sincronizzazione.</p>
+          ) : (
+            <p style={{ color: 'var(--text2)' }}>Nessun account Gmail collegato. Chiedi all'admin di attivare la sincronizzazione.</p>
+          )
           ) : (
             <div className="detail-grid" style={{ marginTop: 0 }}>
               <div>

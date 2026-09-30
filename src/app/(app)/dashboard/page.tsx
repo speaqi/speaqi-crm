@@ -5,6 +5,7 @@ import { DragEvent, MouseEvent, KeyboardEvent, useMemo, useState } from 'react'
 import { ContactDrawer } from '@/components/crm/ContactDrawer'
 import { ContactModal } from '@/components/crm/ContactModal'
 import { DashboardHero } from '@/components/crm/DashboardHero'
+import { canAccessPath } from '@/lib/areas'
 import { DashboardPriorityQueue, type QueueItem } from '@/components/crm/DashboardPriorityQueue'
 import { QuickDismissMenu } from '@/components/crm/QuickDismissMenu'
 import { DashboardRecoveryPanel, type RecoveryItem } from '@/components/crm/DashboardRecoveryPanel'
@@ -79,6 +80,7 @@ export default function OggiPage() {
     stages,
     teamMembers,
     isAdmin,
+    allowedAreas,
     viewerMemberName,
     authEmail,
     partnerContacts,
@@ -93,6 +95,7 @@ export default function OggiPage() {
     showToast,
   } = useCRMContext()
 
+  const canImport = canAccessPath('/import', allowedAreas, isAdmin)
   const [dragOverKey, setDragOverKey] = useState<string | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [drawerContactId, setDrawerContactId] = useState<string | null>(null)
@@ -466,7 +469,7 @@ export default function OggiPage() {
   if (contactCounts.total === 0) {
     return (
       <div className="oggi-page oggi-v2">
-        <DashboardHero overdueCount={0} todayCount={0} hotCount={0} />
+        <DashboardHero overdueCount={0} todayCount={0} hotCount={0} canImport={canImport} />
         <section className="oggi-onboarding">
           <div className="oggi-onboarding-icon">👋</div>
           <h2>Benvenuto in Speaqi!</h2>
@@ -475,7 +478,7 @@ export default function OggiPage() {
             Puoi anche provare il comando vocale per inserire dati senza scrivere.
           </p>
           <div className="oggi-onboarding-actions">
-            <Link href="/import" className="btn btn-primary">📥 Importa CSV</Link>
+            {canImport && <Link href="/import" className="btn btn-primary">📥 Importa CSV</Link>}
             <Link href="/contacts?new=1" className="btn btn-ghost">➕ Crea contatto</Link>
             <Link href="/voice" className="btn btn-ghost">🎤 Prova nota vocale</Link>
           </div>
@@ -488,6 +491,7 @@ export default function OggiPage() {
   return (
     <div className="oggi-page oggi-v2">
       <DashboardHero
+        canImport={canImport}
         overdueCount={overdueCount}
         todayCount={todayCount}
         hotCount={hotCount}

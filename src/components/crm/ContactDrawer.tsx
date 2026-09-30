@@ -44,7 +44,7 @@ const TOUCH_CHANNELS = [
 type TouchChannel = (typeof TOUCH_CHANNELS)[number]['value']
 
 export function ContactDrawer({ contactId, onClose, onEdit, anchorPoint = null }: ContactDrawerProps) {
-  const { loadContactDetail, addActivity, updateContact, teamMembers, showToast } = useCRMContext()
+  const { loadContactDetail, addActivity, updateContact, teamMembers, showToast, isAdmin } = useCRMContext()
   const [detail, setDetail] = useState<ContactDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [noteText, setNoteText] = useState('')
@@ -335,15 +335,17 @@ export function ContactDrawer({ contactId, onClose, onEdit, anchorPoint = null }
                     </option>
                   ))}
                 </select>
-                <Link
-                  href="/impostazioni/team"
-                  className="btn btn-ghost btn-sm"
-                  title="Gestisci team"
-                >
-                  ⚙️
-                </Link>
+                {isAdmin && (
+                  <Link
+                    href="/impostazioni/team"
+                    className="btn btn-ghost btn-sm"
+                    title="Gestisci team"
+                  >
+                    ⚙️
+                  </Link>
+                )}
               </div>
-              {teamMembers.length === 0 && (
+              {isAdmin && teamMembers.length === 0 && (
                 <div className="drawer-hint">
                   <Link href="/impostazioni/team">Aggiungi un collaboratore →</Link>
                 </div>
