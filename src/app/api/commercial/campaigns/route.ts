@@ -10,6 +10,7 @@ import { requireRouteUser } from '@/lib/server/supabase'
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  if (!auth.isAdmin) return Response.json({ error: 'Admin access required' }, { status: 403 })
   try {
     const vertical = request.nextUrl.searchParams.get('vertical')
     let query = auth.supabase

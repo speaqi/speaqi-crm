@@ -36,6 +36,7 @@ async function loadCampaign(supabase: any, userId: string, id: string) {
 export async function GET(request: NextRequest, context: RouteContext) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  if (!auth.isAdmin) return Response.json({ error: 'Admin access required' }, { status: 403 })
   try {
     const { id } = await context.params
     const campaign = await loadCampaign(auth.supabase, auth.workspaceUserId, id)

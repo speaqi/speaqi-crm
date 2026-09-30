@@ -4,6 +4,7 @@
 
 export const AREAS = [
   { key: 'oggi', label: 'Oggi', paths: ['/dashboard', '/operativo'], alwaysOn: true, defaultOn: true },
+  { key: 'todo', label: 'To Do', paths: ['/todo'], alwaysOn: false, defaultOn: false },
   { key: 'pipeline', label: 'Pipeline', paths: ['/kanban'], alwaysOn: false, defaultOn: true },
   {
     key: 'contatti',
@@ -19,6 +20,7 @@ export const AREAS = [
   { key: 'finanza', label: 'Finanza', paths: ['/finanza'], alwaysOn: false, defaultOn: false },
   { key: 'marketing', label: 'Marketing', paths: ['/marketing'], alwaysOn: false, defaultOn: false },
   { key: 'progetti', label: 'Progetti', paths: ['/progetti'], alwaysOn: false, defaultOn: false },
+  { key: 'navigazione', label: 'Navigazione', paths: ['/navigazione'], alwaysOn: false, defaultOn: false },
   { key: 'import', label: 'Import', paths: ['/import'], alwaysOn: false, defaultOn: false },
   { key: 'impostazioni', label: 'Impostazioni', paths: ['/impostazioni'], alwaysOn: false, defaultOn: false },
 ] as const
@@ -31,7 +33,10 @@ export const ALL_AREA_KEYS: AreaKey[] = AREAS.map((area) => area.key)
 export const SUPER_ADMIN_PATHS = [
   '/acumbamail',
   '/hospitality',
+  '/commerciale',
+  '/incassi',
   '/impostazioni/wine-project',
+  '/impostazioni/whatsapp',
   '/impostazioni/team',
 ]
 

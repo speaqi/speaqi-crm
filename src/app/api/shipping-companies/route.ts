@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
-import { requireRouteUser } from '@/lib/server/supabase'
+import { requireArea, requireRouteUser } from '@/lib/server/supabase'
 
 /**
  * Compagnie di navigazione (/navigazione). Il catalogo lo scrive lo script
@@ -23,6 +23,8 @@ function portFlag(value: unknown): boolean | null | undefined {
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'navigazione')
+  if (areaError) return areaError
 
   try {
     const { data, error } = await auth.supabase
@@ -75,6 +77,8 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'navigazione')
+  if (areaError) return areaError
 
   try {
     const body = await request.json()

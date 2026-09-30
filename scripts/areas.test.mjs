@@ -70,3 +70,20 @@ test('super admin paths ignore granted areas', () => {
   // even when areas are unknown, non-admins never pass super admin paths
   assert.equal(canAccessPath('/acumbamail', null, false), false)
 })
+
+test('pages added on main are mapped', () => {
+  assert.equal(areaForPath('/todo'), 'todo')
+  assert.equal(areaForPath('/navigazione'), 'navigazione')
+  const base = resolveAllowedAreas(null, false)
+  assert.equal(canAccessPath('/todo', base, false), false)
+  assert.equal(canAccessPath('/navigazione', base, false), false)
+  assert.equal(canAccessPath('/navigazione', resolveAllowedAreas(['navigazione'], false), false), true)
+})
+
+test('commerciale, incassi and whatsapp settings are super admin only', () => {
+  const everything = resolveAllowedAreas([...ALL_AREA_KEYS], false)
+  for (const path of ['/commerciale', '/commerciale/abc', '/incassi', '/impostazioni/whatsapp']) {
+    assert.equal(canAccessPath(path, everything, false), false, path)
+    assert.equal(canAccessPath(path, ALL_AREA_KEYS, true), true, path)
+  }
+})

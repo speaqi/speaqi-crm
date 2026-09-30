@@ -22,6 +22,7 @@ import {
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  if (!auth.isAdmin) return Response.json({ error: 'Admin access required' }, { status: 403 })
 
   const gateway = whatsappGatewayStatus()
   const settings = await loadWhatsappSettings(auth.supabase, auth.workspaceUserId)
@@ -52,6 +53,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  if (!auth.isAdmin) return Response.json({ error: 'Admin access required' }, { status: 403 })
 
   try {
     const body = await request.json().catch(() => ({}))

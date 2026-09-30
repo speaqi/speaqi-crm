@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
-import { requireRouteUser } from '@/lib/server/supabase'
+import { requireArea, requireRouteUser } from '@/lib/server/supabase'
 import { resolveStopPorts } from '@/lib/server/shipping-ports'
 import {
   ItineraryStopRole,
@@ -74,6 +74,8 @@ function stopsFromBody(body: any): StopInput[] | { error: string } {
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'navigazione')
+  if (areaError) return areaError
 
   try {
     const params = request.nextUrl.searchParams
@@ -109,6 +111,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'navigazione')
+  if (areaError) return areaError
 
   try {
     const body = await request.json()
@@ -186,6 +190,8 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'navigazione')
+  if (areaError) return areaError
 
   try {
     const id = String(request.nextUrl.searchParams.get('id') || '').trim()

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
-import { requireRouteUser } from '@/lib/server/supabase'
+import { requireArea, requireRouteUser } from '@/lib/server/supabase'
 import { loadShippingPorts, PORT_COLUMNS } from '@/lib/server/shipping-ports'
 import { normalizePortWorldPatch } from '@/lib/shipping-ports'
 import { countryCode, normalizePortKey } from '@/lib/shipping-itineraries'
@@ -34,6 +34,8 @@ function cleanAliases(value: unknown, name: string) {
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'navigazione')
+  if (areaError) return areaError
 
   try {
     const userId = auth.workspaceUserId
@@ -88,6 +90,8 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'navigazione')
+  if (areaError) return areaError
 
   try {
     const body = await request.json()
@@ -145,6 +149,8 @@ export async function PATCH(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'navigazione')
+  if (areaError) return areaError
 
   try {
     const body = await request.json()
@@ -166,6 +172,8 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'navigazione')
+  if (areaError) return areaError
 
   try {
     const id = String(request.nextUrl.searchParams.get('id') || '').trim()
