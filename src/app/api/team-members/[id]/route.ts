@@ -1,6 +1,12 @@
 import { NextRequest } from 'next/server'
 import { isAreaKey } from '@/lib/areas'
 import { createServiceRoleClient, invalidateRouteUserCaches, requireRouteUser } from '@/lib/server/supabase'
+import {
+  TeamLoginError,
+  assertAuthUserBelongsToWorkspace,
+  ensureMemberLogin,
+  setMemberPassword,
+} from '@/lib/server/team-login'
 
 function normalizeText(value: unknown) {
   const normalized = String(value || '').trim()
@@ -43,6 +49,32 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       update.auth_user_id = auth.user.id
     }
 
+    // Cambio password: aggiorna l'accesso esistente, o lo crea se il collaboratore
+    // ne era senza (o l'aveva perso rimuovendolo e ricreandolo).
+    let passwordChanged = false
+    if ('password' in body) {
+      const password = String(body.password || '')
+      const { data: member, error: memberError } = await admin
+        .from('team_members')
+        .select('id, email, auth_user_id')
+        .eq('user_id', auth.workspaceUserId)
+        .eq('id', id)
+        .single()
+      if (memberError || !member) return Response.json({ error: 'Collaboratore non trovato' }, { status: 404 })
+      const scope = { workspaceUserId: auth.workspaceUserId, currentUserId: auth.user.id, memberId: id }
+      if (member.auth_user_id) {
+        await assertAuthUserBelongsToWorkspace(admin, member.auth_user_id, scope)
+        await setMemberPassword(admin, member.auth_user_id, password)
+      } else {
+        const email = String(update.email ?? member.email ?? '').trim().toLowerCase()
+        if (!email) {
+          return Response.json({ error: 'Serve un’email per creare l’accesso di questo collaboratore' }, { status: 400 })
+        }
+        update.auth_user_id = (await ensureMemberLogin(admin, email, password, scope)).authUserId
+      }
+      passwordChanged = true
+    }
+
     let previousName: string | null = null
     if (nextName) {
       const { data: currentMember, error: currentMemberError } = await admin
@@ -53,6 +85,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         .single()
       if (currentMemberError) return Response.json({ error: currentMemberError.message }, { status: 500 })
       previousName = String(currentMember?.name || '').trim() || null
+    }
+
+    if (passwordChanged && Object.keys(update).length === 0) {
+      const { data: unchanged, error: readError } = await admin
+        .from('team_members')
+        .select('*')
+        .eq('user_id', auth.workspaceUserId)
+        .eq('id', id)
+        .single()
+      if (readError) return Response.json({ error: readError.message }, { status: 500 })
+      return Response.json({ member: unchanged, password_changed: true })
     }
 
     const { data, error } = await admin
@@ -78,8 +121,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     }
 
-    return Response.json({ member: data })
+    return Response.json({ member: data, password_changed: passwordChanged })
   } catch (error) {
+    if (error instanceof TeamLoginError) return Response.json({ error: error.message }, { status: error.status })
     return Response.json(
       { error: error instanceof Error ? error.message : 'Impossibile aggiornare il membro' },
       { status: 500 }

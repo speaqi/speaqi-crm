@@ -93,6 +93,34 @@ export default function TeamAdminPage() {
     }
   }
 
+  const [passwordFor, setPasswordFor] = useState<string | null>(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [savingPassword, setSavingPassword] = useState(false)
+
+  function openPasswordForm(id: string) {
+    setPasswordFor(id)
+    setNewPassword('')
+  }
+
+  async function handleChangePassword(event: React.FormEvent, id: string, memberName: string, hadLogin: boolean) {
+    event.preventDefault()
+    if (newPassword.length < 8) {
+      showToast('La password deve avere almeno 8 caratteri')
+      return
+    }
+    setSavingPassword(true)
+    try {
+      await updateTeamMember(id, { password: newPassword })
+      setPasswordFor(null)
+      setNewPassword('')
+      showToast(hadLogin ? `Password di ${memberName} aggiornata` : `Accesso creato per ${memberName}`)
+    } catch (passwordError) {
+      showToast(`Errore: ${passwordError instanceof Error ? passwordError.message : 'password non aggiornata'}`)
+    } finally {
+      setSavingPassword(false)
+    }
+  }
+
   const [savingAreasFor, setSavingAreasFor] = useState<string | null>(null)
   const panelAreas = AREAS.filter((area) => !area.alwaysOn)
 
@@ -234,7 +262,33 @@ export default function TeamAdminPage() {
                   <strong>{member.name}</strong>
                   {member.is_current_admin && <span className="team-role-badge">Admin</span>}
                 </div>
-                {member.email && <span className="team-row-email">{member.email}</span>}
+                {member.email && (
+                  <span className="team-row-email">
+                    {member.email}
+                    {isAdmin && !member.is_current_admin && (member.auth_user_id ? ' · accesso attivo' : ' · senza accesso')}
+                  </span>
+                )}
+                {passwordFor === member.id && (
+                  <form
+                    className="team-password-form"
+                    onSubmit={(event) => handleChangePassword(event, member.id, member.name, Boolean(member.auth_user_id))}
+                  >
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      placeholder={member.auth_user_id ? 'Nuova password (min. 8 caratteri)' : 'Password di accesso (min. 8 caratteri)'}
+                      value={newPassword}
+                      onChange={(event) => setNewPassword(event.target.value)}
+                      autoFocus
+                    />
+                    <button type="submit" className="btn btn-primary btn-sm" disabled={savingPassword || newPassword.length < 8}>
+                      {savingPassword ? 'Salvataggio…' : 'Salva password'}
+                    </button>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPasswordFor(null)}>
+                      Annulla
+                    </button>
+                  </form>
+                )}
                 {isAdmin && salesLinks.get(member.id) && (
                   <span className="team-row-email">
                     Link vendita attivo dal {formatDay(salesLinks.get(member.id)?.created_at)} (…
@@ -306,6 +360,16 @@ export default function TeamAdminPage() {
                     onClick={() => handleSetAdmin(member.id, member.name)}
                   >
                     Imposta admin
+                  </button>
+                )}
+                {isAdmin && (member.auth_user_id || member.email) && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => openPasswordForm(member.id)}
+                    title={member.auth_user_id ? 'Imposta una nuova password di accesso' : 'Crea l’accesso con email e password'}
+                  >
+                    {member.auth_user_id ? 'Cambia password' : 'Crea accesso'}
                   </button>
                 )}
                 <button

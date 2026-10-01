@@ -1,5 +1,11 @@
 import { NextRequest } from 'next/server'
-import { createServiceRoleClient, requireRouteUser } from '@/lib/server/supabase'
+import { createServiceRoleClient, invalidateRouteUserCaches, requireRouteUser } from '@/lib/server/supabase'
+import {
+  TeamLoginError,
+  assertAuthUserBelongsToWorkspace,
+  ensureMemberLogin,
+  findAuthUserIdByEmail,
+} from '@/lib/server/team-login'
 
 function normalizeText(value: unknown) {
   const normalized = String(value || '').trim()
@@ -51,39 +57,21 @@ export async function POST(request: NextRequest) {
     }
 
     const admin = createServiceRoleClient()
+    const scope = { workspaceUserId: auth.workspaceUserId, currentUserId: auth.user.id }
     let authUserId: string | null = null
     if (email && password) {
-      const { data: createdUserResult, error: createError } = await admin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-      })
-      if (createError) {
-        return Response.json(
-          {
-            error:
-              createError.message.includes('already registered')
-                ? 'Email già registrata in auth. Usa un’altra email o resetta password da Supabase.'
-                : createError.message,
-          },
-          { status: 400 }
-        )
-      } else {
-        authUserId = createdUserResult.user?.id || null
-        if (!authUserId) {
-          const { data: linkedUsers } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 })
-          const matchedUser = (linkedUsers?.users || []).find(
-            (candidate) => String(candidate.email || '').toLowerCase() === email
-          )
-          authUserId = matchedUser?.id || null
+      // Se l'email ha già un accesso libero (collaboratore rimosso e ricreato) lo riusa.
+      authUserId = (await ensureMemberLogin(admin, email, password, scope)).authUserId
+    } else if (email) {
+      const matchedId = await findAuthUserIdByEmail(admin, email)
+      if (matchedId) {
+        try {
+          await assertAuthUserBelongsToWorkspace(admin, matchedId, scope)
+          authUserId = matchedId
+        } catch {
+          // Accesso di qualcun altro: il collaboratore nasce senza login.
         }
       }
-    } else if (email) {
-      const { data: linkedUsers } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 })
-      const matchedUser = (linkedUsers?.users || []).find(
-        (candidate) => String(candidate.email || '').toLowerCase() === email
-      )
-      authUserId = matchedUser?.id || null
     }
 
     const payload = {
@@ -101,13 +89,18 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
+      if (error.code === '23505' && String(error.message).includes('auth_user')) {
+        return Response.json({ error: 'Questa email è già l’accesso di un altro collaboratore del team' }, { status: 409 })
+      }
       if (error.code === '23505') {
         return Response.json({ error: 'Esiste già un membro con questo nome' }, { status: 409 })
       }
       return Response.json({ error: error.message }, { status: 500 })
     }
+    invalidateRouteUserCaches()
     return Response.json({ member: data })
   } catch (error) {
+    if (error instanceof TeamLoginError) return Response.json({ error: error.message }, { status: error.status })
     return Response.json(
       { error: error instanceof Error ? error.message : 'Impossibile creare il membro' },
       { status: 500 }
