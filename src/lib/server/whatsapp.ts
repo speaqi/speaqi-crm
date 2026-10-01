@@ -1,6 +1,16 @@
 import { errorMessage } from '@/lib/server/http'
 
 /**
+ * Uscita delle notifiche del CRM: Telegram se configurato, altrimenti il
+ * gateway WhatsApp OpenWA.
+ *
+ * Telegram e la strada preferita: e un'API ufficiale e gratuita, quindi una
+ * notifica e una chiamata HTTPS e basta. OpenWA invece tiene acceso un Chromium
+ * da ~1 GB solo per restare agganciato a WhatsApp Web, e quando la sessione
+ * cade (succede da solo) le notifiche tacciono finche qualcuno non riscansiona
+ * il QR. Con `TELEGRAM_BOT_TOKEN` e `TELEGRAM_NOTIFY_CHAT_ID` impostati vince
+ * Telegram e OpenWA puo restare spento.
+ *
  * Client del gateway WhatsApp OpenWA (self-hosted, https://github.com/rmyndharis/OpenWA).
  *
  * Non e l'API ufficiale Meta: il gateway tiene agganciato un numero vero via QR
@@ -21,6 +31,9 @@ const REQUEST_TIMEOUT_MS = 10_000
 const MAX_TEXT_LENGTH = 4096
 const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g
 const DEFAULT_COUNTRY_PREFIX = '39'
+const TELEGRAM_API_BASE = 'https://api.telegram.org'
+
+export type NotificationChannel = 'telegram' | 'whatsapp'
 
 export type WhatsappConfig = {
   baseUrl: string
@@ -72,13 +85,45 @@ export function whatsappConfig(): WhatsappConfig | null {
   return { baseUrl, apiKey, sessionId }
 }
 
+/**
+ * Il bot e lo stesso del To Do vocale (`TELEGRAM_BOT_TOKEN`), ma la chat a cui
+ * scrivere e una sola e sta in `TELEGRAM_NOTIFY_CHAT_ID`: le chat autorizzate a
+ * scrivere nel CRM (`TELEGRAM_ALLOWED_CHAT_IDS`) sono un'altra cosa.
+ */
+export function telegramNotifyConfig(): { token: string; chatId: string } | null {
+  const token = String(process.env.TELEGRAM_BOT_TOKEN || '').trim()
+  const chatId = String(process.env.TELEGRAM_NOTIFY_CHAT_ID || '').trim()
+  if (!token || !/^-?\d+$/.test(chatId)) return null
+  return { token, chatId }
+}
+
+export function notificationChannel(): NotificationChannel | null {
+  if (telegramNotifyConfig()) return 'telegram'
+  if (whatsappConfig()) return 'whatsapp'
+  return null
+}
+
+/**
+ * A chi arriva il messaggio. Su Telegram la chat sta nelle env, perche un chat
+ * id non e un numero che si scrive a mano; su WhatsApp e il numero salvato nel
+ * CRM (`notify_to`).
+ */
+export function notificationRecipient(notifyTo?: string | null): string | null {
+  const telegram = telegramNotifyConfig()
+  if (telegram) return telegram.chatId
+  return normalizeChatId(notifyTo)
+}
+
 export function whatsappGatewayStatus() {
+  const channel = notificationChannel()
   const missing: string[] = []
-  if (!String(process.env.OPENWA_BASE_URL || '').trim()) missing.push('OPENWA_BASE_URL')
-  if (!String(process.env.OPENWA_API_KEY || '').trim()) missing.push('OPENWA_API_KEY')
-  if (!String(process.env.OPENWA_SESSION_ID || '').trim()) missing.push('OPENWA_SESSION_ID')
+  if (!channel) {
+    if (!String(process.env.TELEGRAM_BOT_TOKEN || '').trim()) missing.push('TELEGRAM_BOT_TOKEN')
+    if (!String(process.env.TELEGRAM_NOTIFY_CHAT_ID || '').trim()) missing.push('TELEGRAM_NOTIFY_CHAT_ID')
+  }
   return {
-    configured: missing.length === 0,
+    channel,
+    configured: channel !== null,
     missing,
     hard_disabled: isWhatsappHardDisabled(),
   }
@@ -112,19 +157,79 @@ export function clampWhatsappText(value: string) {
   return `${text.slice(0, MAX_TEXT_LENGTH - 2)} …`
 }
 
-export async function sendWhatsappText(
-  text: string,
-  options: { chatId?: string | null }
-): Promise<WhatsappSendResult> {
-  const config = whatsappConfig()
-  if (!config) return { ok: false, error: 'Gateway WhatsApp non configurato' }
-  if (isWhatsappHardDisabled()) return { ok: false, error: 'Notifiche WhatsApp disattivate da WHATSAPP_NOTIFY_ENABLED' }
+/**
+ * I messaggi sono scritti con il grassetto di WhatsApp (`*testo*`). Telegram lo
+ * capisce in HTML: si scappano i caratteri riservati e il grassetto diventa
+ * `<b>`. Il Markdown di Telegram sarebbe piu corto ma rifiuta l'intero messaggio
+ * per un solo `_` o `*` spaiato nel nome di una cantina.
+ */
+export function toTelegramHtml(text: string) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\*([^*\n]+)\*/g, '<b>$1</b>')
+}
 
-  const chatId = normalizeChatId(options.chatId)
-  if (!chatId) return { ok: false, error: 'Numero destinatario mancante o non valido' }
+async function telegramSendMessage(token: string, payload: Record<string, unknown>) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    const response = await fetch(`${TELEGRAM_API_BASE}/bot${token}/sendMessage`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ link_preview_options: { is_disabled: true }, ...payload }),
+    })
+    const data = await response.json().catch(() => null)
+    return { status: response.status, data }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function sendTelegramText(body: string, config: { token: string; chatId: string }): Promise<WhatsappSendResult> {
+  try {
+    let sent = await telegramSendMessage(config.token, {
+      chat_id: config.chatId,
+      text: toTelegramHtml(body),
+      parse_mode: 'HTML',
+    })
+    // Un 400 qui e quasi sempre la formattazione (o i tag che allungano oltre
+    // 4096): meglio il testo nudo che un riepilogo perso.
+    if (sent.status === 400) {
+      sent = await telegramSendMessage(config.token, { chat_id: config.chatId, text: body })
+    }
+    if (!sent.data?.ok) {
+      return { ok: false, error: String(sent.data?.description || `HTTP ${sent.status}`) }
+    }
+    return { ok: true, providerMessageId: String(sent.data.result?.message_id || '') || undefined }
+  } catch (error) {
+    return { ok: false, error: errorMessage(error, 'Telegram irraggiungibile') }
+  }
+}
+
+/**
+ * Manda una notifica sul canale configurato. `notifyTo` e il numero WhatsApp
+ * del CRM; su Telegram si ignora e vale `TELEGRAM_NOTIFY_CHAT_ID`.
+ */
+export async function sendNotificationText(
+  text: string,
+  options: { notifyTo?: string | null }
+): Promise<WhatsappSendResult> {
+  if (isWhatsappHardDisabled()) return { ok: false, error: 'Notifiche disattivate da WHATSAPP_NOTIFY_ENABLED' }
 
   const body = clampWhatsappText(text)
   if (!body) return { ok: false, error: 'Messaggio vuoto' }
+
+  const telegram = telegramNotifyConfig()
+  if (telegram) return sendTelegramText(body, telegram)
+
+  const config = whatsappConfig()
+  if (!config) return { ok: false, error: 'Nessun canale di notifica configurato (Telegram o WhatsApp)' }
+
+  const chatId = normalizeChatId(options.notifyTo)
+  if (!chatId) return { ok: false, error: 'Numero destinatario mancante o non valido' }
 
   try {
     const response = await openwaFetch(config, `/api/sessions/${config.sessionId}/messages/send-text`, {

@@ -1,8 +1,8 @@
 import {
   isWhatsappHardDisabled,
-  normalizeChatId,
-  sendWhatsappText,
-  whatsappConfig,
+  notificationChannel,
+  notificationRecipient,
+  sendNotificationText,
 } from '@/lib/server/whatsapp'
 import { withSupabaseRetry } from '@/lib/server/supabase'
 
@@ -248,10 +248,10 @@ export async function recordWhatsappEvent(supabase: any, input: WhatsappEventInp
     if (!input.userId) return
     // Senza gateway o con le notifiche spente non accumuliamo coda: al primo
     // collegamento arriverebbe un riepilogo di eventi vecchi di settimane.
-    if (!whatsappConfig() || isWhatsappHardDisabled()) return
+    if (!notificationChannel() || isWhatsappHardDisabled()) return
 
     const settings = await loadWhatsappSettings(supabase, input.userId)
-    if (!settings.enabled || !normalizeChatId(settings.notify_to)) return
+    if (!settings.enabled || !notificationRecipient(settings.notify_to)) return
     if (!settings.events.includes(input.type)) return
 
     const delivery = IMMEDIATE_EVENTS.includes(input.type) ? 'immediate' : 'digest'
@@ -300,10 +300,10 @@ function immediateMessage(event: any) {
 
 async function deliverImmediateEvent(supabase: any, event: any, settings: WhatsappSettings) {
   const body = immediateMessage(event)
-  const result = await sendWhatsappText(body, { chatId: settings.notify_to })
+  const result = await sendNotificationText(body, { notifyTo: settings.notify_to })
   await logWhatsappSend(supabase, event.user_id, {
     kind: 'immediate',
-    chatId: settings.notify_to,
+    chatId: notificationRecipient(settings.notify_to),
     body,
     eventCount: 1,
     result,
@@ -331,7 +331,7 @@ async function logWhatsappSend(
     await supabase.from('whatsapp_notification_sends').insert({
       user_id: userId,
       kind: input.kind,
-      chat_id: normalizeChatId(input.chatId),
+      chat_id: input.chatId,
       body: input.body.slice(0, 4096),
       event_count: input.eventCount,
       ok: input.result.ok,
@@ -463,14 +463,14 @@ export async function runWhatsappDigest(
   const limit = Math.min(DIGEST_EVENT_LIMIT, Math.max(1, Number(options?.limit) || DIGEST_EVENT_LIMIT))
 
   const settings = await loadWhatsappSettings(supabase, userId)
-  if (!dryRun && (!settings.enabled || !normalizeChatId(settings.notify_to))) {
+  if (!dryRun && (!settings.enabled || !notificationRecipient(settings.notify_to))) {
     return {
       ok: true,
       pending: 0,
       sent: false,
       dry_run: false,
       skipped: true,
-      reason: settings.enabled ? 'Numero destinatario mancante' : 'Notifiche WhatsApp spente',
+      reason: settings.enabled ? 'Destinatario mancante' : 'Notifiche spente',
     }
   }
 
@@ -493,10 +493,10 @@ export async function runWhatsappDigest(
   if (!message) return { ok: true, pending, sent: false, dry_run: dryRun, message: null }
   if (dryRun) return { ok: true, pending, sent: false, dry_run: true, message }
 
-  const result = await sendWhatsappText(message, { chatId: settings.notify_to })
+  const result = await sendNotificationText(message, { notifyTo: settings.notify_to })
   await logWhatsappSend(supabase, userId, {
     kind: 'digest',
-    chatId: settings.notify_to,
+    chatId: notificationRecipient(settings.notify_to),
     body: message,
     eventCount: pending,
     result,
