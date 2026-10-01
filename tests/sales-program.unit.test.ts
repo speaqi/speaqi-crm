@@ -7,7 +7,9 @@ import {
   applicationSummary,
   commissionEstimate,
   parseSalesApplication,
+  publicSalesProgram,
   salesProgramProduct,
+  SALES_RECRUIT_URL,
 } from '../src/lib/sales-program'
 
 const valid = {
@@ -92,5 +94,20 @@ describe('parseSalesApplication', () => {
       assert.equal(parsed.value.experience?.length, APPLICATION_TEXT_MAX)
       assert.equal(parsed.value.hasVatNumber, null)
     }
+  })
+})
+
+describe('pagina su Speaqi Guides', () => {
+  test('la risposta pubblica porta prodotto, percentuali e limiti del calcolatore', () => {
+    const program = publicSalesProgram()
+    assert.deepEqual(program.product, salesProgramProduct())
+    assert.equal(program.firstYearPercent, SALES_PROGRAM.firstYearPercent)
+    assert.equal(program.renewalPercent, SALES_PROGRAM.renewalPercent)
+    assert.equal(program.payoutTerms, SALES_PROGRAM.payoutTerms)
+    assert.deepEqual(program.limits, COMMISSION_LIMITS)
+  })
+
+  test('il link di reclutamento punta a Guides, non al CRM', () => {
+    assert.equal(SALES_RECRUIT_URL, 'https://guides.speaqi.com/diventa-commerciale')
   })
 })

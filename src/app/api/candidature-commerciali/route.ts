@@ -19,7 +19,9 @@ function tomorrowAtTen() {
 }
 
 /**
- * Candidatura da /diventa-commerciale. Il candidato entra fra i contatti
+ * Candidatura da guides.speaqi.com/diventa-commerciale, inoltrata dal server
+ * di Guides (`apps/web/src/app/api/candidature-commerciali` nel repo speaqi).
+ * Il candidato entra fra i contatti
  * personali (non nella pipeline clienti) con una chiamata per il giorno dopo;
  * chi viene scelto riceve poi il link vendita da Impostazioni → Team.
  * Il workspace arriva dall'ambiente, mai dal corpo della richiesta.

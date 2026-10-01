@@ -4,6 +4,7 @@ import { SPEAQI_PACKAGES, SPEAQI_PACKAGE_KEYS } from '@/lib/speaqi-quote-package
 import { resolveSalesLink } from '@/lib/server/sales-links'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 import { SalesQuoteForm, type SalesPackageOption } from './SalesQuoteForm'
+import { SALES_RECRUIT_URL } from '@/lib/sales-program'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +27,7 @@ function InvalidLink() {
         <h1>Link non valido</h1>
         <p>Il link vendita non esiste più oppure è stato revocato. Chiedi un nuovo link all’amministratore.</p>
         <p>
-          Vuoi diventare commerciale Speaqi? <a href="/diventa-commerciale">Scopri come funziona</a>.
+          Vuoi diventare commerciale Speaqi? <a href={SALES_RECRUIT_URL}>Scopri come funziona</a>.
         </p>
       </section>
     </main>
