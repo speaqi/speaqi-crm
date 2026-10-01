@@ -6838,6 +6838,24 @@ textarea.form-input::placeholder { color: var(--text3); }
   color: var(--text);
 }
 
+/* Cambio password in Impostazioni → Team */
+.team-password-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.team-password-form input {
+  flex: 1;
+  min-width: 200px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  background: white;
+}
+
 /* ── DA INCASSARE (/incassi) ───────────────────── */
 .rc-page { max-width: 820px; }
 .rc-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }

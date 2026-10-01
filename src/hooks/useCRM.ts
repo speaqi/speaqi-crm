@@ -916,7 +916,7 @@ export function useCRM(_pathname = '') {
     return response.member
   }, [])
 
-  const updateTeamMember = useCallback(async (id: string, payload: { name?: string; email?: string | null; color?: string | null; make_admin?: boolean; allowed_areas?: string[] }) => {
+  const updateTeamMember = useCallback(async (id: string, payload: { name?: string; email?: string | null; color?: string | null; make_admin?: boolean; allowed_areas?: string[]; password?: string }) => {
     const response = await apiFetch<{ member: TeamMember }>(`/api/team-members/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
