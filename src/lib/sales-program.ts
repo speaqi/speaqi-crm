@@ -1,9 +1,10 @@
 import { SPEAQI_PACKAGES } from '@/lib/speaqi-quote-packages'
 
 /**
- * Programma commerciali: l'unico posto dove stanno le provvigioni mostrate
- * su /diventa-commerciale. Il prezzo arriva dal pacchetto, cosi' se cambia
- * il listino la pagina e il calcolatore si aggiornano da soli.
+ * Programma commerciali: l'unico posto dove stanno le provvigioni. La pagina
+ * pubblica vive su guides.speaqi.com/diventa-commerciale e le legge da
+ * `GET /api/programma-commerciali`; il prezzo arriva dal pacchetto, cosi' se
+ * cambia il listino la pagina e il calcolatore si aggiornano da soli.
  */
 export const SALES_PROGRAM = {
   productKey: 'video_map' as const,
@@ -13,6 +14,13 @@ export const SALES_PROGRAM = {
   renewalPercent: 10,
   payoutTerms: 'entro 30 giorni dall’incasso',
 }
+
+/**
+ * La pagina di reclutamento. Il CRM non la serve piu' (`/diventa-commerciale`
+ * e' un redirect permanente in next.config): e' una pagina di vetrina e sta
+ * col resto delle pagine pubbliche di Speaqi Guides.
+ */
+export const SALES_RECRUIT_URL = 'https://guides.speaqi.com/diventa-commerciale'
 
 /** Limiti del calcolatore: oltre, non e' piu' una stima credibile. */
 export const COMMISSION_LIMITS = { clients: 500, videosPerClient: 20 }
@@ -60,6 +68,22 @@ export function commissionEstimate(clients: unknown, videosPerClient: unknown) {
     firstYear,
     renewalPerYear,
     threeYears: round2(firstYear + renewalPerYear * 2),
+  }
+}
+
+/**
+ * Quello che la pagina pubblica ha bisogno di sapere, e nient'altro: e' la
+ * risposta di `GET /api/programma-commerciali`, letta da guides.speaqi.com.
+ */
+export function publicSalesProgram() {
+  const product = salesProgramProduct()
+  return {
+    product,
+    firstYearPercent: SALES_PROGRAM.firstYearPercent,
+    renewalPercent: SALES_PROGRAM.renewalPercent,
+    payoutTerms: SALES_PROGRAM.payoutTerms,
+    limits: COMMISSION_LIMITS,
+    defaults: COMMISSION_DEFAULTS,
   }
 }
 

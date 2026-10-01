@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import type { SalesLinkStatus } from '@/types'
 import { AREAS, resolveAllowedAreas, type AreaKey } from '@/lib/areas'
+import { SALES_RECRUIT_URL } from '@/lib/sales-program'
 import { useCRMContext } from '../../layout'
 
 function formatDay(value?: string | null) {
@@ -76,7 +77,7 @@ export default function TeamAdminPage() {
 
   async function copyRecruitLink() {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/diventa-commerciale`)
+      await navigator.clipboard.writeText(SALES_RECRUIT_URL)
       showToast('Link copiato')
     } catch {
       showToast('Copia non riuscita')
@@ -203,8 +204,8 @@ export default function TeamAdminPage() {
         </p>
         <p className="page-subtitle">
           Pagina per chi vuole diventare commerciale:{' '}
-          <a href="/diventa-commerciale" target="_blank" rel="noopener noreferrer">
-            /diventa-commerciale
+          <a href={SALES_RECRUIT_URL} target="_blank" rel="noopener noreferrer">
+            guides.speaqi.com/diventa-commerciale
           </a>{' '}
           <button type="button" className="btn btn-ghost btn-sm" onClick={copyRecruitLink}>
             Copia link
