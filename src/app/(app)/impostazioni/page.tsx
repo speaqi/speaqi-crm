@@ -26,8 +26,8 @@ const SETTINGS_ITEMS = [
   {
     href: '/impostazioni/whatsapp',
     icon: '📱',
-    title: 'Notifiche WhatsApp',
-    description: 'Gateway OpenWA: risposte email subito, invii e reazioni in riepilogo.',
+    title: 'Notifiche CRM',
+    description: 'Telegram (o WhatsApp via OpenWA): risposte email subito, invii e reazioni in riepilogo.',
   },
   {
     href: '/gmail',

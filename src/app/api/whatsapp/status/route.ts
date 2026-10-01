@@ -4,7 +4,8 @@ import { errorMessage } from '@/lib/server/http'
 import {
   fetchWhatsappSessionStatus,
   normalizeChatId,
-  sendWhatsappText,
+  notificationRecipient,
+  sendNotificationText,
   whatsappGatewayStatus,
 } from '@/lib/server/whatsapp'
 import {
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
 
   const gateway = whatsappGatewayStatus()
   const settings = await loadWhatsappSettings(auth.supabase, auth.workspaceUserId)
-  const session = gateway.configured ? await fetchWhatsappSessionStatus() : null
+  const session = gateway.channel === 'whatsapp' ? await fetchWhatsappSessionStatus() : null
 
   const { count, error } = await auth.supabase
     .from('whatsapp_notification_events')
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
     ok: true,
     gateway,
     settings,
-    chat_id: normalizeChatId(settings.notify_to),
+    chat_id: notificationRecipient(settings.notify_to),
     all_events: ALL_WHATSAPP_EVENTS,
     session,
     pending_events: error ? null : count || 0,
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
         enabled: body.enabled === undefined ? undefined : body.enabled === true,
         events: body.events === undefined ? undefined : body.events,
       })
-      return Response.json({ ok: true, settings, chat_id: normalizeChatId(settings.notify_to) })
+      return Response.json({ ok: true, settings, chat_id: notificationRecipient(settings.notify_to) })
     }
 
     if (action === 'digest') {
@@ -83,8 +84,8 @@ export async function POST(request: NextRequest) {
     }
 
     const settings = await loadWhatsappSettings(auth.supabase, auth.workspaceUserId)
-    const text = String(body.text || '').trim() || '✅ Speaqi CRM: notifiche WhatsApp collegate.'
-    const result = await sendWhatsappText(text, { chatId: body.notify_to || settings.notify_to })
+    const text = String(body.text || '').trim() || '✅ Speaqi CRM: notifiche collegate.'
+    const result = await sendNotificationText(text, { notifyTo: body.notify_to || settings.notify_to })
     return Response.json(
       { ok: result.ok, provider_message_id: result.providerMessageId || null, error: result.error || null },
       { status: result.ok ? 200 : 502 }

@@ -5,9 +5,16 @@
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, test } from 'node:test'
 import { FakeSupabase } from './fake-supabase'
-import { clampWhatsappText, normalizeChatId } from '../src/lib/server/whatsapp'
+import {
+  clampWhatsappText,
+  normalizeChatId,
+  notificationChannel,
+  notificationRecipient,
+  toTelegramHtml,
+} from '../src/lib/server/whatsapp'
 import {
   buildDigestMessage,
+  runWhatsappDigest,
   contactLabel,
   invalidateWhatsappSettingsCache,
   loadWhatsappSettings,
@@ -42,7 +49,14 @@ function clearGateway() {
   delete process.env.OPENWA_SESSION_ID
   delete process.env.WHATSAPP_NOTIFY_TO
   delete process.env.WHATSAPP_NOTIFY_ENABLED
+  delete process.env.TELEGRAM_BOT_TOKEN
+  delete process.env.TELEGRAM_NOTIFY_CHAT_ID
   invalidateWhatsappSettingsCache()
+}
+
+function configureTelegram() {
+  process.env.TELEGRAM_BOT_TOKEN = '123:abc'
+  process.env.TELEGRAM_NOTIFY_CHAT_ID = '43404248'
 }
 
 describe('numero e testo verso il gateway', () => {
@@ -222,5 +236,84 @@ describe('etichetta del contatto', () => {
     assert.equal(contactLabel({ company: 'Cantina A', name: 'cantina a' }), 'Cantina A')
     assert.equal(contactLabel({ email: 'info@cantina.it' }), 'info@cantina.it')
     assert.equal(contactLabel(null), 'Contatto')
+  })
+})
+
+describe('canale Telegram', () => {
+  const realFetch = globalThis.fetch
+  beforeEach(() => clearGateway())
+  afterEach(() => {
+    clearGateway()
+    globalThis.fetch = realFetch
+  })
+
+  test('con il bot configurato vince Telegram e il destinatario e la chat, non il numero', () => {
+    configureGateway()
+    configureTelegram()
+    assert.equal(notificationChannel(), 'telegram')
+    assert.equal(notificationRecipient('+39 389 6868162'), '43404248')
+  })
+
+  test('un chat id che non e un numero non attiva Telegram', () => {
+    configureGateway()
+    process.env.TELEGRAM_BOT_TOKEN = '123:abc'
+    process.env.TELEGRAM_NOTIFY_CHAT_ID = '@massimo'
+    assert.equal(notificationChannel(), 'whatsapp')
+  })
+
+  test('il grassetto di WhatsApp diventa HTML, e un nome con < o & non rompe il messaggio', () => {
+    assert.equal(
+      toTelegramHtml('📊 *Speaqi CRM* — Rossi & Figli <srl>'),
+      '📊 <b>Speaqi CRM</b> — Rossi &amp; Figli &lt;srl&gt;'
+    )
+    // Un asterisco spaiato resta un asterisco: niente tag aperto a meta.
+    assert.equal(toTelegramHtml('Cantina *Bio'), 'Cantina *Bio')
+  })
+
+  test('senza numero WhatsApp salvato la coda si riempie lo stesso', async () => {
+    configureTelegram()
+    const supabase = db([settingsRow({ notify_to: null })])
+    await recordWhatsappEvent(supabase, {
+      userId: USER,
+      type: 'email_sent',
+      contact: { id: 'c1', company: 'Cantina A' },
+    })
+    const { data } = await supabase.from('whatsapp_notification_events').select('*')
+    assert.equal(data.length, 1)
+  })
+
+  test('il riepilogo esce su Telegram e, se l HTML viene rifiutato, riparte in testo semplice', async () => {
+    configureTelegram()
+    const calls: any[] = []
+    globalThis.fetch = (async (url: string, init: any) => {
+      const body = JSON.parse(init.body)
+      calls.push({ url, body })
+      if (body.parse_mode === 'HTML') {
+        return new Response(JSON.stringify({ ok: false, description: "can't parse entities" }), { status: 400 })
+      }
+      return new Response(JSON.stringify({ ok: true, result: { message_id: 7 } }), { status: 200 })
+    }) as any
+
+    const supabase = db()
+    await supabase.from('whatsapp_notification_events').insert({
+      id: 'e1',
+      user_id: USER,
+      event_type: 'email_open',
+      delivery: 'digest',
+      contact_label: 'Cantina A',
+      quantity: 1,
+      occurred_at: '2026-10-01T08:00:00.000Z',
+      notified_at: null,
+    })
+
+    const result = await runWhatsappDigest(supabase, USER, { timezone: 'UTC' })
+    assert.equal(result.sent, true)
+    assert.equal(calls.length, 2)
+    assert.equal(calls[0].url, 'https://api.telegram.org/bot123:abc/sendMessage')
+    assert.equal(calls[0].body.chat_id, '43404248')
+    assert.equal(calls[1].body.parse_mode, undefined)
+
+    const { data } = await supabase.from('whatsapp_notification_events').select('*')
+    assert.ok(data[0].notified_at, 'evento segnato come notificato solo dopo l invio riuscito')
   })
 })

@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     return Response.json({
       ok: true,
       skipped: true,
-      reason: `Gateway WhatsApp non configurato: manca ${gateway.missing.join(', ')}`,
+      reason: `Nessun canale di notifica configurato: manca ${gateway.missing.join(', ')}`,
     })
   }
   if (isWhatsappHardDisabled()) {

@@ -69,7 +69,8 @@ Copy `.env.local.example` to `.env.local`. Required keys:
 | `OPENWA_SESSION_ID` | OpenWA session **UUID** (not its name) |
 | `WHATSAPP_NOTIFY_TO` | Starting recipient, used only until the number is saved in the CRM (`/impostazioni/whatsapp`) |
 | `WHATSAPP_NOTIFY_ENABLED` | Emergency brake: `false` kills every notification whatever the CRM toggle says |
-| `TELEGRAM_BOT_TOKEN` | Bot Telegram da cui arrivano le note vocali del To Do |
+| `TELEGRAM_BOT_TOKEN` | Bot Telegram: note vocali del To Do in ingresso e, con `TELEGRAM_NOTIFY_CHAT_ID`, notifiche in uscita |
+| `TELEGRAM_NOTIFY_CHAT_ID` | Chat (id numerico) a cui arrivano le notifiche del CRM. Con questa e il token, Telegram sostituisce OpenWA |
 | `TELEGRAM_WEBHOOK_SECRET` | Segreto dell'header `x-telegram-bot-api-secret-token` |
 | `TELEGRAM_ALLOWED_CHAT_IDS` | Chat autorizzate a scrivere nel CRM (elenco separato da virgole). Senza, il bot non accetta niente |
 | `TELEGRAM_WORKSPACE_USER_ID` | Workspace su cui scrivono le note vocali; default `AUTOMATION_WORKSPACE_USER_ID` |
@@ -455,6 +456,17 @@ Guida operativa e deploy Railway in `docs/WHATSAPP-OPENWA.md`.
   `assigned_agent`), lo stesso campo delle analytics di `/attivita`. Oggi c'è un
   solo destinatario; la coda porta già il nome dell'agente, quindi instradare
   per agente è un'aggiunta, non una riscrittura.
+- **Telegram vince su OpenWA** (`notificationChannel` in `whatsapp.ts`): con
+  `TELEGRAM_BOT_TOKEN` + `TELEGRAM_NOTIFY_CHAT_ID` coda, risposte immediate e
+  riepilogo escono sul bot Telegram, e il numero salvato nel CRM non serve. Il
+  motivo è il costo: OpenWA tiene acceso un Chromium da ~1 GB (≈10 $/mese su
+  Railway) per restare agganciato a WhatsApp Web, e quando la sessione cade
+  tace finché qualcuno non riscansiona il QR — a ottobre 2026 era scollegato e
+  generava un QR ogni 20 secondi. Telegram è un'API ufficiale: una notifica è
+  una chiamata HTTPS. Il grassetto WhatsApp (`*testo*`) diventa HTML
+  (`toTelegramHtml`); se Telegram rifiuta la formattazione si rimanda in testo
+  semplice invece di perdere il messaggio. Tabelle e nomi restano `whatsapp_*`:
+  rinominarli non comprava niente.
 - **Superfici**: `POST /api/automation/whatsapp-digest` (cron n8n
   `14-whatsapp-digest`), `GET|POST /api/whatsapp/status` (stato, messaggio di
   prova, riepilogo forzato) e la pagina `/impostazioni/whatsapp`.

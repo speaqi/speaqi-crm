@@ -12,7 +12,7 @@ type WhatsappSettings = {
 }
 
 type WhatsappStatus = {
-  gateway: { configured: boolean; missing: string[]; hard_disabled: boolean }
+  gateway: { channel: 'telegram' | 'whatsapp' | null; configured: boolean; missing: string[]; hard_disabled: boolean }
   settings: WhatsappSettings
   chat_id: string | null
   all_events: string[]
@@ -138,7 +138,7 @@ export default function WhatsappSettingsPage() {
     <div className="page-container">
       <div className="page-header">
         <Link href="/impostazioni" className="btn btn-ghost btn-sm">← Impostazioni</Link>
-        <h1>Notifiche WhatsApp</h1>
+        <h1>Notifiche CRM</h1>
         <p className="page-subtitle">
           Le risposte email arrivano subito, invii e reazioni in un riepilogo ogni mezz&apos;ora.
         </p>
@@ -148,6 +148,13 @@ export default function WhatsappSettingsPage() {
 
       <section className="settings-card" style={{ display: 'block', padding: 16, marginBottom: 16 }}>
         <h2 style={{ marginTop: 0 }}>Dove arrivano</h2>
+
+        {gateway?.channel === 'telegram' ? (
+          <p className="page-subtitle" style={{ marginTop: 0 }}>
+            Le notifiche escono su Telegram, nella chat del bot ({status?.chat_id}). Il numero WhatsApp qui sotto
+            serve solo se si torna a OpenWA.
+          </p>
+        ) : null}
 
         <label className="form-label" htmlFor="whatsapp-notify-to">Numero WhatsApp</label>
         <input
@@ -195,18 +202,22 @@ export default function WhatsappSettingsPage() {
         <h2 style={{ marginTop: 0 }}>Stato e prove</h2>
         <ul style={{ lineHeight: 1.9, margin: '0 0 12px', paddingLeft: 18 }}>
           <li>
-            Gateway OpenWA:{' '}
-            {gateway?.configured ? '✅ configurato' : `⚠️ mancano ${gateway?.missing.join(', ') || 'variabili'}`}
+            Canale:{' '}
+            {gateway?.channel === 'telegram'
+              ? '✅ Telegram'
+              : gateway?.channel === 'whatsapp'
+                ? '✅ WhatsApp (OpenWA)'
+                : `⚠️ mancano ${gateway?.missing.join(', ') || 'variabili'}`}
           </li>
           {gateway?.hard_disabled ? <li>⛔ <code>WHATSAPP_NOTIFY_ENABLED=false</code>: tutto spento dalle env</li> : null}
-          <li>
+          {gateway?.channel === 'whatsapp' ? <li>
             Sessione WhatsApp:{' '}
             {!session
               ? '—'
               : session.ok
                 ? `${sessionReady ? '✅' : '⚠️'} ${session.status}${session.phone ? ` · ${session.phone}` : ''}`
                 : `❌ ${session.error}`}
-          </li>
+          </li> : null}
           {session?.last_error ? <li>Ultimo errore gateway: {session.last_error}</li> : null}
           <li>Eventi in coda non ancora notificati: {status?.pending_events ?? '—'}</li>
         </ul>
