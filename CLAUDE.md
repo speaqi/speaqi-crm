@@ -13,7 +13,7 @@
 - **Email**: Resend (reminders), Gmail API (OAuth 2.0 sync)
 - **AI**: OpenAI (voice commands, lead scoring, classification, email drafts, memory)
 - **Payments**: Stripe (quote checkout)
-- **Automation**: n8n workflows
+- **Automation**: pianificatore interno (`src/lib/automation-schedule.ts`), ha preso il posto di n8n
 - **Webhook Ingestion**: Acumbamail
 - **MCP**: Model Context Protocol server (`@modelcontextprotocol/sdk`)
 - **Deployment**: Railway.app (Nixpacks builder)
@@ -52,8 +52,9 @@ Copy `.env.local.example` to `.env.local`. Required keys:
 | `GMAIL_TOKEN_ENCRYPTION_KEY` | 32+ char secret for token encryption |
 | `OPENAI_API_KEY` | OpenAI API key |
 | `OPENAI_MODEL` | Model ID (e.g. `gpt-5-mini`) |
-| `APP_BASE_URL` | Base URL the n8n workflows call (e.g. `https://crm.speaqi.it`) |
-| `AUTOMATION_SECRET` | Auth secret for n8n automation endpoints |
+| `APP_BASE_URL` | Base URL pubblico del CRM (e.g. `https://crm.speaqi.com`) |
+| `AUTOMATION_SECRET` | Auth secret for the `/api/automation/*` endpoints (il pianificatore lo manda in `x-automation-secret`) |
+| `AUTOMATION_SCHEDULER_ENABLED` | `true` accende il pianificatore delle automazioni dentro il CRM. Spento di default: acceso insieme a un altro scheduler farebbe partire tutto due volte |
 | `AUTOMATION_WORKSPACE_USER_ID` | Workspace owner the automations act as — server-side only, never accepted from a request body |
 | `AUTOMATION_SENDER_USER_ID` | Gmail account used to send; defaults to the workspace owner |
 | `AUTOMATION_TIMEZONE` | Timezone for the daily cap window (default `Europe/Rome`) |
@@ -132,6 +133,7 @@ supabase migration up
 | `commercial_messages` | Un messaggio programmato/inviato per step |
 | `commercial_suppressions` | Disiscrizioni, reclami e blacklist (per struttura o per email) |
 | `commercial_campaign_daily_counters` | Contatore giornaliero per campagna dietro il tetto arruolamenti atomico |
+| `automation_job_runs` | Una riga per corsa di un'automazione pianificata: `(job, slot)` è la prenotazione che fa partire un job una volta sola con più repliche, più esito e passi. Tenuta 30 giorni |
 
 Migrations live in `supabase/migrations/` (timestamped SQL files).
 
@@ -179,7 +181,7 @@ src/
 │   │   ├── gmail/              # Gmail connect, callback
 │   │   ├── analytics/          # Team analytics: breakdown per agente + giorno
 │   │   ├── ai/                 # score, classify-reply, next-action, update-memory, generate-drafts
-│   │   ├── automation/         # n8n endpoints: orchestrator, followups, send-batch, reconcile-sends, …
+│   │   ├── automation/         # endpoint delle automazioni pianificate: orchestrator, followups, send-batch, reconcile-sends, …
 │   │   ├── email/              # Email sending + reminder
 │   │   ├── import/             # csv, legacy, ocr
 │   │   ├── integrations/       # Acumbamail webhook + Telegram (webhook, setup) + Stripe (webhook abbonamenti)
@@ -222,6 +224,7 @@ src/
 │   │   ├── user-settings.ts    # Per-user settings helpers
 │   │   ├── automation-auth.ts  # x-automation-secret check + server-side AutomationContext
 │   │   ├── automation-send.ts  # Autonomous send engine: guardrails, atomic claim, quota
+│   │   ├── automation-scheduler.ts # Pianificatore: prenotazione della corsa, passi, errori (ex n8n)
 │   │   ├── draft-reconcile.ts  # Closes drafts sent by hand from Gmail
 │   │   ├── telegram.ts         # Bot Telegram in ingresso: segreto, elenco chat, download media
 │   │   ├── todo-voice.ts       # Dal parlato alle azioni sul To Do (proposta del modello → cosa si scrive)
@@ -241,6 +244,7 @@ src/
 │   ├── quote-defaults.ts       # Default contract terms & bank instructions
 │   ├── speaqi-quote-packages.ts # START/EXPERIENCE/SIGNATURE package definitions
 │   ├── schedule.ts             # Scheduling utilities
+│   ├── automation-schedule.ts  # Le automazioni pianificate: orari, endpoint, parametri (ex workflow n8n)
 │   ├── todo.ts                 # Aree, stati di avanzamento e span Gantt per /todo
 │   ├── receivables.ts          # Da incassare: lettura importi "1.250,50", totali in centesimi, ordinamento
 │   ├── shipping-companies.ts   # Compagnie di navigazione: validazione catalogo, filtri porto, contatto da creare
@@ -390,7 +394,7 @@ Each stage has a `system_key` and `color`. Closed statuses: `closed`, `paid`, `l
 - **Wine Project — gli interruttori si salvano da soli**: «Sequenza attiva» e «Invio email reali» in cima a `/impostazioni/wine-project` scrivono subito (`PATCH /api/wine-project/automation` con `enabled` / `campaign_send_enabled`), con stato ottimistico e rollback se la scrittura fallisce. Prima vivevano nello stato del browser fino al pulsante «Salva automazione» in fondo a una pagina lunghissima: spegnere l'invio reale e uscire non spegneva niente, e al rientro la pagina rileggeva il database e mostrava l'interruttore di nuovo acceso — sembrava che si riaccendesse da solo, mentre non era mai stato spento. Il PATCH riparte sempre dalle impostazioni lette dal database, così non porta con sé i testi non ancora salvati; la risposta ri-applica in pagina solo i due booleani, per non sovrascrivere una sequenza in corso di modifica. Il pulsante in fondo resta per cadenza, tetti e riferimenti Acumbamail
 - **Wine Project — demo pronta: email alla cantina e notifica subito**: `wine_demo_contact` su `/api/speaqi/leads` scriveva contatto, activity e task chiamata e finiva lì — nessuna email alla cantina e nessun avviso a chi doveva richiamarla. `deliverWineDemo` manda l'email col link (`sendContactEmail`, quindi `email_logs` + activity + coda WhatsApp arrivano gratis) e registra l'evento immediato `wine_demo_ready`. Le due cose sono indipendenti apposta: la notifica parte **anche** quando l'email non parte (Gmail scollegato, `demo_project_url` assente), perché è proprio il caso in cui serve intervenire a mano — e il messaggio dice quale dei due è successo. Nulla di tutto questo può far fallire la rotta: contatto e task sono già scritti. Interruttore: `WINE_DEMO_EMAIL_ENABLED=false`
 - **Acumbamail: un 429 è una richiesta di aspettare, non un errore**: `src/lib/server/acumbamail-http.ts` è l'unico punto da cui il CRM parla con Acumbamail. Coda **per endpoint** (il tetto è per endpoint, `policy: 10/m`) più attesa sul `retry_after_seconds` e ritentativo. Prima i due client chiamavano `fetch` direttamente: il 13/09/2026 una raffica di `addMergeTag` ha lasciato a terra 46 email della sequenza, senza secondo tentativo. Gli invii caduti per un motivo temporaneo rientrano in coda da `reviveFailedWineProjectFollowups` (dentro `/api/automation/wine-project-followups`), al massimo `WINE_MAX_DELIVERY_RETRIES` volte: `failed` non è più uno stato terminale, ma un errore permanente non gira in eterno
-- **Fallimento isolato, ovunque**: un gruppo di invio che fallisce non ferma gli altri (`wine-project-campaigns`), una campagna che non si sincronizza non ferma le altre (`wine-project-engagement`, che avanza comunque `last_synced_at` perché una campagna rotta non affami la rotazione), un contatto che non si sincronizza non ferma il giro (`wine-project-replies`, che ora **riporta** l'errore invece di ingoiarlo con un `catch {}`). Nei workflow n8n i nodi HTTP hanno `onError: continueRegularOutput`: la catena di `12-wine-project-automation` è seriale, e un 500 su `Sync Wine Engagement` teneva fermo `Sync Wine Replies` — per due settimane nessuna risposta delle cantine è stata letta. Per la stessa ragione `05-reply-monitor` chiama ora anche `wine-project-replies`: la lettura delle risposte non deve dipendere da una sola catena
+- **Fallimento isolato, ovunque**: un gruppo di invio che fallisce non ferma gli altri (`wine-project-campaigns`), una campagna che non si sincronizza non ferma le altre (`wine-project-engagement`, che avanza comunque `last_synced_at` perché una campagna rotta non affami la rotazione), un contatto che non si sincronizza non ferma il giro (`wine-project-replies`, che ora **riporta** l'errore invece di ingoiarlo con un `catch {}`). Nel pianificatore un passo fallito non ferma i successivi: la catena Wine è seriale, e quando girava su n8n un 500 su `wine-project-engagement` teneva fermo `wine-project-replies` — per due settimane nessuna risposta delle cantine è stata letta
 - **Supabase che non risponde**: sul piano Free il REST restituisce 504 a intermittenza anche su una select da una riga, e ogni volta un cron saltava il giro. `withSupabaseRetry` (in `src/lib/server/supabase.ts`) ritenta **solo** i transitori — un permesso negato o una colonna assente escono al primo colpo — ed è applicato dove il 504 mordeva davvero: impostazioni WhatsApp, riepilogo, letture d'apertura del reply monitor
 - **Wine Project — stop su risposta**: il blocco della sequenza si cerca sull'**indirizzo**, non sulla singola scheda contatto (`wineSequenceBlockReason` in `src/lib/server/wine-project-automation.ts`). Ogni re-import della lista Acumbamail crea una scheda nuova con la stessa email: la risposta resta attaccata alla scheda vecchia e la sequenza girava su quella nuova. Il controllo guarda `gmail_messages.from_email` (non `contact_id`, e senza finestra temporale) e lo stato/disiscrizione di tutte le schede gemelle; `stopWineProjectFollowups` ferma gli eventi di tutte le schede con quell'indirizzo. La sincronizzazione delle risposte (`POST /api/automation/wine-project-replies`) copre solo i contatti dentro la sequenza, dal meno recentemente sincronizzato: il bacino è di migliaia di cantine e un `limit` senza ordinamento ripescava sempre le stesse cento
 - **Wine Project — la storia di ogni cantina, non solo il conteggio**: la tabella di "Chi ha reagito" mostra per riga l'ultima email della sequenza uscita (numero + data e ora), il percorso datato — invii, prima apertura, primo click, arrivo sulla landing, form compilato, demo pronta, risposta, disiscrizione — e il prossimo passo (email programmata, "Da chiamare", o il motivo per cui e' fuori dal giro). "Ha cliccato" da solo non dice se poi e' successo qualcosa. I riquadri statistici in cima sono pulsanti: aprono la lista sul gruppo corrispondente (`openEngagement`), perche' un numero che non si puo' aprire non e' lavorabile. Due gruppi nuovi rispondono a "chi e' uscito": **Disiscritte** (`email_unsubscribed_at`) ed **Escluse dalla sequenza**, che riusa gli stessi tre motivi di `wineSequenceBlockReason` (disiscritta, trattativa chiusa, ha gia' risposto) — la risposta si cerca anche per indirizzo, cosi' le schede gemelle da re-import non risultano ancora arruolabili. Le date arrivano da `activities` (`wine_followup_sent`, `email_open`, `email_click`, `landing_clicked`, `demo_form_submitted`, `demo_ready`, `reply_interested`), da `wine_project_followup_events` (sequenza inviata/programmata) e da `gmail_messages` inbound
@@ -398,7 +402,7 @@ Each stage has a `system_key` and `color`. Closed statuses: `closed`, `paid`, `l
 - `validateGeneratedDraft` (`src/lib/server/email-draft-context.ts`) runs the institutional checks (blocking) plus the Wine guardrails (correction pass only) on every generated draft
 - **Wine email models**: reference emails injected by `buildEmailSegmentGuidance` for wine contacts as a structure/rhythm/CTA model, never as text to copy. Editable in `/impostazioni/email-ai` ("Modelli email — Speaqi Wine", stored in `user_settings.email_wine_templates`); the defaults live in `src/lib/email-wine-templates.ts` — A "Esempio gratuito" (preferred), B "Novità dal progetto", C "Partiamo da una bottiglia", D "Prova sociale". Text format: one `### ID | Etichetta` block per model with optional `Quando:` / `Oggetto:` lines then the body; models can be added, renamed or removed without code changes (empty or unparseable text falls back to the code defaults). `pickWineEmailTemplate` rotates deterministically by contact id — the **first model in the list** is the preferred one and weighs 2× — so one list doesn't get identical emails; the chosen variant is stored in `email_drafts.wine_template` and shown/switchable in `/email` (regenerating with `wine_template: '<ID>'`). The models reference a previous email, so the guidance drops that opening when the contact has no previous contact (`followupMode` / high-interest)
 - **Open tracking (MailSuite) requires sending from Gmail**: browser extensions inject their pixel in the Gmail compose window, so a CRM API send is never tracked. The tracked path is: "📥 Prepara tutte in Gmail" in `/email` (`POST /api/automation/prepare-gmail-drafts`, one Gmail token/signature for the whole batch, 25 drafts per call, skips drafts already in Gmail unless `include_existing`) → "Apri in Gmail ↗" per draft (`email_drafts.gmail_draft_message_id` builds `mail.google.com/mail/u/<account>/#drafts?compose=<id>`) → send by hand from Gmail → reconciliation closes the draft in the CRM
-- **Sent-from-Gmail reconciliation** (`src/lib/server/draft-reconcile.ts`, `POST /api/automation/reconcile-drafts`): a draft saved to Gmail ("Salva in bozza") and then sent by hand from Gmail used to stay `pending` forever. The reconciler compares pending drafts with the account's sent mail — a message to that contact after the draft's `created_at` closes the draft as `sent` with `sent_via = 'gmail'` and `provider_message_id` = the Gmail message (unique index: one message can never close two drafts), copying the subject/body actually sent, then delegates activity + follow-up to `syncContactGmailMessages`. Runs automatically when `/email` loads, on the "Controlla invii Gmail" button, and every 30 min from `05-reply-monitor`. `email_drafts.sent_via` records the path: `crm` / `automation` / `gmail`
+- **Sent-from-Gmail reconciliation** (`src/lib/server/draft-reconcile.ts`, `POST /api/automation/reconcile-drafts`): a draft saved to Gmail ("Salva in bozza") and then sent by hand from Gmail used to stay `pending` forever. The reconciler compares pending drafts with the account's sent mail — a message to that contact after the draft's `created_at` closes the draft as `sent` with `sent_via = 'gmail'` and `provider_message_id` = the Gmail message (unique index: one message can never close two drafts), copying the subject/body actually sent, then delegates activity + follow-up to `syncContactGmailMessages`. Runs automatically when `/email` loads, on the "Controlla invii Gmail" button, and every 30 min from the `replies` job. `email_drafts.sent_via` records the path: `crm` / `automation` / `gmail`
 
 ## WhatsApp Notifications (OpenWA)
 
@@ -467,8 +471,7 @@ Guida operativa e deploy Railway in `docs/WHATSAPP-OPENWA.md`.
   (`toTelegramHtml`); se Telegram rifiuta la formattazione si rimanda in testo
   semplice invece di perdere il messaggio. Tabelle e nomi restano `whatsapp_*`:
   rinominarli non comprava niente.
-- **Superfici**: `POST /api/automation/whatsapp-digest` (cron n8n
-  `14-whatsapp-digest`), `GET|POST /api/whatsapp/status` (stato, messaggio di
+- **Superfici**: `POST /api/automation/whatsapp-digest` (job `notifications-digest`), `GET|POST /api/whatsapp/status` (stato, messaggio di
   prova, riepilogo forzato) e la pagina `/impostazioni/whatsapp`.
 
 ## Voice Commands
@@ -521,31 +524,19 @@ Guida operativa e deploy Railway in `docs/WHATSAPP-OPENWA.md`.
 - `NEXT_PUBLIC_*` vars must be passed as Docker `ARG` at build time
 - Restart policy: `ON_FAILURE`
 
-## n8n Workflows
+## Automazioni pianificate (ex n8n)
 
-Located in `n8n/workflows/` — see `n8n/README.md` for the recommended re-enable order. Fifteen workflows (all exported with `"active": false`):
-- `00-error-handler.json` — Error Trigger → `/api/automation/error-alert`; import it first and set it as Error Workflow on every other one
-- `01-followups.json` — due/SLA/quote-recovery task generation + Wine Project sequence (every 10 min)
-- `02-stale-leads.json` — stale lead detection (daily 09:00)
-- `03-speaqi-webhook.json` — inbound lead ingestion webhook
-- `04-orchestrator.json` — morning AI email drafts (Mon–Fri 08:00, human sends)
-- `05-reply-monitor.json` — Gmail reply sync + AI classification, draft reconciliation, poi le risposte delle cantine Wine (every 30 min)
-- `06-db-maintenance.json` — data hygiene (hourly)
-- `07-weekly-recap.json` — weekly recap email (Monday 07:30)
-- `08-backup.json` — nightly database backup (03:00)
-- `09-score-leads.json` — lead score recalculation (daily 06:00)
-- `10-acumbamail-qualification.json` — holding → CRM promotion (daily 07:00)
-- `11-send-holding.json` — autonomous holding sends (Mon–Fri 09:00); shipped in shadow mode with `dry_run: true` and gated by `AUTOMATION_SEND_ENABLED`
-- `12-hospitality-commercial.json` — Hospitality outreach + reply sync (every 30 min); shipped with `dry_run: true`
-- `12-wine-project-automation.json` — Wine Project follow-ups, campaign groups, engagement and replies (every 30 min)
-- `13-reconcile-sends.json` — resolves `unknown` send attempts against Gmail (hourly at :20); must be active **before** `11-send-holding`
-- `14-whatsapp-digest.json` — WhatsApp digest of sends/opens/clicks (every 30 min, 07-21); answers `200 {skipped:true}` while the gateway is off, so it is safe to leave active
+Fino a ottobre 2026 le lanciava n8n, un servizio a parte (~5 $/mese più il suo Postgres) i cui workflow chiamavano soltanto, a orario, gli endpoint `/api/automation/*`. Ora le lancia il CRM stesso: `src/instrumentation.ts` avvia `startAutomationScheduler()` (`src/lib/server/automation-scheduler.ts`) quando `AUTOMATION_SCHEDULER_ENABLED=true`, e ogni minuto chiama gli endpoint dovuti su `127.0.0.1:$PORT` con `AUTOMATION_SECRET`. Stesse rotte, stessa autenticazione di prima.
 
-> Two files share the `12-` prefix (`12-hospitality-commercial`, `12-wine-project-automation`). The number is only a filename convention — n8n keys workflows by `id` — but keep it in mind when reading the list.
+- **Orari e parametri** stanno in `AUTOMATION_JOBS` (`src/lib/automation-schedule.ts`, puro e coperto da test): aggiungere un'automazione è aggiungere una riga. Fuso `AUTOMATION_TIMEZONE` (Europe/Rome): "alle 8" sono le 8 italiane anche dopo il cambio dell'ora. Sono gli orari e i corpi dei workflow attivi in produzione, letti dai log delle chiamate: follow-up ogni 10 min; `replies` (reply-monitor + reconcile-drafts), `wine-project` (followups → campaigns → engagement → replies) e `commercial-outreach` (`dry_run`) ogni 30; riepilogo notifiche a :05/:35 dalle 7 alle 21; manutenzione ogni ora; `reconcile-sends` a :20; backup alle 3; punteggio lead alle 6; qualificazione Acumbamail alle 7; recap il lunedì alle 7:30; orchestratore alle 8 nei feriali; lead fermi alle 9; invii holding alle 9 nei feriali (`dry_run`).
+- **Una corsa per minuto, con qualunque numero di repliche**: prima di partire il job inserisce `(job, slot)` in `automation_job_runs`; la chiave primaria fa vincere una replica sola. Con il database irraggiungibile il giro si salta: due backup o due invii costano più di un giro perso. Senza la tabella (migration non applicata) si corre senza prenotazione.
+- **Un passo fallito non ferma i successivi**. L'errore resta nella riga della corsa e arriva via email (`/api/automation/error-alert`, l'avviso che mandava n8n), al massimo una volta ogni sei ore per job. Un job ancora in corso salta il turno invece di accavallarsi.
+- **Storico**: `select * from automation_job_runs order by slot desc` è l'ex pagina "Executions" di n8n.
+- **Il webhook lead di n8n** (`/webhook/speaqi-lead` → `/api/speaqi/leads`) non lo chiamava nessuno: chi deve mandare lead li manda direttamente a `/api/speaqi/leads`.
 
 **Backup**: the Supabase Free plan has no daily backups and no PITR. `POST /api/automation/backup` (logic in `src/lib/server/backup.ts`) dumps every table in `BACKUP_TABLES`, gzips it, uploads it to the private `backups` Storage bucket and emails a copy via Resend — two copies, one outside Supabase. Paginates at 1000 rows (PostgREST truncates there), aborts if `contacts` fails, and only prunes old backups after an intact run. `send_email: false` in the body verifies dump + Storage without sending. Local equivalent: `npm run backup`.
 
-All use `APP_BASE_URL` and require `AUTOMATION_SECRET` for endpoint authentication (including `/api/email/reminder`). The n8n workflows are just schedulers: the logic lives in `/api/automation/*`.
+All automation endpoints require `AUTOMATION_SECRET` (including `/api/email/reminder`): the scheduler only decides *when*, the logic lives in `/api/automation/*`.
 
 **Sending paths**: `/api/automation/send-draft` is session-authenticated (browser, human-in-the-loop). The machine-to-machine surface is `AUTOMATION_SECRET`-authenticated and has **two paths with different guarantees**:
 
@@ -659,16 +650,14 @@ migrarlo e un lavoro separato, da fare a motore collaudato.
 - **Cron**: `POST /api/automation/commercial-outreach` gira su tutte le campagne
   attive del workspace con **fallimento isolato per campagna** — un errore su
   una non ferma le altre e viene riportato in `results[].error`. Accetta
-  `campaign_id` o `vertical` per limitare il giro. Workflow n8n:
-  `12-hospitality-commercial.json` (SPEAQI Commercial Campaigns, ogni 30 min,
-  `dry_run: true`).
+  `campaign_id` o `vertical` per limitare il giro. Job `commercial-outreach` (ogni 30 min, `dry_run: true`).
 
 ### Test
 
 Nessuna dipendenza di test oltre `tsx`: si usa `node:test`.
 
 ```bash
-npm run test:unit   # motore campagne, Wine Project, WhatsApp, lavagna To Do, Telegram, abbonamenti/firma/link vendita, programma commerciali, Da incassare, compagnie di navigazione, itinerari e mappa rotte
+npm run test:unit   # pianificatore automazioni, motore campagne, Wine Project, WhatsApp, lavagna To Do, Telegram, abbonamenti/firma/link vendita, programma commerciali, Da incassare, compagnie di navigazione, itinerari e mappa rotte
 npm run test:db     # integrazione e concorrenza su un Postgres locale usa-e-getta
 npm test            # entrambi
 ```

@@ -8,7 +8,7 @@ CRM operativo per pipeline, follow-up e lead ingestion.
 - Supabase: auth + database
 - Resend: email reminder
 - Gmail API: invio email e sincronizzazione thread
-- n8n: automazioni orchestrate via workflow JSON in [`n8n/workflows`](/Users/massimo/Documents/thebest/speaqi-crm/n8n/workflows)
+- automazioni pianificate: girano dentro il CRM (`src/lib/automation-schedule.ts`), al posto di n8n
 
 ## Setup
 
@@ -192,20 +192,15 @@ In questo caso:
 
 In alternativa, se hai la service role in `.env.local`, puoi usare `--user-id "<uuid>"`.
 
-## n8n
+## Automazioni pianificate
 
-I workflow template sono in:
+Orari ed endpoint stanno in [`src/lib/automation-schedule.ts`](src/lib/automation-schedule.ts); il CRM le
+lancia da solo con `AUTOMATION_SCHEDULER_ENABLED=true` (vedi CLAUDE.md, «Automazioni pianificate»).
+Fino a ottobre 2026 lo faceva n8n.
 
-- [`n8n/workflows/01-followups.json`](/Users/massimo/Documents/thebest/speaqi-crm/n8n/workflows/01-followups.json)
-- [`n8n/workflows/02-stale-leads.json`](/Users/massimo/Documents/thebest/speaqi-crm/n8n/workflows/02-stale-leads.json)
-- [`n8n/workflows/03-speaqi-webhook.json`](/Users/massimo/Documents/thebest/speaqi-crm/n8n/workflows/03-speaqi-webhook.json)
-- [`n8n/workflows/07-acumbamail-qualification.json`](/Users/massimo/Documents/thebest/speaqi-crm/n8n/workflows/07-acumbamail-qualification.json)
-
-Il workflow Acumbamail di qualificazione non invia email: ogni 10 minuti promuove nel CRM operativo
-solo i contatti ancora in `holding` che hanno cliccato o raggiunto la soglia di aperture della campagna.
-Assegna il responsabile della campagna, imposta un follow-up (1 giorno per click, 3 giorni per aperture)
-e crea il relativo task. Importalo in n8n, configura `SPEAQI_CRM_URL` e `AUTOMATION_SECRET`, quindi
-attivalo dopo un primo test con body `{"dry_run":true}`.
+La qualificazione Acumbamail non invia email: ogni giorno alle 7 promuove nel CRM operativo solo i
+contatti ancora in `holding` che hanno cliccato o raggiunto la soglia di aperture della campagna,
+assegna il responsabile, imposta un follow-up (1 giorno per click, 3 giorni per aperture) e crea il task.
 
 ## Acumbamail webhook
 

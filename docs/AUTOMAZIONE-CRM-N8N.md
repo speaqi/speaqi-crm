@@ -1,5 +1,7 @@
 # Automazione Speaqi CRM — piano esecutivo definitivo
 
+> **Ottobre 2026:** n8n non c'è più. Le automazioni le lancia il CRM stesso (`src/lib/automation-schedule.ts`, vedi CLAUDE.md, «Automazioni pianificate»). Dove sotto si parla di workflow n8n, vale il job con lo stesso endpoint; i vincoli restano validi.
+
 ## 1. Obiettivo
 
 Mettere in esercizio le automazioni già presenti nel CRM, renderle osservabili e abilitare successivamente l'invio autonomo delle sole email cold appartenenti allo scope `holding`.
