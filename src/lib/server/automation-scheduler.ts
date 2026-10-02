@@ -141,15 +141,23 @@ function supabaseDeps(log: (message: string) => void) {
   }
 
   const finish: SchedulerDeps['finish'] = async (job, slot, result) => {
-    await supabase
+    // supabase-js non lancia: l'errore va letto, o una riga resterebbe "in
+    // corso" per sempre senza che nessuno lo sappia.
+    const { error: updateError } = await supabase
       .from('automation_job_runs')
       .update({ finished_at: new Date().toISOString(), ok: result.ok, steps: result.steps, error: result.error })
       .eq('job', job)
       .eq('slot', slot)
+    if (updateError && updateError.code !== UNDEFINED_TABLE) {
+      log(`[scheduler] esito ${job} ${slot} non salvato: ${updateError.message}`)
+    }
     // Lo storico serve per capire cosa e' successo di recente, non per sempre.
     if (job === 'db-maintenance') {
       const cutoff = new Date(Date.now() - RUN_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString()
-      await supabase.from('automation_job_runs').delete().lt('slot', cutoff)
+      const { error: pruneError } = await supabase.from('automation_job_runs').delete().lt('slot', cutoff)
+      if (pruneError && pruneError.code !== UNDEFINED_TABLE) {
+        log(`[scheduler] pulizia storico fallita: ${pruneError.message}`)
+      }
     }
   }
 
