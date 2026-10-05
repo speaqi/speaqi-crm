@@ -56,7 +56,7 @@ test('summarizeReceivables somma in centesimi, separando incassati e no', () => 
     row({ id: '2', amount: 0.2 }),
     row({ id: '3', amount: 500, collected_at: '2026-09-10T00:00:00Z' }),
   ])
-  assert.deepEqual(summary, { pending: 0.3, collected: 500, pendingCount: 2, collectedCount: 1 })
+  assert.deepEqual(summary, { prospective: 0, prospectiveCount: 0, pending: 0.3, collected: 500, pendingCount: 2, collectedCount: 1 })
 })
 
 test('sortReceivables: da incassare dal piu vecchio, incassati dal piu recente', () => {
@@ -69,3 +69,19 @@ test('sortReceivables: da incassare dal piu vecchio, incassati dal piu recente',
   assert.deepEqual(pending.map((item) => item.id), ['a', 'b'])
   assert.deepEqual(collected.map((item) => item.id), ['d', 'c'])
 })
+
+ test('preventivi fuori non si sovrappongono agli incassi confermati o incassati', () => {
+  const items = [
+    row({ id: 'certain', amount: 100 }),
+    row({ id: 'quote', amount: 250, category: 'prospective' }),
+    row({ id: 'paid', amount: 50, category: 'prospective', collected_at: '2026-10-05T00:00:00Z' }),
+  ]
+  assert.deepEqual(summarizeReceivables(items), { pending: 100, pendingCount: 1, prospective: 250, prospectiveCount: 1, collected: 50, collectedCount: 1 })
+  const groups = sortReceivables(items)
+  assert.deepEqual(groups.pending.map(item => item.id), ['certain'])
+  assert.deepEqual(groups.prospective.map(item => item.id), ['quote'])
+  assert.deepEqual(groups.collected.map(item => item.id), ['paid'])
+  const confirmed = items.map(item => item.id === 'quote' ? { ...item, category: 'confirmed' as const } : item)
+  assert.equal(summarizeReceivables(confirmed).pending, 350)
+  assert.equal(summarizeReceivables(confirmed).prospective, 0)
+ })

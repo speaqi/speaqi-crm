@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
 import { requireRouteUser } from '@/lib/server/supabase'
-import { normalizeReceivableName, parseReceivableAmount } from '@/lib/receivables'
+import { isReceivableCategory, normalizeReceivableName, parseReceivableAmount } from '@/lib/receivables'
 
 /**
  * Soldi da ricevere (/incassi). Area personale, fuori da Speaqi: ogni riga e'
@@ -37,6 +37,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
+    const category = body.category ?? 'confirmed'
+    if (!isReceivableCategory(category)) return Response.json({ error: 'Categoria non valida' }, { status: 400 })
     const name = normalizeReceivableName(body.name)
     if (!name) return Response.json({ error: 'Scrivi da chi devi ricevere i soldi' }, { status: 400 })
     const amount = parseReceivableAmount(body.amount)
@@ -47,6 +49,7 @@ export async function POST(request: NextRequest) {
       .insert({
         user_id: auth.user.id,
         name,
+        category,
         amount,
         collected_at: body.collected ? new Date().toISOString() : null,
       })
@@ -70,6 +73,10 @@ export async function PATCH(request: NextRequest) {
     if (!id) return Response.json({ error: 'ID mancante' }, { status: 400 })
 
     const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    if (body.category !== undefined) {
+      if (!isReceivableCategory(body.category)) return Response.json({ error: 'Categoria non valida' }, { status: 400 })
+      payload.category = body.category
+    }
     if (body.name !== undefined) {
       const name = normalizeReceivableName(body.name)
       if (!name) return Response.json({ error: 'Il nome non puo essere vuoto' }, { status: 400 })

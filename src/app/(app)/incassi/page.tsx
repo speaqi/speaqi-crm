@@ -7,12 +7,12 @@ import {
   formatEuro,
   parseReceivableAmount,
   Receivable,
+  ReceivableCategory,
   sortReceivables,
   summarizeReceivables,
 } from '@/lib/receivables'
 
-// Soldi da ricevere: area personale, fuori da Speaqi. Nome, cifra e se e'
-// gia' stata incassata — nient'altro, di proposito.
+// Registro personale: incassi confermati e preventivi ancora da discutere.
 
 function formatDate(value: string | null) {
   if (!value) return ''
@@ -31,6 +31,7 @@ export default function IncassiPage() {
   const [loadError, setLoadError] = useState('')
   const [name, setName] = useState('')
   const [amount, setAmount] = useState('')
+  const [category, setCategory] = useState<ReceivableCategory>('confirmed')
   const [saving, setSaving] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [editing, setEditing] = useState<{ id: string; name: string; amount: string } | null>(null)
@@ -50,7 +51,7 @@ export default function IncassiPage() {
     load()
   }, [load])
 
-  const { pending, collected } = useMemo(() => sortReceivables(items || []), [items])
+  const { pending, prospective, collected } = useMemo(() => sortReceivables(items || []), [items])
   const totals = useMemo(() => summarizeReceivables(items || []), [items])
 
   function replaceItem(next: Receivable) {
@@ -68,7 +69,7 @@ export default function IncassiPage() {
       const response = await apiFetch<{ receivable: Receivable }>('/api/receivables', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: cleanName, amount }),
+        body: JSON.stringify({ name: cleanName, amount, category }),
       })
       setItems((current) => [...(current || []), response.receivable])
       setName('')
@@ -177,6 +178,12 @@ export default function IncassiPage() {
         </div>
         <div className="rc-amount">{formatEuro(item.amount)}</div>
         <div className="rc-actions">
+          {!item.collected_at ? (
+            <button type="button" className="btn-mini" disabled={busy}
+              onClick={() => patch(item.id, { category: item.category === 'prospective' ? 'confirmed' : 'prospective' })}>
+              {item.category === 'prospective' ? 'Conferma incasso' : 'Sposta in preventivi fuori'}
+            </button>
+          ) : null}
           <button
             type="button"
             className="btn-mini"
@@ -202,15 +209,31 @@ export default function IncassiPage() {
 
       <div className="rc-totals">
         <div className="rc-total is-pending">
-          <span>Da incassare</span>
+          <span>Da incassare sicuro</span>
           <strong>{formatEuro(totals.pending)}</strong>
           <small>{totals.pendingCount === 1 ? '1 voce' : `${totals.pendingCount} voci`}</small>
+        </div>
+        <div className="rc-total is-prospective">
+          <span>Preventivi fuori</span>
+          <strong>{formatEuro(totals.prospective)}</strong>
+          <small>{totals.prospectiveCount} voci · ancora da parlarne</small>
         </div>
         <div className="rc-total is-collected">
           <span>Già incassati</span>
           <strong>{formatEuro(totals.collected)}</strong>
           <small>{totals.collectedCount === 1 ? '1 voce' : `${totals.collectedCount} voci`}</small>
         </div>
+      </div>
+
+      <div className="rc-view-toggle" role="group" aria-label="Mostra incassi o preventivi fuori">
+        <button type="button" aria-pressed={category === 'confirmed'}
+          onClick={() => { setCategory('confirmed'); setEditing(null) }}>
+          Da incassare sicuro ({totals.pendingCount})
+        </button>
+        <button type="button" aria-pressed={category === 'prospective'}
+          onClick={() => { setCategory('prospective'); setEditing(null) }}>
+          Preventivi fuori ({totals.prospectiveCount})
+        </button>
       </div>
 
       <form className="rc-add" onSubmit={add}>
@@ -235,7 +258,7 @@ export default function IncassiPage() {
           />
         </label>
         <button className="btn btn-primary" type="submit" disabled={saving}>
-          {saving ? 'Salvo…' : 'Aggiungi'}
+          {saving ? 'Salvo…' : category === 'confirmed' ? 'Aggiungi incasso sicuro' : 'Aggiungi preventivo fuori'}
         </button>
       </form>
 
@@ -244,11 +267,15 @@ export default function IncassiPage() {
 
       {items !== null ? (
         <>
-          {pending.length ? (
-            <ul className="rc-list">{pending.map(renderRow)}</ul>
-          ) : (
-            <div className="rc-empty">Niente da incassare. 🎉</div>
-          )}
+          <section>
+            <h2>{category === 'confirmed' ? 'Da incassare sicuro' : 'Preventivi fuori'}</h2>
+            {category === 'prospective' ? <p className="page-subtitle">Ancora da parlarne. Questi importi non entrano nel totale da incassare sicuro.</p> : null}
+            {(category === 'confirmed' ? pending : prospective).length ? (
+              <ul className="rc-list">{(category === 'confirmed' ? pending : prospective).map(renderRow)}</ul>
+            ) : (
+              <div className="rc-empty">{category === 'confirmed' ? 'Nessun incasso confermato in attesa.' : 'Nessun preventivo fuori.'}</div>
+            )}
+          </section>
 
           {collected.length ? (
             <section className="rc-collected">

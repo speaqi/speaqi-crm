@@ -3,7 +3,14 @@
  * Qui solo la logica pura, condivisa fra la pagina e la rotta.
  */
 
+export type ReceivableCategory = 'confirmed' | 'prospective'
+
+export function isReceivableCategory(value: unknown): value is ReceivableCategory {
+  return value === 'confirmed' || value === 'prospective'
+}
+
 export type Receivable = {
+  category?: ReceivableCategory
   id: string
   name: string
   amount: number
@@ -70,6 +77,8 @@ export function formatEuro(amount: number) {
 /** Somme in centesimi: sommare float di euro accumula errori di arrotondamento. */
 export function summarizeReceivables(items: Receivable[]) {
   let pendingCents = 0
+  let prospectiveCents = 0
+  let prospectiveCount = 0
   let collectedCents = 0
   let pendingCount = 0
   let collectedCount = 0
@@ -79,6 +88,9 @@ export function summarizeReceivables(items: Receivable[]) {
     if (item.collected_at) {
       collectedCents += cents
       collectedCount += 1
+    } else if (item.category === 'prospective') {
+      prospectiveCents += cents
+      prospectiveCount += 1
     } else {
       pendingCents += cents
       pendingCount += 1
@@ -86,6 +98,8 @@ export function summarizeReceivables(items: Receivable[]) {
   }
 
   return {
+    prospective: prospectiveCents / 100,
+    prospectiveCount,
     pending: pendingCents / 100,
     collected: collectedCents / 100,
     pendingCount,
@@ -100,10 +114,13 @@ export function summarizeReceivables(items: Receivable[]) {
  */
 export function sortReceivables(items: Receivable[]) {
   const pending = items
-    .filter((item) => !item.collected_at)
+    .filter((item) => !item.collected_at && item.category !== 'prospective')
     .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
   const collected = items
     .filter((item) => item.collected_at)
     .sort((a, b) => String(b.collected_at).localeCompare(String(a.collected_at)) || a.id.localeCompare(b.id))
-  return { pending, collected }
+  const prospective = items
+    .filter((item) => !item.collected_at && item.category === 'prospective')
+    .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
+  return { pending, prospective, collected }
 }
