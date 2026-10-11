@@ -113,5 +113,6 @@ describe('lettura del sito TTG', () => {
     assert.equal(detail.country, 'Italia')
     assert.equal(detail.city, 'TURSI')
     assert.match(detail.categories, /TOUR OPERATOR/)
+    assert.doesNotMatch(detail.categories, /Mappa/)
   })
 })

@@ -63,7 +63,7 @@ export function parseDetail(html: string): TtgDetail {
   const website = /website<\/p>[\s\S]*?href="([^"]+)"/.exec(html)?.[1] || null
   const email = /mailto:([^"]+)"/.exec(html)?.[1] || null
 
-  const block = /section-title">Categorie<\/p>([\s\S]*?)(?:<\/main>|<footer|class="section-title")/.exec(html)?.[1] || ''
+  const block = /section-title">Categorie<\/p>([\s\S]*?)(?:<\/main>|<footer|class="section-title|class="section\s)/.exec(html)?.[1] || ''
   const groups = [...block.matchAll(/<p class="text-xs font-bold[^"]*">([^<]*)<\/p>([\s\S]*?)(?=<p class="text-xs font-bold|$)/g)]
   const categories = groups
     .map((group) => {
@@ -79,7 +79,7 @@ export function parseDetail(html: string): TtgDetail {
     address: addressLines.join(', ') || null,
     city,
     country,
-    phone: phoneLine ? phoneLine.replace(/^tel\.?:\s*/i, '').trim() || null : null,
+    phone: phoneLine ? phoneLine.replace(/^tel\.?:\s*/i, '').replace(/^[A-Z]{2}\|\s*/, '').trim() || null : null,
     website: website ? decodeEntities(website).trim() : null,
     email: email ? decodeEntities(email).trim() : null,
     categories,
