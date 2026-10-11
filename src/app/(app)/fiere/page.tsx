@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useCRMContext } from '../layout'
 import { apiFetch } from '@/lib/api'
@@ -104,6 +105,22 @@ export default function FierePage() {
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Impossibile aggiornare')
       return false
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function makeContact(row: FairExhibitor) {
+    setBusyId(row.id)
+    try {
+      const response = await apiFetch<{ contact_id: string; created: boolean; exhibitor: FairExhibitor }>(
+        '/api/trade-fair-exhibitors/contact',
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: row.id }) }
+      )
+      setRows((current) => (current || []).map((item) => (item.id === row.id ? response.exhibitor : item)))
+      showToast(response.created ? 'Contatto creato nella pipeline' : 'Collegato al contatto già in rubrica')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Impossibile creare il contatto')
     } finally {
       setBusyId(null)
     }
@@ -274,6 +291,11 @@ export default function FierePage() {
                           <input className="fi" type="date" value={row.next_followup_at || ''} disabled={busy} onChange={(e) => patch(row.id, { next_followup_at: e.target.value || null })} />
                         </label>
                         {row.contacted_at ? <span style={{ fontSize: 12, color: '#64748b' }}>Primo contatto {formatStamp(row.contacted_at)}</span> : null}
+                        {row.contact_id ? (
+                          <Link className="btn btn-sm" href={`/contacts/${row.contact_id}`}>Apri contatto →</Link>
+                        ) : (
+                          <button className="btn btn-primary btn-sm" type="button" disabled={busy} onClick={() => makeContact(row)}>➕ Crea contatto in pipeline</button>
+                        )}
                       </div>
 
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 13 }}>
