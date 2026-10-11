@@ -147,6 +147,9 @@ export async function PATCH(request: NextRequest) {
     if (body.email !== undefined) payload.email = body.email ? normalizeEmail(body.email) : null
     if (body.website !== undefined) payload.website = body.website ? normalizeWebsite(body.website) : null
     if (body.phone !== undefined) payload.phone = String(body.phone || '').trim().slice(0, 60) || null
+    if (body.contact_person !== undefined) {
+      payload.contact_person = String(body.contact_person || '').trim().slice(0, 120) || null
+    }
     if (body.note !== undefined) {
       const note = newNote(String(body.note))
       if (!note) return Response.json({ error: 'La nota e vuota' }, { status: 400 })
@@ -164,6 +167,23 @@ export async function PATCH(request: NextRequest) {
       const { score, reasons } = scoreExhibitor(merged)
       payload.score = score
       payload.score_reasons = reasons
+    }
+
+    // Se l'espositore e' gia' un contatto del CRM, email/telefono/referente corretti
+    // in fiera si riportano anche li', altrimenti il follow-up parte con dati vecchi.
+    if (current.contact_id) {
+      const contactPatch: Record<string, unknown> = {}
+      if (payload.email !== undefined) contactPatch.email = payload.email
+      if (payload.phone !== undefined) contactPatch.phone = payload.phone
+      if (payload.contact_person) contactPatch.name = payload.contact_person
+      if (Object.keys(contactPatch).length) {
+        const { error: contactError } = await auth.supabase
+          .from('contacts')
+          .update(contactPatch)
+          .eq('user_id', auth.workspaceUserId)
+          .eq('id', current.contact_id)
+        if (contactError) throw contactError
+      }
     }
 
     const { data, error } = await auth.supabase

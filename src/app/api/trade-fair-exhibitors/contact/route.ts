@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
 
     const insertPayload: Record<string, unknown> = {
       user_id: auth.workspaceUserId,
-      name: exhibitor.name,
+      name: exhibitor.contact_person || exhibitor.name,
       company: exhibitor.name,
       email: exhibitor.email,
       phone: exhibitor.phone,

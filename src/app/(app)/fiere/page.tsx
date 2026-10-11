@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useCRMContext } from '../layout'
 import { apiFetch } from '@/lib/api'
 import {
+  compareByLocation,
   compareExhibitors,
   effectivePriority,
   FairExhibitor,
@@ -12,6 +13,10 @@ import {
   filterExhibitors,
   followupState,
   PRIORITY_LABELS,
+  standLabel,
+  standMapUrl,
+  TTG_FLOOR_MAP,
+  TTG_HOW_TO_GET_THERE,
   STATUS_LABELS,
   summarize,
   TRADE_FAIR_STATUSES,
@@ -65,6 +70,8 @@ export default function FierePage() {
   const [importText, setImportText] = useState('')
   const [importing, setImporting] = useState(false)
   const [now, setNow] = useState(() => new Date())
+  const [sort, setSort] = useState<'priority' | 'stand' | 'name'>('priority')
+  const [draft, setDraft] = useState<{ id: string; email: string; phone: string; person: string } | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -82,9 +89,16 @@ export default function FierePage() {
   }, [load])
 
   const summary = useMemo(() => summarize(rows || [], now), [rows, now])
+  const halls = useMemo(
+    () => Array.from(new Set((rows || []).map((row) => (row.hall || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [rows]
+  )
   const visible = useMemo(
-    () => filterExhibitors(rows || [], filter, now).sort((a, b) => compareExhibitors(a, b, now)),
-    [rows, filter, now]
+    () =>
+      filterExhibitors(rows || [], filter, now).sort((a, b) =>
+        sort === 'stand' ? compareByLocation(a, b) : sort === 'name' ? a.name.localeCompare(b.name) : compareExhibitors(a, b, now)
+      ),
+    [rows, filter, now, sort]
   )
 
   function setFilterAndReset(next: FairFilter) {
@@ -110,17 +124,48 @@ export default function FierePage() {
     }
   }
 
-  async function makeContact(row: FairExhibitor) {
+  function draftFor(row: FairExhibitor) {
+    return draft && draft.id === row.id
+      ? draft
+      : { id: row.id, email: row.email || '', phone: row.phone || '', person: row.contact_person || '' }
+  }
+
+  /** Salva i dati corretti allo stand; con `toCrm` l'espositore entra anche in pipeline con follow-up. */
+  async function saveContactData(row: FairExhibitor, toCrm: boolean) {
+    const d = draftFor(row)
+    const email = d.email.trim()
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showToast('Email non valida')
     setBusyId(row.id)
     try {
-      const response = await apiFetch<{ contact_id: string; created: boolean; exhibitor: FairExhibitor }>(
-        '/api/trade-fair-exhibitors/contact',
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: row.id }) }
-      )
-      setRows((current) => (current || []).map((item) => (item.id === row.id ? response.exhibitor : item)))
-      showToast(response.created ? 'Contatto creato nella pipeline' : 'Collegato al contatto già in rubrica')
+      const saved = await apiFetch<{ exhibitor: FairExhibitor }>('/api/trade-fair-exhibitors', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: row.id, email, phone: d.phone.trim(), contact_person: d.person.trim() }),
+      })
+      let next = saved.exhibitor
+      if (toCrm) {
+        if (next.status === 'new') {
+          const moved = await apiFetch<{ exhibitor: FairExhibitor }>('/api/trade-fair-exhibitors', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: row.id, status: 'contacted' }),
+          })
+          next = moved.exhibitor
+        }
+        const made = await apiFetch<{ created: boolean; exhibitor: FairExhibitor }>('/api/trade-fair-exhibitors/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: row.id }),
+        })
+        next = made.exhibitor
+        showToast(made.created ? 'Salvato e aggiunto al CRM: lo trovi nei follow-up' : 'Salvato, contatto già nel CRM aggiornato')
+      } else {
+        showToast('Dati salvati')
+      }
+      setRows((current) => (current || []).map((item) => (item.id === row.id ? next : item)))
+      setDraft(null)
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Impossibile creare il contatto')
+      showToast(error instanceof Error ? error.message : 'Impossibile salvare')
     } finally {
       setBusyId(null)
     }
@@ -175,7 +220,7 @@ export default function FierePage() {
   const card: React.CSSProperties = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 14px', minWidth: 130 }
 
   return (
-    <div style={{ padding: 24, display: 'grid', gap: 16 }}>
+    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 24, display: 'grid', gap: 16, alignContent: 'start' }}>
       <header style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22 }}>🎪 {FAIR_LABEL}</h1>
@@ -183,7 +228,9 @@ export default function FierePage() {
             Espositori da valutare, contattare e riprendere dopo la fiera. Il punteggio dice quanto somigliano a un cliente di Speaqi Maps.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <a className="btn btn-ghost btn-sm" href={TTG_FLOOR_MAP} target="_blank" rel="noopener noreferrer">🗺️ Mappa padiglioni</a>
+          <a className="btn btn-ghost btn-sm" href={TTG_HOW_TO_GET_THERE} target="_blank" rel="noopener noreferrer">🚇 Come arrivare</a>
           <button className="btn btn-ghost btn-sm" type="button" onClick={exportCsv} disabled={!visible.length}>Esporta CSV</button>
           <button className="btn btn-primary btn-sm" type="button" onClick={() => setShowImport((v) => !v)}>
             {showImport ? 'Chiudi importazione' : 'Importa elenco'}
@@ -233,7 +280,7 @@ export default function FierePage() {
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-            <input className="fi" style={{ minWidth: 220 }} placeholder="Cerca nome, paese, categoria…" value={filter.search || ''}
+            <input className="fi" style={{ minWidth: 220 }} placeholder="Cerca nome, stand, email, categoria…" value={filter.search || ''}
               onChange={(e) => setFilterAndReset({ ...filter, search: e.target.value })} />
             <select className="fi" value={String(filter.status || 'all')} onChange={(e) => setFilterAndReset({ ...filter, status: e.target.value as FairFilter['status'] })}>
               <option value="all">Tutti gli stati</option>
@@ -243,6 +290,15 @@ export default function FierePage() {
             <select className="fi" value={String(filter.priority || 'all')} onChange={(e) => setFilterAndReset({ ...filter, priority: e.target.value === 'all' ? 'all' : (Number(e.target.value) as 1 | 2 | 3) })}>
               <option value="all">Ogni priorità</option>
               <option value="1">Alta</option><option value="2">Media</option><option value="3">Bassa</option>
+            </select>
+            <select className="fi" value={filter.hall || ''} onChange={(e) => setFilterAndReset({ ...filter, hall: e.target.value || undefined })}>
+              <option value="">Tutti i padiglioni</option>
+              {halls.map((hall) => <option key={hall} value={hall}>{hall.replace(/^Hall\s+/i, 'Pad. ')}</option>)}
+            </select>
+            <select className="fi" value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
+              <option value="priority">Ordina: da contattare per primi</option>
+              <option value="stand">Ordina: giro della fiera (padiglione e stand)</option>
+              <option value="name">Ordina: nome</option>
             </select>
             <label style={{ fontSize: 13 }}><input type="checkbox" checked={Boolean(filter.onlyFollowup)} onChange={(e) => setFilterAndReset({ ...filter, onlyFollowup: e.target.checked })} /> Follow-up da fare</label>
             <label style={{ fontSize: 13 }}><input type="checkbox" checked={Boolean(filter.onlyWithContact)} onChange={(e) => setFilterAndReset({ ...filter, onlyWithContact: e.target.checked })} /> Con email o telefono</label>
@@ -264,9 +320,11 @@ export default function FierePage() {
                     <div style={{ flex: '1 1 260px', minWidth: 0 }}>
                       <div style={{ fontWeight: 600 }}>{row.name}</div>
                       <div style={{ fontSize: 12, color: '#64748b' }}>
-                        {[row.country, row.category, row.hall && `Pad. ${row.hall}`, row.stand && `Stand ${row.stand}`].filter(Boolean).join(' · ')}
+                        {[row.country, row.category].filter(Boolean).join(' · ')}
                       </div>
                     </div>
+ {standLabel(row) ? <span style={{ fontSize: 12, fontWeight: 700, background: '#eef2ff', color: '#3730a3', borderRadius: 6, padding: '2px 8px' }}>📍 {standLabel(row)}</span> : null}
+                    {row.contact_id ? <span title="Già nel CRM" style={{ fontSize: 12 }}>✅ CRM</span> : null}
                     {row.notes.length ? <span title="Note" style={{ fontSize: 12 }}>📝 {row.notes.length}</span> : null}
                     {row.next_followup_at && follow !== 'none' ? (
                       <span style={{ fontSize: 12, color: follow === 'overdue' ? '#b91c1c' : '#475569', fontWeight: follow === 'planned' ? 400 : 700 }}>
@@ -291,25 +349,38 @@ export default function FierePage() {
                           <input className="fi" type="date" value={row.next_followup_at || ''} disabled={busy} onChange={(e) => patch(row.id, { next_followup_at: e.target.value || null })} />
                         </label>
                         {row.contacted_at ? <span style={{ fontSize: 12, color: '#64748b' }}>Primo contatto {formatStamp(row.contacted_at)}</span> : null}
-                        {row.contact_id ? (
-                          <Link className="btn btn-sm" href={`/contacts/${row.contact_id}`}>Apri contatto →</Link>
-                        ) : (
-                          <button className="btn btn-primary btn-sm" type="button" disabled={busy} onClick={() => makeContact(row)}>➕ Crea contatto in pipeline</button>
-                        )}
                       </div>
 
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 13 }}>
-                        {row.email ? <a href={`mailto:${row.email}`}>✉ {row.email}</a> : null}
-                        {row.phone ? <a href={`tel:${row.phone}`}>📞 {row.phone}</a> : null}
-                        {row.website ? <a href={row.website} target="_blank" rel="noopener noreferrer">🌐 sito</a> : null}
-                        {row.source_url ? <a href={row.source_url} target="_blank" rel="noopener noreferrer">scheda fiera</a> : null}
-                        {!row.email && !row.phone && !row.website ? <span style={{ color: '#64748b' }}>Nessun contatto: aggiungilo qui sotto.</span> : null}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 13, alignItems: 'center' }}>
+                        {standLabel(row) ? <strong>📍 {standLabel(row)}</strong> : <span style={{ color: '#64748b' }}>Stand non indicato</span>}
+                        <a href={standMapUrl(row)} target="_blank" rel="noopener noreferrer">🗺️ Mappa e percorso allo stand</a>
+                        <a href={TTG_HOW_TO_GET_THERE} target="_blank" rel="noopener noreferrer">🚇 Come arrivare in fiera</a>
+                        {row.source_url ? <a href={row.source_url} target="_blank" rel="noopener noreferrer">Scheda sul sito della fiera</a> : null}
+                        {row.website ? <a href={row.website} target="_blank" rel="noopener noreferrer">🌐 Sito</a> : null}
                       </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                        {([['email', 'Email'], ['phone', 'Telefono'], ['website', 'Sito']] as const).map(([field, label]) => (
-                          <input key={`${row.id}-${field}-${row[field] || ''}`} className="fi" placeholder={label} defaultValue={row[field] || ''} disabled={busy}
-                            onBlur={(e) => { if (e.target.value.trim() !== (row[field] || '')) patch(row.id, { [field]: e.target.value.trim() }) }} />
-                        ))}
+
+                      <div style={{ display: 'grid', gap: 8, background: '#f8fafc', borderRadius: 10, padding: 12 }}>
+                        <strong style={{ fontSize: 13 }}>Contatto preso allo stand</strong>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {([['person', 'Con chi hai parlato'], ['email', 'Email corretta'], ['phone', 'Telefono']] as const).map(([field, label]) => (
+                            <input key={`${row.id}-${field}`} className="fi" style={{ flex: '1 1 200px' }} placeholder={label}
+                              type={field === 'email' ? 'email' : 'text'} inputMode={field === 'email' ? 'email' : undefined}
+                              value={draftFor(row)[field]} disabled={busy}
+                              onChange={(e) => setDraft({ ...draftFor(row), [field]: e.target.value })} />
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          <button className="btn btn-primary btn-sm" type="button" disabled={busy} onClick={() => saveContactData(row, true)}>
+                            {row.contact_id ? '💾 Salva e aggiorna il contatto nel CRM' : '➕ Salva e aggiungi al CRM (da ricontattare)'}
+                          </button>
+                          <button className="btn btn-ghost btn-sm" type="button" disabled={busy} onClick={() => saveContactData(row, false)}>Solo salva</button>
+                          {row.contact_id ? <Link className="btn btn-ghost btn-sm" href={`/contacts/${row.contact_id}`}>Apri contatto →</Link> : null}
+                          {row.email ? <a className="btn btn-ghost btn-sm" href={`mailto:${row.email}`}>✉ Scrivi</a> : null}
+                          {row.phone ? <a className="btn btn-ghost btn-sm" href={`tel:${row.phone}`}>📞 Chiama</a> : null}
+                        </div>
+                        <span style={{ fontSize: 12, color: '#64748b' }}>
+                          «Aggiungi al CRM» crea il contatto in pipeline con follow-up per domani (o la data impostata sopra) e segna l&apos;espositore come contattato.
+                        </span>
                       </div>
 
                       {row.description ? <p style={{ margin: 0, fontSize: 13, color: '#475569' }}>{row.description}</p> : null}

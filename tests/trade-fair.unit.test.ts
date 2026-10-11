@@ -116,3 +116,18 @@ describe('lettura del sito TTG', () => {
     assert.doesNotMatch(detail.categories, /Mappa/)
   })
 })
+
+test('standLabel, standMapUrl e ordine per giro della fiera', async () => {
+  const { standLabel, standMapUrl, compareByLocation, TTG_FLOOR_MAP } = await import('../src/lib/trade-fair')
+  assert.equal(standLabel({ hall: 'Hall A7-C7', stand: '209-408' }), 'Pad. A7-C7 · Stand 209-408')
+  assert.equal(standLabel({ hall: null, stand: null }), '')
+  assert.equal(standMapUrl({ source_url: 'https://x/y?digitalProfileId=1' }), 'https://x/y?digitalProfileId=1#mappa')
+  assert.equal(standMapUrl({ source_url: null }), TTG_FLOOR_MAP)
+  const rows = [
+    { name: 'senza', hall: null, stand: null },
+    { name: 'b', hall: 'C1', stand: '10' },
+    { name: 'a2', hall: 'A1', stand: '125' },
+    { name: 'a1', hall: 'A1', stand: '9' },
+  ]
+  assert.deepEqual(rows.sort(compareByLocation).map((r) => r.name), ['a1', 'a2', 'b', 'senza'])
+})

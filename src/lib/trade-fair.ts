@@ -31,6 +31,7 @@ export type FairExhibitor = {
   country: string | null
   city: string | null
   category: string | null
+  contact_person: string | null
   description: string | null
   website: string | null
   email: string | null
@@ -219,6 +220,7 @@ export type FairFilter = {
   priority?: 1 | 2 | 3 | 'all'
   onlyFollowup?: boolean
   onlyWithContact?: boolean
+  hall?: string
 }
 
 function fold(value: string) {
@@ -237,8 +239,9 @@ export function filterExhibitors(rows: FairExhibitor[], filter: FairFilter, now:
       if (state !== 'overdue' && state !== 'today') return false
     }
     if (filter.onlyWithContact && !row.email && !row.phone) return false
+    if (filter.hall && (row.hall || '').trim() !== filter.hall) return false
     if (query) {
-      const haystack = fold([row.name, row.country, row.city, row.category, row.stand, row.description].filter(Boolean).join(' '))
+      const haystack = fold([row.name, row.country, row.city, row.category, row.hall, row.stand, row.email, row.contact_person, row.description].filter(Boolean).join(' '))
       if (!haystack.includes(query)) return false
     }
     return true
@@ -356,4 +359,31 @@ export function newNote(text: string, now = new Date()): FairNote | null {
   const clean = String(text || '').trim().slice(0, 2000)
   if (!clean) return null
   return { id: `${now.getTime().toString(36)}${Math.random().toString(36).slice(2, 6)}`, at: now.toISOString(), text: clean }
+}
+
+// ---------------------------------------------------------------------------
+// Dove si trova uno stand
+// ---------------------------------------------------------------------------
+
+export const TTG_HOW_TO_GET_THERE = 'https://www.ttgexpo.it/it/come-arrivare'
+export const TTG_FLOOR_MAP = 'https://maps.iegexpo.cloud/ttg/2026/index.html'
+
+/** Pagina dell'espositore sul sito della fiera, aperta sulla mappa interattiva col percorso. */
+export function standMapUrl(row: Pick<FairExhibitor, 'source_url'>) {
+  return row.source_url ? `${row.source_url}#mappa` : TTG_FLOOR_MAP
+}
+
+export function standLabel(row: Pick<FairExhibitor, 'hall' | 'stand'>) {
+  return [row.hall && `Pad. ${row.hall.replace(/^Hall\s+/i, '')}`, row.stand && `Stand ${row.stand}`].filter(Boolean).join(' · ')
+}
+
+/** Ordine di cammino: padiglione, poi numero di stand (i senza stand in fondo). */
+export function compareByLocation(a: Pick<FairExhibitor, 'hall' | 'stand' | 'name'>, b: Pick<FairExhibitor, 'hall' | 'stand' | 'name'>) {
+  const key = (row: Pick<FairExhibitor, 'hall' | 'stand'>) => {
+    const number = parseInt(String(row.stand || '').replace(/\D+/g, ' ').trim().split(' ')[0] || '', 10)
+    return [row.hall ? 0 : 1, row.hall || '', Number.isFinite(number) ? number : 99999] as const
+  }
+  const [aMissing, aHall, aNum] = key(a)
+  const [bMissing, bHall, bNum] = key(b)
+  return aMissing - bMissing || aHall.localeCompare(bHall) || aNum - bNum || a.name.localeCompare(b.name)
 }
