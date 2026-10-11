@@ -21,6 +21,7 @@ export const AREAS = [
   { key: 'marketing', label: 'Marketing', paths: ['/marketing'], alwaysOn: false, defaultOn: false },
   { key: 'progetti', label: 'Progetti', paths: ['/progetti'], alwaysOn: false, defaultOn: false },
   { key: 'navigazione', label: 'Navigazione', paths: ['/navigazione'], alwaysOn: false, defaultOn: false },
+  { key: 'fiere', label: 'Fiere', paths: ['/fiere'], alwaysOn: false, defaultOn: false },
   { key: 'import', label: 'Import', paths: ['/import'], alwaysOn: false, defaultOn: false },
   { key: 'impostazioni', label: 'Impostazioni', paths: ['/impostazioni'], alwaysOn: false, defaultOn: false },
 ] as const
