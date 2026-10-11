@@ -46,6 +46,7 @@ const NAV_ITEMS = [
 const FOOTER_ITEMS = [
   { href: '/incassi', label: 'Da incassare', icon: '💰' },
   { href: '/navigazione', label: 'Navigazione', icon: '🚢' },
+  { href: '/fiere', label: 'Fiere', icon: '🎪' },
   { href: '/import', label: 'Importa', icon: '📥' },
   { href: '/acumbamail', label: 'Acumbamail', icon: '📧' },
 ]

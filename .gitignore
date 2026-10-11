@@ -43,3 +43,6 @@ next-env.d.ts
 
 # database backups (dump con dati reali)
 /backups/
+
+# elenchi di espositori scaricati da fiere (contengono email di terzi)
+/scripts/csv/ttg-espositori.csv
