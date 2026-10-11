@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useCRMContext } from '../layout'
 import { apiFetch } from '@/lib/api'
+import { buildVisitPlan } from '@/lib/trade-fair-plan'
 import { DAILY_OUTREACH_CAP, isOutreachAligned, OutreachState, TEMPLATE_LABELS } from '@/lib/trade-fair-outreach'
 import { CLASS_META, evaluateExhibitor, FACTOR_DEFS, FactorKey, LeadClass, SOURCE_LABELS } from '@/lib/opportunity-score'
 import {
@@ -74,6 +75,11 @@ export default function FierePage() {
   const [now, setNow] = useState(() => new Date())
   const [sort, setSort] = useState<'priority' | 'stand' | 'name'>('priority')
   const [topOnly, setTopOnly] = useState(false)
+  const [showPlan, setShowPlan] = useState(false)
+  const [planCount, setPlanCount] = useState(120)
+  const [planDaysCount, setPlanDaysCount] = useState(3)
+  const [planItalyOnly, setPlanItalyOnly] = useState(false)
+  const [planDone, setPlanDone] = useState<string[]>([])
   const [showMail, setShowMail] = useState(false)
   const [mailBusy, setMailBusy] = useState(false)
   const [mailFilter, setMailFilter] = useState<'all' | 'selected' | 'prepared' | 'sent'>('all')
@@ -107,6 +113,16 @@ export default function FierePage() {
     load()
   }, [load])
 
+  // Tappe del piano gia' fatte: restano sul telefono, per postazione.
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem('speaqi.fiere.plan.done') || '[]')
+      if (Array.isArray(saved)) setPlanDone(saved.map(String))
+    } catch {
+      /* nessuna preferenza salvata */
+    }
+  }, [])
+
   const summary = useMemo(() => summarize(rows || [], now), [rows, now])
   const halls = useMemo(
     () => Array.from(new Set((rows || []).map((row) => (row.hall || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
@@ -125,6 +141,42 @@ export default function FierePage() {
       ),
     [rows, filter, now, sort, mailFilter]
   )
+
+  const plan = useMemo(
+    () => (rows && showPlan ? buildVisitPlan(rows, planCount, planDaysCount, { italyOnly: planItalyOnly }) : null),
+    [rows, showPlan, planCount, planDaysCount, planItalyOnly]
+  )
+
+  function togglePlanStop(key: string) {
+    setPlanDone((current) => {
+      const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key]
+      try {
+        window.localStorage.setItem('speaqi.fiere.plan.done', JSON.stringify(next))
+      } catch {
+        /* ignora */
+      }
+      return next
+    })
+  }
+
+  function exportPlanCsv() {
+    if (!plan) return
+    const header = ['Giorno', 'Padiglione', 'Stand', 'Espositore', 'Priorità TTG', 'Tipologia', 'Paese', 'Stato', 'Fatto']
+    const lines = plan.days.flatMap((d) =>
+      d.stops.flatMap((stop) =>
+        stop.targets.map((t) =>
+          [d.day, stop.hall, stop.stand, t.name, (t.ttg_priority_score ?? t.score), FACTOR_DEFS[0].options.find((o) => o.id === t.organization_type)?.label, t.country, STATUS_LABELS[t.status as TradeFairStatus], planDone.includes(stop.key) ? 'sì' : ''].map(csvCell).join(';')
+        )
+      )
+    )
+    const blob = new Blob(['﻿' + [header.map(csvCell).join(';'), ...lines].join('\n')], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `piano-visita-${FAIR}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
 
   const mailStats = useMemo(() => {
     const list = rows || []
@@ -424,6 +476,7 @@ export default function FierePage() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           <a className="btn btn-ghost btn-sm" href={TTG_FLOOR_MAP} target="_blank" rel="noopener noreferrer">🗺️ Mappa padiglioni</a>
           <a className="btn btn-ghost btn-sm" href={TTG_HOW_TO_GET_THERE} target="_blank" rel="noopener noreferrer">🚇 Come arrivare</a>
+          <button className={`btn btn-sm ${showPlan ? 'btn-primary' : 'btn-ghost'}`} type="button" onClick={() => setShowPlan((v) => !v)}>🗺️ Piano di visita</button>
           <button className={`btn btn-sm ${showMail ? 'btn-primary' : 'btn-ghost'}`} type="button" onClick={() => setShowMail((v) => !v)}>✉ Mailing</button>
           <button className="btn btn-ghost btn-sm" type="button" onClick={exportCsv} disabled={!visible.length}>Esporta CSV</button>
           <button className="btn btn-primary btn-sm" type="button" onClick={() => setShowImport((v) => !v)}>
@@ -445,6 +498,54 @@ export default function FierePage() {
               {importing ? 'Importo…' : 'Importa'}
             </button>
           </div>
+        </section>
+      ) : null}
+
+      {showPlan && plan ? (
+        <section style={{ ...card, display: 'grid', gap: 12 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+            <strong>🗺️ Piano di visita: i migliori, per padiglione</strong>
+            <label style={{ fontSize: 13 }}>Top <input className="fi" type="number" min={10} max={400} style={{ width: 80 }} value={planCount} onChange={(e) => setPlanCount(Math.max(10, Math.min(400, Number(e.target.value) || 120)))} /></label>
+            <label style={{ fontSize: 13 }}>Giorni <select className="fi" value={planDaysCount} onChange={(e) => setPlanDaysCount(Number(e.target.value))}>{[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
+            <label style={{ fontSize: 13 }}><input type="checkbox" checked={planItalyOnly} onChange={(e) => setPlanItalyOnly(e.target.checked)} /> Solo Italia</label>
+            <button className="btn btn-ghost btn-sm" type="button" onClick={exportPlanCsv}>Esporta CSV</button>
+            <button className="btn btn-ghost btn-sm" type="button" onClick={() => window.print()}>Stampa</button>
+          </div>
+          <span style={{ fontSize: 13, color: '#64748b' }}>
+            {plan.targets.length} espositori in {plan.stops.length} tappe (gli stand collettivi sono una tappa sola, con più espositori dentro).
+            I padiglioni con lo stesso numero (A3 e C3…) sono considerati affiancati; dentro il padiglione l&apos;ordine segue il numero dello stand.
+            Questa è la mia ipotesi sulla vicinanza: controlla la «Mappa padiglioni» in alto.
+            Tempo indicativo: 6–8 minuti a tappa.
+          </span>
+          {plan.days.map((d) => (
+            <div key={d.day} style={{ display: 'grid', gap: 6 }}>
+              <strong style={{ fontSize: 15 }}>Giorno {d.day} · {d.stops.length} tappe · {Array.from(new Set(d.stops.map((s) => s.hall))).join(' → ')} · {planDone.filter((k) => d.stops.some((s) => s.key === k)).length}/{d.stops.length} fatte</strong>
+              {d.stops.map((stop, index) => {
+                const showHall = index === 0 || d.stops[index - 1].hall !== stop.hall
+                const done = planDone.includes(stop.key)
+                return (
+                  <div key={stop.key}>
+                    {showHall ? <div style={{ fontSize: 12, fontWeight: 700, color: '#3730a3', margin: '6px 0 2px' }}>Padiglione {stop.hall.replace(/^Hall\s+/i, '')}</div> : null}
+                    <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: done ? '#f1f5f9' : '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', opacity: done ? 0.6 : 1 }}>
+                      <input type="checkbox" checked={done} onChange={() => togglePlanStop(stop.key)} style={{ marginTop: 3 }} />
+                      <span style={{ flex: '0 0 130px', fontWeight: 700, fontSize: 13 }}>📍 Stand {stop.stand}</span>
+                      <span style={{ display: 'grid', gap: 2, fontSize: 13 }}>
+                        {stop.targets.map((t) => (
+                          <span key={t.id}>
+                            <button type="button" className="btn-mini" style={{ textAlign: 'left' }}
+                              onClick={(e) => { e.preventDefault(); setShowPlan(false); setFilterAndReset({ status: 'all', priority: 'all', search: t.name }); setOpenId(t.id) }}>
+                              {t.name}
+                            </button>
+                            <span style={{ color: '#64748b', fontSize: 12 }}> · {Math.round(t.ttg_priority_score ?? t.score)}{t.country && !/^ital/i.test(t.country) ? ` · ${t.country}` : ''}{t.status !== 'new' ? ` · ${STATUS_LABELS[t.status as TradeFairStatus]}` : ''}</span>
+                          </span>
+                        ))}
+                      </span>
+                    </label>
+                  </div>
+                )
+              })}
+            </div>
+          ))}
         </section>
       ) : null}
 
