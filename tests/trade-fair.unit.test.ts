@@ -93,3 +93,25 @@ describe('import da testo', () => {
     assert.equal(slugifyExhibitor('Città & Borghi S.r.l.'), 'citta-e-borghi-s-r-l')
   })
 })
+
+import { readFileSync } from 'node:fs'
+import { parseCityLine, parseDetail, parseListCard, splitPosition } from '../src/lib/ttg-exhibitors'
+
+describe('lettura del sito TTG', () => {
+  test('posizione e riga della citta\'', () => {
+    assert.deepEqual(splitPosition('A3/134-206'), { hall: 'A3', stand: '134-206' })
+    assert.deepEqual(parseCityLine('75028 TURSI , MT - Italia'), { city: 'TURSI', country: 'Italia' })
+  })
+  test('scheda dell\'elenco', () => {
+    const card = `<p class="card-digitalprofile-name">A &amp; B TRAVEL</p><div class="card-digitalprofile-position"><p>POSIZIONE</p><p class="line-clamp-2">A3/1-2</p></div></div><a href="/it/dettaglio-profilo/A%20B?digitalProfileId=42">`
+    assert.deepEqual(parseListCard(card), { name: 'A & B TRAVEL', position: 'A3/1-2', profileId: '42', detailPath: '/it/dettaglio-profilo/A%20B?digitalProfileId=42' })
+  })
+  test('pagina di dettaglio', { skip: !process.env.TTG_DETAIL_FIXTURE }, () => {
+    const detail = parseDetail(readFileSync(process.env.TTG_DETAIL_FIXTURE as string, 'utf8'))
+    assert.equal(detail.email, 'elleviaggi@gmail.com')
+    assert.equal(detail.website, 'https://www.elleviaggi.com')
+    assert.equal(detail.country, 'Italia')
+    assert.equal(detail.city, 'TURSI')
+    assert.match(detail.categories, /TOUR OPERATOR/)
+  })
+})
