@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useCRMContext } from '../layout'
 import { apiFetch } from '@/lib/api'
+import { CLASS_META, evaluateExhibitor, FACTOR_DEFS, FactorKey, LeadClass, SOURCE_LABELS } from '@/lib/opportunity-score'
 import {
   compareByLocation,
   compareExhibitors,
@@ -71,6 +72,8 @@ export default function FierePage() {
   const [importing, setImporting] = useState(false)
   const [now, setNow] = useState(() => new Date())
   const [sort, setSort] = useState<'priority' | 'stand' | 'name'>('priority')
+  const [topOnly, setTopOnly] = useState(false)
+  const [outcomeDraft, setOutcomeDraft] = useState<{ id: string; next_step: string } | null>(null)
   const [draft, setDraft] = useState<{ id: string; email: string; phone: string; person: string } | null>(null)
 
   const load = useCallback(async () => {
@@ -79,6 +82,17 @@ export default function FierePage() {
       setRows(response.exhibitors)
       setLoadError('')
       setNow(new Date())
+      // Righe mai valutate (import o algoritmo nuovo): si calcola il SOS una volta e si ricarica.
+      if (response.exhibitors.some((row) => !row.last_scored_at)) {
+        apiFetch('/api/trade-fair-exhibitors/rescore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fair: FAIR }),
+        })
+          .then(() => apiFetch<{ exhibitors: FairExhibitor[] }>(`/api/trade-fair-exhibitors?fair=${FAIR}`))
+          .then((fresh) => setRows(fresh.exhibitors))
+          .catch(() => undefined)
+      }
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : 'Impossibile caricare gli espositori')
     }
@@ -100,6 +114,8 @@ export default function FierePage() {
       ),
     [rows, filter, now, sort]
   )
+
+  const shown = topOnly ? visible.slice(0, 20) : visible
 
   function setFilterAndReset(next: FairFilter) {
     setFilter(next)
@@ -197,10 +213,10 @@ export default function FierePage() {
   }
 
   function exportCsv() {
-    const header = ['Priorità', 'Punteggio', 'Espositore', 'Stato', 'Paese', 'Categoria', 'Padiglione', 'Stand', 'Email', 'Telefono', 'Sito', 'Primo contatto', 'Prossimo follow-up', 'Note']
+    const header = ['Priorità', 'Classe', 'Affidabilità dati', 'SOS', 'TTG action', 'Priorità TTG', 'Azione consigliata', 'Tipologia', 'Punteggio', 'Espositore', 'Stato', 'Paese', 'Categoria', 'Padiglione', 'Stand', 'Email', 'Telefono', 'Sito', 'Primo contatto', 'Prossimo follow-up', 'Note']
     const lines = visible.map((row) =>
       [
-        PRIORITY_LABELS[effectivePriority(row)], row.score, row.name, STATUS_LABELS[row.status], row.country, row.category,
+        PRIORITY_LABELS[effectivePriority(row)], row.lead_class || 'Da qualificare', row.data_confidence, row.opportunity_score, row.ttg_action_score, row.ttg_priority_score, row.recommended_action, FACTOR_DEFS[0].options.find((o) => o.id === row.organization_type)?.label, row.score, row.name, STATUS_LABELS[row.status], row.country, row.category,
         row.hall, row.stand, row.email, row.phone, row.website, row.contacted_at?.slice(0, 10), row.next_followup_at,
         row.notes.map((note) => note.text).join(' | '),
       ].map(csvCell).join(';')
@@ -212,6 +228,79 @@ export default function FierePage() {
     link.download = `espositori-${FAIR}.csv`
     link.click()
     URL.revokeObjectURL(url)
+  }
+
+  function renderScorePanel(row: FairExhibitor, busy: boolean) {
+    const ev = evaluateExhibitor(row)
+    const flags = row.ttg_flags || {}
+    const outcome = row.meeting_outcome || {}
+    const outcomeNext = outcomeDraft && outcomeDraft.id === row.id ? outcomeDraft.next_step : outcome.next_step || ''
+    const cls = ev.leadClass
+    return (
+      <div style={{ display: 'grid', gap: 10, background: '#f8fafc', borderRadius: 10, padding: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+          <strong style={{ fontSize: 13 }}>Speaqi Opportunity Score</strong>
+          <span style={pill(cls ? CLASS_META[cls].color : '#92400e')}>
+            {cls ? `${cls} — ${CLASS_META[cls].label} · ${ev.opportunityScore}` : `Da qualificare · provvisoria ${ev.provisionalClass}`}
+          </span>
+          <span style={{ fontSize: 12 }}>Affidabilità dati: <strong>{ev.confidence}</strong></span>
+          <span style={{ fontSize: 12 }}>Azione TTG: <strong>{ev.ttgActionScore}/50</strong></span>
+          <span style={{ fontSize: 12 }}>Priorità TTG: <strong>{ev.ttgPriorityScore}</strong></span>
+          <span style={{ fontSize: 12, fontWeight: 700 }}>→ {ev.recommendedAction}</span>
+        </div>
+        {ev.topFactors.length ? (
+          <div style={{ fontSize: 12, color: '#475569' }}>
+            Pesa di più: {ev.topFactors.map((f) => `${f.label} (${f.points}/${f.max})`).join(' · ')}
+          </div>
+        ) : null}
+        <div style={{ display: 'grid', gap: 6 }}>
+          {FACTOR_DEFS.map((def) => {
+            const f = ev.factors.find((x) => x.key === def.key)!
+            const manualChoice = row.sos_manual?.[def.key as FactorKey]?.option || ''
+            return (
+              <div key={def.key} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', fontSize: 12 }}>
+                <span style={{ flex: '0 0 190px' }} title={def.question}>{def.label}</span>
+                <select className="fi" style={{ flex: '1 1 260px' }} disabled={busy} value={manualChoice}
+                  onChange={(e) => patch(row.id, { sos_factor: { key: def.key, option: e.target.value || null } })}>
+                  <option value="">{f.points === null ? 'Sconosciuto — da verificare' : `Dedotto: ${f.optionLabel}`}</option>
+                  {def.options.map((o) => <option key={o.id} value={o.id}>{o.label} ({o.points})</option>)}
+                </select>
+                <span style={{ flex: '0 0 150px', color: '#64748b' }}>
+                  {f.points === null ? `?/${def.max}` : `${f.points}/${def.max} · ${SOURCE_LABELS[f.source!]}`}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, fontSize: 13 }}>
+          {([['decision_maker_present', 'Decisore presente in fiera (+10)'], ['partner_intro', 'Introdotto da SNAV / partner (+10)'], ['existing_client', 'Cliente o partner già attivo']] as const).map(([flag, label]) => (
+            <label key={flag}><input type="checkbox" disabled={busy} checked={Boolean(flags[flag])} onChange={(e) => patch(row.id, { ttg_flags: { [flag]: e.target.checked } })} /> {label}</label>
+          ))}
+        </div>
+        <div style={{ display: 'grid', gap: 6, borderTop: '1px solid #e2e8f0', paddingTop: 8 }}>
+          <strong style={{ fontSize: 12 }}>Dopo l&apos;incontro (servono a migliorare l&apos;algoritmo)</strong>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <select className="fi" disabled={busy} value={outcome.interest || ''} onChange={(e) => patch(row.id, { meeting_outcome: { ...outcome, interest: e.target.value || null } })}>
+              <option value="">Interesse: non registrato</option><option value="yes">Ha mostrato interesse</option><option value="maybe">Forse</option><option value="no">Nessun interesse</option>
+            </select>
+            <select className="fi" disabled={busy} value={outcome.budget_plausible === true ? 'yes' : outcome.budget_plausible === false ? 'no' : ''}
+              onChange={(e) => patch(row.id, { meeting_outcome: { ...outcome, budget_plausible: e.target.value === '' ? null : e.target.value === 'yes' } })}>
+              <option value="">Budget plausibile: non so</option><option value="yes">Budget / modello economico plausibile</option><option value="no">Nessun budget plausibile</option>
+            </select>
+            <input className="fi" style={{ flex: '1 1 220px' }} placeholder="Prossimo passo concordato" value={outcomeNext} disabled={busy}
+              onChange={(e) => setOutcomeDraft({ id: row.id, next_step: e.target.value })}
+              onBlur={() => outcomeDraft && outcomeDraft.id === row.id && outcomeDraft.next_step !== (outcome.next_step || '') && patch(row.id, { meeting_outcome: { ...outcome, next_step: outcomeDraft.next_step } })} />
+          </div>
+        </div>
+        <details style={{ fontSize: 12, color: '#475569' }}>
+          <summary style={{ cursor: 'pointer' }}>Spiegazione del punteggio e storico modifiche</summary>
+          <ul style={{ margin: '6px 0', paddingLeft: 18 }}>{ev.explanation.map((line) => <li key={line}>{line}</li>)}</ul>
+          {(row.sos_history || []).slice(0, 10).map((h) => (
+            <div key={`${h.at}${h.factor}`}>{formatStamp(h.at)} — {FACTOR_DEFS.find((d) => d.key === h.factor)?.label}: {h.from || 'dedotto'} → {h.to || 'dedotto'}</div>
+          ))}
+        </details>
+      </div>
+    )
   }
 
   const pill = (color: string): React.CSSProperties => ({
@@ -291,6 +380,15 @@ export default function FierePage() {
               <option value="all">Ogni priorità</option>
               <option value="1">Alta</option><option value="2">Media</option><option value="3">Bassa</option>
             </select>
+            <select className="fi" value={String(filter.leadClass || 'all')} onChange={(e) => setFilterAndReset({ ...filter, leadClass: e.target.value as FairFilter['leadClass'] })}>
+              <option value="all">Ogni classe</option>
+              <option value="qualify">Da qualificare</option>
+              {(Object.keys(CLASS_META) as LeadClass[]).map((c) => <option key={c} value={c}>{c} — {CLASS_META[c].label}</option>)}
+            </select>
+            <select className="fi" value={filter.organizationType || ''} onChange={(e) => setFilterAndReset({ ...filter, organizationType: e.target.value || undefined })}>
+              <option value="">Ogni tipologia</option>
+              {FACTOR_DEFS[0].options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+            </select>
             <select className="fi" value={filter.hall || ''} onChange={(e) => setFilterAndReset({ ...filter, hall: e.target.value || undefined })}>
               <option value="">Tutti i padiglioni</option>
               {halls.map((hall) => <option key={hall} value={hall}>{hall.replace(/^Hall\s+/i, 'Pad. ')}</option>)}
@@ -302,11 +400,12 @@ export default function FierePage() {
             </select>
             <label style={{ fontSize: 13 }}><input type="checkbox" checked={Boolean(filter.onlyFollowup)} onChange={(e) => setFilterAndReset({ ...filter, onlyFollowup: e.target.checked })} /> Follow-up da fare</label>
             <label style={{ fontSize: 13 }}><input type="checkbox" checked={Boolean(filter.onlyWithContact)} onChange={(e) => setFilterAndReset({ ...filter, onlyWithContact: e.target.checked })} /> Con email o telefono</label>
-            <span style={{ fontSize: 13, color: '#64748b' }}>{visible.length} risultati</span>
+            <button type="button" className={`btn btn-sm ${topOnly ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTopOnly((v) => !v)}>🎯 Top 20 da incontrare</button>
+            <span style={{ fontSize: 13, color: '#64748b' }}>{shown.length} risultati</span>
           </div>
 
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 6 }}>
-            {visible.slice(0, limit).map((row) => {
+            {shown.slice(0, limit).map((row) => {
               const priority = effectivePriority(row)
               const follow = followupState(row, now)
               const open = openId === row.id
@@ -314,9 +413,11 @@ export default function FierePage() {
               return (
                 <li key={row.id} style={{ background: '#fff', border: `1px solid ${follow === 'overdue' ? '#fca5a5' : '#e2e8f0'}`, borderRadius: 10 }}>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', padding: '10px 14px', cursor: 'pointer' }} onClick={() => setOpenId(open ? null : row.id)}>
-                    <span style={pill(PRIORITY_COLORS[priority])} title={row.score_reasons.join(' · ') || 'Nessun segnale'}>
-                      {PRIORITY_LABELS[priority]} · {row.score}
+                    <span style={pill(row.lead_class ? CLASS_META[row.lead_class].color : PRIORITY_COLORS[priority])}
+                      title={(row.score_explanation || []).join('\n') || 'Non ancora valutato'}>
+                      {row.lead_class ? `${row.lead_class} · ${row.opportunity_score}` : `${PRIORITY_LABELS[priority]}? · ${Math.round(row.ttg_priority_score ?? row.score)}`}
                     </span>
+                    {!row.lead_class && row.last_scored_at ? <span title="Dati insufficienti: aprilo e compila i criteri" style={{ fontSize: 11, color: '#92400e', background: '#fef3c7', borderRadius: 6, padding: '2px 6px' }}>da qualificare</span> : null}
                     <div style={{ flex: '1 1 260px', minWidth: 0 }}>
                       <div style={{ fontWeight: 600 }}>{row.name}</div>
                       <div style={{ fontSize: 12, color: '#64748b' }}>
@@ -384,7 +485,7 @@ export default function FierePage() {
                       </div>
 
                       {row.description ? <p style={{ margin: 0, fontSize: 13, color: '#475569' }}>{row.description}</p> : null}
-                      {row.score_reasons.length ? <div style={{ fontSize: 12, color: '#64748b' }}>Perché questo punteggio: {row.score_reasons.join(' · ')}</div> : null}
+                      {renderScorePanel(row, busy)}
 
                       <div style={{ display: 'grid', gap: 6 }}>
                         <strong style={{ fontSize: 13 }}>Note</strong>
@@ -406,9 +507,9 @@ export default function FierePage() {
             })}
           </ul>
 
-          {visible.length > limit ? (
+          {shown.length > limit ? (
             <button className="btn btn-ghost btn-sm" type="button" onClick={() => setLimit((v) => v + PAGE_SIZE)}>
-              Mostra altri ({visible.length - limit})
+              Mostra altri ({shown.length - limit})
             </button>
           ) : null}
         </>

@@ -8,7 +8,6 @@ import {
   filterExhibitors,
   followupState,
   parseExhibitorsText,
-  scoreExhibitor,
   slugifyExhibitor,
   summarize,
 } from '../src/lib/trade-fair'
@@ -20,31 +19,23 @@ function row(partial: Partial<FairExhibitor> & { id: string }): FairExhibitor {
     fair: 'ttg-2026', slug: partial.id, name: partial.id, stand: null, hall: null, country: null, city: null,
     category: null, description: null, website: null, email: null, phone: null, source_url: null,
     score: 0, score_reasons: [], priority: null, status: 'new', contacted_at: null, next_followup_at: null,
-    notes: [], contact_id: null, created_at: '', updated_at: '', ...partial,
+    notes: [], contact_id: null, created_at: '', updated_at: '',
+    contact_person: null, organization_type: null, distribution_reach: null, map_need: null, budget_capacity: null,
+    commercial_potential: null, international_audience: null, decision_maker_access: null, strategic_synergy: null,
+    opportunity_score: null, ttg_action_score: null, ttg_priority_score: null, lead_class: null, data_confidence: null,
+    recommended_action: null, score_explanation: null, last_scored_at: null, sos_manual: {}, ttg_flags: {},
+    meeting_outcome: {}, sos_history: [], ...partial,
   }
 }
-
-describe('scoreExhibitor', () => {
-  test('un ente del turismo vale piu\' di una compagnia aerea', () => {
-    const ente = scoreExhibitor({ name: 'Regione Campania', category: 'Ente del turismo' })
-    const aerea = scoreExhibitor({ name: 'SkyFly', category: 'Compagnia aerea' })
-    assert.ok(ente.score >= 40)
-    assert.ok(aerea.score < ente.score)
-    assert.ok(ente.reasons.includes('Destinazione / ente del turismo'))
-  })
-  test('il punteggio resta fra 0 e 100', () => {
-    const big = scoreExhibitor({ name: 'Museo crociere hotel tour regione', email: 'a@b.it', website: 'https://x.it' })
-    assert.ok(big.score <= 100 && big.score >= 0)
-    assert.equal(scoreExhibitor({ name: 'Software gestionale', category: 'airline software' }).score, 0)
-  })
-})
 
 describe('priorita', () => {
   test('la scelta a mano vince sul punteggio', () => {
     assert.equal(effectivePriority({ priority: 3, score: 90 }), 3)
-    assert.equal(effectivePriority({ priority: null, score: 60 }), 1)
+    assert.equal(effectivePriority({ priority: null, score: 40 }), 1)
     assert.equal(effectivePriority({ priority: null, score: 35 }), 2)
     assert.equal(effectivePriority({ priority: null, score: 5 }), 3)
+    assert.equal(effectivePriority({ priority: null, score: 5, lead_class: 'S' }), 1)
+    assert.equal(effectivePriority({ priority: null, score: 90, lead_class: 'D' }), 3)
   })
 })
 

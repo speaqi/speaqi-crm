@@ -19,6 +19,9 @@ export function isTradeFairStatus(value: unknown): value is TradeFairStatus {
   return typeof value === 'string' && (TRADE_FAIR_STATUSES as readonly string[]).includes(value)
 }
 
+import type { DataConfidence, FactorKey, LeadClass, MeetingOutcome, SosFlags, SosManual } from './opportunity-score'
+import { PROVISIONAL_HIGH_FROM, PROVISIONAL_MEDIUM_FROM } from './opportunity-score'
+
 export type FairNote = { id: string; at: string; text: string }
 
 export type FairExhibitor = {
@@ -47,7 +50,31 @@ export type FairExhibitor = {
   contact_id: string | null
   created_at: string
   updated_at: string
+  // Speaqi Opportunity Score (src/lib/opportunity-score.ts). I criteri portano
+  // l'opzione scelta (o dedotta), null se sconosciuti.
+  organization_type: string | null
+  distribution_reach: string | null
+  map_need: string | null
+  budget_capacity: string | null
+  commercial_potential: string | null
+  international_audience: string | null
+  decision_maker_access: string | null
+  strategic_synergy: string | null
+  opportunity_score: number | null
+  ttg_action_score: number | null
+  ttg_priority_score: number | null
+  lead_class: LeadClass | null
+  data_confidence: DataConfidence | null
+  recommended_action: string | null
+  score_explanation: string[] | null
+  last_scored_at: string | null
+  sos_manual: SosManual
+  ttg_flags: SosFlags
+  meeting_outcome: MeetingOutcome
+  sos_history: SosHistoryEntry[]
 }
+
+export type SosHistoryEntry = { at: string; factor: FactorKey; from: string | null; to: string | null }
 
 export type ExhibitorInput = {
   name: string
@@ -115,62 +142,18 @@ export function normalizeExhibitor(input: Record<string, unknown>): ExhibitorInp
 }
 
 // ---------------------------------------------------------------------------
-// Punteggio: quanto un espositore somiglia a un cliente di Speaqi Maps.
-// Speaqi vende guide/mappe interattive e QR multilingua a chi accoglie turisti:
-// destinazioni, enti del turismo, musei, crociere e traghetti, hotel, tour
-// operator con esperienze sul posto. Chi vende solo voli o software di
-// prenotazione ci entra poco.
+// Priorita': il punteggio vero e' lo Speaqi Opportunity Score (opportunity-score.ts)
 // ---------------------------------------------------------------------------
 
-type Rule = { label: string; points: number; pattern: RegExp }
-
-const RULES: Rule[] = [
-  { label: 'Destinazione / ente del turismo', points: 40, pattern: /\b(destinazion[ei]|ente (del )?turismo|tourist board|tourism (board|office|authority)|dmo|apt\b|regione|region(e|al)|comune|city of|visit[a-z]*|azienda (di )?promozione|convention (&|and|e) visitors|consorzio|gal\b)/i },
-  { label: 'Crociere / traghetti / porti', points: 38, pattern: /\b(crocier[ae]|cruise|ferry|traghett[io]|porto|port authority|autorit[aà] portuale|shipping|navigazione|yacht|river cruise)/i },
-  { label: 'Musei / cultura / siti', points: 34, pattern: /\b(muse[oi]|museum|cultur[ae]|patrimonio|heritage|unesco|parco archeologico|archaeolog|castell[oi]|sito)/i },
-  { label: 'Esperienze / tour / guide', points: 28, pattern: /\b(esperienz[ae]|experience|tour\b|tours\b|guid[ae]|excursion|escursion|incoming|dmc|food (&|and) wine|enogastronom|cammin[io]|trekking|outdoor|turismo lento|slow)/i },
-  { label: 'Ospitalità', points: 22, pattern: /\b(hotel|resort|albergh|agriturism|b&b|bed and breakfast|dimor[ae]|villaggio|ospitalit|hospitality|glamping|camping)/i },
-  { label: 'Tour operator / agenzie', points: 14, pattern: /\b(tour operator|agenzia|travel agency|network|booking|viaggi)/i },
-  { label: 'Italia / Mediterraneo', points: 8, pattern: /\b(ital(y|ia|iano)|napoli|campania|roma|lazio|sicilia|sardegna|puglia|toscana|amalfi|mediterr)/i },
-]
-
-const PENALTIES: Rule[] = [
-  { label: 'Trasporto aereo / noleggio', points: -25, pattern: /\b(compagnia aerea|airline|aeroporto|airport|noleggio|car rental|rent a car)/i },
-  { label: 'Software / servizi tecnici', points: -15, pattern: /\b(software|gestionale|channel manager|payment|pagament|assicurazion|insurance)/i },
-]
-
-export function scoreExhibitor(input: ExhibitorInput): { score: number; reasons: string[] } {
-  const text = [input.name, input.category, input.description].filter(Boolean).join(' · ')
-  const reasons: string[] = []
-  let score = 0
-  // Il primo segnale conta tutto, i successivi la meta': due sensi diversi di
-  // "turistico" dicono piu' di uno ripetuto, ma non devono gonfiare il punteggio.
-  let hits = 0
-  for (const rule of RULES) {
-    if (!rule.pattern.test(text)) continue
-    score += hits === 0 ? rule.points : Math.round(rule.points / 2)
-    reasons.push(rule.label)
-    hits += 1
-  }
-  for (const rule of PENALTIES) {
-    if (rule.pattern.test(text)) {
-      score += rule.points
-      reasons.push(rule.label)
-    }
-  }
-  if (input.email || input.phone) {
-    score += 5
-    reasons.push('Contatto diretto disponibile')
-  }
-  if (input.website) score += 3
-  return { score: Math.max(0, Math.min(100, score)), reasons }
-}
-
-/** Priorita' effettiva: quella scelta a mano, altrimenti dedotta dal punteggio. */
-export function effectivePriority(row: Pick<FairExhibitor, 'priority' | 'score'>): 1 | 2 | 3 {
+/** Priorita' effettiva: quella scelta a mano, poi la classe SOS, altrimenti il punteggio d'ordinamento. */
+export function effectivePriority(row: Pick<FairExhibitor, 'priority' | 'score'> & Partial<Pick<FairExhibitor, 'lead_class' | 'ttg_priority_score'>>): 1 | 2 | 3 {
   if (row.priority === 1 || row.priority === 2 || row.priority === 3) return row.priority
-  if (row.score >= 55) return 1
-  if (row.score >= 30) return 2
+  if (row.lead_class === 'S' || row.lead_class === 'A') return 1
+  if (row.lead_class === 'B') return 2
+  if (row.lead_class === 'C' || row.lead_class === 'D') return 3
+  const score = row.ttg_priority_score ?? row.score
+  if (score >= PROVISIONAL_HIGH_FROM) return 1
+  if (score >= PROVISIONAL_MEDIUM_FROM) return 2
   return 3
 }
 
@@ -210,7 +193,9 @@ export function compareExhibitors(a: FairExhibitor, b: FairExhibitor, now: Date)
   const pa = effectivePriority(a)
   const pb = effectivePriority(b)
   if (pa !== pb) return pa - pb
-  if (a.score !== b.score) return b.score - a.score
+  const sa = a.ttg_priority_score ?? a.score
+  const sb = b.ttg_priority_score ?? b.score
+  if (sa !== sb) return sb - sa
   return a.name.localeCompare(b.name, 'it')
 }
 
@@ -221,6 +206,9 @@ export type FairFilter = {
   onlyFollowup?: boolean
   onlyWithContact?: boolean
   hall?: string
+  leadClass?: LeadClass | 'qualify' | 'all'
+  organizationType?: string
+  confidence?: DataConfidence
 }
 
 function fold(value: string) {
@@ -240,6 +228,13 @@ export function filterExhibitors(rows: FairExhibitor[], filter: FairFilter, now:
     }
     if (filter.onlyWithContact && !row.email && !row.phone) return false
     if (filter.hall && (row.hall || '').trim() !== filter.hall) return false
+    if (filter.leadClass && filter.leadClass !== 'all') {
+      if (filter.leadClass === 'qualify') {
+        if (row.lead_class) return false
+      } else if (row.lead_class !== filter.leadClass) return false
+    }
+    if (filter.organizationType && row.organization_type !== filter.organizationType) return false
+    if (filter.confidence && row.data_confidence !== filter.confidence) return false
     if (query) {
       const haystack = fold([row.name, row.country, row.city, row.category, row.hall, row.stand, row.email, row.contact_person, row.description].filter(Boolean).join(' '))
       if (!haystack.includes(query)) return false

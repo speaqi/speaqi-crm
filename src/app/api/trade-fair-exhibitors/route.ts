@@ -7,9 +7,9 @@ import {
   normalizeEmail,
   normalizeWebsite,
   parseExhibitorsText,
-  scoreExhibitor,
   slugifyExhibitor,
 } from '@/lib/trade-fair'
+import { FACTOR_KEYS, FactorKey, factorOption, scoreColumns } from '@/lib/opportunity-score'
 
 /**
  * Espositori di una fiera (/fiere). Gli espositori sono del workspace e la RLS
@@ -76,17 +76,19 @@ export async function POST(request: NextRequest) {
     const userId = auth.workspaceUserId
     const { data: existing, error: existingError } = await auth.supabase
       .from('trade_fair_exhibitors')
-      .select('slug')
+      .select('slug, status, contact_person, sos_manual, ttg_flags, meeting_outcome')
       .eq('user_id', userId)
       .eq('fair', fair)
       .limit(20000)
     if (existingError) throw existingError
-    const known = new Set((existing || []).map((row: { slug: string }) => row.slug))
+    const known = new Map((existing || []).map((row: { slug: string }) => [row.slug, row as Record<string, any>]))
 
     const now = new Date().toISOString()
     const records = items.map((item) => {
-      const { score, reasons } = scoreExhibitor(item)
-      return { ...item, user_id: userId, fair, slug: slugifyExhibitor(item.name), score, score_reasons: reasons, updated_at: now }
+      const slug = slugifyExhibitor(item.name)
+      // Un reimport aggiorna il catalogo ma il lavoro fatto a mano (criteri, flag, stato) entra nel calcolo.
+      const prior = known.get(slug) || {}
+      return { ...item, user_id: userId, fair, slug, ...scoreColumns({ ...prior, ...item }), updated_at: now }
     })
 
     for (let i = 0; i < records.length; i += IMPORT_CHUNK) {
@@ -161,13 +163,41 @@ export async function PATCH(request: NextRequest) {
       payload.notes = notes.filter((note: { id: string }) => note.id !== body.delete_note_id)
     }
 
-    // Se cambiano i contatti il punteggio puo' cambiare (contatto diretto).
-    if (payload.email !== undefined || payload.phone !== undefined || payload.website !== undefined) {
-      const merged = { ...current, ...payload }
-      const { score, reasons } = scoreExhibitor(merged)
-      payload.score = score
-      payload.score_reasons = reasons
+    // Criterio SOS impostato a mano (option null = torna alla deduzione), con storico.
+    if (body.sos_factor !== undefined) {
+      const key = String(body.sos_factor?.key || '') as FactorKey
+      if (!FACTOR_KEYS.includes(key)) return Response.json({ error: 'Criterio non valido' }, { status: 400 })
+      const option = body.sos_factor.option === null ? null : String(body.sos_factor.option)
+      if (option !== null && !factorOption(key, option)) return Response.json({ error: 'Opzione non valida' }, { status: 400 })
+      const manual = { ...(current.sos_manual || {}) } as Record<string, { option: string; at: string }>
+      const before = manual[key]?.option ?? null
+      if (option === null) delete manual[key]
+      else manual[key] = { option, at: new Date().toISOString() }
+      payload.sos_manual = manual
+      if (before !== option) {
+        const history = Array.isArray(current.sos_history) ? current.sos_history : []
+        payload.sos_history = [{ at: new Date().toISOString(), factor: key, from: before, to: option }, ...history].slice(0, 200)
+      }
     }
+    if (body.ttg_flags !== undefined) {
+      const next = { ...(current.ttg_flags || {}) } as Record<string, boolean>
+      for (const flag of ['decision_maker_present', 'partner_intro', 'existing_client']) {
+        if (body.ttg_flags?.[flag] !== undefined) next[flag] = Boolean(body.ttg_flags[flag])
+      }
+      payload.ttg_flags = next
+    }
+    if (body.meeting_outcome !== undefined) {
+      const o = body.meeting_outcome || {}
+      payload.meeting_outcome = {
+        interest: ['yes', 'maybe', 'no'].includes(o.interest) ? o.interest : null,
+        budget_plausible: typeof o.budget_plausible === 'boolean' ? o.budget_plausible : null,
+        next_step: String(o.next_step || '').trim().slice(0, 500) || null,
+        at: new Date().toISOString(),
+      }
+    }
+
+    // Ogni modifica puo' spostare il punteggio (contatti, stato, referente, criteri, flag): si ricalcola sempre.
+    Object.assign(payload, scoreColumns({ ...current, ...payload }))
 
     // Se l'espositore e' gia' un contatto del CRM, email/telefono/referente corretti
     // in fiera si riportano anche li', altrimenti il follow-up parte con dati vecchi.
