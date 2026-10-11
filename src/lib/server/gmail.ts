@@ -1077,6 +1077,33 @@ export async function sendContactEmail(
   }
 }
 
+/**
+ * Invia un'email dall'account Gmail collegato senza passare da un contatto del CRM
+ * (mailing fiere: l'espositore diventa contatto solo se risponde). Niente firma
+ * Gmail aggiunta: il testo porta gia' il suo footer.
+ */
+export async function sendPlainEmail(
+  supabase: any,
+  userId: string,
+  input: { to: string; subject: string; text: string; html?: string }
+) {
+  const account = await getGmailAccount(supabase, userId)
+  if (!account) throw new Error('Gmail non collegato')
+  const accessToken = await refreshAccessToken(account)
+  const html = input.html || simpleTextToHtml(input.text)
+  const raw = encodeMessageBody(input.subject, input.to, html, input.text, `<${crypto.randomUUID()}@speaqi.crm>`)
+  const sent = await gmailApiRequest<{ id: string; threadId?: string }>(accessToken, '/users/me/messages/send', {
+    method: 'POST',
+    body: JSON.stringify({ raw }),
+  })
+  return { account_email: account.email, message_id: sent.id, thread_id: sent.threadId || null }
+}
+
+export async function getConnectedGmailAddress(supabase: any, userId: string) {
+  const account = await getGmailAccount(supabase, userId)
+  return account?.email || null
+}
+
 export async function findSentGmailMessageByRfc822Id(
   supabase: any,
   userId: string,

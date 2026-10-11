@@ -24,7 +24,7 @@ function row(partial: Partial<FairExhibitor> & { id: string }): FairExhibitor {
     commercial_potential: null, international_audience: null, decision_maker_access: null, strategic_synergy: null,
     opportunity_score: null, ttg_action_score: null, ttg_priority_score: null, lead_class: null, data_confidence: null,
     recommended_action: null, score_explanation: null, last_scored_at: null, sos_manual: {}, ttg_flags: {},
-    meeting_outcome: {}, sos_history: [], ...partial,
+    meeting_outcome: {}, sos_history: [], outreach: {}, ...partial,
   }
 }
 

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useCRMContext } from '../layout'
 import { apiFetch } from '@/lib/api'
+import { DAILY_OUTREACH_CAP, isOutreachAligned, OutreachState, TEMPLATE_LABELS } from '@/lib/trade-fair-outreach'
 import { CLASS_META, evaluateExhibitor, FACTOR_DEFS, FactorKey, LeadClass, SOURCE_LABELS } from '@/lib/opportunity-score'
 import {
   compareByLocation,
@@ -73,6 +74,10 @@ export default function FierePage() {
   const [now, setNow] = useState(() => new Date())
   const [sort, setSort] = useState<'priority' | 'stand' | 'name'>('priority')
   const [topOnly, setTopOnly] = useState(false)
+  const [showMail, setShowMail] = useState(false)
+  const [mailBusy, setMailBusy] = useState(false)
+  const [mailFilter, setMailFilter] = useState<'all' | 'selected' | 'prepared' | 'sent'>('all')
+  const [mailDraft, setMailDraft] = useState<{ id: string; subject: string; body: string } | null>(null)
   const [outcomeDraft, setOutcomeDraft] = useState<{ id: string; next_step: string } | null>(null)
   const [draft, setDraft] = useState<{ id: string; email: string; phone: string; person: string } | null>(null)
 
@@ -109,13 +114,83 @@ export default function FierePage() {
   )
   const visible = useMemo(
     () =>
-      filterExhibitors(rows || [], filter, now).sort((a, b) =>
+      filterExhibitors(rows || [], filter, now).filter((row) => {
+        const o = (row.outreach || {}) as OutreachState
+        if (mailFilter === 'selected') return Boolean(o.selected && !o.sent_at)
+        if (mailFilter === 'prepared') return Boolean(o.subject && !o.sent_at)
+        if (mailFilter === 'sent') return Boolean(o.sent_at)
+        return true
+      }).sort((a, b) =>
         sort === 'stand' ? compareByLocation(a, b) : sort === 'name' ? a.name.localeCompare(b.name) : compareExhibitors(a, b, now)
       ),
-    [rows, filter, now, sort]
+    [rows, filter, now, sort, mailFilter]
   )
 
+  const mailStats = useMemo(() => {
+    const list = rows || []
+    const o = (row: FairExhibitor) => (row.outreach || {}) as OutreachState
+    return {
+      aligned: list.filter(isOutreachAligned).length,
+      prepared: list.filter((row) => o(row).subject && !o(row).sent_at).length,
+      selected: list.filter((row) => o(row).selected && !o(row).sent_at).length,
+      sent: list.filter((row) => o(row).sent_at).length,
+    }
+  }, [rows])
+
   const shown = topOnly ? visible.slice(0, 20) : visible
+
+  async function mailRequest(path: string, payload: Record<string, unknown>) {
+    setMailBusy(true)
+    try {
+      return await apiFetch<any>(`/api/trade-fair-exhibitors/outreach/${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fair: FAIR, ...payload }),
+      })
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Operazione non riuscita')
+      return null
+    } finally {
+      setMailBusy(false)
+    }
+  }
+
+  async function prepareMails() {
+    const preview = await mailRequest('prepare', { dry_run: true })
+    if (!preview) return
+    if (!window.confirm(`Preparo ${preview.aligned} email (${preview.duplicates} sono doppioni di indirizzo, non selezionate). Non invio nulla. Procedo?`)) return
+    const done = await mailRequest('prepare', {})
+    if (done) {
+      showToast(`Preparate ${done.prepared} email: rivedile e deseleziona chi non vuoi`)
+      await load()
+    }
+  }
+
+  async function sendTest(ids?: string[]) {
+    const done = await mailRequest('send', { mode: 'test', ...(ids ? { ids } : {}) })
+    if (done) showToast(`Test inviato a ${done.to}: ${done.sent} email, controlla la casella`)
+  }
+
+  async function sendReal() {
+    if (!window.confirm(`Invio ora fino a 20 email reali agli espositori selezionati (tetto ${DAILY_OUTREACH_CAP} al giorno), in ordine di priorità, dal tuo Gmail. Hai fatto il test privato? Procedo?`)) return
+    const done = await mailRequest('send', { mode: 'send', confirm: true })
+    if (done) {
+      showToast(`Inviate ${done.sent}${done.failed ? `, ${done.failed} non riuscite (${(done.errors || []).join('; ')})` : ''}. Restano oggi: ${done.remaining_today}`)
+      await load()
+    }
+  }
+
+  async function saveMail(row: FairExhibitor) {
+    if (!mailDraft || mailDraft.id !== row.id) return
+    if (await patch(row.id, { outreach: { subject: mailDraft.subject, body: mailDraft.body } })) {
+      setMailDraft(null)
+      showToast('Email salvata')
+    }
+  }
+
+  function setSelected(row: FairExhibitor, selected: boolean) {
+    patch(row.id, { outreach: { selected } })
+  }
 
   function setFilterAndReset(next: FairFilter) {
     setFilter(next)
@@ -230,6 +305,35 @@ export default function FierePage() {
     URL.revokeObjectURL(url)
   }
 
+  function renderMailPanel(row: FairExhibitor, busy: boolean) {
+    const o = (row.outreach || {}) as OutreachState
+    if (!o.subject) return null
+    const d = mailDraft && mailDraft.id === row.id ? mailDraft : { id: row.id, subject: o.subject || '', body: o.body || '' }
+    const locked = Boolean(o.sent_at)
+    return (
+      <div style={{ display: 'grid', gap: 8, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+          <strong style={{ fontSize: 13 }}>✉ Email per {row.name}</strong>
+          <span style={{ fontSize: 12, color: '#64748b' }}>{o.template ? TEMPLATE_LABELS[o.template as keyof typeof TEMPLATE_LABELS] : ''} · {o.lang === 'en' ? 'inglese' : 'italiano'} · a {row.email}</span>
+          {o.sent_at ? <span style={{ fontSize: 12, fontWeight: 700 }}>Inviata {formatStamp(o.sent_at)}</span> : (
+            <label style={{ fontSize: 13 }}><input type="checkbox" disabled={busy} checked={Boolean(o.selected)} onChange={(e) => setSelected(row, e.target.checked)} /> Invia questa email</label>
+          )}
+          {o.note ? <span style={{ fontSize: 12, color: '#92400e' }}>{o.note}</span> : null}
+          {o.error ? <span style={{ fontSize: 12, color: '#b91c1c' }}>Errore: {o.error}</span> : null}
+        </div>
+        <input className="fi" value={d.subject} disabled={busy || locked} onChange={(e) => setMailDraft({ ...d, subject: e.target.value })} placeholder="Oggetto" />
+        <textarea className="fi" rows={14} value={d.body} disabled={busy || locked} onChange={(e) => setMailDraft({ ...d, body: e.target.value })} />
+        {!locked ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button className="btn btn-primary btn-sm" type="button" disabled={busy || !mailDraft || mailDraft.id !== row.id} onClick={() => saveMail(row)}>Salva modifiche</button>
+            <button className="btn btn-ghost btn-sm" type="button" disabled={busy || mailBusy} onClick={() => sendTest([row.id])}>Invia test a me</button>
+            <span style={{ fontSize: 12, color: '#64748b' }}>Tieni il footer con la riga «no grazie»: senza, l&apos;invio viene bloccato.</span>
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+
   function renderScorePanel(row: FairExhibitor, busy: boolean) {
     const ev = evaluateExhibitor(row)
     const flags = row.ttg_flags || {}
@@ -320,6 +424,7 @@ export default function FierePage() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           <a className="btn btn-ghost btn-sm" href={TTG_FLOOR_MAP} target="_blank" rel="noopener noreferrer">🗺️ Mappa padiglioni</a>
           <a className="btn btn-ghost btn-sm" href={TTG_HOW_TO_GET_THERE} target="_blank" rel="noopener noreferrer">🚇 Come arrivare</a>
+          <button className={`btn btn-sm ${showMail ? 'btn-primary' : 'btn-ghost'}`} type="button" onClick={() => setShowMail((v) => !v)}>✉ Mailing</button>
           <button className="btn btn-ghost btn-sm" type="button" onClick={exportCsv} disabled={!visible.length}>Esporta CSV</button>
           <button className="btn btn-primary btn-sm" type="button" onClick={() => setShowImport((v) => !v)}>
             {showImport ? 'Chiudi importazione' : 'Importa elenco'}
@@ -339,6 +444,29 @@ export default function FierePage() {
             <button className="btn btn-primary btn-sm" type="button" onClick={runImport} disabled={importing}>
               {importing ? 'Importo…' : 'Importa'}
             </button>
+          </div>
+        </section>
+      ) : null}
+
+      {showMail && rows ? (
+        <section style={{ ...card, display: 'grid', gap: 10 }}>
+          <strong>✉ Mailing agli espositori in linea con Speaqi</strong>
+          <span style={{ fontSize: 13, color: '#64748b' }}>
+            Selezione automatica: enti del turismo, consorzi, DMC, tour operator, navigazione, catene alberghiere e attrazioni, con email e ancora da contattare.
+            Ogni email è scritta per la sua tipologia (in inglese per l&apos;estero), con stand, footer Speaqi e riga di disiscrizione. Parte dal tuo Gmail, le risposte arrivano nella tua casella.
+            Rivedi, correggi o deseleziona dalla scheda di ogni espositore; filtra con «Mailing».
+          </span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, fontSize: 13 }}>
+            <span><strong>{mailStats.aligned}</strong> in linea</span>
+            <span><strong>{mailStats.prepared}</strong> preparate</span>
+            <span><strong>{mailStats.selected}</strong> selezionate da inviare</span>
+            <span><strong>{mailStats.sent}</strong> inviate</span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button className="btn btn-primary btn-sm" type="button" disabled={mailBusy} onClick={prepareMails}>1 · Prepara le email</button>
+            <button className="btn btn-ghost btn-sm" type="button" disabled={mailBusy || !mailStats.prepared} onClick={() => sendTest()}>2 · Test privato: 3 email a me</button>
+            <button className="btn btn-ghost btn-sm" type="button" disabled={mailBusy || !mailStats.selected} onClick={sendReal}>3 · Invia le selezionate (max 20 per volta)</button>
+            {mailBusy ? <span style={{ fontSize: 13 }}>Un attimo…</span> : null}
           </div>
         </section>
       ) : null}
@@ -393,6 +521,12 @@ export default function FierePage() {
               <option value="">Tutti i padiglioni</option>
               {halls.map((hall) => <option key={hall} value={hall}>{hall.replace(/^Hall\s+/i, 'Pad. ')}</option>)}
             </select>
+            <select className="fi" value={mailFilter} onChange={(e) => setMailFilter(e.target.value as typeof mailFilter)}>
+              <option value="all">Mailing: tutti</option>
+              <option value="prepared">Mailing: preparate</option>
+              <option value="selected">Mailing: selezionate</option>
+              <option value="sent">Mailing: inviate</option>
+            </select>
             <select className="fi" value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
               <option value="priority">Ordina: da contattare per primi</option>
               <option value="stand">Ordina: giro della fiera (padiglione e stand)</option>
@@ -425,6 +559,8 @@ export default function FierePage() {
                       </div>
                     </div>
  {standLabel(row) ? <span style={{ fontSize: 12, fontWeight: 700, background: '#eef2ff', color: '#3730a3', borderRadius: 6, padding: '2px 8px' }}>📍 {standLabel(row)}</span> : null}
+                    {row.outreach?.sent_at ? <span title={`Email inviata ${formatStamp(row.outreach.sent_at)}`} style={{ fontSize: 12 }}>✉ inviata</span>
+                      : row.outreach?.subject ? <span title="Email preparata" style={{ fontSize: 12, color: row.outreach.selected ? '#16a34a' : '#94a3b8' }}>✉ {row.outreach.selected ? 'da inviare' : 'esclusa'}</span> : null}
                     {row.contact_id ? <span title="Già nel CRM" style={{ fontSize: 12 }}>✅ CRM</span> : null}
                     {row.notes.length ? <span title="Note" style={{ fontSize: 12 }}>📝 {row.notes.length}</span> : null}
                     {row.next_followup_at && follow !== 'none' ? (
@@ -485,6 +621,7 @@ export default function FierePage() {
                       </div>
 
                       {row.description ? <p style={{ margin: 0, fontSize: 13, color: '#475569' }}>{row.description}</p> : null}
+                      {renderMailPanel(row, busy)}
                       {renderScorePanel(row, busy)}
 
                       <div style={{ display: 'grid', gap: 6 }}>

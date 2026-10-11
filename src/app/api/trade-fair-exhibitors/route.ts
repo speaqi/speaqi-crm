@@ -159,6 +159,14 @@ export async function PATCH(request: NextRequest) {
       const notes = Array.isArray(current.notes) ? current.notes : []
       payload.notes = [note, ...notes].slice(0, 200)
     }
+    if (body.outreach !== undefined) {
+      const o = body.outreach || {}
+      const next = { ...(current.outreach || {}) } as Record<string, unknown>
+      if (o.selected !== undefined) next.selected = Boolean(o.selected)
+      if (o.subject !== undefined) { next.subject = String(o.subject).trim().slice(0, 200); next.edited = true }
+      if (o.body !== undefined) { next.body = String(o.body).trim().slice(0, 8000); next.edited = true }
+      payload.outreach = next
+    }
     if (body.delete_note_id !== undefined) {
       const notes = Array.isArray(current.notes) ? current.notes : []
       payload.notes = notes.filter((note: { id: string }) => note.id !== body.delete_note_id)

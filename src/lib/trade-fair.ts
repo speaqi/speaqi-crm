@@ -20,6 +20,7 @@ export function isTradeFairStatus(value: unknown): value is TradeFairStatus {
 }
 
 import type { DataConfidence, FactorKey, LeadClass, MeetingOutcome, SosFlags, SosManual } from './opportunity-score'
+import type { OutreachState } from './trade-fair-outreach'
 import { PROVISIONAL_HIGH_FROM, PROVISIONAL_MEDIUM_FROM } from './opportunity-score'
 
 export type FairNote = { id: string; at: string; text: string }
@@ -72,6 +73,7 @@ export type FairExhibitor = {
   ttg_flags: SosFlags
   meeting_outcome: MeetingOutcome
   sos_history: SosHistoryEntry[]
+  outreach: OutreachState
 }
 
 export type SosHistoryEntry = { at: string; factor: FactorKey; from: string | null; to: string | null }
