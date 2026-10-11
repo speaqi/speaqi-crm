@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
 import { requireArea, requireRouteUser } from '@/lib/server/supabase'
-import { scoreColumns } from '@/lib/opportunity-score'
+import { scoreColumns, SosInput } from '@/lib/opportunity-score'
 
 /**
  * Ricalcola lo Speaqi Opportunity Score di tutti gli espositori di una fiera.
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     const now = new Date()
     for (let i = 0; i < rows.length; i += 200) {
-      const chunk = rows.slice(i, i + 200).map((row) => ({ ...row, ...scoreColumns(row, now) }))
+      const chunk = rows.slice(i, i + 200).map((row) => ({ ...row, ...scoreColumns(row as unknown as SosInput, now) }))
       const { error } = await auth.supabase.from('trade_fair_exhibitors').upsert(chunk, { onConflict: 'id' })
       if (error) throw error
     }

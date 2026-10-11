@@ -9,7 +9,7 @@ import {
   parseExhibitorsText,
   slugifyExhibitor,
 } from '@/lib/trade-fair'
-import { FACTOR_KEYS, FactorKey, factorOption, scoreColumns } from '@/lib/opportunity-score'
+import { FACTOR_KEYS, FactorKey, factorOption, scoreColumns, SosInput } from '@/lib/opportunity-score'
 
 /**
  * Espositori di una fiera (/fiere). Gli espositori sono del workspace e la RLS
@@ -81,14 +81,15 @@ export async function POST(request: NextRequest) {
       .eq('fair', fair)
       .limit(20000)
     if (existingError) throw existingError
-    const known = new Map((existing || []).map((row: { slug: string }) => [row.slug, row as Record<string, any>]))
+    const known = new Map<string, Record<string, any>>()
+    for (const row of (existing || []) as Record<string, any>[]) known.set(row.slug, row)
 
     const now = new Date().toISOString()
     const records = items.map((item) => {
       const slug = slugifyExhibitor(item.name)
       // Un reimport aggiorna il catalogo ma il lavoro fatto a mano (criteri, flag, stato) entra nel calcolo.
       const prior = known.get(slug) || {}
-      return { ...item, user_id: userId, fair, slug, ...scoreColumns({ ...prior, ...item }), updated_at: now }
+      return { ...item, user_id: userId, fair, slug, ...scoreColumns({ ...prior, ...item } as SosInput), updated_at: now }
     })
 
     for (let i = 0; i < records.length; i += IMPORT_CHUNK) {
