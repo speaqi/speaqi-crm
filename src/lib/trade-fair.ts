@@ -21,7 +21,7 @@ export function isTradeFairStatus(value: unknown): value is TradeFairStatus {
 
 import type { DataConfidence, FactorKey, LeadClass, MeetingOutcome, SosFlags, SosManual } from './opportunity-score'
 import type { OutreachState } from './trade-fair-outreach'
-import { PROVISIONAL_HIGH_FROM, PROVISIONAL_MEDIUM_FROM } from './opportunity-score'
+import { evaluateExhibitor, PROVISIONAL_HIGH_FROM, PROVISIONAL_MEDIUM_FROM } from './opportunity-score'
 
 export type FairNote = { id: string; at: string; text: string }
 
@@ -215,6 +215,25 @@ export type FairFilter = {
 
 function fold(value: string) {
   return value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+}
+
+/** La sede italiana di un ente estero non cambia la destinazione rappresentata. */
+export function isForeignDestination(row: FairExhibitor) {
+  const type = row.sos_manual?.organization_type?.option || row.organization_type
+    || evaluateExhibitor(row).factors.find((factor) => factor.key === 'organization_type')?.option
+  if (!['dmo', 'consorzio', 'assoc_territoriale'].includes(type || '')) return false
+
+  const category = fold(row.category || '')
+  if (/enti (?:del turismo )?(?:esteri|stranieri)|destinazioni (?:estere|straniere)/.test(category)) return true
+  if (/enti italiani di promozione|destinazioni italiane/.test(category)) return false
+
+  const country = fold(row.country || '').trim().replace(/[.]/g, '')
+  return Boolean(country && !/^(?:italia|italy|italie|italien|it|ita)(?:$|[\s(,/])/.test(country)
+    && !['-', 'n/a', 'n/d', 'na', 'nd', 'non disponibile', 'non specificato', 'sconosciuto', 'unknown'].includes(country))
+}
+
+export function foreignDestinations(rows: FairExhibitor[]) {
+  return rows.filter(isForeignDestination).sort((a, b) => a.name.localeCompare(b.name, 'it'))
 }
 
 export function filterExhibitors(rows: FairExhibitor[], filter: FairFilter, now: Date) {

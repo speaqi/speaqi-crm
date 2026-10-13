@@ -19,14 +19,16 @@ type Props = {
   now: Date
   showToast: (message: string) => void
   onRowChange: (row: FairExhibitor) => void
+  completeList?: boolean
 }
 
-export default function ElencoTab({ rows, now, showToast, onRowChange }: Props) {
-  const [quick, setQuick] = useState<Quick>('new')
+export default function ElencoTab({ rows, now, showToast, onRowChange, completeList = false }: Props) {
+  const defaultSort = completeList ? 'name' : 'priority'
+  const [quick, setQuick] = useState<Quick>(completeList ? 'all' : 'new')
   const [search, setSearch] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [extra, setExtra] = useState<FairFilter>({ priority: 'all' })
-  const [sort, setSort] = useState<'priority' | 'stand' | 'name'>('priority')
+  const [sort, setSort] = useState<'priority' | 'stand' | 'name'>(completeList ? 'name' : 'priority')
   const [mailFilter, setMailFilter] = useState<'all' | 'selected' | 'prepared' | 'sent'>('all')
   const [limit, setLimit] = useState(PAGE_SIZE)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -60,7 +62,7 @@ export default function ElencoTab({ rows, now, showToast, onRowChange }: Props) 
     [rows, filter, now, sort, mailFilter]
   )
 
-  const activeExtras = [extra.priority !== 'all', extra.leadClass && extra.leadClass !== 'all', extra.organizationType, extra.hall, extra.onlyWithContact, mailFilter !== 'all', sort !== 'priority', quick === 'all' && extra.status && extra.status !== 'all'].filter(Boolean).length
+  const activeExtras = [extra.priority !== 'all', extra.leadClass && extra.leadClass !== 'all', extra.organizationType, extra.hall, extra.onlyWithContact, mailFilter !== 'all', sort !== defaultSort, quick === 'all' && extra.status && extra.status !== 'all'].filter(Boolean).length
 
   function setQuickAndReset(next: Quick) {
     setQuick(next)
@@ -125,7 +127,7 @@ export default function ElencoTab({ rows, now, showToast, onRowChange }: Props) 
             <option value="priority">Ordine: migliori prima</option><option value="stand">Ordine: giro della fiera</option><option value="name">Ordine: nome</option>
           </select>
           <label className="fx-check"><input type="checkbox" checked={Boolean(extra.onlyWithContact)} onChange={(e) => setExtraAndReset({ ...extra, onlyWithContact: e.target.checked })} /> Solo con email o telefono</label>
-          {activeExtras ? <button type="button" className="btn-mini" onClick={() => { setExtraAndReset({ priority: 'all' }); setMailFilter('all'); setSort('priority') }}>Azzera filtri</button> : null}
+          {activeExtras ? <button type="button" className="btn-mini" onClick={() => { setExtraAndReset({ priority: 'all' }); setMailFilter('all'); setSort(defaultSort) }}>Azzera filtri</button> : null}
         </div>
       ) : null}
 
@@ -133,7 +135,7 @@ export default function ElencoTab({ rows, now, showToast, onRowChange }: Props) 
 
       {visible.length === 0 ? <div className="fx-card fx-empty">Nessun espositore con questi filtri.</div> : (
         <ul className="fx-list">
-          {visible.slice(0, limit).map((row) => {
+          {(completeList ? visible : visible.slice(0, limit)).map((row) => {
             const open = openId === row.id
             const follow = followupState(row, now)
             const o = (row.outreach || {}) as OutreachState
@@ -166,7 +168,7 @@ export default function ElencoTab({ rows, now, showToast, onRowChange }: Props) 
         </ul>
       )}
 
-      {visible.length > limit ? <button className="btn btn-ghost btn-sm" type="button" onClick={() => setLimit((v) => v + PAGE_SIZE)}>Mostra altri ({visible.length - limit})</button> : null}
+      {!completeList && visible.length > limit ? <button className="btn btn-ghost btn-sm" type="button" onClick={() => setLimit((v) => v + PAGE_SIZE)}>Mostra altri ({visible.length - limit})</button> : null}
     </>
   )
 }

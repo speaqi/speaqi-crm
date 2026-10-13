@@ -7,6 +7,8 @@ import {
   FairExhibitor,
   filterExhibitors,
   followupState,
+  foreignDestinations,
+  isForeignDestination,
   parseExhibitorsText,
   slugifyExhibitor,
   summarize,
@@ -27,6 +29,43 @@ function row(partial: Partial<FairExhibitor> & { id: string }): FairExhibitor {
     meeting_outcome: {}, sos_history: [], outreach: {}, ...partial,
   }
 }
+
+describe('destinazioni estere', () => {
+  test('include enti esteri con sede italiana o senza paese quando la categoria li identifica', () => {
+    for (const country of ['Italia', null]) {
+      assert.equal(isForeignDestination(row({ id: 'oman', name: 'Visit Oman', country,
+        category: 'DESTINAZIONI/PROMOZIONE DEL TERRITORIO: ENTI DEL TURISMO ESTERI' })), true)
+    }
+  })
+  test('include le organizzazioni territoriali estere ed esclude operatori commerciali e paesi ignoti', () => {
+    for (const type of ['dmo', 'consorzio', 'assoc_territoriale']) {
+      assert.equal(isForeignDestination(row({ id: 'estero', organization_type: type, country: 'Francia' })), true)
+      for (const country of ['Italia', 'Italy', ' IT ', 'ITA', 'Italy (IT)', null, '', 'N/D', 'unknown']) {
+        assert.equal(isForeignDestination(row({ id: 'altro', organization_type: type, country })), false)
+      }
+    }
+    for (const type of ['hotel', 'tour_operator', 'dmc', 'trasporto']) {
+      assert.equal(isForeignDestination(row({ id: 'operatore', organization_type: type, country: 'Francia' })), false)
+    }
+    assert.equal(isForeignDestination(row({ id: 'airline', name: 'AER LINGUS', country: 'Irlanda',
+      category: 'DESTINAZIONI/PROMOZIONE DEL TERRITORIO: ENTI DEL TURISMO ESTERI / TRASPORTI: COMPAGNIE AEREE' })), false)
+  })
+  test('rispetta le correzioni manuali e la categoria delle destinazioni italiane', () => {
+    assert.equal(isForeignDestination(row({ id: 'italiano', country: 'Francia', organization_type: 'dmo',
+      category: 'DESTINAZIONI/PROMOZIONE DEL TERRITORIO: ENTI ITALIANI DI PROMOZIONE TURISTICA' })), false)
+    assert.equal(isForeignDestination(row({ id: 'corretto', country: 'Francia', organization_type: 'dmo',
+      sos_manual: { organization_type: { option: 'hotel', at: '' } } })), false)
+  })
+  test('la lista completa conserva tutti gli stati e le priorità, oltre i limiti di visualizzazione', () => {
+    const rows = Array.from({ length: 1201 }, (_, i) => row({ id: String(i), name: `Ente ${String(i).padStart(4, '0')}`,
+      country: 'Francia', organization_type: 'dmo', priority: 3,
+      status: i % 2 ? 'not_interested' : 'contacted', lead_class: 'D' }))
+    const result = foreignDestinations(rows.reverse())
+    assert.equal(result.length, 1201)
+    assert.equal(result[0].name, 'Ente 0000')
+    assert.equal(result.at(-1)?.name, 'Ente 1200')
+  })
+})
 
 describe('priorita', () => {
   test('la scelta a mano vince sul punteggio', () => {
