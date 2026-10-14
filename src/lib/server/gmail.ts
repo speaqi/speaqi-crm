@@ -1359,7 +1359,7 @@ export async function updateContactDraft(
   userId: string,
   gmailDraftId: string,
   contact: { email: string; name: string },
-  input: { subject: string; html: string; text: string; appendSignature?: boolean }
+  input: { subject: string; html: string; text: string; appendSignature?: boolean; messageIdHeader?: string }
 ): Promise<{ draftId: string; messageId: string | null }> {
   const session = await openGmailDraftSession(supabase, userId)
   if (!session) throw new Error('Gmail non collegato')

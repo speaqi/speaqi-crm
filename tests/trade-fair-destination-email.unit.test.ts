@@ -148,6 +148,10 @@ test('prepara una bozza Gmail con firma, senza inviare o segnare contattato', as
   const deps = { ...dependencies(async () => { sends++; return {} }), draft: async (_db: any, _user: string, message: any) => {
     drafts++; content = message
     return { draftId: 'draft-1', messageId: 'message-1' }
+  }, draftUpdate: async (_db: any, _user: string, draftId: string, message: any) => {
+    assert.equal(draftId, 'draft-1')
+    content = message
+    return { draftId, messageId: 'message-2' }
   } }
   const result = await sendDestinationEmail(db, 'owner', { ...input, mode: 'draft' }, deps)
   assert.equal(result.sent, false)
@@ -161,9 +165,10 @@ test('prepara una bozza Gmail con firma, senza inviare o segnare contattato', as
   assert.equal(sends, 0)
 
   const reopened = await sendDestinationEmail(db, 'owner', { ...input, text: 'Testo modificato nel CRM', mode: 'draft' }, deps)
-  assert.equal(reopened.url, result.url)
+  assert.notEqual(reopened.url, result.url)
   assert.equal(drafts, 1)
   assert.equal(db.read().outreach.destination_email.body, content.text)
+  assert.equal(db.read().outreach.destination_email.original_text, 'Testo modificato nel CRM')
   await assert.rejects(sendDestinationEmail(db, 'owner', input, deps), /Invio già avviato/)
 })
 

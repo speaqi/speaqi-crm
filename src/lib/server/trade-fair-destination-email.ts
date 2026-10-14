@@ -4,7 +4,7 @@ import { fairEmailAudience, FAIR_EMAIL_COPIES, fairEmailFooter } from '@/lib/tra
 import { appendEmailSignature, getConnectedGmailAddress, loadGmailSignature, sendPlainEmail, signatureFromPlainText, simpleTextToHtml, type EmailSignature } from './gmail'
 import { loadUserSettings } from './user-settings'
 import { errorMessage } from './http'
-import { gmailDraftUrl, inspectPreparedGmailDraft, prepareSignedGmailDraft } from './trade-fair-gmail-draft'
+import { gmailDraftUrl, inspectPreparedGmailDraft, prepareSignedGmailDraft, updateSignedGmailDraft } from './trade-fair-gmail-draft'
 
 export class DestinationEmailError extends Error {
   constructor(message: string, public status = 400) { super(message) }
@@ -25,6 +25,7 @@ type Dependencies = {
   sender: typeof getConnectedGmailAddress
   send: typeof sendPlainEmail
   draft?: typeof prepareSignedGmailDraft
+  draftUpdate?: typeof updateSignedGmailDraft
 }
 
 /** Invio manuale singolo. La prenotazione atomica impedisce due invii da un doppio clic. */
@@ -64,6 +65,30 @@ export async function sendDestinationEmail(
   }
 
   if (reusable) {
+    const sameDraft = prepared.subject === subject && prepared.original_text === text
+    if (!sameDraft) {
+      const signature = await deps.signature(supabase, userId)
+      const accountEmail = await deps.sender(supabase, userId)
+      if (!accountEmail || accountEmail.toLowerCase() !== prepared.account_email!.toLowerCase()) {
+        throw new DestinationEmailError('L’account Gmail della bozza è cambiato. Verifica la bozza prima di procedere.', 409)
+      }
+      const signed = appendEmailSignature({ text, html: simpleTextToHtml(text) }, signature)
+      const footer = fairEmailFooter(FAIR_EMAIL_COPIES[audience].lang)
+      const signedText = `${signed.text}\n\n${footer}`
+      const signedHtml = `${signed.html}<br>${simpleTextToHtml(footer)}`
+      const updatedDraft = await (deps.draftUpdate || updateSignedGmailDraft)(supabase, userId, prepared.gmail_draft_id!, {
+        to: prepared.to, subject, text: signedText, html: signedHtml,
+        messageIdHeader: prepared.message_id_header || `<${prepared.token}@speaqi.crm>`,
+      })
+      const updatedRecord = { ...prepared, subject, original_text: text, body: signedText,
+        gmail_draft_id: updatedDraft.draftId, gmail_message_id: updatedDraft.messageId, prepared_at: new Date().toISOString() }
+      const saved = await supabase.from('trade_fair_exhibitors').update({
+        outreach: { ...row.outreach, destination_email: updatedRecord }, updated_at: new Date().toISOString(),
+      }).eq('user_id', userId).eq('id', row.id).eq('outreach->destination_email->>token', prepared.token)
+        .eq('outreach->destination_email->>status', 'draft').select('*').maybeSingle()
+      if (saved.error || !saved.data) throw new DestinationEmailError('Bozza aggiornata in Gmail, ma il CRM non è stato aggiornato. Ricarica prima di riprovare.', 503)
+      return { sent: false, to: prepared.to, url: gmailDraftUrl(accountEmail, updatedDraft.messageId), exhibitor: saved.data, warning: null }
+    }
     return { sent: false, to: prepared.to, exhibitor: row,
       url: gmailDraftUrl(prepared.account_email!, prepared.gmail_message_id!), warning: null }
   }
