@@ -11,6 +11,8 @@ import {
   isForeignDestination,
   italianDestinations,
   isItalianDestination,
+  isTourOperator,
+  tourOperators,
   parseExhibitorsText,
   slugifyExhibitor,
   summarize,
@@ -107,6 +109,17 @@ describe('destinazioni italiane', () => {
     assert.equal(result[0].name, 'Ente 0000')
     assert.equal(result.at(-1)?.name, 'Ente 1200')
   })
+})
+
+test('tour operator e DMC: deduzione, correzioni manuali e lista completa', () => {
+  assert.equal(isTourOperator(row({ id: 'incoming', name: 'Alpha', category: 'DMC / INCOMING' })), true)
+  assert.equal(isTourOperator(row({ id: 'manuale', organization_type: 'tour_operator', sos_manual: { organization_type: { option: 'hotel', at: '' } } })), false)
+  const result = tourOperators([
+    row({ id: 'b', name: 'Beta', organization_type: 'tour_operator', status: 'contacted', lead_class: 'D' }),
+    row({ id: 'a', name: 'Alpha', organization_type: 'dmc' }),
+    row({ id: 'hotel', organization_type: 'hotel' }),
+  ])
+  assert.deepEqual(result.map((item) => item.id), ['a', 'b'])
 })
 
 describe('priorita', () => {

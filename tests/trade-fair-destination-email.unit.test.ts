@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { sendDestinationEmail } from '../src/lib/server/trade-fair-destination-email'
+import { FAIR_EMAIL_COPIES, fairEmailAudience } from '../src/lib/trade-fair-destination-email'
 
 function database(overrides: Record<string, unknown> = {}, contact: any = null) {
   let row: any = {
@@ -76,13 +77,38 @@ test('due richieste contemporanee inviano una sola email', async () => {
   assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1)
 })
 
-test('non invia fuori dal workspace, a enti esteri, senza indirizzo o a non interessati', async () => {
+test('non invia fuori dal workspace, a tipologie escluse, senza indirizzo o a non interessati', async () => {
   let sends = 0
   const deps = dependencies(async () => { sends++; return {} })
-  for (const overrides of [{ user_id: 'other' }, { country: 'Francia' }, { email: 'errato' }, { status: 'not_interested' }]) {
+  for (const overrides of [{ user_id: 'other' }, { organization_type: 'hotel' }, { email: 'errato' }, { status: 'not_interested' }]) {
     await assert.rejects(sendDestinationEmail(database(overrides), 'owner', input, deps))
   }
   assert.equal(sends, 0)
+})
+
+test('tre email abbinate a italiani, esteri e tour operator, con lingua corretta', async () => {
+  assert.deepEqual(Object.keys(FAIR_EMAIL_COPIES), ['italiane', 'estere', 'operatori'])
+  const cases = [
+    [{}, 'italiane'],
+    [{ country: 'Francia' }, 'estere'],
+    [{ organization_type: 'tour_operator' }, 'operatori'],
+    [{ organization_type: 'dmc' }, 'operatori'],
+    [{ country: 'Italia', category: 'ENTI DEL TURISMO ESTERI' }, 'estere'],
+  ] as const
+  for (const [overrides, audience] of cases) {
+    const db = database(overrides)
+    assert.equal(fairEmailAudience(db.read()), audience)
+    const copy = FAIR_EMAIL_COPIES[audience]
+    let sent: any
+    await sendDestinationEmail(db, 'owner', { id: 'one', subject: copy.subject, text: copy.body }, dependencies(async (message) => {
+      sent = message
+      return { message_id: 'ok', account_email: 'sender', thread_id: null }
+    }))
+    assert.equal(sent.subject, copy.subject)
+    assert.ok(sent.text.startsWith(copy.body))
+    assert.match(sent.text, /Firma salvata nel CRM/)
+    assert.match(sent.text, audience === 'estere' ? /reply “no thanks”/ : /rispondete «no grazie»/)
+  }
 })
 
 test('firma o Gmail mancanti non prenotano un invio', async () => {
