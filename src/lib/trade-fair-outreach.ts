@@ -22,7 +22,7 @@ export type OutreachState = {
   test_sent_at?: string | null
   error?: string | null
   destination_email?: {
-    status: 'sending' | 'sent' | 'unknown'
+    status: 'sending' | 'preparing' | 'draft' | 'sent' | 'unknown'
     token: string
     to: string
     subject: string
@@ -30,6 +30,13 @@ export type OutreachState = {
     sent_at?: string
     message_id?: string
     error?: string
+    mode?: 'gmail' | 'direct'
+    prepared_at?: string
+    gmail_draft_id?: string
+    gmail_message_id?: string
+    account_email?: string
+    message_id_header?: string
+    original_text?: string
   }
 }
 

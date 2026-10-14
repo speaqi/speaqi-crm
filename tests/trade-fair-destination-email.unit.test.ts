@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { sendDestinationEmail } from '../src/lib/server/trade-fair-destination-email'
+import { reconcileDestinationDraft, sendDestinationEmail } from '../src/lib/server/trade-fair-destination-email'
 import { FAIR_EMAIL_COPIES, fairEmailAudience } from '../src/lib/trade-fair-destination-email'
 
 function database(overrides: Record<string, unknown> = {}, contact: any = null) {
@@ -27,6 +27,7 @@ function database(overrides: Record<string, unknown> = {}, contact: any = null) 
           const matches = filters.every(([key, value]) => {
             if (key === 'outreach->destination_email') return row.outreach.destination_email == null
             if (key === 'outreach->destination_email->>token') return row.outreach.destination_email?.token === value
+            if (key === 'outreach->destination_email->>status') return row.outreach.destination_email?.status === value
             return row[key] === value
           })
           if (!matches) return { data: null, error: null }
@@ -137,4 +138,73 @@ test('un errore durante l’invio conserva lo stato da verificare e impedisce du
   let sends = 0
   await assert.rejects(sendDestinationEmail(db, 'owner', input, dependencies(async () => { sends++; return {} })), /Invio già avviato/)
   assert.equal(sends, 0)
+})
+
+test('prepara una bozza Gmail con firma, senza inviare o segnare contattato', async () => {
+  const db = database()
+  let sends = 0
+  let drafts = 0
+  let content: any
+  const deps = { ...dependencies(async () => { sends++; return {} }), draft: async (_db: any, _user: string, message: any) => {
+    drafts++; content = message
+    return { draftId: 'draft-1', messageId: 'message-1' }
+  } }
+  const result = await sendDestinationEmail(db, 'owner', { ...input, mode: 'draft' }, deps)
+  assert.equal(result.sent, false)
+  assert.match(result.url || '', /https:\/\/mail.google.com\/mail\/u\/sender%40example.it\/#drafts\?compose=message-1/)
+  assert.match(content.text, /Firma salvata nel CRM/)
+  assert.match(content.html, /<p>Massimo Morgante/)
+  assert.match(content.messageIdHeader, /@speaqi.crm>$/)
+  assert.equal(db.read().status, 'new')
+  assert.equal(db.read().notes.length, 0)
+  assert.equal(db.read().outreach.destination_email.status, 'draft')
+  assert.equal(sends, 0)
+
+  const reopened = await sendDestinationEmail(db, 'owner', { ...input, text: 'Testo modificato nel CRM', mode: 'draft' }, deps)
+  assert.equal(reopened.url, result.url)
+  assert.equal(drafts, 1)
+  assert.equal(db.read().outreach.destination_email.body, content.text)
+  await assert.rejects(sendDestinationEmail(db, 'owner', input, deps), /Invio già avviato/)
+})
+
+test('due creazioni concorrenti preparano una sola bozza', async () => {
+  const db = database()
+  let drafts = 0
+  const deps = { ...dependencies(), draft: async () => { drafts++; return { draftId: 'draft', messageId: 'message' } } }
+  const results = await Promise.allSettled([sendDestinationEmail(db, 'owner', { ...input, mode: 'draft' }, deps), sendDestinationEmail(db, 'owner', { ...input, mode: 'draft' }, deps)])
+  assert.equal(drafts, 1)
+  assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1)
+})
+
+test('una bozza cancellata, ancora presente o non verificabile non viene segnata come inviata', async () => {
+  for (const state of ['draft', 'missing', 'unavailable'] as const) {
+    const db = database({ outreach: { destination_email: { status: 'draft', token: 'token', to: 'ente@example.it', subject: 'Oggetto', body: 'Testo' } } })
+    await reconcileDestinationDraft(db, 'owner', 'one', async () => ({ state }))
+    assert.equal(db.read().outreach.destination_email.status, 'draft')
+    assert.equal(db.read().status, 'new')
+    assert.equal(db.read().notes.length, 0)
+  }
+})
+
+test('la conferma da Inviati aggiorna CRM e contenuto una sola volta', async () => {
+  const db = database({ outreach: { destination_email: { status: 'draft', token: 'token', to: 'ente@example.it', subject: 'Oggetto', body: 'Testo' } } })
+  let inspections = 0
+  const inspect = async () => { inspections++; return { state: 'sent' as const, id: 'sent-1', sentAt: '2026-10-14T07:00:00Z', subject: 'Oggetto definitivo', text: 'Testo modificato da Gmail' } }
+  await reconcileDestinationDraft(db, 'owner', 'one', inspect)
+  assert.equal(db.read().outreach.destination_email.status, 'sent')
+  assert.equal(db.read().outreach.destination_email.message_id, 'sent-1')
+  assert.equal(db.read().outreach.destination_email.body, 'Testo modificato da Gmail')
+  assert.equal(db.read().status, 'contacted')
+  await reconcileDestinationDraft(db, 'owner', 'one', inspect)
+  assert.equal(inspections, 1)
+  assert.equal(db.read().notes.length, 1)
+})
+
+test('la riconciliazione rispetta il workspace e la preparazione incerta non crea doppioni', async () => {
+  await assert.rejects(reconcileDestinationDraft(database({ user_id: 'other' }), 'owner', 'one', async () => ({ state: 'missing' })), /non trovato/)
+  const db = database()
+  const deps = { ...dependencies(), draft: async () => { throw new Error('Timeout') } }
+  await assert.rejects(sendDestinationEmail(db, 'owner', { ...input, mode: 'draft' }, deps), /Verifica in Gmail/)
+  assert.equal(db.read().outreach.destination_email.status, 'unknown')
+  await assert.rejects(sendDestinationEmail(db, 'owner', { ...input, mode: 'draft' }, deps), /Invio già avviato/)
 })

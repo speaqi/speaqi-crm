@@ -46,6 +46,7 @@ type GmailPayload = {
 
 type GmailApiMessage = {
   id: string
+  labelIds?: string[]
   threadId?: string
   snippet?: string
   internalDate?: string
@@ -1107,11 +1108,15 @@ export async function getConnectedGmailAddress(supabase: any, userId: string) {
 export async function findSentGmailMessageByRfc822Id(
   supabase: any,
   userId: string,
-  messageIdHeader: string
+  messageIdHeader: string,
+  accessTokenOverride?: string
 ) {
-  const account = await getGmailAccount(supabase, userId)
-  if (!account) throw new Error('Gmail non collegato')
-  const accessToken = await refreshAccessToken(account)
+  let accessToken = accessTokenOverride
+  if (!accessToken) {
+    const account = await getGmailAccount(supabase, userId)
+    if (!account) throw new Error('Gmail non collegato')
+    accessToken = await refreshAccessToken(account)
+  }
   const query = encodeURIComponent(`in:sent rfc822msgid:${messageIdHeader}`)
   const result = await gmailApiRequest<{ messages?: Array<{ id: string }> }>(
     accessToken,
@@ -1232,6 +1237,18 @@ export async function findSentGmailMessageToRecipient(
   return messages[0] || null
 }
 
+/** Ricerca mirata per riconciliare le bozze fiere senza leggere tutta la casella Inviati. */
+export async function findSentGmailDraftCandidates(accessToken: string, recipient: string, afterEpochSeconds: number, subject: string) {
+  const email = normalizeEmail(recipient)
+  if (!email) return []
+  const escapedSubject = subject.replace(/[\\"]/g, '\\$&')
+  const params = new URLSearchParams({
+    q: `in:sent to:"${email}" after:${Math.floor(afterEpochSeconds)} subject:"${escapedSubject}"`, maxResults: '10',
+  })
+  const list = await gmailApiRequest<{ messages?: GmailMessageRef[] }>(accessToken, `/users/me/messages?${params.toString()}`)
+  return fetchSentMessageInfos(accessToken, list.messages || [])
+}
+
 /** Testo realmente spedito, per allineare la bozza a quanto e' partito da Gmail. */
 export async function getSentGmailMessageContent(accessToken: string, messageId: string) {
   const message = await getMessage(accessToken, messageId)
@@ -1303,11 +1320,12 @@ export async function saveContactDraftWithSession(
     text: string
     appendSignature?: boolean
     gmailDraftId?: string | null
+    messageIdHeader?: string
   }
 ): Promise<{ draftId: string; messageId: string | null }> {
   const signature = input.appendSignature === false ? null : session.signature
   const signedInput = appendEmailSignature({ html: input.html, text: input.text }, signature)
-  const raw = encodeMessageBody(input.subject, contact.email, signedInput.html, signedInput.text)
+  const raw = encodeMessageBody(input.subject, contact.email, signedInput.html, signedInput.text, input.messageIdHeader)
 
   const result = await gmailApiRequest<{ id: string; message?: { id?: string } }>(
     session.accessToken,
@@ -1328,7 +1346,7 @@ export async function createContactDraft(
   supabase: any,
   userId: string,
   contact: { email: string; name: string },
-  input: { subject: string; html: string; text: string; appendSignature?: boolean }
+  input: { subject: string; html: string; text: string; appendSignature?: boolean; messageIdHeader?: string }
 ): Promise<{ draftId: string; messageId: string | null } | null> {
   const session = await openGmailDraftSession(supabase, userId)
   if (!session) return null
