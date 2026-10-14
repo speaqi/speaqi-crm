@@ -1,4 +1,4 @@
-import { createContactDraft, findSentGmailDraftCandidates, findSentGmailMessageByRfc822Id, getGmailAccessToken, getSentGmailMessageContent, gmailDraftExists } from './gmail'
+import { createContactDraft, updateContactDraft, findSentGmailDraftCandidates, findSentGmailMessageByRfc822Id, getGmailAccessToken, getSentGmailMessageContent, gmailDraftExists } from './gmail'
 
 type DraftInput = { to: string; subject: string; text: string; html: string; messageIdHeader: string }
 
@@ -7,6 +7,14 @@ export async function prepareSignedGmailDraft(supabase: any, userId: string, inp
     subject: input.subject, text: input.text, html: input.html, messageIdHeader: input.messageIdHeader, appendSignature: false,
   })
   if (!draft?.messageId) throw new Error('Impossibile creare la bozza in Gmail.')
+  return { draftId: draft.draftId, messageId: draft.messageId }
+}
+
+export async function updateSignedGmailDraft(supabase: any, userId: string, gmailDraftId: string, input: DraftInput) {
+  const draft = await updateContactDraft(supabase, userId, gmailDraftId, { email: input.to, name: '' }, {
+    subject: input.subject, text: input.text, html: input.html, messageIdHeader: input.messageIdHeader, appendSignature: false,
+  })
+  if (!draft.messageId) throw new Error('Impossibile aggiornare la bozza in Gmail.')
   return { draftId: draft.draftId, messageId: draft.messageId }
 }
 

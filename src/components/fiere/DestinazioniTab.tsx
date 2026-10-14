@@ -25,7 +25,29 @@ export default function DestinazioniTab({ rows, now, showToast, onRowChange, sco
   const [signature, setSignature] = useState('')
   const [signatureError, setSignatureError] = useState('')
   const [sendingId, setSendingId] = useState<string | null>(null)
+  const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null)
+  const [templateSaved, setTemplateSaved] = useState(false)
   const sendingRef = useRef(false)
+  const templateKey = `fiere-email-template-v1:${scope}`
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(templateKey)
+      if (saved) {
+        const template = JSON.parse(saved) as { subject?: string; body?: string }
+        if (typeof template.subject === 'string' && typeof template.body === 'string') {
+          setSubject(template.subject)
+          setBody(template.body)
+          setTemplateSaved(true)
+        }
+      } else {
+        setSubject(copyForAudience.subject)
+        setBody(copyForAudience.body)
+        setTemplateSaved(false)
+      }
+    } catch {
+      setTemplateSaved(false)
+    }
+  }, [templateKey, copyForAudience.body, copyForAudience.subject])
   useEffect(() => {
     let active = true
     apiFetch<{ signature: string }>('/api/trade-fair-exhibitors/destination-email')
@@ -122,6 +144,53 @@ export default function DestinazioniTab({ rows, now, showToast, onRowChange, sco
     }
   }
 
+  function saveTemplate() {
+    try {
+      localStorage.setItem(templateKey, JSON.stringify({ subject, body }))
+      setTemplateSaved(true)
+      showToast('Modello email salvato su questo browser')
+    } catch {
+      showToast('Non riesco a salvare il modello nel browser')
+    }
+  }
+
+  async function prepareForeignDrafts() {
+    if (sendingRef.current || scope !== 'estere') return
+    const eligible = rows.filter((row) => normalizeEmail(row.email) && row.status !== 'not_interested'
+      && (!row.outreach?.destination_email || row.outreach.destination_email.status === 'draft'))
+    if (!eligible.length) {
+      showToast('Non ci sono nuove bozze estere da preparare')
+      return
+    }
+    sendingRef.current = true
+    setBatchProgress({ done: 0, total: eligible.length })
+    let ready = 0
+    let failed = 0
+    try {
+      for (const [index, row] of eligible.entries()) {
+        setSendingId(row.id)
+        try {
+          const result = await apiFetch<{ exhibitor: FairExhibitor; to: string; warning?: string | null }>('/api/trade-fair-exhibitors/destination-email', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: row.id, subject, text: body, mode: 'draft' }),
+          })
+          onRowChange(result.exhibitor)
+          if (result.warning) failed++
+          else ready++
+        } catch {
+          failed++
+        }
+        setBatchProgress({ done: index + 1, total: eligible.length })
+      }
+      showToast(`${ready} bozze estere pronte${failed ? `, ${failed} da verificare` : ''}. Nessuna email è stata inviata.`)
+      if (failed) await onReload()
+    } finally {
+      sendingRef.current = false
+      setSendingId(null)
+      setBatchProgress(null)
+    }
+  }
+
   function sendButton(row: FairExhibitor) {
     const state = row.outreach?.destination_email?.status
     const noEmail = !normalizeEmail(row.email)
@@ -154,6 +223,9 @@ export default function DestinazioniTab({ rows, now, showToast, onRowChange, sco
             {countries.map((value) => <option key={value} value={value}>{value}</option>)}
           </select> : null}
           <button type="button" className="btn btn-primary btn-sm" onClick={exportCompleteList} disabled={!rows.length}>⬇ Esporta elenco completo in CSV</button>
+          {scope === 'estere' ? <button type="button" className="btn btn-primary btn-sm" onClick={prepareForeignDrafts}
+            disabled={Boolean(batchProgress) || !rows.some((row) => normalizeEmail(row.email) && row.status !== 'not_interested' && (!row.outreach?.destination_email || row.outreach.destination_email.status === 'draft'))}>
+            {batchProgress ? `Preparo bozze ${batchProgress.done}/${batchProgress.total}…` : 'Prepara tutte le bozze estere'}</button> : null}
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowEmail((value) => !value)} aria-expanded={showEmail}>✉ Bozza email</button>
             <button type="button" className="btn btn-ghost btn-sm" disabled={!recipients.length} onClick={() => copy(recipients.join('; '), `${recipients.length} indirizzi unici copiati`)}>Copia indirizzi · {recipients.length}</button>
         </div>
@@ -165,8 +237,10 @@ export default function DestinazioniTab({ rows, now, showToast, onRowChange, sco
         <label>Oggetto<input className="fi" value={subject} onChange={(event) => setSubject(event.target.value)} /></label>
         <label>Messaggio<textarea className="fi" rows={18} value={body} onChange={(event) => setBody(event.target.value)} /></label>
         <div><strong>Firma dal CRM</strong><div style={{ whiteSpace: 'pre-wrap' }}>{signature || signatureError || 'Caricamento firma…'}</div></div>
-        <div className="fx-actions"><button type="button" className="btn btn-primary btn-sm" disabled={!signature} onClick={() => copy(`Oggetto: ${subject}\n\n${body}\n\n${signature}\n\n${fairEmailFooter(copyForAudience.lang)}`, 'Email copiata')}>Copia email</button></div>
-        <p className="fx-hint">Le modifiche saranno usate per i prossimi invii e le nuove bozze Gmail. Una bozza già preparata si riapre senza sovrascrivere le modifiche fatte in Gmail. La firma viene aggiunta automaticamente.</p>
+        <div className="fx-actions"><button type="button" className="btn btn-primary btn-sm" disabled={!subject.trim() || !body.trim()} onClick={saveTemplate}>Salva modello email</button>
+          <button type="button" className="btn btn-ghost btn-sm" disabled={!signature} onClick={() => copy(`Oggetto: ${subject}\n\n${body}\n\n${signature}\n\n${fairEmailFooter(copyForAudience.lang)}`, 'Email copiata')}>Copia email</button>
+          {templateSaved ? <span className="fx-muted">Modello salvato in questo browser</span> : null}</div>
+        <p className="fx-hint">Il modello salvato resta disponibile quando riapri questa pagina su questo browser. Se cambi il testo dopo aver preparato una bozza, «Apri bozza Gmail» aggiorna quella bozza con il modello nuovo. La firma viene aggiunta automaticamente.</p>
       </section> : null}
       {rows.length ? <ElencoTab key={country} rows={selected} now={now} showToast={showToast} onRowChange={onRowChange} completeList renderRowAction={sendButton} />
         : <div className="fx-card fx-empty">Nessun espositore riconosciuto per questa lista nel catalogo importato. Controlla che l’elenco includa paese e categoria.</div>}
