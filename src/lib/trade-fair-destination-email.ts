@@ -10,13 +10,7 @@ L’obiettivo è aiutare chi visita un territorio a scoprirne luoghi e itinerari
 
 Possiamo passare dal vostro stand nell’orario che vi è più comodo. Riusciamo a trovare un piccolo spazio?
 
-Un cordiale saluto,
-Massimo Morgante
-CEO · Speaqi
-+39 389 686 8162
-info@speaqi.com
-
-—
-Speaqi di TheBestItaly · P.IVA 10831191217
-Se preferite non ricevere altre comunicazioni da Speaqi, rispondete «no grazie» e non vi contatteremo più.`,
+Un cordiale saluto,`,
 }
+
+export const DESTINATION_EMAIL_FOOTER = 'Se preferite non ricevere altre comunicazioni da Speaqi, rispondete «no grazie» e non vi contatteremo più.'
