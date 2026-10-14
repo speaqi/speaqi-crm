@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { isItalianDestination, newNote, normalizeEmail, type FairExhibitor } from '@/lib/trade-fair'
-import { DESTINATION_EMAIL_FOOTER } from '@/lib/trade-fair-destination-email'
+import { newNote, normalizeEmail, type FairExhibitor } from '@/lib/trade-fair'
+import { fairEmailAudience, FAIR_EMAIL_COPIES, fairEmailFooter } from '@/lib/trade-fair-destination-email'
 import { appendEmailSignature, getConnectedGmailAddress, loadGmailSignature, sendPlainEmail, signatureFromPlainText, simpleTextToHtml, type EmailSignature } from './gmail'
 import { loadUserSettings } from './user-settings'
 import { errorMessage } from './http'
@@ -39,7 +39,8 @@ export async function sendDestinationEmail(
     .eq('user_id', userId).eq('id', input.id).maybeSingle()
   if (error) throw error
   if (!row) throw new DestinationEmailError('Destinazione non trovata.', 404)
-  if (!isItalianDestination(row)) throw new DestinationEmailError('Questa destinazione non è nella lista italiana.')
+  const audience = fairEmailAudience(row)
+  if (!audience) throw new DestinationEmailError('Questo espositore non è una destinazione o un tour operator.')
   if (row.status === 'not_interested') throw new DestinationEmailError('Questa destinazione è segnata come non interessata.', 409)
   const to = normalizeEmail(row.email)
   if (!to) throw new DestinationEmailError('Aggiungi un indirizzo email valido alla destinazione.')
@@ -61,8 +62,9 @@ export async function sendDestinationEmail(
   const signature = await deps.signature(supabase, userId)
   if (!await deps.sender(supabase, userId)) throw new DestinationEmailError('Gmail non collegato: collegalo dalla pagina Gmail.', 409)
   const signed = appendEmailSignature({ text, html: simpleTextToHtml(text) }, signature)
-  const signedText = `${signed.text}\n\n${DESTINATION_EMAIL_FOOTER}`
-  const signedHtml = `${signed.html}<br>${simpleTextToHtml(DESTINATION_EMAIL_FOOTER)}`
+  const footer = fairEmailFooter(FAIR_EMAIL_COPIES[audience].lang)
+  const signedText = `${signed.text}\n\n${footer}`
+  const signedHtml = `${signed.html}<br>${simpleTextToHtml(footer)}`
   const token = randomUUID()
   const sending = { status: 'sending' as const, token, to, subject, body: signedText }
   const claim = await supabase.from('trade_fair_exhibitors')
@@ -86,7 +88,7 @@ export async function sendDestinationEmail(
   const latest = await supabase.from('trade_fair_exhibitors').select('*').eq('user_id', userId).eq('id', row.id).maybeSingle()
   const current: FairExhibitor = latest.data || claim.data
   const at = new Date().toISOString()
-  const note = newNote(`Email inviata alla destinazione italiana: ${subject}`)
+  const note = newNote(`Email fiera inviata (${audience}): ${subject}`)
   const updated = {
     ...current,
     status: current.status === 'new' ? 'contacted' : current.status,

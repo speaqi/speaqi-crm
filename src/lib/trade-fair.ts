@@ -218,9 +218,21 @@ function fold(value: string) {
 }
 
 function isTerritorialDestination(row: FairExhibitor) {
-  const type = row.sos_manual?.organization_type?.option || row.organization_type
-    || evaluateExhibitor(row).factors.find((factor) => factor.key === 'organization_type')?.option
+  const type = exhibitorOrganizationType(row)
   return ['dmo', 'consorzio', 'assoc_territoriale'].includes(type || '')
+}
+
+export function exhibitorOrganizationType(row: FairExhibitor) {
+  return row.sos_manual?.organization_type?.option || row.organization_type
+    || evaluateExhibitor(row).factors.find((factor) => factor.key === 'organization_type')?.option
+}
+
+export function isTourOperator(row: FairExhibitor) {
+  return ['tour_operator', 'dmc'].includes(exhibitorOrganizationType(row) || '')
+}
+
+export function tourOperators(rows: FairExhibitor[]) {
+  return rows.filter(isTourOperator).sort((a, b) => a.name.localeCompare(b.name, 'it'))
 }
 
 function isItalianCountry(country: string | null) {

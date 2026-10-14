@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import { FairExhibitor, normalizeEmail, STATUS_LABELS } from '@/lib/trade-fair'
-import { DESTINATION_EMAIL_FOOTER, ITALIAN_DESTINATION_EMAIL } from '@/lib/trade-fair-destination-email'
+import { FAIR_EMAIL_COPIES, fairEmailFooter, type FairEmailAudience } from '@/lib/trade-fair-destination-email'
 import ElencoTab from './ElencoTab'
 import { downloadCsv, FAIR, TYPE_SHORT } from './shared'
 
@@ -12,21 +12,21 @@ type Props = {
   now: Date
   showToast: (message: string) => void
   onRowChange: (row: FairExhibitor) => void
-  scope: 'italiane' | 'estere'
+  scope: FairEmailAudience
   onReload: () => Promise<void>
 }
 
 export default function DestinazioniTab({ rows, now, showToast, onRowChange, scope, onReload }: Props) {
   const [country, setCountry] = useState('')
   const [showEmail, setShowEmail] = useState(false)
-  const [subject, setSubject] = useState(ITALIAN_DESTINATION_EMAIL.subject)
-  const [body, setBody] = useState(ITALIAN_DESTINATION_EMAIL.body)
+  const copyForAudience = FAIR_EMAIL_COPIES[scope]
+  const [subject, setSubject] = useState(copyForAudience.subject)
+  const [body, setBody] = useState(copyForAudience.body)
   const [signature, setSignature] = useState('')
   const [signatureError, setSignatureError] = useState('')
   const [sendingId, setSendingId] = useState<string | null>(null)
   const sendingRef = useRef(false)
   useEffect(() => {
-    if (scope !== 'italiane') return
     let active = true
     apiFetch<{ signature: string }>('/api/trade-fair-exhibitors/destination-email')
       .then((response) => { if (active) setSignature(response.signature) })
@@ -38,7 +38,7 @@ export default function DestinazioniTab({ rows, now, showToast, onRowChange, sco
 
   function exportCompleteList() {
     downloadCsv(`destinazioni-${scope}-${FAIR}.csv`,
-      ['Destinazione / Ente', 'Paese', 'Città', 'Tipologia', 'Categoria', 'Padiglione', 'Stand', 'Referente', 'Email', 'Telefono', 'Sito', 'Scheda fiera', 'Stato', 'Prossimo richiamo', 'Note'],
+      [scope === 'operatori' ? 'Tour operator / DMC' : 'Destinazione / Ente', 'Paese', 'Città', 'Tipologia', 'Categoria', 'Padiglione', 'Stand', 'Referente', 'Email', 'Telefono', 'Sito', 'Scheda fiera', 'Stato', 'Prossimo richiamo', 'Note'],
       rows.map((row) => [row.name, row.country, row.city, TYPE_SHORT[row.organization_type || ''] || '', row.category,
         row.hall, row.stand, row.contact_person, row.email, row.phone, row.website, row.source_url,
         STATUS_LABELS[row.status], row.next_followup_at, row.notes.map((note) => note.text).join(' | ')]))
@@ -84,36 +84,35 @@ export default function DestinazioniTab({ rows, now, showToast, onRowChange, sco
   }
 
   const recipients = Array.from(new Set(rows.map((row) => normalizeEmail(row.email)).filter((email): email is string => Boolean(email))))
+  const label = scope === 'operatori' ? 'tour operator e DMC' : `destinazioni ${scope}`
 
   return (
     <>
       <section className="fx-card">
-        <strong>{rows.length} destinazioni {scope} nel catalogo importato</strong>
-        <p className="fx-hint">Enti del turismo, consorzi e associazioni di promozione territoriale{scope === 'estere' ? ', incluse le rappresentanze con sede in Italia' : ' italiani'}. L’elenco iniziale include tutti gli stati e tutte le priorità.</p>
+        <strong>{rows.length} {label} nel catalogo importato</strong>
+        <p className="fx-hint">{scope === 'operatori' ? 'Operatori da valutare per la distribuzione delle mappe o una fornitura in blocco per i loro viaggi.' : `Enti del turismo, consorzi e associazioni di promozione territoriale${scope === 'estere' ? ', incluse le rappresentanze con sede in Italia' : ' italiani'}.`} L’elenco iniziale include tutti gli stati e tutte le priorità.</p>
         <div className="fx-bar">
-          {scope === 'estere' ? <select className="fi" aria-label="Filtra per paese" value={country} onChange={(event) => setCountry(event.target.value)}>
+          {scope !== 'italiane' ? <select className="fi" aria-label="Filtra per paese" value={country} onChange={(event) => setCountry(event.target.value)}>
             <option value="">Tutti i paesi</option>
             {countries.map((value) => <option key={value} value={value}>{value}</option>)}
           </select> : null}
           <button type="button" className="btn btn-primary btn-sm" onClick={exportCompleteList} disabled={!rows.length}>⬇ Esporta elenco completo in CSV</button>
-          {scope === 'italiane' ? <>
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowEmail((value) => !value)} aria-expanded={showEmail}>✉ Bozza email</button>
             <button type="button" className="btn btn-ghost btn-sm" disabled={!recipients.length} onClick={() => copy(recipients.join('; '), `${recipients.length} indirizzi unici copiati`)}>Copia indirizzi · {recipients.length}</button>
-          </> : null}
         </div>
       </section>
-      {scope === 'italiane' ? <p className="fx-hint">Il pulsante «Invia email» invia subito a quella destinazione il testo della bozza con la firma salvata nel CRM.</p> : null}
-      {scope === 'italiane' && signatureError ? <div className="fx-card" role="alert">{signatureError}</div> : null}
-      {scope === 'italiane' && showEmail ? <section className="fx-card">
-        <strong>Email per le destinazioni italiane</strong>
+      <p className="fx-hint">Email già abbinata a questa lista{copyForAudience.lang === 'en' ? ' in inglese' : ' in italiano'}. Il pulsante «Invia email» invia subito a quell’espositore il testo della bozza con la firma salvata nel CRM.</p>
+      {signatureError ? <div className="fx-card" role="alert">{signatureError}</div> : null}
+      {showEmail ? <section className="fx-card">
+        <strong>Email per {label}</strong>
         <label>Oggetto<input className="fi" value={subject} onChange={(event) => setSubject(event.target.value)} /></label>
         <label>Messaggio<textarea className="fi" rows={18} value={body} onChange={(event) => setBody(event.target.value)} /></label>
         <div><strong>Firma dal CRM</strong><div style={{ whiteSpace: 'pre-wrap' }}>{signature || signatureError || 'Caricamento firma…'}</div></div>
-        <div className="fx-actions"><button type="button" className="btn btn-primary btn-sm" disabled={!signature} onClick={() => copy(`Oggetto: ${subject}\n\n${body}\n\n${signature}\n\n${DESTINATION_EMAIL_FOOTER}`, 'Email copiata')}>Copia email</button></div>
+        <div className="fx-actions"><button type="button" className="btn btn-primary btn-sm" disabled={!signature} onClick={() => copy(`Oggetto: ${subject}\n\n${body}\n\n${signature}\n\n${fairEmailFooter(copyForAudience.lang)}`, 'Email copiata')}>Copia email</button></div>
         <p className="fx-hint">Le modifiche al testo saranno usate per i successivi clic su «Invia email». La firma viene aggiunta automaticamente.</p>
       </section> : null}
-      {rows.length ? <ElencoTab key={country} rows={selected} now={now} showToast={showToast} onRowChange={onRowChange} completeList renderRowAction={scope === 'italiane' ? sendButton : undefined} />
-        : <div className="fx-card fx-empty">Nessuna destinazione {scope === 'italiane' ? 'italiana' : 'estera'} riconosciuta nel catalogo importato. Controlla che l’elenco includa paese e categoria degli espositori.</div>}
+      {rows.length ? <ElencoTab key={country} rows={selected} now={now} showToast={showToast} onRowChange={onRowChange} completeList renderRowAction={sendButton} />
+        : <div className="fx-card fx-empty">Nessun espositore riconosciuto per questa lista nel catalogo importato. Controlla che l’elenco includa paese e categoria.</div>}
     </>
   )
 }

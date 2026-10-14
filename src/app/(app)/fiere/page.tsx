@@ -8,15 +8,16 @@ import DestinazioniTab from '@/components/fiere/DestinazioniTab'
 import MailingTab from '@/components/fiere/MailingTab'
 import PianoTab from '@/components/fiere/PianoTab'
 import { downloadCsv, FAIR, FAIR_LABEL, TYPE_SHORT } from '@/components/fiere/shared'
-import { effectivePriority, FairExhibitor, foreignDestinations, italianDestinations, PRIORITY_LABELS, STATUS_LABELS, summarize, TTG_FLOOR_MAP, TTG_HOW_TO_GET_THERE } from '@/lib/trade-fair'
+import { effectivePriority, FairExhibitor, foreignDestinations, italianDestinations, tourOperators, PRIORITY_LABELS, STATUS_LABELS, summarize, TTG_FLOOR_MAP, TTG_HOW_TO_GET_THERE } from '@/lib/trade-fair'
 import type { OutreachState } from '@/lib/trade-fair-outreach'
 
-type Tab = 'elenco' | 'italiane' | 'estere' | 'piano' | 'mailing'
+type Tab = 'elenco' | 'italiane' | 'estere' | 'operatori' | 'piano' | 'mailing'
 
 const TABS: { id: Tab; label: string; hint: string }[] = [
   { id: 'elenco', label: 'Espositori', hint: 'Tutti gli espositori: cerca, aggiorna lo stato, aggiungi note e porta i contatti nel CRM.' },
   { id: 'italiane', label: 'Destinazioni italiane', hint: 'L’elenco completo delle destinazioni italiane presenti nel catalogo importato, con stand, contatti e bozza email.' },
   { id: 'estere', label: 'Destinazioni estere', hint: 'L’elenco completo delle destinazioni estere presenti nel catalogo importato, con stand e contatti.' },
+  { id: 'operatori', label: 'Tour operator / DMC', hint: 'Operatori da valutare per la distribuzione delle mappe o l’acquisto in blocco da includere nei viaggi.' },
   { id: 'piano', label: 'Piano di visita', hint: 'In fiera: i migliori per padiglione e stand, giorno per giorno.' },
   { id: 'mailing', label: 'Mailing', hint: 'Prima o dopo la fiera: un\'email su misura per ogni espositore in linea con Speaqi.' },
 ]
@@ -60,6 +61,7 @@ export default function FierePage() {
   const summary = useMemo(() => summarize(rows || [], now), [rows, now])
   const destinations = useMemo(() => foreignDestinations(rows || []), [rows])
   const italian = useMemo(() => italianDestinations(rows || []), [rows])
+  const operators = useMemo(() => tourOperators(rows || []), [rows])
   const mailCount = useMemo(() => (rows || []).filter((r) => ((r.outreach || {}) as OutreachState).selected && !((r.outreach || {}) as OutreachState).sent_at).length, [rows])
 
   async function runImport() {
@@ -91,7 +93,7 @@ export default function FierePage() {
   }
 
   const current = TABS.find((t) => t.id === tab)!
-  const counts: Record<Tab, number | null> = { elenco: summary.total, italiane: italian.length, estere: destinations.length, piano: null, mailing: mailCount || null }
+  const counts: Record<Tab, number | null> = { elenco: summary.total, italiane: italian.length, estere: destinations.length, operatori: operators.length, piano: null, mailing: mailCount || null }
 
   return (
     <div className="fx-page">
@@ -140,6 +142,7 @@ export default function FierePage() {
         {rows && rows.length > 0 && tab === 'elenco' ? <ElencoTab rows={rows} now={now} showToast={showToast} onRowChange={onRowChange} /> : null}
         {rows && rows.length > 0 && tab === 'italiane' ? <DestinazioniTab key="italiane" scope="italiane" rows={italian} now={now} showToast={showToast} onRowChange={onRowChange} onReload={load} /> : null}
         {rows && rows.length > 0 && tab === 'estere' ? <DestinazioniTab key="estere" scope="estere" rows={destinations} now={now} showToast={showToast} onRowChange={onRowChange} onReload={load} /> : null}
+        {rows && rows.length > 0 && tab === 'operatori' ? <DestinazioniTab key="operatori" scope="operatori" rows={operators} now={now} showToast={showToast} onRowChange={onRowChange} onReload={load} /> : null}
         {rows && rows.length > 0 && tab === 'piano' ? <PianoTab rows={rows} showToast={showToast} onRowChange={onRowChange} /> : null}
         {rows && rows.length > 0 && tab === 'mailing' ? <MailingTab rows={rows} now={now} showToast={showToast} onRowChange={onRowChange} onReload={load} /> : null}
       </div>
