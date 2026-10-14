@@ -9,6 +9,8 @@ import {
   followupState,
   foreignDestinations,
   isForeignDestination,
+  italianDestinations,
+  isItalianDestination,
   parseExhibitorsText,
   slugifyExhibitor,
   summarize,
@@ -61,6 +63,46 @@ describe('destinazioni estere', () => {
       country: 'Francia', organization_type: 'dmo', priority: 3,
       status: i % 2 ? 'not_interested' : 'contacted', lead_class: 'D' }))
     const result = foreignDestinations(rows.reverse())
+    assert.equal(result.length, 1201)
+    assert.equal(result[0].name, 'Ente 0000')
+    assert.equal(result.at(-1)?.name, 'Ente 1200')
+  })
+})
+
+describe('destinazioni italiane', () => {
+  test('riconosce Italia e alias, con tipologia territoriale', () => {
+    for (const type of ['dmo', 'consorzio', 'assoc_territoriale']) {
+      for (const country of ['Italia', 'Italy', ' IT ', 'ITA', 'Italy (IT)', 'I.T.']) {
+        assert.equal(isItalianDestination(row({ id: 'italiano', organization_type: type, country })), true)
+      }
+    }
+    for (const country of [null, '', 'Francia', 'unknown']) {
+      assert.equal(isItalianDestination(row({ id: 'altro', organization_type: 'dmo', country })), false)
+    }
+  })
+  test('la categoria italiana identifica la destinazione anche senza paese o con sede estera', () => {
+    for (const country of [null, 'Francia']) {
+      const destination = row({ id: 'apt', name: 'APT Trento', country,
+        category: 'DESTINAZIONI/PROMOZIONE DEL TERRITORIO: ENTI ITALIANI DI PROMOZIONE TURISTICA' })
+      assert.equal(isItalianDestination(destination), true)
+      assert.equal(isForeignDestination(destination), false)
+    }
+  })
+  test('esclude rappresentanze estere in Italia, operatori commerciali e correzioni manuali', () => {
+    const foreign = row({ id: 'oman', name: 'Visit Oman', country: 'Italia',
+      category: 'DESTINAZIONI/PROMOZIONE DEL TERRITORIO: ENTI DEL TURISMO ESTERI' })
+    assert.equal(isItalianDestination(foreign), false)
+    assert.equal(isForeignDestination(foreign), true)
+    for (const type of ['hotel', 'tour_operator', 'dmc', 'trasporto']) {
+      assert.equal(isItalianDestination(row({ id: 'operatore', organization_type: type, country: 'Italia' })), false)
+    }
+    assert.equal(isItalianDestination(row({ id: 'corretto', country: 'Italia', organization_type: 'dmo',
+      sos_manual: { organization_type: { option: 'hotel', at: '' } } })), false)
+  })
+  test('la lista completa conserva tutte le priorità e tutti gli stati, ordinati per nome', () => {
+    const rows = Array.from({ length: 1201 }, (_, i) => row({ id: String(i), name: `Ente ${String(i).padStart(4, '0')}`,
+      country: 'Italia', organization_type: 'dmo', priority: 3, status: i % 2 ? 'not_interested' : 'contacted', lead_class: 'D' }))
+    const result = italianDestinations([...rows.reverse(), row({ id: 'francia', country: 'Francia', organization_type: 'dmo' })])
     assert.equal(result.length, 1201)
     assert.equal(result[0].name, 'Ente 0000')
     assert.equal(result.at(-1)?.name, 'Ente 1200')
