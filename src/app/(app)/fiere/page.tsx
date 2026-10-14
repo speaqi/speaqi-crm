@@ -138,8 +138,8 @@ export default function FierePage() {
         {rows && rows.length === 0 ? <div className="fx-card fx-empty">Nessun espositore ancora: usa «Altro → Importa un elenco».</div> : null}
 
         {rows && rows.length > 0 && tab === 'elenco' ? <ElencoTab rows={rows} now={now} showToast={showToast} onRowChange={onRowChange} /> : null}
-        {rows && rows.length > 0 && tab === 'italiane' ? <DestinazioniTab key="italiane" scope="italiane" rows={italian} now={now} showToast={showToast} onRowChange={onRowChange} /> : null}
-        {rows && rows.length > 0 && tab === 'estere' ? <DestinazioniTab key="estere" scope="estere" rows={destinations} now={now} showToast={showToast} onRowChange={onRowChange} /> : null}
+        {rows && rows.length > 0 && tab === 'italiane' ? <DestinazioniTab key="italiane" scope="italiane" rows={italian} now={now} showToast={showToast} onRowChange={onRowChange} onReload={load} /> : null}
+        {rows && rows.length > 0 && tab === 'estere' ? <DestinazioniTab key="estere" scope="estere" rows={destinations} now={now} showToast={showToast} onRowChange={onRowChange} onReload={load} /> : null}
         {rows && rows.length > 0 && tab === 'piano' ? <PianoTab rows={rows} showToast={showToast} onRowChange={onRowChange} /> : null}
         {rows && rows.length > 0 && tab === 'mailing' ? <MailingTab rows={rows} now={now} showToast={showToast} onRowChange={onRowChange} onReload={load} /> : null}
       </div>

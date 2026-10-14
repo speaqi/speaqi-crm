@@ -21,6 +21,16 @@ export type OutreachState = {
   message_id?: string | null
   test_sent_at?: string | null
   error?: string | null
+  destination_email?: {
+    status: 'sending' | 'sent' | 'unknown'
+    token: string
+    to: string
+    subject: string
+    body: string
+    sent_at?: string
+    message_id?: string
+    error?: string
+  }
 }
 
 /** Tipologie in linea con quello che vende Speaqi (guide e mappe per chi accoglie turisti). */

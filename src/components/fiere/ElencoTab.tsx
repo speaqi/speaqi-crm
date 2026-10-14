@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { CLASS_META, FACTOR_DEFS, LeadClass } from '@/lib/opportunity-score'
 import {
   compareByLocation, compareExhibitors, effectivePriority, FairExhibitor, FairFilter, filterExhibitors, followupState,
@@ -20,9 +20,10 @@ type Props = {
   showToast: (message: string) => void
   onRowChange: (row: FairExhibitor) => void
   completeList?: boolean
+  renderRowAction?: (row: FairExhibitor) => ReactNode
 }
 
-export default function ElencoTab({ rows, now, showToast, onRowChange, completeList = false }: Props) {
+export default function ElencoTab({ rows, now, showToast, onRowChange, completeList = false, renderRowAction }: Props) {
   const defaultSort = completeList ? 'name' : 'priority'
   const [quick, setQuick] = useState<Quick>(completeList ? 'all' : 'new')
   const [search, setSearch] = useState('')
@@ -143,6 +144,7 @@ export default function ElencoTab({ rows, now, showToast, onRowChange, completeL
             const mailLabel = o.sent_at ? '✉ inviata' : o.subject ? (o.selected ? '✉ da inviare' : '✉ esclusa') : ''
             return (
               <li key={row.id} className="fx-item" data-open={open} data-late={follow === 'overdue'}>
+                <div className={renderRowAction ? 'fx-item-with-action' : undefined}>
                 <button type="button" className="fx-row" aria-expanded={open} onClick={() => setOpenId(open ? null : row.id)}>
                   <span className="fx-score" data-k={row.lead_class || priority} title={(row.score_explanation || []).join('\n') || undefined}>
                     {row.lead_class || Math.round(row.ttg_priority_score ?? row.score)}
@@ -161,6 +163,8 @@ export default function ElencoTab({ rows, now, showToast, onRowChange, completeL
                   {standLabel(row) ? <span className="fx-stand">{standLabel(row)}</span> : <span />}
                   <span className="fx-status" style={{ ['--st' as string]: STATUS_COLORS[row.status] }}>{STATUS_LABELS[row.status]}</span>
                 </button>
+                {renderRowAction ? renderRowAction(row) : null}
+                </div>
                 {open ? <ExhibitorDetail row={row} showToast={showToast} onRowChange={onRowChange} /> : null}
               </li>
             )
