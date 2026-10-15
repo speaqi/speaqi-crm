@@ -8,9 +8,10 @@
  * dei numeri: serve a mettere vicini quelli con numero vicino, non e' una piantina.
  */
 import { OUTREACH_TARGET_TYPES } from './trade-fair-outreach'
-import { standLabel, type FairExhibitor } from './trade-fair'
+import { exhibitorOrganizationType, isForeignDestination, isItalianDestination, isTourOperator, standLabel, type FairExhibitor } from './trade-fair'
 
-export type PlanTarget = Pick<FairExhibitor, 'id' | 'name' | 'hall' | 'stand' | 'status' | 'organization_type' | 'lead_class' | 'ttg_priority_score' | 'score' | 'contact_person' | 'country' | 'source_url'>
+export type PlanTarget = FairExhibitor
+export type PlanAudience = 'italian-cities' | 'foreign-destinations' | 'incoming-agencies' | 'all'
 
 export type PlanStop = {
   key: string
@@ -45,17 +46,59 @@ export function standNumber(stand: string | null | undefined) {
 export function isPlanCandidate(row: PlanTarget) {
   if (!row.hall || !row.stand || row.status === 'not_interested') return false
   if (row.lead_class === 'D') return false
-  return (OUTREACH_TARGET_TYPES as readonly string[]).includes(row.organization_type || '')
+  return (OUTREACH_TARGET_TYPES as readonly string[]).includes(exhibitorOrganizationType(row) || '')
+}
+
+const ITALIAN_CITIES = ['Ancona', 'Aosta', 'Arezzo', 'Bari', 'Bergamo', 'Bologna', 'Bolzano', 'Brescia', 'Cagliari', 'Catania', 'Como', 'Cosenza', 'Ferrara', 'Firenze', 'Florence', 'Genova', 'Genoa', 'Lecce', 'Livorno', 'Lucca', 'Mantova', 'Matera', 'Messina', 'Milano', 'Milan', 'Modena', 'Napoli', 'Naples', 'Padova', 'Palermo', 'Parma', 'Perugia', 'Pisa', 'Pistoia', 'Ravenna', 'Reggio Calabria', 'Rimini', 'Roma', 'Rome', 'Salerno', 'Siena', 'Siracusa', 'Taranto', 'Torino', 'Turin', 'Trento', 'Trieste', 'Udine', 'Venezia', 'Venice', 'Verona']
+
+function fold(value: string) {
+  return value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+}
+
+/** Include enti che rappresentano chiaramente una città, escludendo aree e regioni. */
+export function isCityDestination(row: FairExhibitor) {
+  if (!isItalianDestination(row)) return false
+  const name = fold(row.name)
+  const category = fold(row.category || '')
+  const broadArea = /\b(region|regional|provinc|territor|area vasta|distretto|comprensorio|valle|riviera|coast|lake|montagn|consorzio turistico|tourism board region)\b/.test(name)
+  if (broadArea) return false
+  if (/\b(comune|citta|city of|municipality of)\b/.test(name)) return true
+  if (/\b(comune|citta|city|municipalita|turismo comunale|ente turistico comunale)\b/.test(category)) return true
+  return ITALIAN_CITIES.some((city) => new RegExp(`(?:^|[^a-z])${fold(city)}(?:$|[^a-z])`).test(name))
+}
+
+export function isIncomingAgency(row: FairExhibitor) {
+  if (!isTourOperator(row)) return false
+  if (exhibitorOrganizationType(row) === 'dmc') return true
+  return /\b(incoming|receptive|destination management|incoming tour|agenzia incoming|tour operator incoming)\b/i
+    .test([row.name, row.category, row.description].filter(Boolean).join(' '))
+}
+
+export function planAudienceRows(rows: FairExhibitor[], audience: PlanAudience) {
+  if (audience === 'italian-cities') return rows.filter(isCityDestination)
+  if (audience === 'foreign-destinations') return rows.filter(isForeignDestination)
+  if (audience === 'incoming-agencies') return rows.filter(isIncomingAgency)
+  return rows
 }
 
 /** I `count` migliori per punteggio di priorita'. */
-export function selectTopTargets<T extends PlanTarget>(rows: T[], count: number, options: { italyOnly?: boolean } = {}) {
+export function selectTopTargets<T extends PlanTarget>(rows: T[], count: number, options: { italyOnly?: boolean; onePerStand?: boolean } = {}) {
   const italian = (row: PlanTarget) => !row.country || /^ital/i.test(row.country.trim())
-  return rows
+  const sorted = rows
     .filter(isPlanCandidate)
     .filter((row) => !options.italyOnly || italian(row))
     .sort((a, b) => (b.ttg_priority_score ?? b.score) - (a.ttg_priority_score ?? a.score) || a.name.localeCompare(b.name))
-    .slice(0, Math.max(0, count))
+  if (!options.onePerStand) return sorted.slice(0, Math.max(0, count))
+  const selected: T[] = []
+  const usedStands = new Set<string>()
+  for (const row of sorted) {
+    const key = `${row.hall}|${row.stand}`.toLowerCase()
+    if (usedStands.has(key)) continue
+    usedStands.add(key)
+    selected.push(row)
+    if (selected.length >= Math.max(0, count)) break
+  }
+  return selected
 }
 
 /** Uno stand (anche collettivo) e' una tappa sola. */
@@ -112,7 +155,7 @@ export function planDays(stops: PlanStop[], days: number): PlanDay[] {
   return result
 }
 
-export function buildVisitPlan<T extends PlanTarget>(rows: T[], count: number, days: number, options: { italyOnly?: boolean } = {}) {
+export function buildVisitPlan<T extends PlanTarget>(rows: T[], count: number, days: number, options: { italyOnly?: boolean; onePerStand?: boolean } = {}) {
   const targets = selectTopTargets(rows, count, options)
   const stops = groupStops(targets)
   return { targets, stops, days: planDays(stops, days) }
