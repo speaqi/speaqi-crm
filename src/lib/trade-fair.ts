@@ -217,9 +217,29 @@ function fold(value: string) {
   return value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 }
 
+const TERRITORIAL_DESTINATION_TYPES = ['dmo', 'consorzio', 'assoc_territoriale']
+const TERRITORIAL_DESTINATION_CATEGORY = /destinazion|promozione del territorio|enti? (?:del turismo|italiani di promozione)|tourism board|tourist board|destination management organization|\bogd\b/
+const KNOWN_TERRITORIAL_FOUNDATION = /fondazione.{0,40}\basiago\b.{0,20}\b(?:7|sette) comuni\b|\basiago\b.{0,20}\b(?:7|sette) comuni\b/
+
 function isTerritorialDestination(row: FairExhibitor) {
+  const manualType = row.sos_manual?.organization_type?.option
+  const categorySignalsDestination = TERRITORIAL_DESTINATION_CATEGORY.test(fold(row.category || ''))
+    || KNOWN_TERRITORIAL_FOUNDATION.test(fold(row.name))
+
+  // Una scelta manuale di un tipo operativo prevale sempre sulla categoria TTG.
+  // Fondazioni e associazioni possono però essere la forma giuridica dell'ente
+  // territoriale: le includiamo quando il catalogo ne dichiara la funzione turistica.
+  if (manualType) {
+    if (TERRITORIAL_DESTINATION_TYPES.includes(manualType)) return true
+    if (['assoc_categoria', 'fondazione', 'foundation'].includes(manualType)) return categorySignalsDestination
+    return false
+  }
+  if (KNOWN_TERRITORIAL_FOUNDATION.test(fold(row.name))) return true
+
   const type = exhibitorOrganizationType(row)
-  return ['dmo', 'consorzio', 'assoc_territoriale'].includes(type || '')
+  if (TERRITORIAL_DESTINATION_TYPES.includes(type || '')) return true
+  if (['dmc', 'tour_operator', 'hotel', 'catena', 'trasporto', 'navigazione', 'attrazione', 'agenzia_viaggi', 'tecnologico', 'non_turistica'].includes(type || '')) return false
+  return categorySignalsDestination
 }
 
 export function exhibitorOrganizationType(row: FairExhibitor) {

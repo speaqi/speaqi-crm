@@ -60,7 +60,7 @@ export function isCityDestination(row: FairExhibitor) {
   if (!isItalianDestination(row)) return false
   const name = fold(row.name)
   const category = fold(row.category || '')
-  const broadArea = /\b(region|regional|provinc|territor|area vasta|distretto|comprensorio|valle|riviera|coast|lake|montagn|consorzio turistico|tourism board region)\b/.test(name)
+  const broadArea = /\b(region|regional|provinc|territor|area vasta|distretto|comprensorio|valle|riviera|coast|lake|montagn|consorzio turistico|tourism board region|unione montana|unione dei comuni|sette comuni|7 comuni|altopiano|ogd)\b/.test(name)
   if (broadArea) return false
   if (/\b(comune|citta|city of|municipality of)\b/.test(name)) return true
   if (/\b(comune|citta|city|municipalita|turismo comunale|ente turistico comunale)\b/.test(category)) return true

@@ -60,6 +60,17 @@ describe('destinazioni estere', () => {
     assert.equal(isForeignDestination(row({ id: 'corretto', country: 'Francia', organization_type: 'dmo',
       sos_manual: { organization_type: { option: 'hotel', at: '' } } })), false)
   })
+  test('riconosce le fondazioni e le aggregazioni in base alla funzione territoriale dichiarata', () => {
+    const foundation = row({ id: 'asiago', name: 'Fondazione Asiago 7 Comuni', country: 'Italia', organization_type: 'assoc_categoria',
+      category: 'FORME GIURIDICHE: FONDAZIONI' })
+    assert.equal(isItalianDestination(foundation), true)
+    assert.equal(isForeignDestination(foundation), false)
+    const foreignFoundation = row({ id: 'islands', name: 'Island Destination Foundation', country: 'Italia', organization_type: 'assoc_categoria',
+      category: 'DESTINAZIONI/PROMOZIONE DEL TERRITORIO: ENTI DEL TURISMO ESTERI / FORME GIURIDICHE: FONDAZIONI' })
+    assert.equal(isForeignDestination(foreignFoundation), true)
+    assert.equal(isItalianDestination(foreignFoundation), false)
+    assert.equal(isItalianDestination(row({ ...foundation, sos_manual: { organization_type: { option: 'hotel', at: '' } } })), false)
+  })
   test('la lista completa conserva tutti gli stati e le priorità, oltre i limiti di visualizzazione', () => {
     const rows = Array.from({ length: 1201 }, (_, i) => row({ id: String(i), name: `Ente ${String(i).padStart(4, '0')}`,
       country: 'Francia', organization_type: 'dmo', priority: 3,
@@ -88,6 +99,12 @@ describe('destinazioni italiane', () => {
         category: 'DESTINAZIONI/PROMOZIONE DEL TERRITORIO: ENTI ITALIANI DI PROMOZIONE TURISTICA' })
       assert.equal(isItalianDestination(destination), true)
       assert.equal(isForeignDestination(destination), false)
+    }
+  })
+  test('include fondazioni, unioni e aggregazioni quando la categoria TTG ne dichiara la promozione territoriale', () => {
+    for (const name of ['Fondazione Asiago 7 Comuni', 'Unione Montana dei Sette Comuni']) {
+      assert.equal(isItalianDestination(row({ id: name, name, country: 'Italia', organization_type: 'assoc_categoria',
+        category: 'DESTINAZIONI/PROMOZIONE DEL TERRITORIO: ENTI ITALIANI DI PROMOZIONE TURISTICA' })), true)
     }
   })
   test('esclude rappresentanze estere in Italia, operatori commerciali e correzioni manuali', () => {

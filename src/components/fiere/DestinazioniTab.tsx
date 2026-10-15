@@ -216,7 +216,7 @@ export default function DestinazioniTab({ rows, now, showToast, onRowChange, sco
     <>
       <section className="fx-card">
         <strong>{rows.length} {label} nel catalogo importato</strong>
-        <p className="fx-hint">{scope === 'operatori' ? 'Operatori da valutare per la distribuzione delle mappe o una fornitura in blocco per i loro viaggi.' : `Enti del turismo, consorzi e associazioni di promozione territoriale${scope === 'estere' ? ', incluse le rappresentanze con sede in Italia' : ' italiani'}.`} L’elenco iniziale include tutti gli stati e tutte le priorità.</p>
+        <p className="fx-hint">{scope === 'operatori' ? 'Operatori da valutare per la distribuzione delle mappe o una fornitura in blocco per i loro viaggi.' : `Enti, fondazioni, consorzi e aggregazioni che promuovono destinazioni e territori${scope === 'estere' ? ', incluse le rappresentanze con sede in Italia' : ' italiani'}. La lista considera la funzione turistica, non solo la forma giuridica.`} L’elenco iniziale include tutti gli stati e tutte le priorità.</p>
         <div className="fx-bar">
           {scope !== 'italiane' ? <select className="fi" aria-label="Filtra per paese" value={country} onChange={(event) => setCountry(event.target.value)}>
             <option value="">Tutti i paesi</option>
