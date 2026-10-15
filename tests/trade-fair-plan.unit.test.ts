@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 
-import { buildVisitPlan, groupStops, hallBlock, planDays, selectTopTargets, standNumber } from '../src/lib/trade-fair-plan'
+import { buildVisitPlan, groupStops, hallBlock, isCityDestination, isIncomingAgency, planAudienceRows, planDays, selectTopTargets, standNumber } from '../src/lib/trade-fair-plan'
 
 const t = (id: string, hall: string | null, stand: string | null, score: number, extra: Record<string, unknown> = {}) =>
   ({ id, name: id, hall, stand, status: 'new', organization_type: 'dmo', lead_class: null, ttg_priority_score: score, score, contact_person: null, country: 'Italia', source_url: null, ...extra }) as any
@@ -22,6 +22,28 @@ describe('piano di visita', () => {
   test('solo Italia', () => {
     const rows = [t('it', 'A1', '1', 40), t('uk', 'A1', '2', 50, { country: 'Regno Unito' })]
     assert.deepEqual(selectTopTargets(rows, 5, { italyOnly: true }).map((r) => r.id), ['it'])
+  })
+  test('shortlist città, estero e incoming distingue città da macro-aree', () => {
+    const rows = [
+      t('Comune di Trento', 'A1', '1', 60),
+      t('Regione Toscana', 'A1', '2', 90),
+      t('Visit Bologna', 'A1', '3', 50),
+      t('Visit Oman', 'A1', '4', 55, { country: 'Oman' }),
+      t('Alpine Trips', 'A1', '5', 70, { organization_type: 'tour_operator', category: 'Incoming DMC' }),
+      t('Generic Tours', 'A1', '6', 80, { organization_type: 'tour_operator', category: 'Outgoing leisure' }),
+    ]
+    assert.deepEqual(planAudienceRows(rows, 'italian-cities').map((row) => row.id), ['Comune di Trento', 'Visit Bologna'])
+    assert.deepEqual(planAudienceRows(rows, 'foreign-destinations').map((row) => row.id), ['Visit Oman'])
+    assert.deepEqual(planAudienceRows(rows, 'incoming-agencies').map((row) => row.id), ['Alpine Trips'])
+    assert.equal(isCityDestination(rows[1]), false)
+    assert.equal(isIncomingAgency(rows[5]), false)
+  })
+  test('shortlist breve seleziona un solo interlocutore per stand', () => {
+    const rows = [t('first', 'A1', '1', 90), t('second same stand', 'A1', '1', 100), t('third', 'A1', '2', 80)]
+    assert.deepEqual(selectTopTargets(rows, 2, { onePerStand: true }).map((row) => row.id), ['second same stand', 'third'])
+    const plan = buildVisitPlan(rows, 2, 1, { onePerStand: true })
+    assert.equal(plan.targets.length, 2)
+    assert.equal(plan.stops.length, 2)
   })
   test('uno stand collettivo e\' una tappa sola', () => {
     const stops = groupStops([t('a', 'A1', '435-542', 40), t('b', 'A1', '435-542', 44), t('c', 'A1', '100', 30)])

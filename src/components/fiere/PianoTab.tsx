@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { buildVisitPlan } from '@/lib/trade-fair-plan'
+import { buildVisitPlan, planAudienceRows, type PlanAudience } from '@/lib/trade-fair-plan'
 import { FairExhibitor, STATUS_LABELS, TradeFairStatus, TTG_FLOOR_MAP } from '@/lib/trade-fair'
 import ExhibitorDetail from './ExhibitorDetail'
 import { downloadCsv, TYPE_SHORT } from './shared'
@@ -13,11 +13,17 @@ type Props = {
 }
 
 const STORAGE_KEY = 'speaqi.fiere.plan.done'
+const AUDIENCE_LABELS: Record<PlanAudience, string> = {
+  'italian-cities': 'Città italiane',
+  'foreign-destinations': 'Destinazioni estere',
+  'incoming-agencies': 'DMC / incoming',
+  all: 'Tutti i potenziali',
+}
 
 export default function PianoTab({ rows, showToast, onRowChange }: Props) {
-  const [count, setCount] = useState(120)
+  const [audience, setAudience] = useState<PlanAudience>('italian-cities')
+  const [count, setCount] = useState(8)
   const [days, setDays] = useState(3)
-  const [italyOnly, setItalyOnly] = useState(false)
   const [activeDay, setActiveDay] = useState(1)
   const [done, setDone] = useState<string[]>([])
   const [openId, setOpenId] = useState<string | null>(null)
@@ -32,7 +38,8 @@ export default function PianoTab({ rows, showToast, onRowChange }: Props) {
     }
   }, [])
 
-  const plan = useMemo(() => buildVisitPlan(rows, count, days, { italyOnly }), [rows, count, days, italyOnly])
+  const scopedRows = useMemo(() => planAudienceRows(rows, audience), [rows, audience])
+  const plan = useMemo(() => buildVisitPlan(scopedRows, count, days, { onePerStand: true }), [scopedRows, count, days])
   const day = plan.days.find((d) => d.day === activeDay) || plan.days[0]
   const rowById = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows])
 
@@ -56,13 +63,34 @@ export default function PianoTab({ rows, showToast, onRowChange }: Props) {
   }
 
   const doneIn = (stops: { key: string }[]) => stops.filter((s) => done.includes(s.key)).length
+  const audienceSettings = {
+    'italian-cities': { label: 'Città italiane', min: 5, max: 10, count: 8, hint: 'Solo enti che rappresentano chiaramente città; aree e regioni sono escluse.' },
+    'foreign-destinations': { label: 'Destinazioni estere', min: 5, max: 7, count: 6, hint: 'Le destinazioni estere con priorità più alta.' },
+    'incoming-agencies': { label: 'Incoming · DMC e agenzie', min: 5, max: 10, count: 8, hint: 'DMC e tour operator con attività incoming o ricettiva dichiarata.' },
+    all: { label: 'Tutti i potenziali', min: 10, max: 400, count: 120, hint: 'Tutti i potenziali, sempre con un solo interlocutore per stand.' },
+  }[audience]
+
+  function changeAudience(next: PlanAudience) {
+    setAudience(next)
+    setCount(({ 'italian-cities': 8, 'foreign-destinations': 6, 'incoming-agencies': 8, all: 120 })[next])
+    setActiveDay(1)
+  }
 
   return (
     <>
       <p className="fx-hint">
-        I {plan.targets.length} espositori migliori per Speaqi, raggruppati per padiglione e numero di stand, divisi in giorni. Spunta le tappe man mano che le fai.
-        Stand collettivi = una tappa sola. I padiglioni con lo stesso numero (A3 e C3…) sono considerati vicini: è una mia ipotesi, controlla la <a href={TTG_FLOOR_MAP} target="_blank" rel="noopener noreferrer">mappa dei padiglioni</a>.
+        Piano breve: {plan.targets.length} contatti selezionati in {plan.stops.length} stand distinti, un interlocutore per stand. {audienceSettings.hint} Spunta le tappe man mano che le fai.
+        I padiglioni con lo stesso numero (A3 e C3…) sono considerati vicini: controlla la <a href={TTG_FLOOR_MAP} target="_blank" rel="noopener noreferrer">mappa dei padiglioni</a>.
       </p>
+
+      <div className="fx-days" role="tablist" aria-label="Tipo di contatti del piano">
+        {(['italian-cities', 'foreign-destinations', 'incoming-agencies'] as const).map((key) => (
+          <button key={key} type="button" role="tab" className="fx-day" aria-selected={audience === key} onClick={() => changeAudience(key)}>
+            <b>{AUDIENCE_LABELS[key]}</b>
+            <span>{planAudienceRows(rows, key).length} nel catalogo</span>
+          </button>
+        ))}
+      </div>
 
       <div className="fx-days" role="tablist">
         {plan.days.map((d) => (
@@ -76,9 +104,8 @@ export default function PianoTab({ rows, showToast, onRowChange }: Props) {
 
       {showSettings ? (
         <div className="fx-filters">
-          <label className="fx-check">Quanti top <input className="fi" type="number" min={10} max={400} style={{ width: 80 }} value={count} onChange={(e) => setCount(Math.max(10, Math.min(400, Number(e.target.value) || 120)))} /></label>
+          <label className="fx-check">Quanti top <input className="fi" type="number" min={audienceSettings.min} max={audienceSettings.max} style={{ width: 80 }} value={count} onChange={(e) => setCount(Math.max(audienceSettings.min, Math.min(audienceSettings.max, Number(e.target.value) || audienceSettings.count)))} /></label>
           <label className="fx-check">Giorni <select className="fi" value={days} onChange={(e) => { setDays(Number(e.target.value)); setActiveDay(1) }}>{[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
-          <label className="fx-check"><input type="checkbox" checked={italyOnly} onChange={(e) => setItalyOnly(e.target.checked)} /> Solo Italia</label>
           <button className="btn btn-ghost btn-sm" type="button" onClick={exportCsv}>Esporta CSV</button>
           <button className="btn btn-ghost btn-sm" type="button" onClick={() => window.print()}>Stampa</button>
           {done.length ? <button className="btn-mini" type="button" onClick={() => { setDone([]); try { window.localStorage.removeItem(STORAGE_KEY) } catch { /* ignora */ } }}>Azzera le spunte</button> : null}
