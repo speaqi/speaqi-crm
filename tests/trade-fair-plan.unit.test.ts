@@ -28,6 +28,7 @@ describe('piano di visita', () => {
       t('Comune di Trento', 'A1', '1', 60),
       t('Regione Toscana', 'A1', '2', 90),
       t('Visit Bologna', 'A1', '3', 50),
+      t('Fondazione Asiago 7 Comuni', 'A1', '7', 95, { category: 'DESTINAZIONI/PROMOZIONE DEL TERRITORIO: ENTI ITALIANI DI PROMOZIONE TURISTICA' }),
       t('Visit Oman', 'A1', '4', 55, { country: 'Oman' }),
       t('Alpine Trips', 'A1', '5', 70, { organization_type: 'tour_operator', category: 'Incoming DMC' }),
       t('Generic Tours', 'A1', '6', 80, { organization_type: 'tour_operator', category: 'Outgoing leisure' }),
@@ -36,7 +37,8 @@ describe('piano di visita', () => {
     assert.deepEqual(planAudienceRows(rows, 'foreign-destinations').map((row) => row.id), ['Visit Oman'])
     assert.deepEqual(planAudienceRows(rows, 'incoming-agencies').map((row) => row.id), ['Alpine Trips'])
     assert.equal(isCityDestination(rows[1]), false)
-    assert.equal(isIncomingAgency(rows[5]), false)
+    assert.equal(isCityDestination(rows[3]), false)
+    assert.equal(isIncomingAgency(rows[6]), false)
   })
   test('shortlist breve seleziona un solo interlocutore per stand', () => {
     const rows = [t('first', 'A1', '1', 90), t('second same stand', 'A1', '1', 100), t('third', 'A1', '2', 80)]

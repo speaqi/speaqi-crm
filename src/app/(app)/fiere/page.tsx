@@ -15,8 +15,8 @@ type Tab = 'elenco' | 'italiane' | 'estere' | 'operatori' | 'piano' | 'mailing'
 
 const TABS: { id: Tab; label: string; hint: string }[] = [
   { id: 'elenco', label: 'Espositori', hint: 'Tutti gli espositori: cerca, aggiorna lo stato, aggiungi note e porta i contatti nel CRM.' },
-  { id: 'italiane', label: 'Destinazioni italiane', hint: 'L’elenco completo delle destinazioni italiane presenti nel catalogo importato, con stand, contatti e bozza email.' },
-  { id: 'estere', label: 'Destinazioni estere', hint: 'L’elenco completo delle destinazioni estere presenti nel catalogo importato, con stand e contatti.' },
+  { id: 'italiane', label: 'Destinazioni e territori italiani', hint: 'Enti, fondazioni, consorzi e aggregazioni che promuovono destinazioni e territori italiani, con elenco completo, stand e contatti.' },
+  { id: 'estere', label: 'Destinazioni e territori esteri', hint: 'Enti, fondazioni, consorzi e aggregazioni che promuovono destinazioni e territori esteri, con elenco completo, stand e contatti.' },
   { id: 'operatori', label: 'Tour operator / DMC', hint: 'Operatori da valutare per la distribuzione delle mappe o l’acquisto in blocco da includere nei viaggi.' },
   { id: 'piano', label: 'Piano di visita', hint: 'In fiera: i migliori per padiglione e stand, giorno per giorno.' },
   { id: 'mailing', label: 'Mailing', hint: 'Prima o dopo la fiera: un\'email su misura per ogni espositore in linea con Speaqi.' },
