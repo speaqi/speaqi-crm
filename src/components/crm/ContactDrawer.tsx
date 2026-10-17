@@ -18,7 +18,7 @@ import {
   statusLabel,
 } from '@/lib/data'
 import type { Activity, ContactDetail } from '@/types'
-import { useCRMContext } from '@/app/(app)/layout'
+import { useCRMContext } from '@/components/layout/CRMContext'
 
 interface ContactDrawerProps {
   contactId: string | null

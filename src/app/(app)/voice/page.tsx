@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useState, useRef, useEffect } from 'react'
 import { apiFetch } from '@/lib/api'
 import { formatDateTime } from '@/lib/data'
-import { useCRMContext } from '../layout'
+import { useCRMContext } from '@/components/layout/CRMContext'
 
 // Type for SpeechRecognition (available in browsers but not in TS lib by default)
 type SpeechRecognitionAPI = {

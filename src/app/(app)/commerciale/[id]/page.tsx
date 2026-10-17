@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { apiFetch } from '@/lib/api'
-import { useCRMContext } from '../../layout'
+import { useCRMContext } from '@/components/layout/CRMContext'
 
 type Campaign = {
   id: string

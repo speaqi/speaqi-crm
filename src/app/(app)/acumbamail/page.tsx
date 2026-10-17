@@ -2,7 +2,7 @@
 
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api'
-import { useCRMContext } from '../layout'
+import { useCRMContext } from '@/components/layout/CRMContext'
 
 type Campaign = {
   id: string

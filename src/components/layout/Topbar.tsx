@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 
 const PAGE_TITLES: Record<string, string> = {
+  '/tourism': 'Tourism Intelligence',
   '/dashboard': '🏠 Oggi',
   '/todo': '✅ To Do',
   '/operativo': '◎ Centro Operativo',

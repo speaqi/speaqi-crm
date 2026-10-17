@@ -16,7 +16,7 @@ import {
   toLocalDateKey,
 } from '@/lib/data'
 import type { ScheduledCall } from '@/lib/schedule'
-import { useCRMContext } from '../layout'
+import { useCRMContext } from '@/components/layout/CRMContext'
 import type { CRMContact, TaskWithContact } from '@/types'
 
 function addDays(date: Date, amount: number) {

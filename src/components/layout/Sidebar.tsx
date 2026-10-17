@@ -39,6 +39,7 @@ const NAV_ITEMS = [
   { href: '/calendario', label: 'Follow-up', icon: '📅', badgeKey: 'tasks' as const, badgeRed: true },
   { href: '/preventivi', label: 'Preventivi', icon: '💶' },
   { href: '/commerciale', label: 'Commerciale', icon: '📣' },
+  { href: '/tourism', label: 'Tourism Intelligence', icon: '◎' },
   { href: '/attivita', label: 'Analytics', icon: '📊' },
   { href: '/impostazioni', label: 'Impostazioni', icon: '⚙️' },
 ]

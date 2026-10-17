@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import { PRIORITY_OPTIONS, fromDatetimeLocalValue, toDatetimeLocalValue } from '@/lib/data'
-import { useCRMContext } from '../layout'
+import { useCRMContext } from '@/components/layout/CRMContext'
 import type { CRMContact } from '@/types'
 
 const SESSION_COUNT_KEY = 'speaqi_quick_capture_count_v1'

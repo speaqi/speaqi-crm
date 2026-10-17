@@ -21,7 +21,7 @@ import type {
   QuoteSignature,
   QuoteStatus,
 } from '@/types'
-import { useCRMContext } from '../layout'
+import { useCRMContext } from '@/components/layout/CRMContext'
 
 type QuoteDraft = Omit<QuoteInput, 'title' | 'customer_name' | 'items'> & {
   title: string

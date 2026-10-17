@@ -1,0 +1,1019 @@
+MASTER PROMPT
+
+SPEAQI GLOBAL TOURISM INTELLIGENCE
+
+Progettazione e sviluppo di una piattaforma mondiale per la mappatura degli organismi di promozione e gestione turistica
+
+⸻
+
+1. RUOLO E MISSIONE
+
+Agisci come un team multidisciplinare composto da:
+
+* Chief Technology Officer: architettura software, scalabilità e integrazione.
+* Senior Full-Stack Engineer: sviluppo frontend, backend e database.
+* Tourism Intelligence Specialist: conoscenza delle organizzazioni turistiche internazionali.
+* Destination Management Expert: DMO, DMC, governance territoriale e promozione delle destinazioni.
+* AI Data Engineer: discovery automatica, estrazione dati, classificazione e deduplicazione.
+* CRM & Sales Intelligence Architect: gestione prospect, contatti e opportunità commerciali.
+* Senior UX/UI Designer: progettazione di interfacce SaaS premium.
+* Data Quality & Compliance Specialist: attendibilità delle informazioni, aggiornamento e conformità normativa.
+
+MISSIONE
+
+Progettare e sviluppare all’interno dell’ecosistema Speaqi una piattaforma denominata provvisoriamente:
+
+SPEAQI GLOBAL TOURISM INTELLIGENCE
+
+L’obiettivo è costruire progressivamente il più completo database strutturato possibile delle organizzazioni che gestiscono, rappresentano, promuovono o commercializzano destinazioni turistiche nel mondo.
+
+Non deve essere un semplice elenco di enti.
+
+Deve diventare un sistema intelligente che consenta di:
+
+1. Identificare le organizzazioni turistiche di qualsiasi paese.
+2. Comprendere quali territori rappresentano.
+3. Ricostruire le relazioni tra organizzazioni e destinazioni.
+4. Identificare i soggetti responsabili della promozione turistica.
+5. Individuare i referenti commerciali e decisionali.
+6. Valutare il potenziale commerciale di ogni organizzazione.
+7. Collegare le organizzazioni ai prodotti e servizi Speaqi.
+8. Alimentare automaticamente il CRM.
+9. Aggiornare continuamente le informazioni.
+10. Individuare nuove opportunità di business.
+
+Principio fondamentale: il database deve essere progettato per diventare un asset strategico di Speaqi, non un archivio statico.
+
+⸻
+
+2. PRIMA FASE: ANALISI DEL PROGETTO ESISTENTE
+
+Prima di scrivere codice:
+
+Analizza approfonditamente l’architettura attuale del CRM Speaqi.
+
+Esamina:
+
+* Database e schema relazionale.
+* Organizzazioni già presenti.
+* Gestione dei contatti.
+* Pipeline commerciali.
+* Sistema di lead management.
+* Autenticazione e autorizzazioni.
+* API esistenti.
+* Infrastruttura di ricerca.
+* Funzionalità AI già implementate.
+* Eventuali sistemi di scraping e acquisizione dati.
+* Componenti UI riutilizzabili.
+* Integrazioni con mappe e destinazioni.
+
+Individua quali componenti possono essere riutilizzati e quali devono essere sviluppati.
+
+Non duplicare funzionalità esistenti.
+
+La nuova piattaforma dovrà avere una propria area applicativa, ma essere perfettamente integrata con il CRM.
+
+Valuta se utilizzare un modulo dedicato, un’applicazione separata con servizi condivisi o un’architettura modulare.
+
+Motiva la scelta in termini di scalabilità, sicurezza, costi e manutenzione.
+
+⸻
+
+3. CLASSIFICAZIONE MONDIALE DELLE ORGANIZZAZIONI TURISTICHE
+
+Questa è una delle componenti più importanti.
+
+Non limitarti agli enti pubblici.
+
+Il sistema deve riconoscere e catalogare tutte le principali tipologie di organizzazioni che rappresentano destinazioni turistiche.
+
+A. Organizzazioni nazionali
+
+* Ministeri del Turismo.
+* National Tourism Boards.
+* National Tourism Organisations (NTO).
+* National Tourism Administrations (NTA).
+* Agenzie nazionali di promozione turistica.
+* Enti nazionali del turismo.
+* Portali ufficiali nazionali.
+* Organizzazioni pubbliche o miste responsabili del destination marketing.
+
+B. Organizzazioni regionali
+
+* Regional Tourism Boards.
+* Regional Tourism Organisations (RTO).
+* Enti turistici regionali.
+* Agenzie di promozione territoriale.
+* Organizzazioni turistiche interregionali.
+* Enti per la promozione di aree geografiche estese.
+
+C. DMO — Destination Management Organizations
+
+Identificare tutte le DMO, indipendentemente dalla denominazione utilizzata nel paese.
+
+Considerare:
+
+* DMO nazionali.
+* DMO regionali.
+* DMO provinciali.
+* DMO cittadine.
+* DMO intercomunali.
+* DMO di destinazioni specifiche.
+* DMO private o pubblico-private.
+
+D. DMC — Destination Management Companies
+
+Catalogare anche le DMC, distinguendole chiaramente dalle DMO.
+
+Identificare:
+
+* DMC locali.
+* DMC regionali.
+* DMC specializzate.
+* DMC che operano su più destinazioni.
+
+Le DMC non devono essere automaticamente considerate enti di governance territoriale: rappresentano una categoria commerciale distinta.
+
+E. Organizzazioni e brand “Visit”
+
+Particolare attenzione ai brand turistici territoriali.
+
+Esempi:
+
+* Visit Tuscany.
+* Visit Scotland.
+* Visit Dubai.
+* Visit Oslo.
+* Visit Berlin.
+* Visit California.
+
+Il sistema deve identificare anche denominazioni equivalenti:
+
+* Discover.
+* Explore.
+* Experience.
+* Tourism.
+* Travel.
+* Welcome.
+* Destination.
+* Go.
+* Official Guide.
+
+Attenzione: un brand turistico, un portale web e l’organizzazione che lo gestisce possono essere tre entità differenti.
+
+Il sistema deve ricostruire queste relazioni senza creare duplicazioni.
+
+F. Organizzazioni territoriali italiane
+
+Prevedere una classificazione approfondita per l’Italia:
+
+* DMO.
+* DMC.
+* GAL — Gruppi di Azione Locale.
+* Unioni di Comuni.
+* Comunità montane.
+* Consorzi turistici.
+* Consorzi territoriali.
+* Consorzi di promozione enogastronomica.
+* Strade del vino e dei sapori.
+* Fondazioni territoriali.
+* Associazioni di promozione turistica.
+* Pro Loco e relative reti.
+* Enti di gestione dei parchi.
+* Distretti turistici.
+* Camere di Commercio con funzioni di promozione turistica.
+* Organizzazioni di promozione delle aree interne.
+
+G. Altre organizzazioni internazionali
+
+Individuare categorie equivalenti nei diversi paesi.
+
+Includere:
+
+* Convention & Visitors Bureaus (CVB).
+* Tourism Development Authorities.
+* Destination Marketing Organizations.
+* Tourism Partnerships.
+* Regional Tourism Associations.
+* Local Tourism Offices.
+* Tourism Clusters.
+* Destination Networks.
+* Destination Partnerships.
+* Consorzi turistici privati.
+* Organizzazioni di promozione rurale.
+* Organizzazioni di promozione delle destinazioni montane.
+* Organizzazioni di promozione delle destinazioni costiere.
+* Enti di promozione di itinerari culturali.
+* Organizzazioni dedicate a territori UNESCO.
+* Associazioni di operatori turistici territoriali.
+
+Questa classificazione non deve essere rigida.
+
+Progetta una tassonomia estensibile e multilingua, capace di adattarsi ai modelli organizzativi dei diversi paesi.
+
+⸻
+
+4. DATABASE GEOGRAFICO MONDIALE
+
+Costruire una gerarchia geografica completa.
+
+Struttura indicativa:
+
+MONDO
+→ CONTINENTE
+→ PAESE
+→ REGIONE
+→ PROVINCIA / CONTEA / DISTRETTO
+→ CITTÀ / COMUNE
+→ DESTINAZIONE TURISTICA
+→ AREA TURISTICA SPECIFICA
+
+La struttura deve supportare le differenze amministrative tra paesi.
+
+Non presumere che ogni nazione utilizzi regioni, province o comuni.
+
+Funzionalità fondamentali
+
+Ogni organizzazione deve essere collegata a uno o più territori.
+
+Esempio:
+
+Un’organizzazione potrebbe rappresentare:
+
+* Una città.
+* Una provincia.
+* Una regione.
+* Un arcipelago.
+* Un insieme di comuni.
+* Una destinazione turistica che attraversa confini amministrativi.
+* Un itinerario culturale.
+* Un comprensorio montano.
+* Un’intera nazione.
+
+Il sistema deve supportare territori sovrapposti e relazioni molti-a-molti.
+
+Utilizzare identificativi geografici standardizzati quando disponibili.
+
+Integrare, dove appropriato, fonti come GeoNames, Wikidata, OpenStreetMap e dataset amministrativi ufficiali, verificandone licenze e qualità.
+
+⸻
+
+5. SCHEDA COMPLETA DI OGNI ORGANIZZAZIONE
+
+Ogni organizzazione deve avere una scheda strutturata.
+
+Identità
+
+* Nome ufficiale.
+* Nome commerciale.
+* Brand turistico.
+* Denominazioni alternative.
+* Acronimo.
+* Paese.
+* Lingua.
+* Tipologia organizzativa.
+* Natura giuridica, quando verificabile.
+* Anno di fondazione, se disponibile.
+* Stato operativo.
+
+Presenza digitale
+
+* Sito ufficiale.
+* Portale turistico.
+* Email istituzionale.
+* Numero telefonico pubblico.
+* Indirizzo.
+* LinkedIn.
+* Facebook.
+* Instagram.
+* YouTube.
+* Altri canali rilevanti.
+
+Territorio
+
+* Destinazioni rappresentate.
+* Estensione geografica.
+* Comuni o località coinvolti.
+* Principali attrazioni.
+* Tipologia di turismo.
+* Eventuali destinazioni Speaqi già presenti.
+
+Organizzazione
+
+* Responsabili istituzionali.
+* Direttore generale.
+* Direttore marketing.
+* Responsabile promozione turistica.
+* Responsabile innovazione digitale.
+* Responsabile partnership.
+* Altri referenti commercialmente rilevanti.
+
+Inserire esclusivamente dati professionali pubblicamente disponibili o legittimamente acquisiti, con fonte, data e base giuridica appropriata.
+
+Informazioni commerciali
+
+* Dimensione stimata dell’organizzazione.
+* Numero di destinazioni gestite.
+* Progetti digitali esistenti.
+* Eventuali mappe turistiche.
+* Presenza di applicazioni.
+* Servizi multilingua.
+* Chatbot e assistenti AI.
+* Possibili necessità di digitalizzazione.
+* Compatibilità con Speaqi.
+* Potenziale commerciale.
+
+Distinguere sempre dati verificati, stime e valutazioni AI.
+
+⸻
+
+6. MOTORE AI DI DISCOVERY AUTOMATICA
+
+Questa è la componente tecnologica centrale.
+
+Progettare un sistema di agenti AI capaci di scoprire nuove organizzazioni turistiche.
+
+AGENTE 1 — Country Discovery
+
+Per ogni paese:
+
+1. Identifica le istituzioni nazionali competenti.
+2. Individua l’organizzazione nazionale di promozione.
+3. Ricostruisce la struttura territoriale.
+4. Identifica le principali organizzazioni regionali.
+5. Riconosce le denominazioni locali utilizzate.
+
+AGENTE 2 — Destination Discovery
+
+Partendo da una destinazione:
+
+* Cerca gli organismi di promozione.
+* Individua i brand turistici.
+* Analizza i siti ufficiali.
+* Identifica l’organizzazione responsabile.
+* Cerca eventuali organismi sovraordinati.
+* Individua organizzazioni territoriali collegate.
+
+AGENTE 3 — Organization Discovery
+
+Analizza:
+
+* Siti istituzionali.
+* Directory turistiche.
+* Registri pubblici.
+* Elenchi associativi.
+* Open data.
+* Portali regionali.
+* Network di DMO.
+* Organizzazioni internazionali.
+
+Estrae nuove organizzazioni candidate.
+
+AGENTE 4 — Contact Intelligence
+
+Individua i referenti professionali rilevanti.
+
+Non deve inventare email, nominativi o ruoli.
+
+Deve registrare fonte, data di rilevazione e livello di verifica.
+
+AGENTE 5 — Data Validation
+
+Controlla:
+
+* Esistenza dell’organizzazione.
+* Attendibilità delle fonti.
+* Sito ufficiale.
+* Coerenza geografica.
+* Stato operativo.
+* Eventuali duplicati.
+* Qualità dei dati estratti.
+
+AGENTE 6 — Commercial Intelligence
+
+Valuta il potenziale commerciale rispetto a Speaqi.
+
+Identifica:
+
+* Opportunità di digitalizzazione.
+* Necessità di mappe turistiche.
+* Necessità di contenuti multilingua.
+* Potenziale interesse per AI Concierge.
+* Possibili accordi territoriali.
+* Possibili partnership.
+
+AGENTE 7 — Continuous Monitoring
+
+Controlla periodicamente le organizzazioni già censite.
+
+Rileva:
+
+* Cambi di denominazione.
+* Nuovi siti.
+* Cambi di governance.
+* Nuovi responsabili.
+* Nuovi progetti digitali.
+* Fusioni e cessazioni.
+* Nuove opportunità.
+
+AGENTE 8 — Relationship Mapping
+
+Ricostruisce le relazioni tra:
+
+* Organizzazioni.
+* Brand turistici.
+* Portali.
+* Destinazioni.
+* Consorzi.
+* Enti pubblici.
+* Operatori privati.
+
+Ogni relazione deve essere verificabile e accompagnata da una fonte.
+
+⸻
+
+7. ORGANIZATION KNOWLEDGE GRAPH
+
+Non progettare il database esclusivamente come una tabella di organizzazioni.
+
+Costruisci un modello relazionale estensibile, predisposto per una rappresentazione a grafo.
+
+Entità principali:
+
+* Country.
+* Administrative Area.
+* Tourism Destination.
+* Tourism Organization.
+* Tourism Brand.
+* Tourism Portal.
+* Person.
+* Professional Role.
+* Organization Relationship.
+* Geographic Coverage.
+* Source.
+* Verification.
+* Commercial Opportunity.
+* CRM Account.
+* CRM Contact.
+
+Relazioni possibili:
+
+* ORGANIZATION_MANAGES_DESTINATION
+* ORGANIZATION_PROMOTES_DESTINATION
+* ORGANIZATION_OPERATES_BRAND
+* ORGANIZATION_OPERATES_PORTAL
+* ORGANIZATION_MEMBER_OF_NETWORK
+* ORGANIZATION_PARTNER_OF_ORGANIZATION
+* PERSON_WORKS_FOR_ORGANIZATION
+* ORGANIZATION_COVERS_TERRITORY
+
+Non imporre una gerarchia artificiale.
+
+Una destinazione può essere promossa da più organizzazioni e un’organizzazione può rappresentare più destinazioni.
+
+⸻
+
+8. INTERFACCIA UX/UI
+
+Realizzare un’interfaccia di altissimo livello, ispirata ai migliori prodotti SaaS di data intelligence e sales intelligence.
+
+La piattaforma deve essere veloce, intuitiva e progettata per gestire grandi quantità di informazioni.
+
+A. Global Dashboard
+
+Visualizzare:
+
+* Organizzazioni censite.
+* Paesi coperti.
+* Destinazioni identificate.
+* Organizzazioni verificate.
+* Organizzazioni da verificare.
+* Nuove organizzazioni scoperte.
+* Contatti disponibili.
+* Opportunità commerciali.
+* Organizzazioni già presenti nel CRM.
+
+Aggiungere una mappa mondiale interattiva.
+
+B. Global Explorer
+
+Interfaccia di navigazione:
+
+MONDO → PAESE → AREA → DESTINAZIONE → ORGANIZZAZIONI
+
+Con filtri dinamici e ricerca avanzata.
+
+C. Organization Directory
+
+Tabella avanzata con:
+
+* Nome.
+* Paese.
+* Tipologia.
+* Territorio.
+* Sito web.
+* Referenti.
+* Livello di verifica.
+* Potenziale commerciale.
+* Stato CRM.
+
+Prevedere:
+
+* Ricerca full-text.
+* Filtri combinabili.
+* Ordinamento.
+* Viste salvate.
+* Selezione multipla.
+* Esportazione autorizzata.
+* Operazioni massive.
+
+D. Organization Profile
+
+Scheda dettagliata con:
+
+* Identità.
+* Contatti.
+* Territori.
+* Organizzazioni collegate.
+* Siti e brand.
+* Opportunità.
+* Fonti.
+* Storico aggiornamenti.
+* Collegamento CRM.
+
+E. Relationship Explorer
+
+Creare una visualizzazione interattiva delle relazioni.
+
+Esempio:
+
+ITALIA
+→ CAMPANIA
+→ NAPOLI
+→ ORGANIZZAZIONI TURISTICHE
+→ BRAND
+→ DESTINAZIONI RAPPRESENTATE
+
+La visualizzazione deve permettere di scoprire organizzazioni collegate e potenziali interlocutori.
+
+F. AI Discovery Console
+
+Un’interfaccia dove l’utente possa scrivere:
+
+“Trova tutte le DMO della Toscana.”
+
+Oppure:
+
+“Individua le organizzazioni che promuovono destinazioni turistiche in Croazia.”
+
+Oppure:
+
+“Trova gli organismi turistici regionali in Francia con potenziale interesse per mappe multilingua.”
+
+Il sistema deve avviare un processo di ricerca, presentare i risultati con fonti e consentire l’approvazione prima dell’importazione definitiva.
+
+⸻
+
+9. INTEGRAZIONE CON IL CRM SPEAQI
+
+La piattaforma deve funzionare come una sorgente intelligente di prospect.
+
+Ogni organizzazione può diventare un account commerciale.
+
+Ma attenzione:
+
+Non tutte le organizzazioni censite devono diventare automaticamente lead nel CRM.
+
+Separare chiaramente:
+
+1. Organizzazione identificata.
+2. Organizzazione verificata.
+3. Prospect qualificato.
+4. Account CRM.
+5. Opportunità commerciale.
+6. Cliente.
+
+Prevedere un pulsante:
+
+ADD TO CRM
+
+Il sistema deve:
+
+* Verificare se l’organizzazione esiste già.
+* Evitare duplicazioni.
+* Collegare i referenti.
+* Conservare la provenienza dei dati.
+* Assegnare un punteggio commerciale.
+* Consentire l’inserimento in pipeline.
+
+Non creare automaticamente campagne di contatto senza autorizzazione.
+
+⸻
+
+10. SPEAQI OPPORTUNITY SCORE
+
+Progettare un sistema di scoring da 0 a 100.
+
+Il punteggio deve considerare:
+
+* Rilevanza turistica del territorio.
+* Numero di destinazioni rappresentate.
+* Dimensione dell’organizzazione.
+* Maturità digitale.
+* Presenza o assenza di mappe interattive.
+* Disponibilità di servizi multilingua.
+* Presenza di strumenti AI.
+* Possibile capacità di investimento.
+* Accessibilità dei referenti.
+* Compatibilità con l’offerta Speaqi.
+
+Non confondere la mancanza di informazioni con la mancanza di servizi.
+
+Lo scoring deve essere spiegabile, configurabile e basato su indicatori verificabili.
+
+Classificare le opportunità in:
+
+* PRIORITY A.
+* PRIORITY B.
+* PRIORITY C.
+* NOT QUALIFIED.
+
+⸻
+
+11. IMPORTAZIONE MASSIVA E AGGIORNAMENTO
+
+Il sistema deve supportare:
+
+* CSV.
+* Excel.
+* API.
+* Dataset open data.
+* Importazione da directory.
+* Acquisizione assistita da siti pubblici.
+* Importazioni massive per paese.
+
+Prevedere una pipeline:
+
+DISCOVERY
+→ EXTRACTION
+→ NORMALIZATION
+→ DEDUPLICATION
+→ VALIDATION
+→ APPROVAL
+→ PUBLICATION
+→ MONITORING
+
+Requisiti:
+
+* Job asincroni.
+* Elaborazione in batch.
+* Retry automatici.
+* Rate limiting.
+* Log dettagliati.
+* Tracciamento dei costi AI.
+* Gestione degli errori.
+* Ripresa dei processi interrotti.
+* Controlli sulle fonti.
+* Versionamento dei record.
+
+Rispettare condizioni d’uso, licenze, robots.txt quando applicabile e limiti tecnici delle fonti.
+
+⸻
+
+12. QUALITÀ DEI DATI
+
+Ogni informazione importante deve avere:
+
+* Fonte.
+* URL della fonte.
+* Data di acquisizione.
+* Data dell’ultima verifica.
+* Stato di verifica.
+* Eventuale livello di confidenza.
+
+Prevedere stati come:
+
+DISCOVERED
+UNVERIFIED
+VERIFIED
+NEEDS REVIEW
+INACTIVE
+DUPLICATE
+
+Non utilizzare il solo punteggio di confidenza AI come prova di attendibilità.
+
+Le informazioni non verificabili devono rimanere esplicitamente non verificate.
+
+Il sistema deve impedire che organizzazioni inventate o relazioni ipotetiche vengano presentate come fatti.
+
+⸻
+
+13. COPERTURA MONDIALE
+
+L’obiettivo finale è una copertura internazionale estesa.
+
+Non tentare di acquisire indiscriminatamente tutto il mondo in un’unica operazione.
+
+Progetta una strategia progressiva.
+
+FASE 1 — ITALIA
+
+Costruire una copertura approfondita di:
+
+* Organizzazioni nazionali.
+* Regioni.
+* DMO.
+* DMC.
+* GAL.
+* Consorzi.
+* Organizzazioni territoriali.
+* Brand Visit.
+* Altri organismi rilevanti.
+
+FASE 2 — EUROPA
+
+Espandere ai principali mercati turistici europei.
+
+FASE 3 — NORD AMERICA
+
+Stati Uniti, Canada e principali destinazioni.
+
+FASE 4 — RESTO DEL MONDO
+
+Espansione progressiva verso:
+
+* America Latina.
+* Asia.
+* Medio Oriente.
+* Africa.
+* Oceania.
+
+L’ordine effettivo deve essere definito considerando domanda turistica, potenziale commerciale, disponibilità dei dati e costi di acquisizione.
+
+⸻
+
+14. ARCHITETTURA TECNOLOGICA
+
+Valuta la migliore architettura in funzione dello stack realmente esistente.
+
+Considera:
+
+* Next.js.
+* TypeScript.
+* PostgreSQL.
+* Supabase.
+* PostGIS.
+* Motore di ricerca full-text.
+* AI Agents.
+* Workflow orchestration.
+* Background jobs.
+* API REST.
+* Knowledge Graph.
+
+Non introdurre nuovi servizi o database senza dimostrarne la necessità.
+
+Preferire inizialmente un’architettura semplice, robusta ed estensibile.
+
+Requisiti non negoziabili:
+
+* Separazione tra dati raccolti e dati CRM.
+* Controllo degli accessi.
+* Gestione dei permessi.
+* API sicure.
+* Protezione dei dati personali.
+* Tracciabilità.
+* Deduplicazione.
+* Scalabilità.
+* Backup.
+* Monitoraggio.
+* Test automatizzati.
+
+⸻
+
+15. FUNZIONALITÀ AVANZATE
+
+Studia anche la fattibilità delle seguenti evoluzioni.
+
+1. Global Tourism Map
+
+Mappa mondiale delle organizzazioni turistiche.
+
+2. AI Prospect Finder
+
+Ricerca automatica delle organizzazioni commercialmente più interessanti.
+
+3. Destination Digital Maturity
+
+Valutazione della maturità digitale delle destinazioni.
+
+4. Tourism Relationship Graph
+
+Visualizzazione delle connessioni tra enti, territori e brand.
+
+5. Territory Opportunity Finder
+
+Identificazione di territori potenzialmente poco serviti digitalmente.
+
+6. Smart Commercial Segmentation
+
+Segmentazione automatica dei prospect.
+
+7. Organization Change Detection
+
+Rilevamento delle modifiche organizzative.
+
+8. Market Expansion Intelligence
+
+Analisi dei mercati più promettenti per Speaqi.
+
+9. Destination Coverage Analysis
+
+Identificazione delle destinazioni prive di organizzazioni censite o con copertura informativa incompleta.
+
+10. AI Sales Research Assistant
+
+Assistente capace di preparare dossier commerciali verificabili sulle organizzazioni.
+
+⸻
+
+16. METODO DI LAVORO
+
+Non limitarti a descrivere una possibile piattaforma.
+
+Devi analizzare il codice disponibile, progettare la soluzione e procedere all’implementazione secondo un piano verificabile.
+
+STEP 1 — AUDIT
+
+Analizza l’architettura esistente.
+
+Produci:
+
+* Componenti riutilizzabili.
+* Limiti.
+* Rischi.
+* Dipendenze.
+* Proposta architetturale.
+
+STEP 2 — DATA MODEL
+
+Definisci:
+
+* Schema database.
+* Entità.
+* Relazioni.
+* Vincoli.
+* Indici.
+* Regole di deduplicazione.
+* Provenienza dei dati.
+
+STEP 3 — UX/UI
+
+Progetta:
+
+* Navigazione.
+* Dashboard.
+* Directory.
+* Schede organizzazioni.
+* Filtri.
+* Mappa.
+* AI Discovery Console.
+
+STEP 4 — IMPLEMENTAZIONE MVP
+
+Realizza un primo sistema funzionante con:
+
+* Database.
+* CRUD organizzazioni.
+* Gerarchia geografica.
+* Ricerca e filtri.
+* Gestione fonti.
+* Deduplicazione.
+* Importazione dati.
+* Integrazione CRM.
+* Dashboard.
+
+STEP 5 — AI DISCOVERY
+
+Implementa un primo workflow automatizzato di ricerca e verifica delle organizzazioni.
+
+STEP 6 — POPOLAMENTO PILOTA
+
+Utilizza un campione reale e verificabile di organizzazioni italiane.
+
+Il campione deve comprendere categorie diverse e territori differenti.
+
+Misura:
+
+* Precisione.
+* Duplicati.
+* Completezza.
+* Tempo di acquisizione.
+* Costo per organizzazione verificata.
+* Percentuale di record che richiedono revisione.
+
+STEP 7 — VALIDAZIONE
+
+Verifica:
+
+* Correttezza delle relazioni.
+* Funzionamento dei filtri.
+* Affidabilità delle importazioni.
+* Qualità della ricerca.
+* Integrazione CRM.
+* Sicurezza.
+* Prestazioni.
+* Accessibilità.
+* Esperienza utente.
+
+STEP 8 — ESPANSIONE
+
+Solo dopo la validazione, predisponi l’acquisizione su larga scala.
+
+⸻
+
+17. RISULTATI ATTESI
+
+Al termine del lavoro voglio:
+
+1. Analisi approfondita dell’architettura attuale.
+2. Proposta tecnica motivata.
+3. Modello dati completo.
+4. Tassonomia internazionale delle organizzazioni turistiche.
+5. Interfaccia UX/UI professionale.
+6. Sistema di ricerca e catalogazione.
+7. Sistema AI di discovery.
+8. Gestione delle fonti e verifica dei dati.
+9. Sistema di deduplicazione.
+10. Integrazione bidirezionale controllata con il CRM.
+11. Dashboard di intelligence.
+12. Primo database pilota con organizzazioni reali.
+13. Test e verifiche documentate.
+14. Piano di espansione internazionale.
+15. Roadmap delle funzionalità avanzate.
+
+Per ogni componente specifica:
+
+* Cosa esiste già.
+* Cosa manca.
+* Cosa verrà implementato.
+* Priorità.
+* Complessità.
+* Dipendenze.
+* Costi operativi stimati.
+* Criteri di accettazione.
+
+Non dichiarare completata una funzionalità senza averne verificato il funzionamento.
+
+⸻
+
+18. PRINCIPI STRATEGICI
+
+La piattaforma deve rispettare cinque principi.
+
+1. GLOBAL BY DESIGN
+
+Architettura progettata fin dall’inizio per operare in qualsiasi paese.
+
+2. DATA QUALITY FIRST
+
+Meglio 10.000 organizzazioni realmente verificate che 100.000 record inutilizzabili.
+
+3. AI-POWERED DISCOVERY
+
+L’intelligenza artificiale deve ridurre drasticamente il lavoro manuale, senza sostituire la verifica delle informazioni.
+
+4. COMMERCIAL INTELLIGENCE
+
+Ogni organizzazione deve poter essere valutata come potenziale cliente o partner di Speaqi.
+
+5. SCALABLE INFRASTRUCTURE
+
+Il sistema deve poter crescere senza richiedere una ricostruzione completa.
+
+⸻
+
+OBIETTIVO FINALE
+
+Voglio che Speaqi disponga di una delle infrastrutture di intelligence sulle organizzazioni turistiche più complete, aggiornate e commercialmente utili.
+
+Deve essere possibile entrare nella piattaforma, selezionare qualsiasi paese e identificare rapidamente:
+
+* Chi promuove il turismo.
+* Quali territori rappresenta.
+* Quali organizzazioni sono collegate.
+* Quali brand e portali gestisce.
+* Chi sono i referenti professionali.
+* Quali servizi digitali utilizza.
+* Quali opportunità esistono per Speaqi.
+
+Non costruire una rubrica. Costruisci un motore globale di conoscenza territoriale e acquisizione commerciale.
+
+Prima di iniziare lo sviluppo, analizza criticamente questa proposta.
+
+Individua gli elementi troppo complessi, inutili o prematuri.
+
+Proponi eventuali miglioramenti sostanziali.
+
+Poi definisci l’architettura ottimale e procedi con un MVP realmente funzionante.
+
+Non fermarti alla progettazione teorica.

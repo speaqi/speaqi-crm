@@ -14,7 +14,7 @@ import {
   statusLabel,
   stageColor,
 } from '@/lib/data'
-import { useCRMContext } from '../layout'
+import { useCRMContext } from '@/components/layout/CRMContext'
 import type { CRMContact, Deal } from '@/types'
 
 /**

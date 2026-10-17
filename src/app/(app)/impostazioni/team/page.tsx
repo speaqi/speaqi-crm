@@ -6,7 +6,7 @@ import { apiFetch } from '@/lib/api'
 import type { SalesLinkStatus } from '@/types'
 import { AREAS, resolveAllowedAreas, type AreaKey } from '@/lib/areas'
 import { SALES_RECRUIT_URL } from '@/lib/sales-program'
-import { useCRMContext } from '../../layout'
+import { useCRMContext } from '@/components/layout/CRMContext'
 
 function formatDay(value?: string | null) {
   if (!value) return null

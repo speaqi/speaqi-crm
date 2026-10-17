@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { apiFetch } from '@/lib/api'
 import { WINE_EMAIL_TEMPLATES } from '@/lib/email-wine-templates'
-import { useCRMContext } from '../layout'
+import { useCRMContext } from '@/components/layout/CRMContext'
 
 type WineTemplateOption = { id: string; label: string }
 

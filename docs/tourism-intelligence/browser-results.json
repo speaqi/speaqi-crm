@@ -1,0 +1,15 @@
+{
+  "passed": [
+    "dashboard",
+    "category filter",
+    "debounced search",
+    "review gate",
+    "explicit CRM promotion",
+    "invalid import blocks approval",
+    "relationship graph",
+    "unconfigured discovery queue",
+    "mobile viewport"
+  ],
+  "pageErrors": [],
+  "mode": "Browser UI with mocked API contracts; no remote writes"
+}

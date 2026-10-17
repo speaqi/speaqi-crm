@@ -5,7 +5,7 @@ import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from 're
 import { apiFetch } from '@/lib/api'
 import { detectCsvColumns, parseCsvText } from '@/lib/csv-import'
 import type { CsvImportField } from '@/lib/csv-import'
-import { useCRMContext } from '../layout'
+import { useCRMContext } from '@/components/layout/CRMContext'
 
 interface ImportResponse {
   parsed_rows: number

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useCRMContext } from '../layout'
+import { useCRMContext } from '@/components/layout/CRMContext'
 import { apiFetch } from '@/lib/api'
 import { CompanyItineraries } from '@/components/navigazione/CompanyItineraries'
 import { PortsView, PortWithUsage } from '@/components/navigazione/PortsView'

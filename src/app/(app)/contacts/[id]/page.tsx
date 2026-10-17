@@ -8,7 +8,7 @@ import { ContactModal } from '@/components/crm/ContactModal'
 import { APIError, apiFetch } from '@/lib/api'
 import { ACTIVITY_TYPES, TASK_TYPES, activityTypeLabel, contactScopeLabel, formatDateTime, fromDatetimeLocalValue, holdingListLabel, isClosedStatus, isHoldingContact, isPartnerContact, isPersonalContact, personalSectionLabel, priorityLabel, sourceLabel, stageColor, statusLabel, toDatetimeLocalValue } from '@/lib/data'
 import { canAccessPath } from '@/lib/areas'
-import { useCRMContext } from '../../layout'
+import { useCRMContext } from '@/components/layout/CRMContext'
 import type { Activity, ContactDetail, GmailAccountStatus, GmailMessage } from '@/types'
 
 const NOTE_KIND_OPTIONS = [

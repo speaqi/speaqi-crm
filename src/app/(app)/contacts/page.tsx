@@ -23,7 +23,7 @@ import {
   statusLabel,
   toLocalDateKey,
 } from '@/lib/data'
-import { useCRMContext } from '../layout'
+import { useCRMContext } from '@/components/layout/CRMContext'
 import type { CRMContact, TaskWithContact } from '@/types'
 
 function todayAt9am() {

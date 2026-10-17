@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { createContext, useContext } from 'react'
+import { CRMContext, type CRMContextType } from '@/components/layout/CRMContext'
 import { usePathname, useRouter } from 'next/navigation'
 import { BrandLockup } from '@/components/layout/BrandLockup'
 import { Sidebar } from '@/components/layout/Sidebar'
@@ -11,18 +11,6 @@ import { useCRM } from '@/hooks/useCRM'
 import { canAccessPath } from '@/lib/areas'
 import { isPipelineVisible } from '@/lib/data'
 import { createClient } from '@/lib/supabase'
-
-interface CRMContextType extends ReturnType<typeof useCRM> {
-  showToast: (message: string) => void
-}
-
-const CRMContext = createContext<CRMContextType | null>(null)
-
-export function useCRMContext() {
-  const context = useContext(CRMContext)
-  if (!context) throw new Error('useCRMContext must be used inside CRMContext.Provider')
-  return context
-}
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -106,7 +94,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <CRMContext.Provider value={contextValue}>
-      <div className="app-layout">
+      <div className={`app-layout${pathname === '/tourism' ? ' tourism-layout' : ''}`}>
         <Sidebar counts={counts} allowedAreas={crm.allowedAreas} isAdmin={crm.isAdmin} />
         <div className="app-main">
           <Topbar

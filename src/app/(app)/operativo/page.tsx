@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
 import { apiFetch } from '@/lib/api'
 import { SOURCE_OPTIONS, formatDateTime, statusLabel } from '@/lib/data'
-import { useCRMContext } from '../layout'
+import { useCRMContext } from '@/components/layout/CRMContext'
 import type { CRMContact, OperatingQueueItem, OperatingQueueMode, TaskWithContact } from '@/types'
 
 type QueueResponse = {

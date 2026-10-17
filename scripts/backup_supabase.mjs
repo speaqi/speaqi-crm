@@ -34,6 +34,13 @@ const DEFAULT_TABLES = [
   'user_settings',
   'quote_signatures',
   'receivables',
+  'tourism_taxonomy',
+  'tourism_entities',
+  'tourism_evidence',
+  'tourism_relations',
+  'tourism_crm_links',
+  'tourism_revisions',
+  'tourism_jobs',
 ]
 
 /** PostgREST tronca a 1000 righe: senza paginazione un backup e silenziosamente incompleto. */
@@ -99,7 +106,8 @@ async function fetchTable(url, key, table) {
 
   for (let from = 0; ; from += PAGE_SIZE) {
     const to = from + PAGE_SIZE - 1
-    const response = await fetch(`${url}/rest/v1/${table}?select=*&order=id.asc`, {
+    const order = table === 'tourism_taxonomy' ? 'code' : table === 'tourism_crm_links' ? 'entity_id' : 'id'
+    const response = await fetch(`${url}/rest/v1/${table}?select=*&order=${order}.asc`, {
       headers: {
         apikey: key,
         Authorization: `Bearer ${key}`,

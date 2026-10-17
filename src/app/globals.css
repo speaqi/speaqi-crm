@@ -1,3 +1,16 @@
+/* Tourism's page uses the existing shell with a compact, horizontally scrollable mobile navigation. */
+@media (max-width: 860px) {
+  .tourism-layout .sidebar { height: auto; }
+  .tourism-layout .sidebar-logo { display: none; }
+  .tourism-layout .nav { flex-direction: row; overflow-x: auto; padding: 9px; }
+  .tourism-layout .nav-item { flex-shrink: 0; white-space: nowrap; }
+  .tourism-layout .topbar { padding: 10px 12px; gap: 8px; flex-wrap: wrap; }
+  .tourism-layout .topbar-user { display: none; }
+  .tourism-layout .topbar-title { font-size: 12px; }
+  .tourism-layout .topbar-actions { gap: 5px; }
+  .tourism-layout .topbar-actions .btn { font-size: 10px; padding: 6px 8px; }
+}
+
 /* ── RESET & TOKENS ─────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {

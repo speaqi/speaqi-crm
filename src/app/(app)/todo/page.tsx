@@ -23,7 +23,7 @@ import {
   type TodoSort,
 } from '@/lib/todo'
 import type { StandaloneTaskPatch, Task, TodoArea } from '@/types'
-import { useCRMContext } from '../layout'
+import { useCRMContext } from '@/components/layout/CRMContext'
 
 const GANTT_WINDOW_DAYS = 21
 const PREFS_KEY = 'speaqi.todo.prefs'

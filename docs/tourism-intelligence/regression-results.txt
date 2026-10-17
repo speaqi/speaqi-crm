@@ -1,0 +1,12 @@
+✔ tests/automation-schedule.unit.test.ts (763.431011ms)
+✔ tests/team-login.unit.test.ts (746.434267ms)
+✔ tests/trade-fair-destination-email.unit.test.ts (1656.870124ms)
+✔ tests/trade-fair.unit.test.ts (1166.073533ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4365.90202

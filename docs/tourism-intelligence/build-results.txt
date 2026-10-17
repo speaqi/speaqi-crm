@@ -1,0 +1,202 @@
+
+> speaqi-crm@2.0.0 build
+> next build
+
+   ▲ Next.js 15.5.14
+   - Experiments (use with caution):
+     · cpus: 1
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 8.1s
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/138) ...
+   Generating static pages (34/138) 
+   Generating static pages (68/138) 
+   Generating static pages (103/138) 
+ ✓ Generating static pages (138/138)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                                  Size  First Load JS
+┌ ○ /                                                       423 B         103 kB
+├ ○ /_not-found                                              1 kB         104 kB
+├ ○ /acumbamail                                              6 kB         165 kB
+├ ○ /api-docs                                                2 kB         108 kB
+├ ƒ /api/activities                                         423 B         103 kB
+├ ƒ /api/activity/log                                       423 B         103 kB
+├ ƒ /api/ai/classify-reply                                  423 B         103 kB
+├ ƒ /api/ai/daily-briefing                                  423 B         103 kB
+├ ƒ /api/ai/generate-drafts                                 423 B         103 kB
+├ ƒ /api/ai/next-action                                     423 B         103 kB
+├ ƒ /api/ai/score-lead                                      423 B         103 kB
+├ ƒ /api/ai/transcribe                                      423 B         103 kB
+├ ƒ /api/ai/update-memory                                   423 B         103 kB
+├ ƒ /api/analytics                                          423 B         103 kB
+├ ƒ /api/analytics/projects                                 423 B         103 kB
+├ ƒ /api/automation/acumbamail-qualification                423 B         103 kB
+├ ƒ /api/automation/backup                                  423 B         103 kB
+├ ƒ /api/automation/commercial-outreach                     423 B         103 kB
+├ ƒ /api/automation/db-maintenance                          423 B         103 kB
+├ ƒ /api/automation/drafts                                  423 B         103 kB
+├ ƒ /api/automation/error-alert                             423 B         103 kB
+├ ƒ /api/automation/followups                               423 B         103 kB
+├ ƒ /api/automation/orchestrator                            423 B         103 kB
+├ ƒ /api/automation/prepare-gmail-drafts                    423 B         103 kB
+├ ƒ /api/automation/reconcile-drafts                        423 B         103 kB
+├ ƒ /api/automation/reconcile-sends                         423 B         103 kB
+├ ƒ /api/automation/regenerate-draft                        423 B         103 kB
+├ ƒ /api/automation/reply-monitor                           423 B         103 kB
+├ ƒ /api/automation/score-leads                             423 B         103 kB
+├ ƒ /api/automation/send                                    423 B         103 kB
+├ ƒ /api/automation/send-batch                              423 B         103 kB
+├ ƒ /api/automation/send-draft                              423 B         103 kB
+├ ƒ /api/automation/stale-leads                             423 B         103 kB
+├ ƒ /api/automation/weekly-recap                            423 B         103 kB
+├ ƒ /api/automation/whatsapp-digest                         423 B         103 kB
+├ ƒ /api/automation/wine-project-campaigns                  423 B         103 kB
+├ ƒ /api/automation/wine-project-engagement                 423 B         103 kB
+├ ƒ /api/automation/wine-project-followups                  423 B         103 kB
+├ ƒ /api/automation/wine-project-replies                    423 B         103 kB
+├ ƒ /api/candidature-commerciali                            423 B         103 kB
+├ ƒ /api/commercial/campaigns                               423 B         103 kB
+├ ƒ /api/commercial/campaigns/[id]                          423 B         103 kB
+├ ƒ /api/commercial/campaigns/[id]/audience                 423 B         103 kB
+├ ƒ /api/commercial/campaigns/[id]/steps                    423 B         103 kB
+├ ƒ /api/commercial/hospitality                             423 B         103 kB
+├ ƒ /api/contacts                                           423 B         103 kB
+├ ƒ /api/contacts/[id]                                      423 B         103 kB
+├ ƒ /api/contacts/[id]/activities                           423 B         103 kB
+├ ƒ /api/contacts/[id]/call-outcome                         423 B         103 kB
+├ ƒ /api/contacts/[id]/emails                               423 B         103 kB
+├ ƒ /api/contacts/[id]/emails/sync                          423 B         103 kB
+├ ƒ /api/contacts/[id]/tasks                                423 B         103 kB
+├ ƒ /api/contacts/bulk                                      423 B         103 kB
+├ ƒ /api/contacts/repair-names                              423 B         103 kB
+├ ƒ /api/contacts/summary                                   423 B         103 kB
+├ ƒ /api/deals                                              423 B         103 kB
+├ ƒ /api/email                                              423 B         103 kB
+├ ƒ /api/email/reminder                                     423 B         103 kB
+├ ƒ /api/finance/goals                                      423 B         103 kB
+├ ƒ /api/finance/overview                                   423 B         103 kB
+├ ƒ /api/gmail                                              423 B         103 kB
+├ ƒ /api/gmail/callback                                     423 B         103 kB
+├ ƒ /api/gmail/connect                                      423 B         103 kB
+├ ƒ /api/health                                             423 B         103 kB
+├ ƒ /api/import/csv                                         423 B         103 kB
+├ ƒ /api/import/legacy                                      423 B         103 kB
+├ ƒ /api/import/ocr                                         423 B         103 kB
+├ ƒ /api/integrations/acumbamail/campaigns                  423 B         103 kB
+├ ƒ /api/integrations/acumbamail/campaigns/[campaignKey]    423 B         103 kB
+├ ƒ /api/integrations/acumbamail/contact-and-draft          423 B         103 kB
+├ ƒ /api/integrations/acumbamail/fetch-campaign-stats       423 B         103 kB
+├ ƒ /api/integrations/acumbamail/sync-campaign              423 B         103 kB
+├ ƒ /api/integrations/acumbamail/webhook                    423 B         103 kB
+├ ƒ /api/integrations/stripe/webhook                        423 B         103 kB
+├ ƒ /api/integrations/telegram/setup                        423 B         103 kB
+├ ƒ /api/integrations/telegram/webhook                      423 B         103 kB
+├ ƒ /api/leads                                              423 B         103 kB
+├ ƒ /api/leads/[id]                                         423 B         103 kB
+├ ƒ /api/leads/[id]/memory                                  423 B         103 kB
+├ ƒ /api/leads/[id]/memory/update                           423 B         103 kB
+├ ƒ /api/leads/[id]/status                                  423 B         103 kB
+├ ƒ /api/leads/next-actions                                 423 B         103 kB
+├ ƒ /api/leads/update                                       423 B         103 kB
+├ ƒ /api/marketing/contacts/[id]                            423 B         103 kB
+├ ƒ /api/marketing/queue                                    423 B         103 kB
+├ ƒ /api/mcp                                                423 B         103 kB
+├ ƒ /api/openapi/speaqi-call                                423 B         103 kB
+├ ƒ /api/operating-center/queue                             423 B         103 kB
+├ ƒ /api/pipeline-stages                                    423 B         103 kB
+├ ƒ /api/programma-commerciali                              423 B         103 kB
+├ ƒ /api/quotes                                             423 B         103 kB
+├ ƒ /api/quotes/[id]                                        423 B         103 kB
+├ ƒ /api/quotes/[id]/send-acceptance-email                  423 B         103 kB
+├ ƒ /api/quotes/[id]/signature                              423 B         103 kB
+├ ƒ /api/quotes/public/accept-contract                      423 B         103 kB
+├ ƒ /api/quotes/public/checkout                             423 B         103 kB
+├ ƒ /api/quotes/public/select-choice                        423 B         103 kB
+├ ƒ /api/quotes/public/sign                                 423 B         103 kB
+├ ƒ /api/receivables                                        423 B         103 kB
+├ ƒ /api/sales-links                                        423 B         103 kB
+├ ƒ /api/shipping-companies                                 423 B         103 kB
+├ ƒ /api/shipping-itineraries                               423 B         103 kB
+├ ƒ /api/shipping-ports                                     423 B         103 kB
+├ ƒ /api/speaqi/leads                                       423 B         103 kB
+├ ƒ /api/tasks                                              423 B         103 kB
+├ ƒ /api/tasks/[id]                                         423 B         103 kB
+├ ƒ /api/tasks/[id]/complete                                423 B         103 kB
+├ ƒ /api/tasks/create                                       423 B         103 kB
+├ ƒ /api/tasks/pending                                      423 B         103 kB
+├ ƒ /api/tasks/standalone                                   423 B         103 kB
+├ ƒ /api/team-members                                       423 B         103 kB
+├ ƒ /api/team-members/[id]                                  423 B         103 kB
+├ ƒ /api/team-members/[id]/sales-link                       423 B         103 kB
+├ ƒ /api/todo/columns                                       423 B         103 kB
+├ ƒ /api/tourism                                            423 B         103 kB
+├ ƒ /api/tourism/discovery                                  423 B         103 kB
+├ ƒ /api/trade-fair-exhibitors                              423 B         103 kB
+├ ƒ /api/trade-fair-exhibitors/contact                      423 B         103 kB
+├ ƒ /api/trade-fair-exhibitors/destination-email            423 B         103 kB
+├ ƒ /api/trade-fair-exhibitors/outreach/prepare             423 B         103 kB
+├ ƒ /api/trade-fair-exhibitors/outreach/send                423 B         103 kB
+├ ƒ /api/trade-fair-exhibitors/rescore                      423 B         103 kB
+├ ƒ /api/user-settings                                      423 B         103 kB
+├ ƒ /api/vendita/[token]/quote                              423 B         103 kB
+├ ƒ /api/voice/command                                      423 B         103 kB
+├ ƒ /api/whatsapp/status                                    423 B         103 kB
+├ ƒ /api/wine-project/automation                            423 B         103 kB
+├ ƒ /api/wine-project/campaign-link                         423 B         103 kB
+├ ƒ /api/wine-project/contacts                              423 B         103 kB
+├ ○ /attivita                                              5.7 kB         172 kB
+├ ○ /calendario                                           3.29 kB         174 kB
+├ ○ /commerciale                                          2.56 kB         165 kB
+├ ƒ /commerciale/[id]                                     4.04 kB         167 kB
+├ ○ /contacts                                             8.57 kB         181 kB
+├ ƒ /contacts/[id]                                        8.61 kB         178 kB
+├ ○ /dashboard                                            8.93 kB         181 kB
+├ ○ /email                                                7.43 kB         170 kB
+├ ○ /fiere                                                22.7 kB         186 kB
+├ ○ /finanza                                               4.2 kB         167 kB
+├ ○ /gmail                                                4.08 kB         167 kB
+├ ○ /hospitality                                          3.88 kB         163 kB
+├ ○ /icon                                                   423 B         103 kB
+├ ○ /import                                               5.36 kB         168 kB
+├ ○ /impostazioni                                         1.93 kB         108 kB
+├ ○ /impostazioni/email-ai                                12.3 kB         175 kB
+├ ○ /impostazioni/team                                    5.32 kB         168 kB
+├ ○ /impostazioni/whatsapp                                2.97 kB         166 kB
+├ ○ /impostazioni/wine-project                             6.5 kB         169 kB
+├ ○ /incassi                                              3.63 kB         163 kB
+├ ○ /kanban                                               5.97 kB         172 kB
+├ ○ /login                                                1.37 kB         161 kB
+├ ○ /marketing                                            5.03 kB         168 kB
+├ ○ /navigazione                                          19.1 kB         182 kB
+├ ○ /operativo                                            2.65 kB         169 kB
+├ ○ /partner                                                381 B         103 kB
+├ ○ /personali                                              388 B         103 kB
+├ ○ /preventivi                                           11.2 kB         174 kB
+├ ƒ /preventivo                                           3.99 kB         110 kB
+├ ○ /progetti                                             3.83 kB         174 kB
+├ ○ /quick-capture                                        5.99 kB         165 kB
+├ ○ /speaqi                                                 381 B         103 kB
+├ ○ /termini-speaqi                                         518 B         106 kB
+├ ○ /todo                                                 12.7 kB         115 kB
+├ ○ /tourism                                              18.5 kB         181 kB
+├ ƒ /vendita/[token]                                      1.69 kB         104 kB
+├ ○ /vinitaly                                               498 B         103 kB
+└ ○ /voice                                                4.97 kB         168 kB
++ First Load JS shared by all                              103 kB
+  ├ chunks/1255-dfb5f8d642ae4426.js                       45.7 kB
+  ├ chunks/4bd1b696-100b9d70ed4e49c1.js                   54.2 kB
+  └ other shared chunks (total)                           2.63 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+> speaqi-crm@2.0.0 postbuild
+> node scripts/prepare-standalone.cjs
+
+Standalone assets prepared: .next/static and public/

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { useCRMContext } from '@/app/(app)/layout'
+import { useCRMContext } from '@/components/layout/CRMContext'
 import { apiFetch } from '@/lib/api'
 import { formatDateTime, priorityBadgeClass, priorityLabel, sourceLabel, statusLabel } from '@/lib/data'
 import type { CRMContact, MarketingStatus } from '@/types'

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { ContactDrawer } from '@/components/crm/ContactDrawer'
 import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
-import { useCRMContext } from '../layout'
+import { useCRMContext } from '@/components/layout/CRMContext'
 import {
   formatDateTime,
   isClosedStatus,

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { apiFetch } from '@/lib/api'
-import { useCRMContext } from '@/app/(app)/layout'
+import { useCRMContext } from '@/components/layout/CRMContext'
 import { DEFAULT_EMAIL_AI_FRAMEWORK } from '@/lib/email-ai-framework'
 
 type UserSettings = {

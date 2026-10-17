@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { canAccessPath } from '@/lib/areas'
-import { useCRMContext } from '../layout'
+import { useCRMContext } from '@/components/layout/CRMContext'
 
 const SETTINGS_ITEMS = [
   {
