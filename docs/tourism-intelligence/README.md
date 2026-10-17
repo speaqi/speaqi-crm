@@ -20,13 +20,13 @@ Documenti: [audit e architettura](./ARCHITECTURE.md), [modello dati](./DATA-MODE
 
 1. Identificare il progetto Supabase realmente usato dal CRM. Le credenziali dell'app principale non dimostrano che sia lo stesso database. Non applicare la migrazione a un progetto diverso per tentativi.
 2. Eseguire e controllare il backup pre-migrazione delle tabelle esistenti, ad esempio `npm run backup -- contacts deals activities tasks quotes lead_memories pipeline_stages team_members user_settings quote_signatures receivables`. La lista predefinita del backup è stata estesa alle nuove tabelle e va usata dopo la migrazione; il ripristino operativo resta da provare sul progetto target.
-3. Applicare `supabase/migrations/20261017120000_tourism_intelligence.sql` mediante il processo di migrazione del repository, in transazione. Non rilanciare il file su uno schema già migrato: la cronologia Supabase governa l'esecuzione singola.
+3. Applicare `supabase/migrations/20261017205455_tourism_intelligence.sql` mediante il processo di migrazione del repository, in transazione. Non rilanciare il file su uno schema già migrato: la cronologia Supabase governa l'esecuzione singola.
 4. Configurare `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` del CRM. Il modulo usa il JWT dell'utente e non necessita della service role.
 5. Per la discovery: impostare **`OPENAI_API_KEY`** lato server; opzionale `OPENAI_TOURISM_DISCOVERY_MODEL`, default `gpt-5-mini`. Una chiave destinata all'audio non viene riutilizzata. Confermare policy di rete, accesso al provider e disponibilità del modello prima di un test reale.
 6. Eseguire `npm run build`, avviare il CRM e aprire `/tourism` come proprietario. Importare il pilota dal pulsante nella dashboard vuota. Ripetere l'import non sovrascrive i dati esistenti.
 7. Aprire le fonti, verificare gli attributi, promuovere una singola organizzazione e controllare la scheda CRM. Provare poi confronto e sincronizzazione in entrambe le direzioni su dati di test. Verificare che un collaboratore riceva 403 dal modulo e non veda il link.
 
-La migrazione non è stata applicata a un database remoto in questa sessione. La ricerca AI reale e la connessione end-to-end al Supabase target rimangono da verificare con la configurazione del CRM. I test di trasporto usano risposte simulate; nessuna chiave, chiamata a pagamento o esecuzione remota è stata inventata.
+La migrazione è stata applicata il 17 ottobre 2026 al progetto Supabase **Speaqi Crm** (`drlaoxxodjltsycbbdvn`), versione `20261017205455`. Backup locale e verifiche SQL reali sono documentati in [RELEASE.md](./RELEASE.md). Il campione pilota non è stato importato in produzione. La ricerca AI reale e il percorso browser autenticato sul deploy rimangono da verificare; i test del trasporto AI usano risposte simulate.
 
 ## Uso del pilota
 

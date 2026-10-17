@@ -1,0 +1,227 @@
+{
+  "project_ref": "drlaoxxodjltsycbbdvn",
+  "project_name": "Speaqi Crm",
+  "migration": {
+    "name": "tourism_intelligence",
+    "version": "20261017205455"
+  },
+  "backup": {
+    "tables": 11,
+    "rows": 103104,
+    "pages": 112,
+    "manifest": "backups/tourism-pre-migration-20261017T2035/manifest.json",
+    "complete": true,
+    "restore_tested": false,
+    "isolation": "Paginated reads; not a transactionally consistent point-in-time snapshot"
+  },
+  "verification": {
+    "tables": [
+      {
+        "rls": true,
+        "name": "tourism_crm_links",
+        "anonymous_select": false,
+        "authenticated_select": true
+      },
+      {
+        "rls": true,
+        "name": "tourism_entities",
+        "anonymous_select": false,
+        "authenticated_select": true
+      },
+      {
+        "rls": true,
+        "name": "tourism_evidence",
+        "anonymous_select": false,
+        "authenticated_select": true
+      },
+      {
+        "rls": true,
+        "name": "tourism_jobs",
+        "anonymous_select": false,
+        "authenticated_select": true
+      },
+      {
+        "rls": true,
+        "name": "tourism_relations",
+        "anonymous_select": false,
+        "authenticated_select": true
+      },
+      {
+        "rls": true,
+        "name": "tourism_revisions",
+        "anonymous_select": false,
+        "authenticated_select": true
+      },
+      {
+        "rls": true,
+        "name": "tourism_taxonomy",
+        "anonymous_select": false,
+        "authenticated_select": true
+      }
+    ],
+    "policies": 7,
+    "taxonomy": 19,
+    "functions": [
+      {
+        "name": "tourism_audit",
+        "security_definer": true,
+        "anonymous_execute": false,
+        "authenticated_execute": false
+      },
+      {
+        "name": "tourism_claim_job",
+        "security_definer": false,
+        "anonymous_execute": false,
+        "authenticated_execute": true
+      },
+      {
+        "name": "tourism_entity_guard",
+        "security_definer": false,
+        "anonymous_execute": false,
+        "authenticated_execute": false
+      },
+      {
+        "name": "tourism_evidence_guard",
+        "security_definer": false,
+        "anonymous_execute": false,
+        "authenticated_execute": false
+      },
+      {
+        "name": "tourism_evidence_invalidate",
+        "security_definer": false,
+        "anonymous_execute": false,
+        "authenticated_execute": false
+      },
+      {
+        "name": "tourism_import",
+        "security_definer": false,
+        "anonymous_execute": false,
+        "authenticated_execute": true
+      },
+      {
+        "name": "tourism_link_guard",
+        "security_definer": false,
+        "anonymous_execute": false,
+        "authenticated_execute": false
+      },
+      {
+        "name": "tourism_name_key",
+        "security_definer": false,
+        "anonymous_execute": false,
+        "authenticated_execute": true
+      },
+      {
+        "name": "tourism_overview",
+        "security_definer": false,
+        "anonymous_execute": false,
+        "authenticated_execute": true
+      },
+      {
+        "name": "tourism_promote",
+        "security_definer": false,
+        "anonymous_execute": false,
+        "authenticated_execute": true
+      },
+      {
+        "name": "tourism_relation_guard",
+        "security_definer": false,
+        "anonymous_execute": false,
+        "authenticated_execute": false
+      },
+      {
+        "name": "tourism_review",
+        "security_definer": false,
+        "anonymous_execute": false,
+        "authenticated_execute": true
+      },
+      {
+        "name": "tourism_save_indicator",
+        "security_definer": false,
+        "anonymous_execute": false,
+        "authenticated_execute": true
+      },
+      {
+        "name": "tourism_search_document",
+        "security_definer": false,
+        "anonymous_execute": false,
+        "authenticated_execute": true
+      },
+      {
+        "name": "tourism_sync",
+        "security_definer": false,
+        "anonymous_execute": false,
+        "authenticated_execute": true
+      }
+    ],
+    "migration": [
+      {
+        "name": "tourism_intelligence",
+        "version": "20261017205455"
+      }
+    ],
+    "anonymous_audit_sequence": false,
+    "authenticated_audit_sequence": false
+  },
+  "smoke": {
+    "persisted_entities": 0,
+    "persisted_evidence": 0,
+    "persisted_crm_links": 0,
+    "persisted_revisions": 0,
+    "transactional_smoke": "passed"
+  },
+  "anonymous_rest": {
+    "entities": {
+      "http": 401,
+      "code": "42501"
+    },
+    "overview": {
+      "http": 401,
+      "code": "42501"
+    }
+  },
+  "security": {
+    "before": 5,
+    "after": 5,
+    "new_notices": [],
+    "tourism_notices": [],
+    "preexisting": [
+      {
+        "name": "rls_enabled_no_policy",
+        "level": "INFO",
+        "count": 4,
+        "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy"
+      },
+      {
+        "name": "function_search_path_mutable",
+        "level": "WARN",
+        "count": 4,
+        "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable"
+      },
+      {
+        "name": "anon_security_definer_function_executable",
+        "level": "WARN",
+        "count": 6,
+        "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable"
+      },
+      {
+        "name": "authenticated_security_definer_function_executable",
+        "level": "WARN",
+        "count": 6,
+        "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable"
+      },
+      {
+        "name": "auth_leaked_password_protection",
+        "level": "WARN",
+        "count": 1,
+        "remediation": "https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection"
+      }
+    ]
+  },
+  "integrity": {
+    "remote_sql_matches_local": true,
+    "migration_md5": "4f69c0cb939162ccb285348399e382ff",
+    "migration_sha256": "3e98244eb43c78797602c630551a9ad9ccdb07915c2d193f7f16d881e75ea842",
+    "remaining_smoke_contacts": 0,
+    "crm_contacts": 62164
+  }
+}

@@ -387,16 +387,19 @@ begin
   insert into public.tourism_evidence(user_id,entity_id,source_url,title,excerpt,fields)
     values(auth.uid(),e.id,p_source_url,'Valutazione commerciale: '||p_factor,p_rationale,array['indicator:'||p_factor]);
 end $$;
-revoke all on function public.tourism_save_indicator(uuid,integer,text,integer,text,text) from public;
+revoke all on function public.tourism_save_indicator(uuid,integer,text,integer,text,text) from public,anon,authenticated;
 grant execute on function public.tourism_save_indicator(uuid,integer,text,integer,text,text) to authenticated;
 
 -- Trigger functions are not callable RPCs. Public grants are narrowed explicitly.
-revoke all on function public.tourism_audit() from public;
-revoke all on function public.tourism_import(jsonb,jsonb),public.tourism_review(uuid,uuid,integer,boolean),public.tourism_promote(uuid),public.tourism_sync(uuid,text,integer),public.tourism_claim_job(uuid) from public;
+revoke all on function public.tourism_audit(),public.tourism_entity_guard(),public.tourism_evidence_guard(),public.tourism_evidence_invalidate(),public.tourism_relation_guard(),public.tourism_link_guard() from public,anon,authenticated;
+revoke all on function public.tourism_name_key(text),public.tourism_search_document(text,text,text[],jsonb) from public,anon,authenticated;
+grant execute on function public.tourism_name_key(text),public.tourism_search_document(text,text,text[],jsonb) to authenticated;
+revoke all on function public.tourism_import(jsonb,jsonb),public.tourism_review(uuid,uuid,integer,boolean),public.tourism_promote(uuid),public.tourism_sync(uuid,text,integer),public.tourism_claim_job(uuid) from public,anon,authenticated;
 grant execute on function public.tourism_import(jsonb,jsonb),public.tourism_review(uuid,uuid,integer,boolean),public.tourism_promote(uuid),public.tourism_sync(uuid,text,integer),public.tourism_claim_job(uuid) to authenticated;
 -- Supabase installations can grant table privileges through ALTER DEFAULT PRIVILEGES.
 -- Remove inherited mutation/TRUNCATE rights before assigning this module's explicit ACL.
 revoke all on public.tourism_taxonomy,public.tourism_revisions,public.tourism_entities,public.tourism_evidence,public.tourism_relations,public.tourism_crm_links,public.tourism_jobs from anon,authenticated;
+revoke all on sequence public.tourism_revisions_id_seq from anon,authenticated;
 grant select on public.tourism_taxonomy,public.tourism_revisions to authenticated;
 grant select,insert,update,delete on public.tourism_entities,public.tourism_evidence,public.tourism_relations,public.tourism_crm_links,public.tourism_jobs to authenticated;
 
@@ -414,5 +417,5 @@ language sql stable set search_path=public as $$
     'by_country',coalesce((select jsonb_agg(c) from (select country_code,count(*) as total,count(*) filter(where status='VERIFIED') as verified from public.tourism_entities where user_id=auth.uid() and kind='organization' group by country_code order by count(*) desc) c),'[]'::jsonb)
   ) from public.tourism_entities where user_id=auth.uid();
 $$;
-revoke all on function public.tourism_overview() from public;
+revoke all on function public.tourism_overview() from public,anon,authenticated;
 grant execute on function public.tourism_overview() to authenticated;

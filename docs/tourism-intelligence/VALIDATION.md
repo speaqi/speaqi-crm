@@ -1,10 +1,10 @@
 # Verifiche del 17 ottobre 2026
 
-Ambiente locale: Node 24.19.0; il repository mantiene `engines.node=20.x`. Nessun database di produzione è stato modificato e nessuna email inviata. Il runtime Node 20 del deploy target va incluso nella validazione del rilascio.
+Ambiente locale: Node 24.19.0; il repository mantiene `engines.node=20.x`. La migrazione è stata applicata anche al Supabase del CRM; verifiche e backup del rilascio sono in [RELEASE.md](./RELEASE.md). Nessuna email inviata. Il runtime Node 20 del deploy target va incluso nella validazione del rilascio.
 
 | Verifica | Risultato e ambito |
 | --- | --- |
-| `npm run test:tourism` | 11 test unitari + 17 test database passati. Log: `test-results.txt` |
+| `npm run test:tourism` | 11 test unitari + 18 test database passati. Log: `test-results.txt` |
 | Database | Migrazione eseguita in PGlite/PostgreSQL WASM con ruoli, RLS, trigger, funzioni e transazioni reali. Nessun mock per i vincoli SQL |
 | Integrità | Import atomico, rollback anche dell'audit, reimport 17/17 senza modifiche, evidenze e identità verificate separate, modifiche che invalidano attestazioni, revisione su versione corrente |
 | Sicurezza | Accesso area riservato al proprietario, RLS fra due workspace, inserimento cross-tenant negato, audit non scrivibile dall'utente, ingestione persone bloccata, schema relazioni tipizzato |
@@ -21,6 +21,6 @@ Ambiente locale: Node 24.19.0; il repository mantiene `engines.node=20.x`. Nessu
 
 La suite browser è passata anche sul bundle di produzione avviato mediante `start.cjs` (API sempre intercettate). La discovery è verificata con trasporto simulato: schema, fonti citate dal provider, limite di candidati e chiamate, esclusione di email personali/score inventati. Non è stata effettuata una ricerca AI reale: precisione del provider, latenza e costo per organizzazione verificata restano da misurare.
 
-L'integrazione bidirezionale è implementata con transazioni SQL e conferma UI. Restano da provare sul Supabase del CRM: applicazione della migrazione nell'ordine corretto, promozione e sync end-to-end, backup e restore, revoca permessi e comportamento con più processi. Il campione italiano è una fixture documentata pronta all'importazione, non dati già pubblicati in produzione.
+L'integrazione bidirezionale è implementata con transazioni SQL e conferma UI. Sul Supabase del CRM sono stati verificati migrazione, privilegi effettivi, isolamento RLS, importazione, revisione, promozione idempotente e sync bidirezionale in una transazione annullata. Il backup locale è stato riletto e controllato; restano da provare il ripristino, il percorso browser autenticato sul deploy e il comportamento con più processi. Il campione italiano è una fixture documentata pronta all'importazione, non dati già pubblicati in produzione.
 
 ![Anteprima del modulo con dati di test](./preview.png)

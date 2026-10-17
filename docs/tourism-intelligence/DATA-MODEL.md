@@ -1,6 +1,6 @@
 # Modello dati e regole operative
 
-La migrazione additiva è `supabase/migrations/20261017120000_tourism_intelligence.sql`. Tutte le tabelle del catalogo sono distinte da contatti, trattative e progetti CRM.
+La migrazione additiva è `supabase/migrations/20261017205455_tourism_intelligence.sql`. Tutte le tabelle del catalogo sono distinte da contatti, trattative e progetti CRM.
 
 | Tabella | Grana, chiavi e contenuto | Integrità |
 | --- | --- | --- |

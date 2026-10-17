@@ -58,12 +58,14 @@ before(async () => {
     grant select,insert,update,delete on contacts,activities to authenticated;
   `)
   await db.exec(
-    'alter default privileges in schema public grant all on tables to anon,authenticated'
+    `alter default privileges in schema public grant all on tables to anon,authenticated;
+     alter default privileges in schema public grant all on functions to anon,authenticated;
+     alter default privileges in schema public grant all on sequences to anon,authenticated;`
   )
   await db.exec(
     await readFile(
       new URL(
-        '../supabase/migrations/20261017120000_tourism_intelligence.sql',
+        '../supabase/migrations/20261017205455_tourism_intelligence.sql',
         import.meta.url
       ),
       'utf8'
@@ -73,6 +75,25 @@ before(async () => {
 })
 after(async () => {
   await db?.close()
+})
+
+test('inherited Supabase grants cannot expose RPCs, trigger functions or audit sequences', async () => {
+  const functions = await db.query<{ name: string; anon: boolean; authenticated: boolean }>(`
+    select proname as name,
+      has_function_privilege('anon',p.oid,'EXECUTE') as anon,
+      has_function_privilege('authenticated',p.oid,'EXECUTE') as authenticated
+    from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+    where n.nspname='public' and proname like 'tourism_%'
+  `)
+  assert.equal(functions.rows.length, 15)
+  const internal = new Set(['tourism_audit', 'tourism_entity_guard', 'tourism_evidence_guard', 'tourism_evidence_invalidate', 'tourism_relation_guard', 'tourism_link_guard'])
+  for (const fn of functions.rows) {
+    assert.equal(fn.anon, false, `${fn.name} must deny anonymous execution`)
+    assert.equal(fn.authenticated, !internal.has(fn.name), `${fn.name} has unexpected authenticated grants`)
+  }
+  for (const role of ['anon', 'authenticated']) {
+    assert.equal(await scalar<boolean>(`select has_sequence_privilege('${role}','tourism_revisions_id_seq','USAGE') as v`), false)
+  }
 })
 
 test('pilot imports atomically with evidence, geographic coverage and no CRM writes', async () => {
