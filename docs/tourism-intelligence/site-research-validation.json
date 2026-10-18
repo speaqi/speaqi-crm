@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-18",
+  "database": {
+    "sources": 652,
+    "enabled_sources": 3,
+    "scanned_sources": 3,
+    "observed_geocoded_candidates": 12,
+    "approved_poi": 0,
+    "recorded_pilot_requests": 31,
+    "new_tables_with_rls": 5,
+    "preexisting_verified_organizations_preserved": 1,
+    "migrations_applied": ["20261018185155_tourism_site_research", "20261018185533_tourism_research_indexes"]
+  },
+  "verification": {
+    "existing_unit_checks_passed": 11,
+    "research_unit_checks_passed": 10,
+    "sql_checks_passed": 30,
+    "mocked_browser_contract_checks_passed": 17,
+    "site_research_mobile_overflow": false,
+    "production_build": "passed",
+    "typescript": "passed"
+  },
+  "limits": [
+    "Browser checks use mocked authenticated API contracts, not an authenticated production session.",
+    "The convenience pilot does not estimate global catalogue size or site complexity.",
+    "URL observations include languages, listings and articles; they are not distinct places.",
+    "Cost units are explicit planning assumptions, not verified vendor quotations.",
+    "No paid AI or scraping API was called by the pilot crawler.",
+    "Weekly automation creation is confirmed; no future execution is claimed."
+  ]
+}

@@ -146,11 +146,66 @@ export async function GET(request: NextRequest) {
       return tourismResponse(data)
     }
     if (params.get('view') === 'graph') {
+      if (params.get('focus')) {
+        const focus = requireId(params.get('focus'))
+        const [center, edges] = await Promise.all([
+          sb
+            .from('tourism_entities')
+            .select('*')
+            .eq('user_id', owner)
+            .eq('id', focus)
+            .maybeSingle(),
+          sb
+            .from('tourism_relations')
+            .select('*', { count: 'exact' })
+            .eq('user_id', owner)
+            .or(`from_id.eq.${focus},to_id.eq.${focus}`)
+            .order('id')
+            .limit(200)
+        ])
+        if (center.error) throw center.error
+        if (edges.error) throw edges.error
+        if (!center.data)
+          return tourismResponse({ error: 'Entità non trovata' }, 404)
+        const neighbors = [
+          ...new Set((edges.data || []).flatMap((r) => [r.from_id, r.to_id]))
+        ].filter((id) => id !== focus)
+        const evidenceIds = [
+          ...new Set((edges.data || []).map((r) => r.evidence_id))
+        ]
+        const [entities, evidence] = await Promise.all([
+          neighbors.length
+            ? sb
+                .from('tourism_entities')
+                .select('*')
+                .eq('user_id', owner)
+                .in('id', neighbors)
+            : Promise.resolve({ data: [], error: null }),
+          evidenceIds.length
+            ? sb
+                .from('tourism_evidence')
+                .select('*')
+                .eq('user_id', owner)
+                .in('id', evidenceIds)
+            : Promise.resolve({ data: [], error: null })
+        ])
+        if (entities.error) throw entities.error
+        if (evidence.error) throw evidence.error
+        return tourismResponse({
+          entities: [center.data, ...(entities.data || [])],
+          relations: edges.data,
+          evidence: evidence.data,
+          limit: 200,
+          total_relations: edges.count,
+          has_more: (edges.count || 0) > 200
+        })
+      }
       const [entities, relations, evidence] = await Promise.all([
         sb
           .from('tourism_entities')
           .select('*')
           .eq('user_id', owner)
+          .eq('kind', 'place')
           .order('id')
           .limit(500),
         sb

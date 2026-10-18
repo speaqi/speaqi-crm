@@ -1,0 +1,215 @@
+.workspace {
+  background: #fff;
+  border: 1px solid #dce5df;
+  border-radius: 16px;
+  padding: 26px;
+  color: #203e30;
+}
+.intro,
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.intro small {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: #607e6d;
+}
+.workspace h2 {
+  font-size: 25px;
+  margin: 8px 0;
+}
+.workspace h3 {
+  margin: 12px 0;
+}
+.workspace p {
+  line-height: 1.6;
+}
+.workspace a {
+  color: #24684d;
+  overflow-wrap: anywhere;
+}
+.workspace button {
+  background: #f1f6f2;
+  border: 1px solid #c9d8cd;
+  color: #234d36;
+  border-radius: 7px;
+  padding: 9px 13px;
+  cursor: pointer;
+}
+.workspace button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 22px 0;
+}
+.stats > div {
+  background: #f3f6f2;
+  border: 1px solid #e2e9df;
+  border-radius: 10px;
+  padding: 17px;
+}
+.stats strong {
+  font-size: 25px;
+  display: block;
+}
+.stats span {
+  font-size: 12px;
+  display: block;
+  margin-top: 5px;
+  color: #526d5a;
+}
+.tabs {
+  display: flex;
+  gap: 8px;
+  overflow: auto;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #e3e9e2;
+}
+.tabs button {
+  white-space: nowrap;
+}
+.tabs .active {
+  background: #28543c;
+  color: #fff;
+}
+.error,
+.notice {
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin: 15px 0;
+  overflow-wrap: anywhere;
+}
+.error {
+  background: #fff1ed;
+  color: #8b3a24;
+}
+.notice {
+  background: #e8f4ea;
+}
+.muted {
+  font-size: 13px;
+  color: #607565;
+}
+.table {
+  overflow: auto;
+  margin: 18px 0;
+}
+.table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: #f5f7f3;
+}
+.table td,
+.table th {
+  padding: 12px 10px;
+  border-bottom: 1px solid #e6ebe5;
+  vertical-align: top;
+}
+.table td > a,
+.table td small {
+  display: block;
+  font-size: 12px;
+  margin-top: 5px;
+}
+.card {
+  border: 1px solid #dbe4da;
+  background: #fafcf9;
+  border-radius: 12px;
+  padding: 20px;
+  margin: 20px 0;
+}
+.card summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.card details {
+  margin: 16px 0;
+}
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 15px;
+  margin: 18px 0;
+}
+.workspace label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 13px;
+}
+.workspace input:not([type='checkbox']):not([type='radio']),
+.workspace select,
+.workspace textarea {
+  font: inherit;
+  color: #254531;
+  border: 1px solid #cdd9cc;
+  border-radius: 7px;
+  padding: 10px;
+  background: white;
+  max-width: 100%;
+  min-width: 0;
+}
+.workspace textarea {
+  min-height: 75px;
+}
+.workspace .check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin: 16px 0;
+}
+.picker {
+  display: flex;
+  flex-direction: column;
+  max-height: 220px;
+  overflow: auto;
+}
+.picker button {
+  text-align: left;
+}
+.chip {
+  border: 1px solid #d3dfd0;
+  background: #f3f7f0;
+  border-radius: 20px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.toolbar {
+  margin: 14px 0;
+}
+.workspace form > button {
+  margin-top: 10px;
+}
+.workspace h4 {
+  font-size: 16px;
+}
+@media (max-width: 700px) {
+  .workspace {
+    padding: 16px;
+  }
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+  .intro {
+    align-items: flex-start;
+  }
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

@@ -5,6 +5,12 @@
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
-  const { startAutomationScheduler } = await import('@/lib/server/automation-scheduler')
+  const { startAutomationScheduler } = await import(
+    '@/lib/server/automation-scheduler'
+  )
   startAutomationScheduler()
+  const { startTourismResearchScheduler } = await import(
+    '@/lib/server/tourism-research-scheduler'
+  )
+  startTourismResearchScheduler()
 }

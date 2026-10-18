@@ -45,7 +45,7 @@ async function verify(id: string) {
 before(async () => {
   db = new PGlite()
   await db.exec(`
-    create schema auth;create role authenticated nologin;create role anon nologin;
+    create schema auth;create role authenticated nologin;create role anon nologin;create role service_role nologin bypassrls;
     create table auth.users(id uuid primary key,email text);
     create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
     grant usage on schema auth,public to authenticated;grant execute on function auth.uid() to authenticated;
@@ -86,6 +86,15 @@ before(async () => {
       'utf8'
     )
   )
+  await db.exec(
+    await readFile(
+      new URL(
+        '../supabase/migrations/20261018185155_tourism_site_research.sql',
+        import.meta.url
+      ),
+      'utf8'
+    )
+  )
   await asUser(OWNER)
 })
 after(async () => {
@@ -103,11 +112,15 @@ test('OTA imports as a commercial category and remains unverified', async () => 
     const result = await importRecords([row], [])
     assert.equal(result?.created, 1)
     assert.equal(
-      await scalar('select status as v from tourism_entities where id=$1', [result!.ids[0]]),
+      await scalar('select status as v from tourism_entities where id=$1', [
+        result!.ids[0]
+      ]),
       'UNVERIFIED'
     )
     assert.equal(
-      await scalar<boolean>("select governance as v from tourism_taxonomy where code='ota'"),
+      await scalar<boolean>(
+        "select governance as v from tourism_taxonomy where code='ota'"
+      ),
       false
     )
   } finally {
@@ -118,17 +131,35 @@ test('OTA imports as a commercial category and remains unverified', async () => 
 test('TTG source IDs survive import without creating CRM contacts', async () => {
   await db.exec('begin')
   try {
-    const before = await scalar<number>('select count(*)::int as v from contacts')
+    const before = await scalar<number>(
+      'select count(*)::int as v from contacts'
+    )
     const input = normalizeRecord({
-      ...records[0], name: 'TTG Destination Fixture', type_code: 'dmc',
+      ...records[0],
+      name: 'TTG Destination Fixture',
+      type_code: 'dmc',
       external_ids: { ttg_2026: '8000000' }
     })
     const result = await importRecords([input], [])
     assert.equal(result?.created, 1)
     const id = result!.ids[0]
-    assert.equal(await scalar("select external_ids->>'ttg_2026' as v from tourism_entities where id=$1", [id]), '8000000')
-    assert.equal(await scalar('select status as v from tourism_entities where id=$1', [id]), 'UNVERIFIED')
-    assert.equal(await scalar<number>('select count(*)::int as v from contacts'), before)
+    assert.equal(
+      await scalar(
+        "select external_ids->>'ttg_2026' as v from tourism_entities where id=$1",
+        [id]
+      ),
+      '8000000'
+    )
+    assert.equal(
+      await scalar('select status as v from tourism_entities where id=$1', [
+        id
+      ]),
+      'UNVERIFIED'
+    )
+    assert.equal(
+      await scalar<number>('select count(*)::int as v from contacts'),
+      before
+    )
   } finally {
     await db.exec('rollback')
   }
@@ -154,7 +185,8 @@ test('inherited Supabase grants cannot expose RPCs, trigger functions or audit s
     'tourism_evidence_invalidate',
     'tourism_relation_guard',
     'tourism_link_guard',
-    'tourism_match_guard'
+    'tourism_match_guard',
+    'tourism_research_guard'
   ])
   for (const fn of functions.rows) {
     assert.equal(fn.anon, false, `${fn.name} must deny anonymous execution`)
@@ -792,3 +824,396 @@ test('coverage separates geographic reference countries, missing organizations a
   assert.equal(other.runs.length, 0)
   await asUser(OWNER)
 })
+
+async function researchTransaction(run: () => Promise<void>) {
+  await asUser(OWNER)
+  await db.exec('begin')
+  try {
+    await run()
+  } finally {
+    await db.exec('rollback')
+    await asUser(OWNER)
+  }
+}
+async function rejectedStatement(run: () => Promise<unknown>, pattern: RegExp) {
+  await db.exec('savepoint rejected_statement')
+  await assert.rejects(run, pattern)
+  await db.exec(
+    'rollback to savepoint rejected_statement;release savepoint rejected_statement'
+  )
+}
+async function researchSource() {
+  return (
+    await db.query<{ id: string }>(
+      "insert into tourism_site_sources(user_id,url,label,country_code,enabled,max_requests) values($1,'https://research.example.org/','Research destination','IT',true,15) returning id",
+      [OWNER]
+    )
+  ).rows[0].id
+}
+async function researchEntities() {
+  const rows = ['Research Alpha', 'Research Beta'].map((name) =>
+    normalizeRecord({ ...records[0], name })
+  )
+  return (await importRecords(rows, []))!.ids
+}
+const researchReport = (
+  url = 'https://research.example.org/',
+  latitude = 40.8
+) => ({
+  schema_version: 1,
+  site_url: url,
+  fetched_at: new Date().toISOString(),
+  state: 'completed',
+  title: 'Research',
+  destination_signals: [],
+  languages: ['it'],
+  map_detected: true,
+  catalogue_pages: [],
+  sitemap_urls_seen: 50,
+  place_url_candidates: 30,
+  restaurant_url_candidates: 10,
+  declared_lists: [],
+  candidates: [
+    {
+      source_url: url + 'poi/museum',
+      name: 'Research museum',
+      category: 'place',
+      latitude,
+      longitude: 14.2,
+      address: null,
+      evidence_kind: 'jsonld'
+    }
+  ],
+  geocoded_candidates: 1,
+  requests: 3,
+  bytes: 10000,
+  duration_ms: 1500,
+  sample_limited: true,
+  count_note: 'Bounded inventory',
+  errors: [],
+  receipts: []
+})
+
+test('research tables deny anonymous and cross-workspace access, including role escalation in claim', () =>
+  researchTransaction(async () => {
+    const sid = await researchSource()
+    await asUser(OTHER)
+    assert.equal(
+      await scalar<number>(
+        'select count(*)::integer as v from tourism_site_sources'
+      ),
+      0
+    )
+    await rejectedStatement(
+      () => db.query('select tourism_claim_site($1,$2)', [sid, OWNER]),
+      /Owner access denied/
+    )
+    await asUser(OWNER)
+    for (const table of [
+      'tourism_site_sources',
+      'tourism_site_scans',
+      'tourism_poi_candidates',
+      'tourism_project_opportunities',
+      'tourism_canonical_links'
+    ]) {
+      assert.equal(
+        await scalar<boolean>(
+          `select has_table_privilege('anon','${table}','SELECT') as v`
+        ),
+        false
+      )
+      assert.equal(
+        await scalar<boolean>(
+          `select has_table_privilege('authenticated','${table}','TRUNCATE') as v`
+        ),
+        false
+      )
+    }
+  }))
+test('site claims are exclusive and finishing stages candidates without verifying identity or permitting reuse', () =>
+  researchTransaction(async () => {
+    const sid = await researchSource()
+    const claim = await scalar<any>('select tourism_claim_site($1) as v', [sid])
+    assert.ok(claim.lease_token)
+    assert.equal(
+      await scalar('select tourism_claim_site($1) as v', [sid]),
+      null
+    )
+    await rejectedStatement(
+      () =>
+        db.query('select tourism_finish_site($1,gen_random_uuid(),$2,$3)', [
+          sid,
+          JSON.stringify(researchReport()),
+          '{}'
+        ]),
+      /expired site lease/
+    )
+    await db.query('select tourism_finish_site($1,$2,$3,$4)', [
+      sid,
+      claim.lease_token,
+      JSON.stringify(researchReport()),
+      '{"baseline":true}'
+    ])
+    assert.equal(
+      await scalar(
+        'select official_status as v from tourism_site_sources where id=$1',
+        [sid]
+      ),
+      'candidate'
+    )
+    assert.equal(
+      await scalar(
+        'select state as v from tourism_poi_candidates where source_id=$1',
+        [sid]
+      ),
+      'candidate'
+    )
+    assert.equal(
+      await scalar(
+        'select reuse_status as v from tourism_poi_candidates where source_id=$1',
+        [sid]
+      ),
+      'unknown'
+    )
+    assert.equal(
+      await scalar<number>(
+        'select count(*)::integer as v from tourism_site_scans where source_id=$1',
+        [sid]
+      ),
+      1
+    )
+    await rejectedStatement(
+      () =>
+        db.query('select tourism_finish_site($1,$2,$3,$4)', [
+          sid,
+          claim.lease_token,
+          JSON.stringify(researchReport()),
+          '{}'
+        ]),
+      /expired site lease/
+    )
+  }))
+test('site approval needs a source and project/POI approvals cannot pass through null SQL checks', () =>
+  researchTransaction(async () => {
+    const sid = await researchSource()
+    await rejectedStatement(
+      () =>
+        db.query(
+          "update tourism_site_sources set official_status='confirmed',review_note='Checked identity' where id=$1",
+          [sid]
+        ),
+      /check constraint/
+    )
+    const claim = await scalar<any>('select tourism_claim_site($1) as v', [sid])
+    await db.query('select tourism_finish_site($1,$2,$3,$4)', [
+      sid,
+      claim.lease_token,
+      JSON.stringify(researchReport()),
+      '{}'
+    ])
+    await rejectedStatement(
+      () =>
+        db.query(
+          "update tourism_poi_candidates set state='approved',reuse_status='open',review_note='License inspected',reviewed_by=$1,reviewed_at=now() where source_id=$2",
+          [OWNER, sid]
+        ),
+      /check constraint/
+    )
+    await db.query(
+      "update tourism_poi_candidates set state='approved',reuse_status='open',reuse_url='https://research.example.org/license',review_note='License inspected',reviewed_by=$1,reviewed_at=now() where source_id=$2",
+      [OWNER, sid]
+    )
+    const nextClaim = await scalar<any>('select tourism_claim_site($1) as v', [
+      sid
+    ])
+    await db.query('select tourism_finish_site($1,$2,$3,$4)', [
+      sid,
+      nextClaim.lease_token,
+      JSON.stringify(researchReport(undefined, 41)),
+      '{}'
+    ])
+    assert.equal(
+      await scalar(
+        'select state as v from tourism_poi_candidates where source_id=$1',
+        [sid]
+      ),
+      'candidate'
+    )
+    assert.equal(
+      await scalar(
+        'select reviewed_at as v from tourism_poi_candidates where source_id=$1',
+        [sid]
+      ),
+      null
+    )
+    assert.equal(
+      await scalar<number>(
+        'select count(*)::integer as v from tourism_poi_candidates where source_id=$1',
+        [sid]
+      ),
+      1
+    )
+  }))
+test('daily site request budget includes active reservations across sites', () =>
+  researchTransaction(async () => {
+    const ids = []
+    for (let i = 0; i < 4; i++)
+      ids.push(
+        await scalar(
+          "insert into tourism_site_sources(user_id,url,label,country_code,max_requests,enabled) values($1,$2,'Budget destination','IT',40,true) returning id as v",
+          [OWNER, `https://budget${i}.example.org/`]
+        )
+      )
+    for (let i = 0; i < 3; i++)
+      assert.ok(
+        (await scalar<any>('select tourism_claim_site($1) as v', [ids[i]]))
+          .lease_token
+      )
+    assert.equal(
+      await scalar('select tourism_claim_site($1) as v', [ids[3]]),
+      null
+    )
+  }))
+test('bulk identity review is atomic on version conflict and never creates CRM contacts', () =>
+  researchTransaction(async () => {
+    const ids = await researchEntities(),
+      items: { id: string; version: number; evidence_id: string }[] = []
+    for (const eid of ids)
+      items.push({
+        id: eid,
+        version: await scalar<number>(
+          'select version as v from tourism_entities where id=$1',
+          [eid]
+        ),
+        evidence_id: await scalar(
+          'select id as v from tourism_evidence where entity_id=$1 limit 1',
+          [eid]
+        )
+      })
+    const contacts = await scalar<number>(
+      'select count(*)::integer as v from contacts'
+    )
+    await rejectedStatement(
+      () =>
+        db.query('select tourism_bulk_review($1)', [
+          JSON.stringify(
+            items.map((item, i) => ({
+              ...item,
+              version: i ? 999 : item.version
+            }))
+          )
+        ]),
+      /Version conflict/
+    )
+    assert.equal(
+      await scalar<number>(
+        "select count(*)::integer as v from tourism_entities where id=any($1::uuid[]) and status='VERIFIED'",
+        [ids]
+      ),
+      0
+    )
+    assert.equal(
+      await scalar<number>('select tourism_bulk_review($1) as v', [
+        JSON.stringify(items)
+      ]),
+      2
+    )
+    assert.equal(
+      await scalar<number>('select count(*)::integer as v from contacts'),
+      contacts
+    )
+  }))
+test('canonical consolidation is reversible without moving evidence and rejects stale undo', () =>
+  researchTransaction(async () => {
+    const [duplicate, canonical] = await researchEntities()
+    const before = await scalar<number>(
+      'select count(*)::integer as v from tourism_evidence where entity_id=$1',
+      [duplicate]
+    )
+    const link = await scalar(
+      'select tourism_set_canonical($1,$2,1,1,$3) as v',
+      [duplicate, canonical, 'Same legal entity, confirmed in source']
+    )
+    assert.equal(
+      await scalar('select status as v from tourism_entities where id=$1', [
+        duplicate
+      ]),
+      'DUPLICATE'
+    )
+    assert.equal(
+      await scalar<number>(
+        'select count(*)::integer as v from tourism_evidence where entity_id=$1',
+        [duplicate]
+      ),
+      before
+    )
+    await db.query('select tourism_undo_canonical($1)', [link])
+    assert.equal(
+      await scalar('select status as v from tourism_entities where id=$1', [
+        duplicate
+      ]),
+      'UNVERIFIED'
+    )
+    const version = await scalar<number>(
+      'select version as v from tourism_entities where id=$1',
+      [duplicate]
+    )
+    const link2 = await scalar(
+      'select tourism_set_canonical($1,$2,$3,1,$4) as v',
+      [duplicate, canonical, version, 'Same legal entity, confirmed in source']
+    )
+    await db.query(
+      "update tourism_entities set status='NEEDS_REVIEW' where id=$1",
+      [duplicate]
+    )
+    await rejectedStatement(
+      () => db.query('select tourism_undo_canonical($1)', [link2]),
+      /Version conflict/
+    )
+  }))
+test('commercial dossiers remain research until identity is verified and CRM-linked, with project lifecycle separate', () =>
+  researchTransaction(async () => {
+    const [eid] = await researchEntities()
+    const opportunity = await scalar(
+      "insert into tourism_project_opportunities(user_id,entity_id,title,source_url,rationale) values($1,$2,'Destination map','https://research.example.org/','Public catalogue observed; review needed') returning id as v",
+      [OWNER, eid]
+    )
+    await rejectedStatement(
+      () =>
+        db.query(
+          "update tourism_project_opportunities set stage='meeting' where id=$1",
+          [opportunity]
+        ),
+      /Verified organization linked to CRM required/
+    )
+    await rejectedStatement(
+      () =>
+        db.query(
+          "update tourism_project_opportunities set project_status='active',platform_project_url='https://guides.speaqi.com/project' where id=$1",
+          [opportunity]
+        ),
+      /Verified organization linked to CRM required/
+    )
+    await verify(eid)
+    await db.query('select tourism_promote($1)', [eid])
+    await db.query(
+      "update tourism_project_opportunities set stage='meeting' where id=$1",
+      [opportunity]
+    )
+    await rejectedStatement(
+      () =>
+        db.query(
+          "update tourism_project_opportunities set project_status='trial' where id=$1",
+          [opportunity]
+        ),
+      /check constraint/
+    )
+    await db.query(
+      "update tourism_project_opportunities set project_status='trial',platform_project_url='https://guides.speaqi.com/project' where id=$1",
+      [opportunity]
+    )
+    const summary = await scalar<any>('select tourism_research_overview() as v')
+    assert.equal(summary.stages.meeting, 1)
+    assert.equal(summary.project_statuses.trial, 1)
+    assert.equal(summary.coverage[0].official_denominator, null)
+  }))

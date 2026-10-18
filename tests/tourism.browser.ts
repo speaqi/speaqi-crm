@@ -64,6 +64,63 @@ const relations = pilot.relations.map((r, i) => ({
   evidence_id: evidence[r.from_index].id
 }))
 const jobs: Record<string, unknown>[] = []
+let siteScanned = false
+const sourceId = '99999999-9999-4999-8999-999999999999'
+const siteReport = {
+  schema_version: 1,
+  site_url: 'https://example.org/',
+  fetched_at: now,
+  state: 'completed',
+  title: 'Official destination catalogue',
+  destination_signals: ['Sezione dedicata a luoghi o attrazioni'],
+  languages: ['it', 'en'],
+  map_detected: true,
+  catalogue_pages: [
+    { url: 'https://example.org/places', label: 'Luoghi', category: 'place' }
+  ],
+  sitemap_urls_seen: 100,
+  place_url_candidates: 30,
+  restaurant_url_candidates: 5,
+  declared_lists: [],
+  candidates: [
+    {
+      source_url: 'https://example.org/poi/museum',
+      name: 'Museum fixture',
+      category: 'place',
+      latitude: 40.8,
+      longitude: 14.2,
+      address: 'Public square',
+      evidence_kind: 'jsonld'
+    }
+  ],
+  geocoded_candidates: 1,
+  requests: 15,
+  bytes: 100000,
+  duration_ms: 15000,
+  sample_limited: true,
+  count_note: 'Campione di URL e schede: non è il totale del sito.',
+  errors: [],
+  receipts: []
+}
+const siteSource = () => ({
+  id: sourceId,
+  entity_id: rows[0].id,
+  url: 'https://example.org/',
+  label: 'Destination fixture',
+  country_code: 'IT',
+  official_status: 'candidate',
+  destination_status: 'candidate',
+  review_url: null,
+  review_note: '',
+  enabled: false,
+  interval_days: 30,
+  max_requests: 15,
+  next_run_at: now,
+  last_scanned_at: siteScanned ? now : null,
+  last_state: siteScanned ? 'completed' : null,
+  version: siteScanned ? 2 : 1,
+  latest_report: siteScanned ? siteReport : null
+})
 const calls: { path: string; body: Record<string, unknown> }[] = []
 const errors: string[] = []
 async function main() {
@@ -127,6 +184,84 @@ async function main() {
           body: JSON.stringify(value)
         })
       calls.push({ path: url.pathname, body })
+      if (url.pathname === '/api/tourism/research') {
+        if (route.request().method() === 'POST') {
+          if (body.action === 'scan') {
+            siteScanned = true
+            return json({
+              report: siteReport,
+              source_id: sourceId,
+              changes: { baseline: true, added: 1 }
+            })
+          }
+          return json({ error: 'Unexpected research write' }, 400)
+        }
+        if (url.searchParams.get('view') === 'overview')
+          return json({
+            sources: 1,
+            enabled: 0,
+            scanned: siteScanned ? 1 : 0,
+            destination_confirmed: 0,
+            poi_candidates: siteScanned ? 1 : 0,
+            geocoded: siteScanned ? 1 : 0,
+            approved_poi: 0,
+            requests_last_30_days: siteScanned ? 15 : 0,
+            opportunities: 0,
+            stages: {},
+            project_statuses: {},
+            worker_available: true,
+            coverage: [
+              {
+                country_code: 'IT',
+                organizations: 8,
+                verified: 1,
+                with_website: 8,
+                nto: 1,
+                rto: 1,
+                local_destinations: 6,
+                dmc: 0,
+                ota: 0,
+                official_denominator: null
+              }
+            ]
+          })
+        if (url.searchParams.get('source_id'))
+          return json({
+            source: siteSource(),
+            scans: [],
+            pois: siteScanned
+              ? [
+                  {
+                    ...siteReport.candidates[0],
+                    id: 'poi-fixture',
+                    state: 'candidate',
+                    reuse_status: 'unknown',
+                    reuse_url: null
+                  }
+                ]
+              : [],
+            total: siteScanned ? 1 : 0,
+            page: 0
+          })
+        if (url.searchParams.get('view') === 'review')
+          return json({
+            entities: rows
+              .filter((r) => r.kind === 'organization')
+              .map((r) => ({
+                ...r,
+                evidence: evidence.filter((e) => e.entity_id === r.id)
+              })),
+            total: 8,
+            page: 0
+          })
+        if (
+          ['canonical', 'opportunities'].includes(
+            url.searchParams.get('view') || ''
+          )
+        )
+          return json({ rows: [], total: 0 })
+        return json({ sources: [siteSource()], total: 1, page: 0, size: 50 })
+      }
       if (url.pathname === '/api/tourism/discovery') {
         if (route.request().method() === 'GET')
           return json({ jobs, configured: false })
@@ -359,8 +494,13 @@ async function main() {
       .selectOption('')
     await page.getByRole('button', { name: 'ENIT S.p.A.' }).waitFor()
     await page.getByLabel('Categoria', { exact: true }).selectOption('ota')
-    await page.getByRole('button', { name: 'ENIT S.p.A.' }).waitFor({ state: 'hidden' })
-    assert.equal(await page.getByLabel('Categoria', { exact: true }).inputValue(), 'ota')
+    await page
+      .getByRole('button', { name: 'ENIT S.p.A.' })
+      .waitFor({ state: 'hidden' })
+    assert.equal(
+      await page.getByLabel('Categoria', { exact: true }).inputValue(),
+      'ota'
+    )
     await page.getByLabel('Categoria', { exact: true }).selectOption('dmc')
     await page.getByRole('button', { name: 'Italy Creative' }).waitFor()
     await page
@@ -507,6 +647,84 @@ async function main() {
       ),
       false
     )
+    await page
+      .getByRole('button', { name: 'Ricerca siti e progetti', exact: true })
+      .click()
+    await page.getByText('Destination fixture', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Analizza', exact: true }).click()
+    assert.equal(
+      await page
+        .getByRole('button', { name: 'Esporta GeoJSON approvato' })
+        .isDisabled(),
+      true
+    )
+    await page.getByRole('button', { name: 'Esegui analisi limitata' }).click()
+    await page
+      .getByRole('link', { name: 'Museum fixture', exact: true })
+      .waitFor()
+    await page
+      .getByRole('heading', { name: 'Destination fixture', exact: true })
+      .waitFor()
+    assert.equal(
+      await page
+        .getByRole('button', { name: 'Esporta GeoJSON approvato' })
+        .isDisabled(),
+      true
+    )
+    await page.screenshot({
+      path: output + '/site-research-desktop.png',
+      fullPage: true
+    })
+    await page
+      .getByRole('button', { name: 'Volumi e costi', exact: true })
+      .click()
+    await page.getByText(/Ipotesi di budget modificabili/).waitFor()
+    await page
+      .getByRole('button', { name: 'Verifiche e duplicati', exact: true })
+      .click()
+    assert.equal(
+      await page
+        .getByRole('button', { name: 'Conferma 0 verifiche' })
+        .isDisabled(),
+      true
+    )
+    await page
+      .getByRole('button', { name: 'Lacune territoriali', exact: true })
+      .click()
+    await page
+      .getByRole('cell', { name: 'Non misurata', exact: true })
+      .waitFor()
+    await page
+      .getByRole('button', { name: 'Progetti e attività', exact: true })
+      .click()
+    await page
+      .getByRole('heading', { name: 'Nuovo progetto proposto' })
+      .waitFor()
+    assert.ok(
+      !calls.some(
+        (c) =>
+          c.path === '/api/tourism/research' &&
+          ['bulk_review', 'review_poi', 'task'].includes(String(c.body.action))
+      )
+    )
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page
+      .getByRole('button', { name: 'Siti e mappe', exact: true })
+      .click()
+    await page
+      .getByRole('heading', { name: 'Destination fixture', exact: true })
+      .waitFor()
+    assert.equal(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth
+      ),
+      false,
+      'Site research must fit mobile viewport'
+    )
+    await page.screenshot({
+      path: output + '/site-research-mobile.png',
+      fullPage: true
+    })
     await page.getByRole('button', { name: 'Panoramica', exact: true }).click()
     await page.setViewportSize({ width: 390, height: 844 })
     await page.locator('.leaflet-overlay-pane path').first().waitFor()
@@ -546,7 +764,12 @@ async function main() {
             'invalid import blocks approval',
             'relationship graph',
             'unconfigured discovery queue',
-            'mobile viewport'
+            'mobile viewport',
+            'site analysis preserves candidate and reuse gates',
+            'cost assumptions visible',
+            'batch verification requires manual attestation',
+            'territorial coverage does not claim completeness',
+            'project dossiers do not trigger CRM actions'
           ],
           pageErrors: errors,
           mode: 'Browser UI with mocked API contracts; no remote writes'
@@ -555,7 +778,7 @@ async function main() {
         2
       )
     )
-    console.log(`12 browser checks passed. Screenshots: ${output}`)
+    console.log(`17 browser checks passed. Screenshots: ${output}`)
   } finally {
     await browser.close()
   }

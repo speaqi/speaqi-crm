@@ -33,6 +33,7 @@ import {
   type FactorKey
 } from '@/lib/tourism'
 import s from './tourism.module.css'
+import TourismResearch, { EntityPicker } from './TourismResearch'
 
 const WorldMap = dynamic(() => import('./WorldMap'), {
   ssr: false,
@@ -41,18 +42,21 @@ const WorldMap = dynamic(() => import('./WorldMap'), {
 const acquisitionSourceLabel = (source: string) =>
   source.startsWith('wikidata:')
     ? 'Wikidata'
-    : ({
-        'wtm:london': 'WTM London',
-        'wtm:atm': 'Arabian Travel Market',
-        'wtm:latin-america': 'WTM Latin America',
-        'official:un-tourism': 'UN Tourism',
-        'official:etc': 'European Travel Commission',
-        'official:cto': 'Caribbean Tourism Organization',
-        'official:ota': 'Siti ufficiali OTA',
-        'wikipedia:ota-discovery': 'Wikipedia · scoperta OTA',
-        'ttg:2026-cached': 'TTG Travel Experience 2026 · elenco già acquisito',
-        'official:national-sites': 'Siti istituzionali e degli enti'
-      } as Record<string, string>)[source] || source
+    : (
+        {
+          'wtm:london': 'WTM London',
+          'wtm:atm': 'Arabian Travel Market',
+          'wtm:latin-america': 'WTM Latin America',
+          'official:un-tourism': 'UN Tourism',
+          'official:etc': 'European Travel Commission',
+          'official:cto': 'Caribbean Tourism Organization',
+          'official:ota': 'Siti ufficiali OTA',
+          'wikipedia:ota-discovery': 'Wikipedia · scoperta OTA',
+          'ttg:2026-cached':
+            'TTG Travel Experience 2026 · elenco già acquisito',
+          'official:national-sites': 'Siti istituzionali e degli enti'
+        } as Record<string, string>
+      )[source] || source
 type Row = TourismEntity & {
   evidence: Evidence[]
   crm: { contact_id: string }[]
@@ -437,7 +441,10 @@ export default function TourismWorkspace() {
   useEffect(() => {
     if (tab !== 'explorer') return
     let live = true
-    apiFetch<Graph>('/api/tourism?view=graph')
+    apiFetch<Graph>(
+      '/api/tourism?view=graph' +
+        (graphFocus ? '&focus=' + encodeURIComponent(graphFocus) : '')
+    )
       .then((r) => {
         if (live) setGraph(r)
       })
@@ -447,7 +454,7 @@ export default function TourismWorkspace() {
     return () => {
       live = false
     }
-  }, [tab, reload])
+  }, [tab, graphFocus, reload])
   useEffect(() => {
     if (tab !== 'discovery') return
     let live = true
@@ -515,7 +522,7 @@ export default function TourismWorkspace() {
       <div className={s.workspace} data-tourism-workspace>
         <div className={s.eyebrow}>
           <span className={s.brandMark}>S</span>SPEAQI <span>/</span> GLOBAL
-          INTELLIGENCE <span className={s.pilot}>PILOTA ITALIA</span>
+          INTELLIGENCE <span className={s.pilot}>CENSIMENTO GLOBALE</span>
         </div>
         <header className={s.heading}>
           <div>
@@ -548,7 +555,8 @@ export default function TourismWorkspace() {
             { key: 'overview', label: 'Panoramica', icon: 'grid' },
             { key: 'directory', label: 'Directory', icon: 'search' },
             { key: 'explorer', label: 'Territori e relazioni', icon: 'link' },
-            { key: 'discovery', label: 'AI Discovery', icon: 'spark' }
+            { key: 'discovery', label: 'AI Discovery', icon: 'spark' },
+            { key: 'research', label: 'Ricerca siti e progetti', icon: 'globe' }
           ].map((t) => (
             <button
               key={t.key}
@@ -1165,6 +1173,15 @@ export default function TourismWorkspace() {
             </footer>
           </section>
         )}
+        {tab === 'research' && (
+          <TourismResearch
+            onOpen={setDetailId}
+            onCountry={(code) => {
+              setTab('directory')
+              setFilter('country', code)
+            }}
+          />
+        )}
         {tab === 'explorer' && (
           <section className={s.panel}>
             <div className={s.panelHeading}>
@@ -1176,6 +1193,10 @@ export default function TourismWorkspace() {
                   possono sovrapporsi.
                 </p>
               </div>
+              <EntityPicker
+                label="Cerca un’organizzazione nel grafo"
+                onSelect={(entity) => setGraphFocus(entity.id)}
+              />
               <select
                 aria-label="Entità al centro del grafo"
                 value={graphFocus}
@@ -1227,7 +1248,9 @@ export default function TourismWorkspace() {
               </Empty>
             )}
             <p className={s.caption}>
-              Vista esplorativa limitata a 500 entità e 1.000 relazioni; le
+              Seleziona un territorio o cerca un’organizzazione: vengono
+              caricate le sue relazioni, fino a 200 per volta. I territori di
+              ingresso e il vicinato selezionato sono viste parziali; le
               evidenze non caricate non vengono indicate come verificate.
             </p>
           </section>

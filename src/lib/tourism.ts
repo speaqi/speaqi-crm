@@ -83,6 +83,8 @@ export type Indicator = {
   rationale: string
 }
 export type EntityDetails = {
+  scope_requires_review?: boolean
+  identity_requires_review?: boolean
   description?: string
   language?: string
   place_level?: string

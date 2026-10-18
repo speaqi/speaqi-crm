@@ -43,6 +43,11 @@ const DEFAULT_TABLES = [
   'tourism_jobs',
   'tourism_acquisitions',
   'tourism_crm_matches',
+  'tourism_site_sources',
+  'tourism_site_scans',
+  'tourism_poi_candidates',
+  'tourism_project_opportunities',
+  'tourism_canonical_links',
 ]
 
 /** PostgREST tronca a 1000 righe: senza paginazione un backup e silenziosamente incompleto. */

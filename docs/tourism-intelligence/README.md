@@ -2,6 +2,8 @@
 
 Area applicativa: `/tourism`, visibile al proprietario del workspace nella sidebar del CRM. Il modulo vive nel CRM esistente e non crea una nuova applicazione o un nuovo servizio di produzione.
 
+Aggiornamento 18 ottobre 2026: [ricerca dei siti di destinazione, campione reale, pianificazione e costi](./SITE-RESEARCH.md). Il nuovo registro contiene 652 siti e il campione ha estratto 12 schede geolocalizzate; i conteggi delle acquisizioni precedenti restano snapshot storici.
+
 Documenti: [acquisizione mondiale reale](./ACQUISITION.md), [audit e architettura](./ARCHITECTURE.md), [modello dati](./DATA-MODEL.md), [verifiche e limiti](./VALIDATION.md), [campione organizzazioni CSV](./pilot-organizations.csv). Il CSV pilota contiene 8 organizzazioni di esempio; i conteggi di produzione sono in [acquisition-results.json](./acquisition-results.json).
 
 ## Stato consegnato
@@ -10,7 +12,7 @@ Documenti: [acquisizione mondiale reale](./ACQUISITION.md), [audit e architettur
 - Directory paginata, ricerca full-text, filtri combinabili, ordinamento, selezione della pagina, viste salvate per utente/browser, export CSV della selezione senza dati personali e archiviazione multipla con esito per batch.
 - Schede con fonti per attributo, revisione esplicita, versioni, storico, score documentato e relazioni. CRUD tramite API protette; UI per creazione organizzazioni, modifica e archiviazione.
 - Import CSV/TSV/JSON con anteprima ed errori per riga. Tutte le righe devono essere valide prima dell'approvazione. Per Excel: esportazione in CSV UTF-8; lettura diretta `.xlsx` non implementata.
-- Geografia e grafo relazionale con fonti; visualizzazione esplorativa fino a 500 entità. I brand/portali sono entità separate. Nel form di relazione si collegano territori; gli altri tipi di archi sono disponibili nell'API.
+- Geografia e grafo relazionale con fonti; ingresso dai territori e caricamento del vicinato selezionato fino a 200 relazioni. I brand/portali sono entità separate. Nel form di relazione si collegano territori; gli altri tipi di archi sono disponibili nell'API.
 - Add to CRM idempotente, controllo delle identità esistenti, provenienza e sync esplicita in entrambe le direzioni. Nessuna creazione automatica di campagne o deal.
 - Discovery Responses API + web search, massimo 12 candidati e 3 chiamate di ricerca per esecuzione. Solo fonti presenti nelle citazioni del provider; nessun contatto personale o score estratto dall'AI. Risultati da approvare e poi verificare.
 - Job persistenti con lease di due minuti, token del tentativo, massimo tre tentativi e ripresa manuale. Una ricerca per proprietario alla volta; limite applicativo di 10 nuove richieste/ora. Non è ancora un worker autonomo con retry pianificati.
