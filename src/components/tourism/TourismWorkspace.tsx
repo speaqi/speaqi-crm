@@ -48,6 +48,8 @@ const acquisitionSourceLabel = (source: string) =>
         'official:un-tourism': 'UN Tourism',
         'official:etc': 'European Travel Commission',
         'official:cto': 'Caribbean Tourism Organization',
+        'official:ota': 'Siti ufficiali OTA',
+        'wikipedia:ota-discovery': 'Wikipedia · scoperta OTA',
         'official:national-sites': 'Siti istituzionali e degli enti'
       } as Record<string, string>)[source] || source
 type Row = TourismEntity & {

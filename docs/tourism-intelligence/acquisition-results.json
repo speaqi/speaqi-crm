@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-10-18T05:36:32.398Z",
+  "checked_at": "2026-10-18T06:44:52.937108+00:00",
   "project": "Speaqi Crm",
   "migration": {
     "version": "20261017214525",
@@ -7,16 +7,16 @@
     "applied": true
   },
   "production": {
-    "organizations": 2859,
+    "organizations": 2905,
     "places": 250,
     "countries": 240,
-    "evidence": 3509,
+    "evidence": 3587,
     "relations": 134,
     "crm_contacts": 62164,
     "crm_links": 0,
     "verified": 0,
     "statuses": {
-      "UNVERIFIED": 3053,
+      "UNVERIFIED": 3099,
       "NEEDS_REVIEW": 56
     },
     "organization_types": {
@@ -30,17 +30,18 @@
       "ministry": 184,
       "association": 109,
       "local_office": 544,
-      "development_authority": 5
+      "development_authority": 5,
+      "ota": 46
     },
     "missing_evidence": 0,
     "candidate_pairs": 39,
     "matched_organizations": 23,
     "scope_review_organizations": 11,
-    "new_organizations": 2854,
+    "new_organizations": 2900,
     "preserved_organizations": 5,
     "reference_countries": 250,
     "countries_without_organizations": 10,
-    "organizations_within_target_scope": 2848,
+    "organizations_within_target_scope": 2894,
     "raw_exhibitor_rows": 6164,
     "worldwide_completeness": "unknown",
     "structured_country_queries": 250,
@@ -199,6 +200,26 @@
       "source": "official:national-sites",
       "rows": 33,
       "provenance": "Individual institutional / organization URLs attached to each published entity"
+    },
+    {
+      "source": "wikidata:ota-discovery",
+      "url": "https://en.wikipedia.org/wiki/Category:Online_travel_agencies",
+      "candidates": 155,
+      "published": 44,
+      "categories": 4,
+      "queries": 3,
+      "complete_for_queries": true,
+      "worldwide_completeness": "unknown"
+    },
+    {
+      "source": "official:ota",
+      "reviewed_service_or_legal_pages": 9,
+      "facts": "ota-source-facts.json"
+    },
+    {
+      "source": "wtm:london-ota-expansion",
+      "published": 2,
+      "rule": "Explicit booking-service role; a mixed OTA/travel-agency category alone is insufficient"
     }
   ],
   "deduplication": {
@@ -207,9 +228,9 @@
     "precision_not_measured": true
   },
   "verification": {
-    "python_tests": 25,
+    "python_tests": 27,
     "unit_tests": 11,
-    "database_tests": 21,
+    "database_tests": 22,
     "browser_flows": 12,
     "browser_errors": 0,
     "build": "passed; 138 pages; standalone assets prepared",
@@ -235,10 +256,28 @@
     "languages_and_country_sources_have_selection_bias": true
   },
   "artifacts": {
-    "global_csv_rows": 2859,
-    "in_scope_csv_rows": 2848,
+    "global_csv_rows": 2905,
+    "in_scope_csv_rows": 2894,
     "wtm_london_csv_rows": 3913,
     "country_gap_csv_rows": 10,
-    "raw_and_private_data_gitignored": true
+    "raw_and_private_data_gitignored": true,
+    "ota_csv_rows": 46
+  },
+  "ota_expansion": {
+    "run_key": "global-ota-public-sources-20261018",
+    "organizations_added": 46,
+    "countries": 28,
+    "wikidata_candidates_examined": 155,
+    "wikidata_organizations": 44,
+    "wtm_organizations": 2,
+    "evidence_added": 78,
+    "preexisting_organizations_unchanged": 2859,
+    "new_crm_candidates": 0,
+    "reference_data_seed": "scripts/tourism/ota-taxonomy.sql",
+    "schema_change_required": false,
+    "source_facts": "ota-source-facts.json",
+    "csv": "backups/tourism-acquisition/exports/ota-globali.csv",
+    "all_unverified": true,
+    "complete_worldwide_ota_census": false
   }
 }

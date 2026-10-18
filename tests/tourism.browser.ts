@@ -358,6 +358,9 @@ async function main() {
       .getByLabel('Corrispondenze CRM', { exact: true })
       .selectOption('')
     await page.getByRole('button', { name: 'ENIT S.p.A.' }).waitFor()
+    await page.getByLabel('Categoria', { exact: true }).selectOption('ota')
+    await page.getByRole('button', { name: 'ENIT S.p.A.' }).waitFor({ state: 'hidden' })
+    assert.equal(await page.getByLabel('Categoria', { exact: true }).inputValue(), 'ota')
     await page.getByLabel('Categoria', { exact: true }).selectOption('dmc')
     await page.getByRole('button', { name: 'Italy Creative' }).waitFor()
     await page

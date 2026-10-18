@@ -80,10 +80,39 @@ before(async () => {
       'utf8'
     )
   )
+  await db.exec(
+    await readFile(
+      new URL('../scripts/tourism/ota-taxonomy.sql', import.meta.url),
+      'utf8'
+    )
+  )
   await asUser(OWNER)
 })
 after(async () => {
   await db?.close()
+})
+
+test('OTA imports as a commercial category and remains unverified', async () => {
+  await db.exec('begin')
+  try {
+    const row = normalizeRecord({
+      ...records[0],
+      name: 'Example Online Travel Agency',
+      type_code: 'ota'
+    })
+    const result = await importRecords([row], [])
+    assert.equal(result?.created, 1)
+    assert.equal(
+      await scalar('select status as v from tourism_entities where id=$1', [result!.ids[0]]),
+      'UNVERIFIED'
+    )
+    assert.equal(
+      await scalar<boolean>("select governance as v from tourism_taxonomy where code='ota'"),
+      false
+    )
+  } finally {
+    await db.exec('rollback')
+  }
 })
 
 test('inherited Supabase grants cannot expose RPCs, trigger functions or audit sequences', async () => {

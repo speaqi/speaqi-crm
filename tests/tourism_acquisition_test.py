@@ -7,9 +7,24 @@ from acquire import Acquisition, classify_wtm, deduplicate, domain, institutiona
 from country_discovery import ancestry_reaches, tourism_organization_role, candidate_classes, ROOTS, FACILITIES
 from prepare import coverage_sql
 from official_directories import organization_names, capture_lines
+from classification import explicit_ota_role
 
 
 class AcquisitionTests(unittest.TestCase):
+    def test_ota_role_requires_booking_identity_not_a_customer_or_mixed_tag(self):
+        for description in ('online travel agency', 'Czech online travel agency and travel technology company', 'A global online marketplace to discover and book experiences. Supply partners offer tours.', 'online travel marketplace'):
+            self.assertTrue(explicit_ota_role(description), description)
+        for description in ('A software company for online travel agencies', 'Travel solutions for online travel agencies', 'We supply online travel agencies', 'Online travel agency software provider', 'Travel fare metasearch engine', 'defunct online travel agency', 'Hotel and wellness resort'):
+            self.assertFalse(explicit_ota_role(description), description)
+
+    def test_ota_fair_tag_alone_does_not_classify_a_hotel_or_software_vendor(self):
+        for primary in ('Online Travel Agent (OTA)', 'Travel Agencies & OTA’s'):
+            hit=self.fixture(name='Example Resort',primary=primary)
+            hit['exhibitorDescription']='Hotel and wellness resort'
+            self.assertIsNone(classify_wtm(hit)[0])
+            hit['exhibitorDescription']='An online travel agency'
+            self.assertEqual(classify_wtm(hit)[0],'ota')
+
     def fixture(self, name='Example DMC', country='Italy', primary='Destination Management Company (DMC)'):
         return {'id': 'exh-test', 'organisationGuid': 'org-test', 'companyName': name, 'exhibitorName': name, 'countryName': country, 'website': 'https://example.org/', 'exhibitorDescription': 'Destination management company', 'exhibitorFilters': {'Main company activity': {'lvl0': ['1:1: ' + primary]}}}
 

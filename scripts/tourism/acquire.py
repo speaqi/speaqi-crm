@@ -21,6 +21,7 @@ import urllib.request
 import urllib.robotparser
 
 import pycountry
+from classification import explicit_ota_role
 
 UA = 'SpeaqiTourismCatalog/1.0 (+https://speaqi.com)'
 EDITIONS = ('london', 'atm', 'latin-america')
@@ -210,6 +211,8 @@ def classify_wtm(hit):
     groups = ' '.join((filters.get('Product Groups') or {}).get('lvl0', [])).lower()
     name = text(hit.get('companyName') or hit.get('exhibitorName'))
     description = text(hit.get('exhibitorDescription'))
+    if explicit_ota_role(description):
+        return 'ota', 'explicit_online_booking_role'
     if 'destination management company' in main:
         return 'dmc', 'primary_activity'
     if any(value in main for value in ('tourism board', 'tourism organisation', 'tourism organization')):

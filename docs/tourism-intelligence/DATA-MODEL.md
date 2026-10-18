@@ -24,7 +24,7 @@ Brand e portale hanno UUID distinti. `OPERATES_BRAND` e `OPERATES_PORTAL` colleg
 
 ## Tassonomia iniziale
 
-Ministero; NTO/NTA; RTO; DMO; DMC; CVB; GAL; unione di comuni/comunità montana; consorzio; strada del vino; fondazione; associazione/Pro Loco; ente parco; distretto/cluster; camera di commercio; ufficio locale; rete/partnership; autorità di sviluppo; altra categoria da classificare. `Visit`, `Discover`, `Explore` e nomi equivalenti sono segnali di discovery, non categorie giuridiche o prove di governance.
+Ministero; NTO/NTA; RTO; DMO; DMC; OTA (agenzia di viaggi online, commerciale e senza governance territoriale); CVB; GAL; unione di comuni/comunità montana; consorzio; strada del vino; fondazione; associazione/Pro Loco; ente parco; distretto/cluster; camera di commercio; ufficio locale; rete/partnership; autorità di sviluppo; altra categoria da classificare. `Visit`, `Discover`, `Explore` e nomi equivalenti sono segnali di discovery, non categorie giuridiche o prove di governance.
 
 Le etichette multilingua risiedono nel registro. Le denominazioni locali si conservano nel nome e negli alias. Le categorie rappresentano un primo vocabolario editoriale; più qualifiche simultanee e sottocategorie nazionali possono essere aggiunte con una tabella di assegnazione, senza duplicare l'organizzazione.
 

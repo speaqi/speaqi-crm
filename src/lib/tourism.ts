@@ -6,6 +6,7 @@ export const TOURISM_TYPES = {
   rto: 'Agenzia regionale / RTO',
   dmo: 'DMO',
   dmc: 'DMC · commerciale',
+  ota: 'OTA · agenzia di viaggi online',
   cvb: 'Convention & Visitors Bureau',
   gal: 'GAL',
   municipal_union: 'Unione di comuni',

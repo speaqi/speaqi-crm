@@ -15,6 +15,7 @@ import urllib.parse
 
 from acquire import Acquisition, institutional_email, public_url
 from wikipedia_agencies import api, values
+from classification import explicit_ota_role
 
 ROOTS = {'Q43229','Q327333','Q192350','Q783794','Q4830453','Q3689421'}
 FACILITIES = {'Q41176','Q1587716','Q18411786','Q5','Q13442814','Q571','Q3918','Q3914','Q2385804'}
@@ -46,7 +47,7 @@ def tourism_organization_role(label, description):
         return False
     if re.search(r'television station|telecommunication company|internet service provider|software company|news agency',description,re.I):
         return False
-    if re.search(r'travel.{0,20}agency|transport(?:ation)?.{0,20}(?:company|agency)|(?:company|agency).{0,20}transport|cable car|\bcompany\b|travel platform',description+' '+label,re.I) and not re.search(r'destination management company|\bdmc\b|(?:inbound|incoming) (?:tour|travel)',combined,re.I):
+    if re.search(r'travel.{0,20}agency|transport(?:ation)?.{0,20}(?:company|agency)|(?:company|agency).{0,20}transport|cable car|\bcompany\b|travel platform',description+' '+label,re.I) and not (explicit_ota_role(description) or re.search(r'destination management company|\bdmc\b|(?:inbound|incoming) (?:tour|travel)',combined,re.I)):
         return False
     return bool(re.search(r'\b(?:ministry|agency|authority|board|bureau|organi[sz]ation|corporation|company|association|federation|council|department|commission|tour operator|dmc|tourism office|tourist office|travel agency)\b|tourismusverband|office.{0,35}tourisme|ente.{0,35}turismo|ministeri',label+' '+description,re.I))
 
@@ -154,6 +155,7 @@ def main():
         if (any(ancestry_reaches(t,parents,{'Q192350','Q2446662'}) for t in types) or re.match(r'^(?:Ministry|Ministries|Ministère|Ministerio|Ministero|Ministério|Ministerium)\b',label,re.I)) and re.search(r'touris|turis',combined,re.I):category='ministry'
         elif re.search(r'national touris[mt] (?:board|organi[sz]ation|agency)',combined,re.I):category='nto'
         elif re.search(r'touris[mt].{0,25}authority',combined,re.I):category='development_authority'
+        elif explicit_ota_role(description):category='ota'
         elif re.search(r'destination management company|\bdmc\b|(?:inbound|incoming) (?:tour|travel)',combined,re.I):category='dmc'
         elif re.search(r'convention.{0,30}bureau',combined,re.I):category='cvb'
         elif category=='other' and re.search(r'office.{0,45}touris|touris[mt].{0,20}office|tourist information (?:office|bureau)',label,re.I):category='local_office'

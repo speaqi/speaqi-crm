@@ -31,6 +31,7 @@ test('multilingual normalization retains local scripts and agrees on accented La
   assert.notEqual(nameKey('大阪観光局'), nameKey('東京都観光財団'))
 })
 test('malformed sources and invented classification are rejected', () => {
+  assert.equal(normalizeRecord({ ...base, type_code: 'ota' }).type_code, 'ota')
   assert.throws(
     () => normalizeRecord({ ...base, type_code: 'visit_brand' }),
     /Categoria/
