@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-10-18T06:44:52.937108+00:00",
+  "checked_at": "2026-10-18T10:23:13.876649+00:00",
   "project": "Speaqi Crm",
   "migration": {
     "version": "20261017214525",
@@ -7,45 +7,50 @@
     "applied": true
   },
   "production": {
-    "organizations": 2905,
+    "organizations": 3360,
     "places": 250,
     "countries": 240,
-    "evidence": 3587,
+    "evidence": 4159,
     "relations": 134,
     "crm_contacts": 62164,
     "crm_links": 0,
     "verified": 0,
     "statuses": {
-      "UNVERIFIED": 3099,
-      "NEEDS_REVIEW": 56
+      "UNVERIFIED": 3552,
+      "NEEDS_REVIEW": 58
     },
     "organization_types": {
-      "cvb": 12,
-      "dmc": 1124,
-      "dmo": 413,
-      "nto": 54,
-      "rto": 15,
+      "cvb": 15,
+      "dmc": 1431,
+      "dmo": 442,
+      "nto": 58,
+      "ota": 48,
+      "rto": 23,
       "park": 7,
       "other": 392,
+      "chamber": 3,
       "ministry": 184,
-      "association": 109,
+      "consortium": 66,
+      "foundation": 6,
+      "association": 136,
       "local_office": 544,
-      "development_authority": 5,
-      "ota": 46
+      "development_authority": 5
     },
     "missing_evidence": 0,
-    "candidate_pairs": 39,
-    "matched_organizations": 23,
+    "candidate_pairs": 93,
+    "matched_organizations": 59,
     "scope_review_organizations": 11,
-    "new_organizations": 2900,
+    "new_organizations": 3355,
     "preserved_organizations": 5,
     "reference_countries": 250,
     "countries_without_organizations": 10,
-    "organizations_within_target_scope": 2894,
+    "organizations_within_target_scope": 3349,
     "raw_exhibitor_rows": 6164,
     "worldwide_completeness": "unknown",
     "structured_country_queries": 250,
-    "structured_queries_fully_reconciled": 249
+    "structured_queries_fully_reconciled": 249,
+    "identity_review_organizations": 2,
+    "organizations_eligible_for_matching": 3347
   },
   "original_five_entities_and_evidence_unchanged": true,
   "source_groups": [
@@ -220,6 +225,18 @@
       "source": "wtm:london-ota-expansion",
       "published": 2,
       "rule": "Explicit booking-service role; a mixed OTA/travel-agency category alone is insufficient"
+    },
+    {
+      "source": "ttg:2026-cached",
+      "url": "https://www.ttgexpo.it/it/elenco-espositori",
+      "source_rows": 2266,
+      "published_new_organizations": 453,
+      "already_present": 115,
+      "identity_review": 210,
+      "outside_scope": 1488,
+      "fresh_live_directory_reconciled": false,
+      "provenance": "Dated public-profile acquisition already in the workspace fair table; no commercial notes, personal contacts or inferred scores copied",
+      "identity_review_saved": 2
     }
   ],
   "deduplication": {
@@ -228,9 +245,9 @@
     "precision_not_measured": true
   },
   "verification": {
-    "python_tests": 27,
+    "python_tests": 29,
     "unit_tests": 11,
-    "database_tests": 22,
+    "database_tests": 23,
     "browser_flows": 12,
     "browser_errors": 0,
     "build": "passed; 138 pages; standalone assets prepared",
@@ -238,7 +255,8 @@
     "anonymous_tourism_table_access": 0,
     "tourism_tables_without_rls": 0,
     "anonymous_tourism_function_execution": 0,
-    "crm_candidates_for_scope_review_records": 0
+    "crm_candidates_for_scope_review_records": 0,
+    "ttg_outside_selected_scope": 0
   },
   "cost": {
     "paid_openai_api_calls": 0,
@@ -256,12 +274,15 @@
     "languages_and_country_sources_have_selection_bias": true
   },
   "artifacts": {
-    "global_csv_rows": 2905,
-    "in_scope_csv_rows": 2894,
+    "global_csv_rows": 3360,
+    "in_scope_csv_rows": 3349,
     "wtm_london_csv_rows": 3913,
     "country_gap_csv_rows": 10,
     "raw_and_private_data_gitignored": true,
-    "ota_csv_rows": 46
+    "ota_csv_rows": 48,
+    "ttg_comparison_csv_rows": 2266,
+    "ttg_added_csv_rows": 453,
+    "ttg_review_csv_rows": 210
   },
   "ota_expansion": {
     "run_key": "global-ota-public-sources-20261018",
@@ -279,5 +300,62 @@
     "csv": "backups/tourism-acquisition/exports/ota-globali.csv",
     "all_unverified": true,
     "complete_worldwide_ota_census": false
+  },
+  "ttg_expansion": {
+    "checked_at": "2026-10-18T08:17:34.420251+00:00",
+    "source": "TTG 2026 dated workspace acquisition",
+    "source_directory": "https://www.ttgexpo.it/it/elenco-espositori",
+    "source_rows": 2266,
+    "unique_source_profiles": 2266,
+    "scope": "destination",
+    "dispositions": {
+      "outside_scope": 1488,
+      "existing": 115,
+      "new": 453,
+      "review": 210
+    },
+    "review_reasons": {
+      "possible_legal_name_domain_or_country_conflict": 122,
+      "ambiguous_exact_name": 2,
+      "missing_or_invalid_country": 71,
+      "same_name_different_website": 13,
+      "distinct_ttg_profiles_same_country_legal_name": 2
+    },
+    "new_organizations": 453,
+    "new_countries": 56,
+    "new_types": {
+      "dmc": 305,
+      "dmo": 29,
+      "association": 27,
+      "consortium": 66,
+      "rto": 8,
+      "chamber": 3,
+      "ota": 2,
+      "cvb": 3,
+      "nto": 4,
+      "foundation": 6
+    },
+    "existing_organizations": 115,
+    "live_directory_reconciled": false,
+    "source_freshness": "Original imports and workspace update dates preserved per row; no live refetch established",
+    "verified": false,
+    "run_key": "ttg-2026-catalog-20261018",
+    "added_evidence": 572,
+    "preexisting_organizations_unchanged": 2905,
+    "crm_new_candidate_pairs": 54,
+    "crm_new_matched_organizations": 36,
+    "crm_candidates_total": 93,
+    "crm_matched_organizations_total": 59,
+    "outside_selected_scope_in_production": 0,
+    "source_facts": "ttg-source-facts.json",
+    "scope_correction_backed_up": true,
+    "source_cache_first_import": "2026-10-11",
+    "workspace_fair_latest_edit": "2026-10-14",
+    "cache_edit_date_is_not_a_profile_refetch_date": true,
+    "current_network_spec_revision": "17",
+    "ttg_hosts_in_effective_allowlist": false,
+    "saved_new_entities": 455,
+    "identity_review_saved": 2,
+    "identity_review_excluded_from_matching": 2
   }
 }

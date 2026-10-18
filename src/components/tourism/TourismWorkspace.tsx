@@ -50,6 +50,7 @@ const acquisitionSourceLabel = (source: string) =>
         'official:cto': 'Caribbean Tourism Organization',
         'official:ota': 'Siti ufficiali OTA',
         'wikipedia:ota-discovery': 'Wikipedia · scoperta OTA',
+        'ttg:2026-cached': 'TTG Travel Experience 2026 · elenco già acquisito',
         'official:national-sites': 'Siti istituzionali e degli enti'
       } as Record<string, string>)[source] || source
 type Row = TourismEntity & {

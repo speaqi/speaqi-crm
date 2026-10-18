@@ -59,7 +59,7 @@ with crm as materialized (
     lower(regexp_replace(split_part(regexp_replace(coalesce(website,''),'^https?://','','i'),'/',1),'^www\\.','','i')) as website_domain,
     lower(split_part(coalesce(email,''),'@',2)) as email_domain
   from public.tourism_entities where user_id=auth.uid() and kind='organization' and status not in ('INACTIVE','DUPLICATE')
-    and coalesce(details#>>'{{acquisition,classification_rule}}','')<>'scope_requires_review'
+    and coalesce(details#>>'{{acquisition,classification_rule}}','') not in ('scope_requires_review','identity_requires_review')
 ), names as materialized (
   select e.id,e.country_code,public.tourism_name_key(n) as name_key from entities e cross join lateral unnest(array_prepend(e.name,e.aliases)) n
 ), org_domains as materialized (
@@ -141,18 +141,21 @@ def main():
     parser.add_argument('--input', default='backups/tourism-acquisition/candidates-validated.json')
     parser.add_argument('--out', default='backups/tourism-acquisition/sql')
     parser.add_argument('--coverage',nargs='*',default=[])
+    parser.add_argument('--batch-size',type=int,default=30)
     args = parser.parse_args()
+    if not 1<=args.batch_size<=200:
+        parser.error('--batch-size must be between 1 and 200')
     owner = str(uuid.UUID(args.owner))
     rows = json.loads(pathlib.Path(args.input).read_text())
     rows.sort(key=lambda record: 0 if record['kind'] == 'organization' else 1)
     out = pathlib.Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    batches=(len(rows)+29)//30
+    batches=(len(rows)+args.batch_size-1)//args.batch_size
     for stale in out.glob('import-[0-9][0-9][0-9][0-9].sql'):
         if int(stale.stem.split('-')[1])>=batches:
             stale.unlink()
-    for index in range(0, len(rows), 30):
-        (out / f'import-{index//30:04}.sql').write_text(import_sql(rows[index:index+30], owner))
+    for index in range(0, len(rows), args.batch_size):
+        (out / f'import-{index//args.batch_size:04}.sql').write_text(import_sql(rows[index:index+args.batch_size], owner))
     countries = Acquisition(out / 'metadata').country_names
     countries.update({'italia':'IT','francia':'FR','germania':'DE','regno unito':'GB','stati uniti':'US','spagna':'ES','paesi bassi':'NL','grecia':'GR'})
     (out / 'matching.sql').write_text(matching_sql(owner, countries))

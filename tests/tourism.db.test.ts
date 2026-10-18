@@ -115,6 +115,25 @@ test('OTA imports as a commercial category and remains unverified', async () => 
   }
 })
 
+test('TTG source IDs survive import without creating CRM contacts', async () => {
+  await db.exec('begin')
+  try {
+    const before = await scalar<number>('select count(*)::int as v from contacts')
+    const input = normalizeRecord({
+      ...records[0], name: 'TTG Destination Fixture', type_code: 'dmc',
+      external_ids: { ttg_2026: '8000000' }
+    })
+    const result = await importRecords([input], [])
+    assert.equal(result?.created, 1)
+    const id = result!.ids[0]
+    assert.equal(await scalar("select external_ids->>'ttg_2026' as v from tourism_entities where id=$1", [id]), '8000000')
+    assert.equal(await scalar('select status as v from tourism_entities where id=$1', [id]), 'UNVERIFIED')
+    assert.equal(await scalar<number>('select count(*)::int as v from contacts'), before)
+  } finally {
+    await db.exec('rollback')
+  }
+})
+
 test('inherited Supabase grants cannot expose RPCs, trigger functions or audit sequences', async () => {
   const functions = await db.query<{
     name: string

@@ -354,7 +354,8 @@ export function normalizeRecord(raw: unknown, method = 'import'): ImportRecord {
           'wtm',
           'wtm_london',
           'wtm_atm',
-          'wtm_latin_america'
+          'wtm_latin_america',
+          'ttg_2026'
         ].includes(k)
       )
         external_ids[k] = textValue(v, 150)

@@ -8,9 +8,32 @@ from country_discovery import ancestry_reaches, tourism_organization_role, candi
 from prepare import coverage_sql
 from official_directories import organization_names, capture_lines
 from classification import explicit_ota_role
+from ttg import classify_ttg, build_indexes, match_identity, legal_name_key
 
 
 class AcquisitionTests(unittest.TestCase):
+    def test_ttg_mixed_categories_do_not_turn_hotels_or_software_into_otas(self):
+        self.assertEqual(classify_ttg('a&o Hostels','TOUR OPERATOR: TOUR OPERATOR INCOMING')[0],'accommodation')
+        self.assertEqual(classify_ttg('Booking Software','TECNOLOGIA/WEB: TURISMO ONLINE/BOOKING & PRENOTAZIONI')[0],'technology')
+        self.assertEqual(classify_ttg('Example Incoming','TOUR OPERATOR: TOUR OPERATOR INCOMING')[0],'dmc')
+        self.assertEqual(classify_ttg('Ente turistico regionale della Carinzia','DESTINAZIONI/PROMOZIONE DEL TERRITORIO: ENTI DEL TURISMO ESTERI')[0],'rto')
+        self.assertEqual(classify_ttg('Unknown company',None)[0],'other')
+
+    def test_ttg_domain_or_legal_name_alone_is_a_review_candidate(self):
+        catalog=[{'id':'one','name':'Example Travel','country_code':'IT','aliases':['Viaggi Esempio'],'website':'https://example.org/','external_ids':{'ttg_2026':'123'}}]
+        idx=build_indexes(catalog)
+        self.assertEqual(match_identity({'name':'Viaggi Esempio'},'IT',idx)[:2],('existing','exact_name_or_sourced_alias_country'))
+        self.assertEqual(match_identity({'name':'Example Travel S.R.L.','website':'https://example.org/'},'IT',idx)[0],'review')
+        self.assertEqual(match_identity({'name':'Example Travel S.R.L.'},'IT',idx)[0],'review')
+        self.assertEqual(legal_name_key('Example Travel S.R.L.'),'example travel')
+        self.assertEqual(match_identity({'name':'Different Company','website':'https://example.org/'},'IT',idx)[0],'review')
+        self.assertEqual(match_identity({'name':'Example Travel','website':'https://different.org/'},'IT',idx)[0],'review')
+        self.assertEqual(match_identity({'name':'Example Travel'},'FR',idx)[0],'review')
+        self.assertEqual(match_identity({'name':'New Company'},None,idx)[0],'review')
+        renamed={'name':'Renamed by the user','source_url':'https://www.ttgexpo.it/it/dettaglio-profilo/x?digitalProfileId=123'}
+        self.assertEqual(match_identity(renamed,'IT',idx)[:2],('existing','stable_ttg_2026_profile_id'))
+        self.assertEqual(match_identity(renamed,'FR',idx)[0],'review')
+
     def test_ota_role_requires_booking_identity_not_a_customer_or_mixed_tag(self):
         for description in ('online travel agency', 'Czech online travel agency and travel technology company', 'A global online marketplace to discover and book experiences. Supply partners offer tours.', 'online travel marketplace'):
             self.assertTrue(explicit_ota_role(description), description)
