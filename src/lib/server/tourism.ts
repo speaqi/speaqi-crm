@@ -40,7 +40,7 @@ export function tourismError(error: unknown) {
     )
   if (
     error instanceof TourismInputError ||
-    /invalid|requires|Required|not found|denied|Only verified|required|ambiguous|already used|constraint|Immutable|Geographic cycle/i.test(
+    /invalid|requires|Required|not found|denied|Only verified|required|ambiguous|already used|already linked|matches require review|constraint|Immutable|Geographic cycle/i.test(
       message
     )
   )

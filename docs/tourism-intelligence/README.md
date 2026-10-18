@@ -2,7 +2,7 @@
 
 Area applicativa: `/tourism`, visibile al proprietario del workspace nella sidebar del CRM. Il modulo vive nel CRM esistente e non crea una nuova applicazione o un nuovo servizio di produzione.
 
-Documenti: [audit e architettura](./ARCHITECTURE.md), [modello dati](./DATA-MODEL.md), [verifiche e limiti](./VALIDATION.md), [campione organizzazioni CSV](./pilot-organizations.csv). Il CSV contiene le 8 organizzazioni; il pulsante pilota importa anche territori, brand, portale e relazioni.
+Documenti: [acquisizione mondiale reale](./ACQUISITION.md), [audit e architettura](./ARCHITECTURE.md), [modello dati](./DATA-MODEL.md), [verifiche e limiti](./VALIDATION.md), [campione organizzazioni CSV](./pilot-organizations.csv). Il CSV pilota contiene 8 organizzazioni di esempio; i conteggi di produzione sono in [acquisition-results.json](./acquisition-results.json).
 
 ## Stato consegnato
 
@@ -14,19 +14,21 @@ Documenti: [audit e architettura](./ARCHITECTURE.md), [modello dati](./DATA-MODE
 - Add to CRM idempotente, controllo delle identità esistenti, provenienza e sync esplicita in entrambe le direzioni. Nessuna creazione automatica di campagne o deal.
 - Discovery Responses API + web search, massimo 12 candidati e 3 chiamate di ricerca per esecuzione. Solo fonti presenti nelle citazioni del provider; nessun contatto personale o score estratto dall'AI. Risultati da approvare e poi verificare.
 - Job persistenti con lease di due minuti, token del tentativo, massimo tre tentativi e ripresa manuale. Una ricerca per proprietario alla volta; limite applicativo di 10 nuove richieste/ora. Non è ancora un worker autonomo con retry pianificati.
-- Campione italiano: **8 organizzazioni, 7 territori, 1 brand, 1 portale, 7 relazioni**, fonti ufficiali. Tutti i record importati nel workspace nascono non verificati. Nessun dato di produzione popolato da questa sessione.
+- Catalogo popolato sul Supabase del CRM con organizzazioni reali da WTM London, Arabian Travel Market, WTM Latin America, Wikidata e directory istituzionali. Copertura, ricevute delle acquisizioni e paesi senza organizzazioni sono visibili nella dashboard. Un paese con record non equivale a un censimento completo.
+- Matching con il CRM esistente: filtro delle organizzazioni con possibili corrispondenze, conferma o rifiuto in scheda, collegamento esplicito dopo la verifica. L'acquisizione non crea contatti CRM.
+- Il campione italiano di **8 organizzazioni, 7 territori, 1 brand, 1 portale, 7 relazioni** resta una fixture facoltativa; i record acquisiti da fonti pubbliche richiedono revisione prima della promozione.
 
 ## Prima attivazione sul CRM
 
 1. Identificare il progetto Supabase realmente usato dal CRM. Le credenziali dell'app principale non dimostrano che sia lo stesso database. Non applicare la migrazione a un progetto diverso per tentativi.
 2. Eseguire e controllare il backup pre-migrazione delle tabelle esistenti, ad esempio `npm run backup -- contacts deals activities tasks quotes lead_memories pipeline_stages team_members user_settings quote_signatures receivables`. La lista predefinita del backup è stata estesa alle nuove tabelle e va usata dopo la migrazione; il ripristino operativo resta da provare sul progetto target.
-3. Applicare `supabase/migrations/20261017205455_tourism_intelligence.sql` mediante il processo di migrazione del repository, in transazione. Non rilanciare il file su uno schema già migrato: la cronologia Supabase governa l'esecuzione singola.
+3. Applicare le migrazioni `20261017205455_tourism_intelligence.sql` e `20261017214525_tourism_acquisition_matching.sql` mediante il processo del repository, in ordine e in transazione. Non rilanciare file su uno schema già migrato: la cronologia Supabase governa l'esecuzione singola.
 4. Configurare `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` del CRM. Il modulo usa il JWT dell'utente e non necessita della service role.
 5. Per la discovery: impostare **`OPENAI_API_KEY`** lato server; opzionale `OPENAI_TOURISM_DISCOVERY_MODEL`, default `gpt-5-mini`. Una chiave destinata all'audio non viene riutilizzata. Confermare policy di rete, accesso al provider e disponibilità del modello prima di un test reale.
 6. Eseguire `npm run build`, avviare il CRM e aprire `/tourism` come proprietario. Importare il pilota dal pulsante nella dashboard vuota. Ripetere l'import non sovrascrive i dati esistenti.
 7. Aprire le fonti, verificare gli attributi, promuovere una singola organizzazione e controllare la scheda CRM. Provare poi confronto e sincronizzazione in entrambe le direzioni su dati di test. Verificare che un collaboratore riceva 403 dal modulo e non veda il link.
 
-La migrazione è stata applicata il 17 ottobre 2026 al progetto Supabase **Speaqi Crm** (`drlaoxxodjltsycbbdvn`), versione `20261017205455`. Backup locale e verifiche SQL reali sono documentati in [RELEASE.md](./RELEASE.md). Il campione pilota non è stato importato in produzione. La ricerca AI reale e il percorso browser autenticato sul deploy rimangono da verificare; i test del trasporto AI usano risposte simulate.
+Le due migrazioni sono state applicate al progetto Supabase **Speaqi Crm** (`drlaoxxodjltsycbbdvn`). Backup e verifiche del primo rilascio sono in [RELEASE.md](./RELEASE.md); popolamento reale, matching e limiti di copertura sono in [ACQUISITION.md](./ACQUISITION.md). Il pulsante del pilota non è stato usato in produzione. La ricerca AI reale e il percorso browser autenticato sul deploy rimangono da verificare; i test del trasporto AI usano risposte simulate.
 
 ## Uso del pilota
 
@@ -74,9 +76,9 @@ La build viene verificata dopo i test. Un'incompatibilità preesistente con Next
 | Discovery assistita | Responses API già usata; nuovo workflow dedicato | P1 · alta | Candidati con citazioni, selezione e approvazione; test provider reale da completare | Token e web search secondo listino configurato |
 | Job autonomi e monitoring | Scheduler CRM esistente; non collegato al modulo | P1 · alta | Worker con lease, retry/backoff, budget, allarmi e riavvio verificati | Tempo worker e provider; dipende dal volume |
 | Persone e ruoli | Contacts CRM esistenti; acquisizione nel catalogo bloccata | P1 · alta | Policy giuridica/retention, fonti per ruolo e cambi di impiego | Verifica umana, gestione richieste interessati |
-| XLSX, connettori API e directory | CSV/JSON disponibili; connettori mancanti | P1 · media/alta | Contratti fonti, licenze, limiti e aggiornamenti incrementali | API/dataset solo se approvati |
+| XLSX, connettori API e directory | CSV/JSON e acquisitori pubblici WTM/Wikidata disponibili; XLSX diretto assente | P1 · media/alta | Riconciliazione pagine, fonti per attributo, aggiornamento senza sovrascrittura | API pubbliche; revisione umana |
 | Collaboratori | Permessi CRM esistenti basati su assegnazione | P1 · alta | Ruoli catalogo read/review/export; RLS diretta e test negativi | Manutenzione permessi |
-| Copertura mondiale profonda | Non presente; pilota e schema globale consegnati | P2 · alta | Benchmark per paese, fonti amministrative standard, controlli licenze | Acquisizione + revisione, principale voce di costo |
+| Copertura mondiale profonda | Prima acquisizione globale pubblicata; profondità locale ancora parziale | P1 · alta | Benchmark per paese e categoria, directory regionali/locali, controllo delle identità | Acquisizione + revisione, principale voce di costo |
 
 ## Stima economica trasparente
 

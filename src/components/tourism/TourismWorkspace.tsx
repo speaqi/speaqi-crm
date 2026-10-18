@@ -38,9 +38,43 @@ const WorldMap = dynamic(() => import('./WorldMap'), {
   ssr: false,
   loading: () => <div className={s.mapLoading}>Caricamento mappa…</div>
 })
+const acquisitionSourceLabel = (source: string) =>
+  source.startsWith('wikidata:')
+    ? 'Wikidata'
+    : ({
+        'wtm:london': 'WTM London',
+        'wtm:atm': 'Arabian Travel Market',
+        'wtm:latin-america': 'WTM Latin America',
+        'official:un-tourism': 'UN Tourism',
+        'official:etc': 'European Travel Commission',
+        'official:cto': 'Caribbean Tourism Organization',
+        'official:national-sites': 'Siti istituzionali e degli enti'
+      } as Record<string, string>)[source] || source
 type Row = TourismEntity & {
   evidence: Evidence[]
   crm: { contact_id: string }[]
+  matches?: { contact_id: string; score: number; state: string }[]
+}
+type Coverage = {
+  reference_countries: number
+  countries_with_organizations: number
+  countries_without_organizations: number
+  matched_organizations: number
+  by_country: {
+    country_code: string
+    name: string
+    total: number
+    verified: number
+  }[]
+  runs: {
+    id: string
+    run_key: string
+    state: string
+    started_at: string
+    completed_at: string | null
+    sources: { source: string; rows: number }[]
+    stats: { organizations?: number; raw_exhibitors?: number }
+  }[]
 }
 type Overview = {
   organizations: number
@@ -74,6 +108,20 @@ type Detail = {
     phone: string | null
     status: string
   } | null
+  matches?: {
+    id: string
+    contact_id: string
+    rule: string
+    score: number
+    matched_at: string
+    contact: {
+      id: string
+      name: string
+      company: string
+      country: string | null
+      status: string
+    } | null
+  }[]
 }
 type Graph = {
   entities: TourismEntity[]
@@ -88,6 +136,7 @@ type Filters = {
   status: string
   kind: string
   sort: string
+  crm: string
 }
 const INITIAL: Filters = {
   q: '',
@@ -95,7 +144,8 @@ const INITIAL: Filters = {
   type: '',
   status: '',
   kind: 'organization',
-  sort: 'name'
+  sort: 'name',
+  crm: ''
 }
 const DialogFeedback = createContext('')
 const fmt = (v: number) => new Intl.NumberFormat('it-IT').format(v)
@@ -239,6 +289,7 @@ function Dialog({
 export default function TourismWorkspace() {
   const [tab, setTab] = useState('overview'),
     [overview, setOverview] = useState<Overview | null>(null),
+    [coverage, setCoverage] = useState<Coverage | null>(null),
     [rows, setRows] = useState<Row[]>([]),
     [total, setTotal] = useState(0),
     [page, setPage] = useState(0),
@@ -322,6 +373,19 @@ export default function TourismWorkspace() {
       })
       .catch((e) => {
         if (live) setError(e.message)
+      })
+    return () => {
+      live = false
+    }
+  }, [reload])
+  useEffect(() => {
+    let live = true
+    apiFetch<Coverage>('/api/tourism?view=coverage')
+      .then((data) => {
+        if (live) setCoverage(data)
+      })
+      .catch((error) => {
+        if (live) setError(error.message)
       })
     return () => {
       live = false
@@ -427,7 +491,7 @@ export default function TourismWorkspace() {
   const loadView = (value: string) => {
     const view = saved[Number(value)]
     if (view) {
-      setFilters(view.filters)
+      setFilters({ ...INITIAL, ...view.filters })
       setQuery(view.filters.q)
       setPage(0)
     }
@@ -528,9 +592,11 @@ export default function TourismWorkspace() {
                   sub: 'Identità distinte nel catalogo'
                 },
                 {
-                  label: 'Paesi coperti',
+                  label: 'Paesi con organizzazioni',
                   value: overview?.countries,
-                  sub: 'Espansione progressiva'
+                  sub: coverage?.reference_countries
+                    ? `Su ${fmt(coverage.reference_countries)} paesi e territori in anagrafica`
+                    : 'Copertura progressiva delle fonti'
                 },
                 {
                   label: 'Identità verificate',
@@ -553,6 +619,84 @@ export default function TourismWorkspace() {
                 </article>
               ))}
             </div>
+            {coverage && coverage.runs.length > 0 && (
+              <section
+                className={`${s.panel} ${s.coverageCard}`}
+                aria-label="Acquisizione e copertura"
+              >
+                <div className={s.panelHeading}>
+                  <div>
+                    <span className={s.eyebrow}>FONTI E COPERTURA</span>
+                    <h2>Il catalogo cresce per acquisizioni documentate</h2>
+                  </div>
+                  <span>
+                    {fmt(coverage.matched_organizations)} organizzazioni con
+                    corrispondenze CRM
+                  </span>
+                </div>
+                <p>
+                  {fmt(coverage.countries_without_organizations)} paesi e
+                  territori non hanno ancora organizzazioni censite. La presenza
+                  di record in un paese non indica un censimento completo.
+                </p>
+                {coverage.runs.slice(0, 3).map((run) => (
+                  <div
+                    className={`${s.relationRow} ${s.sourceRun}`}
+                    key={run.id}
+                  >
+                    <span>{date(run.completed_at || run.started_at)}</span>
+                    <strong>
+                      {[
+                        ...new Set(
+                          run.sources.map((source) =>
+                            acquisitionSourceLabel(source.source)
+                          )
+                        )
+                      ].join(' · ')}
+                    </strong>
+                    <small>
+                      {run.state === 'completed'
+                        ? 'Acquisizione registrata'
+                        : run.state === 'running'
+                          ? 'Acquisizione in corso'
+                          : 'Acquisizione parziale'}
+                    </small>
+                  </div>
+                ))}
+                <details>
+                  <summary>Copertura per paese e territorio</summary>
+                  <div className={`${s.tableWrap} ${s.coverageTable}`}>
+                    <table className={s.table}>
+                      <thead>
+                        <tr>
+                          <th>Paese / territorio</th>
+                          <th>Organizzazioni</th>
+                          <th>Verificate</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {coverage.by_country.map((country) => (
+                          <tr key={country.country_code}>
+                            <td>
+                              <button
+                                className={s.textButton}
+                                onClick={() =>
+                                  selectCountry(country.country_code)
+                                }
+                              >
+                                {countryName(country.country_code)}
+                              </button>
+                            </td>
+                            <td>{fmt(country.total)}</td>
+                            <td>{fmt(country.verified)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              </section>
+            )}
             <div className={s.overviewGrid}>
               <section className={s.panel}>
                 <div className={s.panelHeading}>
@@ -811,6 +955,14 @@ export default function TourismWorkspace() {
             </div>
             <div className={s.directoryTools}>
               <select
+                aria-label="Corrispondenze CRM"
+                value={filters.crm || ''}
+                onChange={(event) => setFilter('crm', event.target.value)}
+              >
+                <option value="">Tutti gli stati CRM</option>
+                <option value="matched">Corrispondenze da confermare</option>
+              </select>
+              <select
                 aria-label="Tipo di entità"
                 value={filters.kind}
                 onChange={(e) => setFilter('kind', e.target.value)}
@@ -961,7 +1113,13 @@ export default function TourismWorkspace() {
                         </td>
                         <td>
                           <span className={r.crm?.length ? s.linked : s.muted}>
-                            {r.crm?.length ? 'Collegata' : 'Da qualificare'}
+                            {r.crm?.length
+                              ? 'Collegata'
+                              : r.matches?.some(
+                                    (match) => match.state === 'candidate'
+                                  )
+                                ? 'Corrispondenza da confermare'
+                                : 'Da qualificare'}
                           </span>
                         </td>
                       </tr>
@@ -1341,7 +1499,11 @@ export default function TourismWorkspace() {
                   {detail.entity.kind === 'organization' && !detail.contact && (
                     <button
                       className={s.primary}
-                      disabled={busy || detail.entity.status !== 'VERIFIED'}
+                      disabled={
+                        busy ||
+                        detail.entity.status !== 'VERIFIED' ||
+                        Boolean(detail.matches?.length)
+                      }
                       onClick={() =>
                         setConfirmation({
                           label: `Aggiungere ${detail.entity.name} al CRM? Il sistema cercherà un’identità esistente e registrerà la provenienza.`,
@@ -1364,6 +1526,79 @@ export default function TourismWorkspace() {
                     </button>
                   )}
                 </div>
+                {!detail.contact && Boolean(detail.matches?.length) && (
+                  <section className={s.detailSection}>
+                    <h3>Corrispondenze nel CRM da confermare</h3>
+                    <p>
+                      Il confronto usa denominazione, paese e dominio. Verifica
+                      l’identità e scegli il contatto corretto prima di
+                      collegarlo; i recapiti esistenti saranno conservati.
+                    </p>
+                    {detail.matches
+                      ?.filter((match) => match.contact)
+                      .map((match) => (
+                        <div className={s.source} key={match.id}>
+                          <Link href={`/contacts/${match.contact_id}`}>
+                            {match.contact?.company || match.contact?.name} ↗
+                          </Link>
+                          <p>
+                            {match.rule === 'name_country'
+                              ? 'Stessa denominazione e paese'
+                              : match.rule === 'name'
+                                ? 'Stessa denominazione, paese da controllare'
+                                : match.rule === 'website_domain'
+                                  ? 'Stesso dominio del sito'
+                                  : 'Dominio email corrispondente'}{' '}
+                            · corrispondenza {match.score}/100
+                          </p>
+                          <div className={s.actions}>
+                            <button
+                              className={s.primary}
+                              disabled={
+                                busy || detail.entity.status !== 'VERIFIED'
+                              }
+                              onClick={() =>
+                                setConfirmation({
+                                  label: `Confermi che ${detail.entity.name} corrisponde al contatto CRM selezionato? Nessun recapito sarà sovrascritto.`,
+                                  run: async () => {
+                                    await post({
+                                      action: 'link_existing',
+                                      id: detail.entity.id,
+                                      contact_id: match.contact_id,
+                                      version: detail.entity.version
+                                    })
+                                    refresh()
+                                    notify(
+                                      'Contatto esistente collegato; nessun duplicato creato'
+                                    )
+                                  }
+                                })
+                              }
+                            >
+                              Conferma collegamento
+                            </button>
+                            <button
+                              className={s.secondary}
+                              disabled={busy}
+                              onClick={() =>
+                                act(async () => {
+                                  await post({
+                                    action: 'dismiss_match',
+                                    id: detail.entity.id,
+                                    contact_id: match.contact_id
+                                  })
+                                  refresh()
+                                  notify('Corrispondenza esclusa')
+                                })
+                              }
+                            >
+                              Non corrisponde
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                  </section>
+                )}
                 <section className={s.detailSection}>
                   <h3>Identità e presenza digitale</h3>
                   <dl className={s.identityGrid}>

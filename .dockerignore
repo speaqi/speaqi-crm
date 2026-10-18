@@ -5,3 +5,5 @@ node_modules
 .gemini
 *.md
 .env*
+backups
+**/__pycache__

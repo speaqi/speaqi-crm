@@ -1,0 +1,53 @@
+
+> speaqi-crm@2.0.0 test:tourism
+> node --import tsx tests/tourism.unit.test.ts && node --import tsx tests/tourism.db.test.ts
+
+✔ Tourism is reserved to the owner even when a collaborator has all other application areas (1.237755ms)
+✔ multilingual normalization retains local scripts and agrees on accented Latin names (0.697177ms)
+✔ malformed sources and invented classification are rejected (0.807658ms)
+✔ URLs are safe links and never credential-bearing or local addresses (0.249203ms)
+✔ CSV parsing reuses quoted multiline support and reports row failures before import (0.720438ms)
+✔ import bounds are enforced before writes (1.494253ms)
+✔ unknown indicators never become a negative or positive score (0.596773ms)
+✔ configurable score is normalized and requires sufficient evidence coverage (0.143468ms)
+✔ CSV exports escape spreadsheet formulas and quoted names (0.628304ms)
+✔ AI candidates require real provider citations and never import personal contacts or scoring (0.796344ms)
+✔ provider transport uses web search, source inclusion and a bounded request (26.505646ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 51.11707
+✔ inherited Supabase grants cannot expose RPCs, trigger functions or audit sequences (3146.814715ms)
+✔ pilot imports atomically with evidence, geographic coverage and no CRM writes (69.156381ms)
+✔ reimport preserves manual edits, evidence and reviews (21.845553ms)
+✔ failing import rolls back previous rows and their audits (6.402511ms)
+✔ unverified identities cannot be promoted even through RPC or direct SQL (4.874257ms)
+✔ CRM promotion is repeatable and creates neither outreach eligibility nor activities twice (49.402404ms)
+✔ editing a verified entity invalidates evidence and preserves before/after history (5.345139ms)
+✔ stale review is rejected, and rejecting a source removes verified status (11.507548ms)
+✔ RLS blocks another workspace including direct REST-style updates and RPCs (6.142446ms)
+✔ typed relations reject DMC to brand as territorial governance and geographic cycles (9.182831ms)
+✔ expired discovery jobs can resume and active jobs cannot run concurrently (7.381687ms)
+✔ international names remain distinct and full text supports searches outside Latin script (6.581719ms)
+✔ overview totals are database-wide, not limited to the first page (3.447828ms)
+✔ null versions and invalid personal-data imports are rejected at the database boundary (6.497222ms)
+✔ score observations and evidence are saved atomically and require new review (12.337429ms)
+✔ CRM country ambiguity and shared email never create silent duplicate accounts (21.95944ms)
+✔ deleting unlinked records preserves append-only audit history (7.412741ms)
+Tourism local performance: 600 fixture records in 462ms; 2 search pages in 3ms (PGlite, not a production benchmark).
+✔ batch ingestion and full-text pagination work beyond a single directory page (465.830466ms)
+✔ CRM suggestions require verified identity and explicit linking, without replacing CRM fields (21.869345ms)
+✔ match suggestions and acquisition receipts enforce workspace boundaries and explicit grants (13.395378ms)
+✔ coverage separates geographic reference countries, missing organizations and verified links (8.363187ms)
+ℹ tests 21
+ℹ suites 0
+ℹ pass 21
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3931.793614

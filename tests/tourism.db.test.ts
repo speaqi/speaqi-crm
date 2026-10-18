@@ -71,6 +71,15 @@ before(async () => {
       'utf8'
     )
   )
+  await db.exec(
+    await readFile(
+      new URL(
+        '../supabase/migrations/20261017214525_tourism_acquisition_matching.sql',
+        import.meta.url
+      ),
+      'utf8'
+    )
+  )
   await asUser(OWNER)
 })
 after(async () => {
@@ -78,21 +87,42 @@ after(async () => {
 })
 
 test('inherited Supabase grants cannot expose RPCs, trigger functions or audit sequences', async () => {
-  const functions = await db.query<{ name: string; anon: boolean; authenticated: boolean }>(`
+  const functions = await db.query<{
+    name: string
+    anon: boolean
+    authenticated: boolean
+  }>(`
     select proname as name,
       has_function_privilege('anon',p.oid,'EXECUTE') as anon,
       has_function_privilege('authenticated',p.oid,'EXECUTE') as authenticated
     from pg_proc p join pg_namespace n on n.oid=p.pronamespace
     where n.nspname='public' and proname like 'tourism_%'
   `)
-  assert.equal(functions.rows.length, 15)
-  const internal = new Set(['tourism_audit', 'tourism_entity_guard', 'tourism_evidence_guard', 'tourism_evidence_invalidate', 'tourism_relation_guard', 'tourism_link_guard'])
+  assert.ok(functions.rows.length >= 18)
+  const internal = new Set([
+    'tourism_audit',
+    'tourism_entity_guard',
+    'tourism_evidence_guard',
+    'tourism_evidence_invalidate',
+    'tourism_relation_guard',
+    'tourism_link_guard',
+    'tourism_match_guard'
+  ])
   for (const fn of functions.rows) {
     assert.equal(fn.anon, false, `${fn.name} must deny anonymous execution`)
-    assert.equal(fn.authenticated, !internal.has(fn.name), `${fn.name} has unexpected authenticated grants`)
+    assert.equal(
+      fn.authenticated,
+      !internal.has(fn.name),
+      `${fn.name} has unexpected authenticated grants`
+    )
   }
   for (const role of ['anon', 'authenticated']) {
-    assert.equal(await scalar<boolean>(`select has_sequence_privilege('${role}','tourism_revisions_id_seq','USAGE') as v`), false)
+    assert.equal(
+      await scalar<boolean>(
+        `select has_sequence_privilege('${role}','tourism_revisions_id_seq','USAGE') as v`
+      ),
+      false
+    )
   }
 })
 
@@ -548,4 +578,169 @@ test('batch ingestion and full-text pagination work beyond a single directory pa
   console.log(
     `Tourism local performance: 600 fixture records in ${Math.round(queryStarted - started)}ms; 2 search pages in ${Math.round(performance.now() - queryStarted)}ms (PGlite, not a production benchmark).`
   )
+})
+
+test('CRM suggestions require verified identity and explicit linking, without replacing CRM fields', async () => {
+  const imported = await importRecords(
+    [
+      normalizeRecord({
+        ...pilot.records[0],
+        name: 'Match review fixture',
+        email: null,
+        phone: null
+      })
+    ],
+    []
+  )
+  const id = imported.ids[0]
+  const contact = await scalar(
+    "insert into contacts(user_id,name,company,country,email,phone,status,marketing_eligibility) values($1,'Existing identity','Original CRM identity','IT','preserved@example.org','+390123','New','review') returning id as v",
+    [OWNER]
+  )
+  await db.query(
+    "insert into tourism_crm_matches(user_id,entity_id,contact_id,rule,score) values($1,$2,$3,'website_domain',97)",
+    [OWNER, id, contact]
+  )
+  await assert.rejects(
+    () => db.query('select tourism_link_existing($1,$2,1)', [id, contact]),
+    /Verified organization required/
+  )
+  await verify(id)
+  const version = await scalar<number>(
+    'select version as v from tourism_entities where id=$1',
+    [id]
+  )
+  const before = await scalar<number>('select count(*)::int as v from contacts')
+  await assert.rejects(
+    () => db.query('select tourism_promote($1)', [id]),
+    /matches require review/
+  )
+  assert.equal(
+    await scalar<number>('select count(*)::int as v from contacts'),
+    before
+  )
+  await assert.rejects(
+    () => db.query('select tourism_link_existing($1,$2,999)', [id, contact]),
+    /Version conflict/
+  )
+  const first = await scalar<{ contact_id: string; created: boolean }>(
+    'select tourism_link_existing($1,$2,$3) as v',
+    [id, contact, version]
+  )
+  const repeated = await scalar<{ contact_id: string; created: boolean }>(
+    'select tourism_link_existing($1,$2,$3) as v',
+    [id, contact, version]
+  )
+  assert.equal(first.contact_id, contact)
+  assert.deepEqual(repeated, first)
+  assert.equal(first.created, false)
+  assert.equal(
+    await scalar('select email as v from contacts where id=$1', [contact]),
+    'preserved@example.org'
+  )
+  assert.equal(
+    await scalar('select phone as v from contacts where id=$1', [contact]),
+    '+390123'
+  )
+  assert.equal(
+    await scalar(
+      'select state as v from tourism_crm_matches where entity_id=$1',
+      [id]
+    ),
+    'confirmed'
+  )
+  assert.equal(
+    await scalar<number>(
+      'select count(*)::int as v from activities where contact_id=$1',
+      [contact]
+    ),
+    1
+  )
+})
+
+test('match suggestions and acquisition receipts enforce workspace boundaries and explicit grants', async () => {
+  const entity = await scalar(
+    "select id as v from tourism_entities where name='Match review fixture'"
+  )
+  await asUser(OTHER)
+  const otherContact = await scalar(
+    "insert into contacts(user_id,name,status) values($1,'Other workspace','New') returning id as v",
+    [OTHER]
+  )
+  await asUser(OWNER)
+  await assert.rejects(
+    () =>
+      db.query(
+        "insert into tourism_crm_matches(user_id,entity_id,contact_id,rule,score) values($1,$2,$3,'name',80)",
+        [OWNER, entity, otherContact]
+      ),
+    /Cross-workspace CRM match denied/
+  )
+  await db.query(
+    "insert into tourism_acquisitions(user_id,run_key,state,sources,stats) values($1,'test-public-sources','completed','[]','{}')",
+    [OWNER]
+  )
+  for (const table of ['tourism_crm_matches', 'tourism_acquisitions']) {
+    assert.equal(
+      await scalar<boolean>(
+        `select has_table_privilege('anon','${table}','SELECT') as v`
+      ),
+      false
+    )
+    assert.equal(
+      await scalar<boolean>(
+        `select has_table_privilege('authenticated','${table}','TRUNCATE') as v`
+      ),
+      false
+    )
+  }
+  await asUser(OTHER)
+  assert.equal(
+    await scalar<number>('select count(*)::int as v from tourism_crm_matches'),
+    0
+  )
+  assert.equal(
+    await scalar<number>('select count(*)::int as v from tourism_acquisitions'),
+    0
+  )
+  await asUser(OWNER)
+})
+
+test('coverage separates geographic reference countries, missing organizations and verified links', async () => {
+  await importRecords(
+    ['IT', 'GB'].map((code) =>
+      normalizeRecord({
+        kind: 'place',
+        name: 'Country coverage ' + code,
+        country_code: code,
+        details: { place_level: 'country' },
+        evidence: {
+          source_url: 'https://example.org/geography/' + code,
+          title: 'Country reference',
+          fields: ['name', 'country_code']
+        }
+      })
+    ),
+    []
+  )
+  const coverage = await scalar<{
+    reference_countries: number
+    countries_without_organizations: number
+    by_country: { country_code: string; total: number }[]
+    runs: unknown[]
+  }>('select tourism_catalog_coverage() as v')
+  assert.equal(coverage.reference_countries, 2)
+  assert.equal(coverage.countries_without_organizations, 1)
+  assert.equal(
+    coverage.by_country.find((row) => row.country_code === 'GB')?.total,
+    0
+  )
+  assert.equal(coverage.runs.length, 1)
+  await asUser(OTHER)
+  const other = await scalar<{ reference_countries: number; runs: unknown[] }>(
+    'select tourism_catalog_coverage() as v'
+  )
+  assert.equal(other.reference_countries, 0)
+  assert.equal(other.runs.length, 0)
+  await asUser(OWNER)
 })

@@ -234,6 +234,28 @@
   padding: 22px;
   min-width: 0;
 }
+.coverageCard {
+  margin-bottom: 24px;
+}
+.coverageCard .panelHeading,
+.sourceRun {
+  flex-wrap: wrap;
+}
+.coverageCard p {
+  color: #60736a;
+  font-size: 12px;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+.sourceRun strong {
+  flex: 1;
+  min-width: 160px;
+  overflow-wrap: anywhere;
+}
+.coverageTable {
+  max-height: 360px;
+  overflow: auto;
+}
 .panelHeading {
   display: flex;
   justify-content: space-between;

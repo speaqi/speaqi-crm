@@ -76,13 +76,23 @@ export const SCORE_FACTORS = {
   product_fit: { label: 'Compatibilità Speaqi', weight: 10 }
 } as const
 export type FactorKey = keyof typeof SCORE_FACTORS
-export type Indicator = { value: number; source_url: string; rationale: string }
+export type Indicator = {
+  value: number
+  source_url: string
+  rationale: string
+}
 export type EntityDetails = {
   description?: string
   language?: string
   place_level?: string
   latitude?: number
   longitude?: number
+  acquisition?: {
+    source: string
+    classification_rule?: string
+    self_reported?: boolean
+    event_edition_id?: string
+  }
   indicators?: Partial<Record<FactorKey, Indicator>>
 }
 export type TourismEntity = {
@@ -279,6 +289,15 @@ export function normalizeRecord(raw: unknown, method = 'import'): ImportRecord {
     language: textValue(d.language, 12),
     place_level: textValue(d.place_level, 60)
   }
+  if (d.acquisition && typeof d.acquisition === 'object') {
+    const source = d.acquisition as Record<string, unknown>
+    details.acquisition = {
+      source: textValue(source.source, 100),
+      classification_rule: textValue(source.classification_rule, 100),
+      self_reported: source.self_reported === true,
+      event_edition_id: textValue(source.event_edition_id, 150)
+    }
+  }
   if (d.latitude !== undefined || d.longitude !== undefined) {
     if (
       typeof d.latitude !== 'number' ||
@@ -324,7 +343,19 @@ export function normalizeRecord(raw: unknown, method = 'import'): ImportRecord {
   const external_ids: Record<string, string> = {}
   if (r.external_ids && typeof r.external_ids === 'object')
     for (const [k, v] of Object.entries(r.external_ids)) {
-      if (['wikidata', 'geonames', 'osm', 'iso', 'speaqi'].includes(k))
+      if (
+        [
+          'wikidata',
+          'geonames',
+          'osm',
+          'iso',
+          'speaqi',
+          'wtm',
+          'wtm_london',
+          'wtm_atm',
+          'wtm_latin_america'
+        ].includes(k)
+      )
         external_ids[k] = textValue(v, 150)
     }
   return {
@@ -447,7 +478,13 @@ export function opportunityScore(
         : score >= 50
           ? 'PRIORITY B'
           : 'PRIORITY C'
-  return { score, coverage, priority, factors, formula: 'weighted-verified-v1' }
+  return {
+    score,
+    coverage,
+    priority,
+    factors,
+    formula: 'weighted-verified-v1'
+  }
 }
 
 export function duplicateHints(

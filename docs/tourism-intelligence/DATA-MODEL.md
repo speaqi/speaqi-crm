@@ -1,6 +1,6 @@
 # Modello dati e regole operative
 
-La migrazione additiva è `supabase/migrations/20261017205455_tourism_intelligence.sql`. Tutte le tabelle del catalogo sono distinte da contatti, trattative e progetti CRM.
+Le migrazioni additive sono `supabase/migrations/20261017205455_tourism_intelligence.sql` e `20261017214525_tourism_acquisition_matching.sql`. Tutte le tabelle del catalogo sono distinte da contatti, trattative e progetti CRM.
 
 | Tabella | Grana, chiavi e contenuto | Integrità |
 | --- | --- | --- |
@@ -11,12 +11,14 @@ La migrazione additiva è `supabase/migrations/20261017205455_tourism_intelligen
 | `tourism_crm_links` | Collegamento esplicito organizzazione → contatto aziendale CRM | Una organizzazione ha al massimo un collegamento. Trigger controlla workspace e identità verificata. Nessuna sincronizzazione implicita |
 | `tourism_revisions` | Un evento di modifica di entità, fonte, relazione o collegamento | Attore, data, operazione, snapshot precedente e successivo. Inserimenti tramite trigger; l'utente può leggere il proprio audit ma non scriverlo o modificarlo |
 | `tourism_jobs` | Una ricerca discovery con stato, tentativi, lease, risultati e consumo | Coda persistente; massimo tre tentativi; esclusione di ricerche simultanee per proprietario; token della lease impedisce a una risposta precedente di sovrascrivere il tentativo corrente |
+| `tourism_acquisitions` | Ricevuta di un'acquisizione: fonti, ambito, conteggi, errori, date | RLS del proprietario, chiave esecuzione univoca, audit; completata indica il batch documentato, non la completezza mondiale |
+| `tourism_crm_matches` | Suggerimento organizzazione → contatto, regola, punteggio e stato candidato/confermato/rifiutato | FK workspace/entità e trigger sul contatto impediscono riferimenti fra workspace; suggerimenti distinti dai collegamenti confermati |
 
 ## Entità e geografia
 
 `kind=place` rappresenta paesi, aree amministrative e destinazioni. `details.place_level` descrive il livello locale senza imporre una gerarchia italiana. `PART_OF` può rappresentare più appartenenze; un grafo aciclico sostituisce una struttura rigida continente/regione/provincia/comune. I collegamenti `COVERS`, `PROMOTES`, `MANAGES` supportano molti-a-molti e sovrapposizioni. Perimetri geometrici e identificativi amministrativi completi non sono caricati automaticamente.
 
-`external_ids` accoglie riferimenti Wikidata, GeoNames, OSM, ISO e Speaqi. Sono riferimenti dichiarati, non una prova di corrispondenza. La deduplica per identificativo esterno e la riconciliazione con le destinazioni dell'app principale sono evoluzioni da validare; nessuna connessione al database principale è supposta.
+`external_ids` accoglie riferimenti Wikidata, GeoNames, OSM, ISO, Speaqi e le edizioni WTM. Sono riferimenti dichiarati, non una verifica dell'identità. Gli acquisitori riconciliano identificativi stabili e nomi normalizzati entro lo stesso paese, conservando alias e fonti. Un dominio condiviso non determina una fusione. La riconciliazione con le destinazioni dell'app principale resta da implementare.
 
 Brand e portale hanno UUID distinti. `OPERATES_BRAND` e `OPERATES_PORTAL` collegano il gestore documentato. `MEMBER_OF` e `PARTNER_OF` modellano reti e collaborazioni. `WORKS_FOR` prepara il collegamento professionale, ma l'importazione di `person` è bloccata fino al workflow su base giuridica, conservazione e diritti delle persone. Nel pilota sono ammessi solo recapiti istituzionali pubblici documentati.
 
@@ -46,6 +48,10 @@ Sotto il 60% di copertura: `NOT QUALIFIED`. Altrimenti A ≥75, B ≥50, C <50. 
 ## CRM
 
 `tourism_promote` richiede un'organizzazione verificata e usa una transazione con lock. Cerca un contatto con identità e paese coincidenti; un nome coincidente con paese non normalizzato o una email condivisa da identità diverse blocca la creazione e richiede revisione. Le differenze fra “Italia” e “IT” non generano duplicati silenziosi. Non c'è fusione fuzzy automatica.
+
+Il matching di acquisizione confronta nomi/alias e paese, domini web e domini email istituzionali, escludendo piattaforme condivise e fornitori di email gratuiti. Propone al massimo cinque contatti per organizzazione. Il punteggio codifica la regola di confronto, non una probabilità calibrata o una verifica. Rieseguire il matching conserva conferme e rifiuti e rimuove solo suggerimenti candidati non più attuali.
+
+La presenza di candidati irrisolti blocca la creazione di un nuovo contatto. `tourism_link_existing` richiede organizzazione verificata, versione corrente, candidato esistente e contatto nello stesso workspace. Confermare il collegamento non sovrascrive i campi del contatto; crea il ponte e una nota di sistema.
 
 Un nuovo contatto aziendale nasce `New`, scope `crm`, fonte `tourism-intelligence`, `marketing_eligibility=review`, riferimento stabile al catalogo. Sono copiati solo recapiti coperti da evidenza verificata. Non vengono creati task, deal, progetti, campagne o invii. La futura assegnazione a pipeline riutilizzerà i processi CRM esistenti. Il contatto aziendale è un ponte di compatibilità: il CRM non ha ancora un account canonico separato dalle persone.
 

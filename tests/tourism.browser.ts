@@ -32,6 +32,30 @@ const evidence = rows.map((r, i) => ({
   verified_at: null as string | null,
   verified_by: null as string | null
 }))
+const existingContact = {
+  id: '77777777-7777-4777-8777-777777777777',
+  name: 'Contatto esistente',
+  company: 'Toscana CRM esistente',
+  email: 'preserved@example.org',
+  phone: '+390123',
+  country: 'IT',
+  status: 'In progress'
+}
+const suggestions = new Map([
+  [
+    rows[1].id,
+    [
+      {
+        id: '88888888-8888-4888-8888-888888888888',
+        contact_id: existingContact.id,
+        score: 97,
+        rule: 'website_domain',
+        matched_at: now,
+        contact: existingContact
+      }
+    ]
+  ]
+])
 const relations = pilot.relations.map((r, i) => ({
   id: `edge-${i}`,
   from_id: rows[r.from_index].id,
@@ -123,6 +147,33 @@ async function main() {
       }
       if (url.pathname === '/api/tourism') {
         if (route.request().method() === 'GET') {
+          if (url.searchParams.get('view') === 'coverage')
+            return json({
+              reference_countries: 2,
+              countries_with_organizations: 1,
+              countries_without_organizations: 1,
+              matched_organizations: suggestions.size,
+              by_country: [
+                { country_code: 'IT', name: 'Italy', total: 8, verified: 0 },
+                {
+                  country_code: 'GB',
+                  name: 'United Kingdom',
+                  total: 0,
+                  verified: 0
+                }
+              ],
+              runs: [
+                {
+                  id: 'fixture-run',
+                  run_key: 'fixture-public-sources',
+                  state: 'completed',
+                  started_at: now,
+                  completed_at: now,
+                  sources: [{ source: 'wtm:london', rows: 8 }],
+                  stats: { organizations: 8, raw_exhibitors: 8 }
+                }
+              ]
+            })
           if (url.searchParams.get('view') === 'overview')
             return json({
               organizations: rows.filter((r) => r.kind === 'organization')
@@ -170,21 +221,30 @@ async function main() {
                   created_at: now
                 }
               ],
-              contact: entity.crm.length
-                ? {
-                    id: entity.crm[0].contact_id,
-                    name: entity.name,
-                    company: entity.name,
-                    email: entity.email,
-                    phone: entity.phone,
-                    status: 'New'
-                  }
-                : null
+              matches: suggestions.get(id) || [],
+              contact:
+                entity.crm.length &&
+                entity.crm[0].contact_id === existingContact.id
+                  ? existingContact
+                  : entity.crm.length
+                    ? {
+                        id: entity.crm[0].contact_id,
+                        name: entity.name,
+                        company: entity.name,
+                        email: entity.email,
+                        phone: entity.phone,
+                        status: 'New'
+                      }
+                    : null
             })
           }
           let entities = rows.filter(
             (r) => r.kind === (url.searchParams.get('kind') || 'organization')
           )
+          if (url.searchParams.get('crm') === 'matched')
+            entities = entities.filter((row) =>
+              Boolean(suggestions.get(row.id)?.length)
+            )
           for (const [param, column] of [
             ['country', 'country_code'],
             ['type', 'type_code'],
@@ -201,6 +261,10 @@ async function main() {
           return json({
             entities: entities.map((r) => ({
               ...r,
+              matches: (suggestions.get(r.id) || []).map((match) => ({
+                ...match,
+                state: 'candidate'
+              })),
               evidence: evidence.filter((e) => e.entity_id === r.id)
             })),
             total: entities.length,
@@ -225,6 +289,13 @@ async function main() {
           r.crm = [{ contact_id: '66666666-6666-4666-8666-666666666666' }]
           return json({ contact_id: r.crm[0].contact_id, created: true })
         }
+        if (body.action === 'link_existing') {
+          const row = rows.find((r) => r.id === body.id)!
+          assert.equal(row.status, 'VERIFIED')
+          row.crm = [{ contact_id: existingContact.id }]
+          suggestions.delete(row.id)
+          return json({ contact_id: existingContact.id, created: false })
+        }
         return json({ created: 1, duplicates: 0 })
       }
       if (url.pathname === '/api/team-members')
@@ -244,6 +315,21 @@ async function main() {
       .getByRole('heading', { name: 'Global Tourism Intelligence.' })
       .waitFor({ timeout: 60000 })
     await page.getByText('Una prospettiva globale').waitFor()
+    await page
+      .getByRole('region', { name: 'Acquisizione e copertura' })
+      .waitFor()
+    await page
+      .getByText('Copertura per paese e territorio', { exact: true })
+      .click()
+    assert.equal(
+      await page
+        .getByRole('button', { name: 'Regno Unito', exact: true })
+        .count(),
+      1
+    )
+    await page
+      .getByText('Copertura per paese e territorio', { exact: true })
+      .click()
     await page.locator('.leaflet-overlay-pane path').first().waitFor()
     await page.screenshot({
       path: output + '/overview-desktop.png',
@@ -258,6 +344,19 @@ async function main() {
       .getByRole('button', { name: 'Directory', exact: false })
       .first()
       .click()
+    await page.getByRole('button', { name: 'ENIT S.p.A.' }).waitFor()
+    await page
+      .getByLabel('Corrispondenze CRM', { exact: true })
+      .selectOption('matched')
+    await page
+      .getByRole('button', { name: 'Toscana Promozione Turistica' })
+      .waitFor()
+    await page
+      .getByRole('button', { name: 'ENIT S.p.A.' })
+      .waitFor({ state: 'hidden' })
+    await page
+      .getByLabel('Corrispondenze CRM', { exact: true })
+      .selectOption('')
     await page.getByRole('button', { name: 'ENIT S.p.A.' }).waitFor()
     await page.getByLabel('Categoria', { exact: true }).selectOption('dmc')
     await page.getByRole('button', { name: 'Italy Creative' }).waitFor()
@@ -306,6 +405,60 @@ async function main() {
       fullPage: true
     })
     await detail.getByRole('button', { name: 'Chiudi finestra' }).click()
+    await page
+      .getByRole('button', { name: 'Toscana Promozione Turistica' })
+      .click()
+    const matchingDetail = page.getByRole('dialog', {
+      name: 'Toscana Promozione Turistica'
+    })
+    await matchingDetail
+      .getByRole('heading', { name: 'Corrispondenze nel CRM da confermare' })
+      .waitFor()
+    assert.equal(
+      await matchingDetail
+        .getByRole('button', { name: 'Add to CRM' })
+        .isDisabled(),
+      true
+    )
+    assert.equal(
+      await matchingDetail
+        .getByRole('button', { name: 'Conferma collegamento' })
+        .isDisabled(),
+      true
+    )
+    await matchingDetail
+      .getByRole('button', { name: 'Conferma verifica' })
+      .first()
+      .click()
+    await page
+      .getByRole('dialog', { name: 'Conferma operazione' })
+      .getByRole('button', { name: 'Conferma', exact: true })
+      .click()
+    await matchingDetail
+      .getByText('Identità verificata', { exact: true })
+      .waitFor()
+    await matchingDetail
+      .getByRole('button', { name: 'Conferma collegamento' })
+      .click()
+    await page
+      .getByRole('dialog', { name: 'Conferma operazione' })
+      .getByRole('button', { name: 'Conferma', exact: true })
+      .click()
+    await matchingDetail
+      .getByRole('heading', { name: 'Collegamento CRM' })
+      .waitFor()
+    await matchingDetail
+      .getByRole('link', { name: 'Toscana CRM esistente' })
+      .waitFor()
+    assert.equal(
+      calls.some(
+        (call) => call.body.action === 'promote' && call.body.id === rows[1].id
+      ),
+      false
+    )
+    await matchingDetail
+      .getByRole('button', { name: 'Chiudi finestra' })
+      .click()
     await page.getByRole('button', { name: 'Importa dati' }).click()
     const importDialog = page.getByRole('dialog', {
       name: 'Importa organizzazioni e territori'
@@ -380,10 +533,13 @@ async function main() {
         {
           passed: [
             'dashboard',
+            'country coverage and acquisition receipt',
+            'CRM correspondence filter',
             'category filter',
             'debounced search',
             'review gate',
             'explicit CRM promotion',
+            'existing CRM match confirmation without duplicate creation',
             'invalid import blocks approval',
             'relationship graph',
             'unconfigured discovery queue',
@@ -396,7 +552,7 @@ async function main() {
         2
       )
     )
-    console.log(`9 browser checks passed. Screenshots: ${output}`)
+    console.log(`12 browser checks passed. Screenshots: ${output}`)
   } finally {
     await browser.close()
   }

@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
   try {
     if (params.get('id')) {
       const id = requireId(params.get('id'))
-      const [entity, evidence, relations, revisions, links] = await Promise.all(
-        [
+      const [entity, evidence, relations, revisions, links, matches] =
+        await Promise.all([
           sb
             .from('tourism_entities')
             .select('*')
@@ -69,10 +69,26 @@ export async function GET(request: NextRequest) {
             .select('contact_id')
             .eq('user_id', owner)
             .eq('entity_id', id)
-            .maybeSingle()
-        ]
-      )
-      for (const result of [entity, evidence, relations, revisions, links])
+            .maybeSingle(),
+          sb
+            .from('tourism_crm_matches')
+            .select(
+              'id,contact_id,rule,score,state,matched_at,contact:contacts(id,name,company,country,status)'
+            )
+            .eq('user_id', owner)
+            .eq('entity_id', id)
+            .eq('state', 'candidate')
+            .order('score', { ascending: false })
+            .limit(5)
+        ])
+      for (const result of [
+        entity,
+        evidence,
+        relations,
+        revisions,
+        links,
+        matches
+      ])
         if (result.error) throw result.error
       if (!entity.data)
         return tourismResponse({ error: 'Entità non trovata' }, 404)
@@ -115,11 +131,17 @@ export async function GET(request: NextRequest) {
         relationEvidence: relationEvidence.data,
         neighbors: neighbors.data,
         revisions: revisions.data,
-        contact: contact.data
+        contact: contact.data,
+        matches: matches.data || []
       })
     }
     if (params.get('view') === 'overview') {
       const { data, error } = await sb.rpc('tourism_overview')
+      if (error) throw error
+      return tourismResponse(data)
+    }
+    if (params.get('view') === 'coverage') {
+      const { data, error } = await sb.rpc('tourism_catalog_coverage')
       if (error) throw error
       return tourismResponse(data)
     }
@@ -158,13 +180,17 @@ export async function GET(request: NextRequest) {
       Math.min(100000, Math.floor(Number(params.get('page')) || 0))
     )
     const size = 50
+    const crmFilter = params.get('crm') || ''
+    if (crmFilter && crmFilter !== 'matched')
+      throw new TourismInputError('Filtro CRM non valido')
     let query = sb
       .from('tourism_entities')
       .select(
-        '*, evidence:tourism_evidence(*), crm:tourism_crm_links(contact_id)',
+        `*, evidence:tourism_evidence(*), crm:tourism_crm_links(contact_id), matches:tourism_crm_matches${crmFilter === 'matched' ? '!inner' : ''}(contact_id,score,state)`,
         { count: 'exact' }
       )
       .eq('user_id', owner)
+    if (crmFilter === 'matched') query = query.eq('matches.state', 'candidate')
     const kind = params.get('kind') || 'organization'
     if (!(ENTITY_KINDS as readonly string[]).includes(kind))
       throw new TourismInputError('Tipo entità non valido')
@@ -271,6 +297,31 @@ export async function POST(request: NextRequest) {
       return tourismResponse({ relation: data }, 201)
     }
     const id = requireId(body.id)
+    if (body.action === 'link_existing') {
+      if (!Number.isInteger(body.version))
+        throw new TourismInputError('Versione richiesta')
+      const { data, error } = await sb.rpc('tourism_link_existing', {
+        p_entity_id: id,
+        p_contact_id: requireId(body.contact_id),
+        p_version: body.version
+      })
+      if (error) throw error
+      return tourismResponse(data)
+    }
+    if (body.action === 'dismiss_match') {
+      const { data, error } = await sb
+        .from('tourism_crm_matches')
+        .update({ state: 'rejected' })
+        .eq('user_id', owner)
+        .eq('entity_id', id)
+        .eq('contact_id', requireId(body.contact_id))
+        .eq('state', 'candidate')
+        .select('id')
+        .maybeSingle()
+      if (error) throw error
+      if (!data) throw new TourismInputError('Corrispondenza non trovata')
+      return tourismResponse({ ok: true })
+    }
     if (body.action === 'indicator') {
       if (
         !(String(body.factor) in SCORE_FACTORS) ||

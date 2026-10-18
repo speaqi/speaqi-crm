@@ -1,0 +1,244 @@
+{
+  "checked_at": "2026-10-18T05:36:32.398Z",
+  "project": "Speaqi Crm",
+  "migration": {
+    "version": "20261017214525",
+    "local_and_remote_md5": "e24c33044cc021d35a462ebbdf0b2235",
+    "applied": true
+  },
+  "production": {
+    "organizations": 2859,
+    "places": 250,
+    "countries": 240,
+    "evidence": 3509,
+    "relations": 134,
+    "crm_contacts": 62164,
+    "crm_links": 0,
+    "verified": 0,
+    "statuses": {
+      "UNVERIFIED": 3053,
+      "NEEDS_REVIEW": 56
+    },
+    "organization_types": {
+      "cvb": 12,
+      "dmc": 1124,
+      "dmo": 413,
+      "nto": 54,
+      "rto": 15,
+      "park": 7,
+      "other": 392,
+      "ministry": 184,
+      "association": 109,
+      "local_office": 544,
+      "development_authority": 5
+    },
+    "missing_evidence": 0,
+    "candidate_pairs": 39,
+    "matched_organizations": 23,
+    "scope_review_organizations": 11,
+    "new_organizations": 2854,
+    "preserved_organizations": 5,
+    "reference_countries": 250,
+    "countries_without_organizations": 10,
+    "organizations_within_target_scope": 2848,
+    "raw_exhibitor_rows": 6164,
+    "worldwide_completeness": "unknown",
+    "structured_country_queries": 250,
+    "structured_queries_fully_reconciled": 249
+  },
+  "original_five_entities_and_evidence_unchanged": true,
+  "source_groups": [
+    {
+      "source": "wtm:london",
+      "url": "https://www.wtm.com/london/en-gb/exhibitor-directory.html",
+      "event_name": "World Travel Market London",
+      "event_edition_id": "eve-002a02a9-489e-4cc7-a054-455c6408ead0",
+      "retrieved_at": "2026-10-17T21:55:36.396620+00:00",
+      "rows": 3913,
+      "unique_ids": 3913,
+      "pages": 8,
+      "complete_for_directory": true,
+      "robots_allowed": true,
+      "classification": "Exhibitor self-reported categories; requires review",
+      "eligible_organizations": 1232,
+      "excluded": {
+        "uncategorized_exhibitor": 1292,
+        "non_target_primary_activity": 1343,
+        "insufficient_organization_classification": 46
+      }
+    },
+    {
+      "source": "wtm:atm",
+      "url": "https://www.wtm.com/atm/en-gb/exhibitor-directory.html",
+      "event_name": "Arabian Travel Market",
+      "event_edition_id": "eve-10bc3b35-320d-4b88-a577-08149c81a02f",
+      "retrieved_at": "2026-10-17T21:55:36.396620+00:00",
+      "rows": 1404,
+      "unique_ids": 1404,
+      "pages": 3,
+      "complete_for_directory": true,
+      "robots_allowed": true,
+      "classification": "Exhibitor self-reported categories; requires review",
+      "eligible_organizations": 228,
+      "excluded": {
+        "non_target_primary_activity": 768,
+        "uncategorized_exhibitor": 407,
+        "supplier_platform_not_destination_operator": 1
+      }
+    },
+    {
+      "source": "wtm:latin-america",
+      "url": "https://www.wtm.com/latin-america/en-gb/exhibitor-directory.html",
+      "event_name": "World Travel Market (WTM) Latin America",
+      "event_edition_id": "eve-c4a3c012-3f85-4d59-9acc-a13f7829a053",
+      "retrieved_at": "2026-10-17T21:55:36.396620+00:00",
+      "rows": 847,
+      "unique_ids": 847,
+      "pages": 2,
+      "complete_for_directory": true,
+      "robots_allowed": true,
+      "classification": "Exhibitor self-reported categories; requires review",
+      "eligible_organizations": 205,
+      "excluded": {
+        "uncategorized_exhibitor": 423,
+        "non_target_primary_activity": 219
+      }
+    },
+    {
+      "source": "wikidata:dmo-direct",
+      "rows": 183,
+      "eligible_organizations": 164,
+      "excluded": {
+        "missing_country_or_label": 19
+      },
+      "complete_for_query": true,
+      "license": "CC0"
+    },
+    {
+      "source": "wikidata:ministry-direct",
+      "rows": 112,
+      "eligible_organizations": 103,
+      "excluded": {
+        "missing_country_or_label": 9
+      },
+      "complete_for_query": true,
+      "license": "CC0"
+    },
+    {
+      "source": "wikidata:italian-promotion",
+      "rows": 1,
+      "eligible_organizations": 1,
+      "excluded": {},
+      "complete_for_query": true,
+      "license": "CC0"
+    },
+    {
+      "source": "wikidata:tourism-association",
+      "rows": 17,
+      "eligible_organizations": 15,
+      "excluded": {
+        "missing_country_or_label": 2
+      },
+      "complete_for_query": true,
+      "license": "CC0"
+    },
+    {
+      "source": "wikidata:wikipedia-agencies",
+      "url": "https://en.wikipedia.org/wiki/Category:Tourism_agencies",
+      "article_candidates": 243,
+      "organization_rows": 181,
+      "complete_for_scope": true,
+      "license": "Wikidata CC0; Wikipedia category discovery"
+    },
+    {
+      "source": "wikidata:country-discovery",
+      "url": "https://www.wikidata.org/w/api.php",
+      "countries_searched": 95,
+      "candidate_entities": 188,
+      "organization_rows": 29,
+      "complete_for_queries": true,
+      "license": "CC0"
+    },
+    {
+      "source": "wikidata:country-discovery-global",
+      "url": "https://www.wikidata.org/w/api.php",
+      "source_group": "wikidata:country-discovery",
+      "countries_searched": 250,
+      "rows": 8110,
+      "organization_candidates": 1100,
+      "published_new_organizations": 812,
+      "held_ambiguous_names": 39,
+      "complete_for_queries": false,
+      "unreconciled_queries": [
+        {
+          "country_code": "FR",
+          "reported_hits": 1280,
+          "unique_ids": 1279
+        }
+      ],
+      "license": "CC0"
+    },
+    {
+      "source": "official:un-tourism",
+      "url": "https://www.untourism.int/member-states",
+      "rows": 23,
+      "member_blocks": 161,
+      "currency": "Unverified; directory contains historical institutional names"
+    },
+    {
+      "source": "official:etc",
+      "url": "https://etc-corporate.org/country/monaco/",
+      "rows": 1
+    },
+    {
+      "source": "official:cto",
+      "url": "https://www.onecaribbean.org/members-lists/government-members-list/",
+      "rows": 15
+    },
+    {
+      "source": "official:national-sites",
+      "rows": 33,
+      "provenance": "Individual institutional / organization URLs attached to each published entity"
+    }
+  ],
+  "deduplication": {
+    "conflicting_name_groups_held": 12,
+    "candidate_rows_held_for_identity_disambiguation": 39,
+    "precision_not_measured": true
+  },
+  "verification": {
+    "python_tests": 25,
+    "unit_tests": 11,
+    "database_tests": 21,
+    "browser_flows": 12,
+    "browser_errors": 0,
+    "build": "passed; 138 pages; standalone assets prepared",
+    "browser_mode": "local standalone; mocked API contracts; production data verified separately through SQL",
+    "anonymous_tourism_table_access": 0,
+    "tourism_tables_without_rls": 0,
+    "anonymous_tourism_function_execution": 0,
+    "crm_candidates_for_scope_review_records": 0
+  },
+  "cost": {
+    "paid_openai_api_calls": 0,
+    "provider_token_cost_not_incurred_by_acquisition": true,
+    "hosting_storage_and_human_review_not_measured": true
+  },
+  "limits": {
+    "worldwide_census_complete": false,
+    "country_presence_does_not_measure_depth": true,
+    "all_organizations_require_human_verification": true,
+    "source_recency_not_guaranteed": true,
+    "continuous_crawler_activated": false,
+    "execution_network": "restricted allowlist; institutional research also used the web connector",
+    "authenticated_deployment_browser_path": "not tested with the owner's credentials",
+    "languages_and_country_sources_have_selection_bias": true
+  },
+  "artifacts": {
+    "global_csv_rows": 2859,
+    "in_scope_csv_rows": 2848,
+    "wtm_london_csv_rows": 3913,
+    "country_gap_csv_rows": 10,
+    "raw_and_private_data_gitignored": true
+  }
+}
