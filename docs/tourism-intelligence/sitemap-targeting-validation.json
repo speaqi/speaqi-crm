@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-19",
+  "scope": "All active catalog URLs, destination qualification and reversible list exclusion",
+  "tests": {"unit": 11, "research_unit": 13, "database": 34, "browser_mocked_api": 19, "production_build": "passed"},
+  "migration": "20261019051155_tourism_sitemap_targeting.sql",
+  "initial_queue": {"organization_rows_with_url": 2448, "distinct_sites_queued": 2399},
+  "live_sample": {
+    "url": "https://www.wien.info/en",
+    "requests": 10,
+    "classification": "destination_likely",
+    "sitemap_documents": 4,
+    "sitemap_enumeration_complete": false,
+    "evidence": "Territorial self-description and restaurant catalogue containing 20 venue links",
+    "persisted": true
+  },
+  "limits": ["Queued sites are not completed checks", "XML enumeration never proves all actual site pages", "Automatic classifications do not verify identities or disable records", "Managed environment network remains restricted to permitted domains", "Browser tests use mocked APIs, not a production login"]
+}

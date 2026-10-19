@@ -23,6 +23,15 @@ export type PoiCandidate = {
   evidence_kind: 'jsonld' | 'html' | 'link'
 }
 export type SiteReport = {
+  sitemap?: {
+    status: 'found' | 'not_found' | 'unavailable'
+    documents: { url: string; kind: 'index' | 'urlset'; urls: number }[]
+    enumeration_complete: boolean
+    all_site_pages_confirmed: false
+    pending_documents: number
+    sampled_catalogue_links_missing: number | null
+  }
+  target_check?: import('./tourism-site-qualification').TargetCheck
   schema_version: 1
   site_url: string
   fetched_at: string
@@ -47,6 +56,8 @@ export type SiteReport = {
   receipts: { url: string; status: number; bytes: number; hash: string }[]
 }
 export type SiteSource = {
+  excluded?: boolean
+  qualification_pending?: boolean
   id: string
   entity_id: string | null
   url: string

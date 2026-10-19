@@ -1,28 +1,26 @@
 import { createServiceRoleClient } from './supabase'
 import { runSiteResearch } from './tourism-research'
 
-/** Independent of outreach automation. Only explicitly enabled site sources are eligible. */
+/** Independent of outreach automation. Eligible sources are queued checks or enabled recurring sites. */
 export async function runTourismResearchTick(
   sb: ReturnType<typeof createServiceRoleClient>,
   now = new Date()
 ) {
   const slot = new Date(now)
-  slot.setUTCMinutes(0, 0, 0)
+  slot.setUTCSeconds(0, 0)
   const { data: source, error } = await sb
-    .from('tourism_site_sources')
+    .from('tourism_site_work_queue')
     .select('id,user_id')
-    .eq('enabled', true)
     .lte('next_run_at', now.toISOString())
     .or(`leased_until.is.null,leased_until.lt.${now.toISOString()}`)
-    .neq('official_status', 'rejected')
-    .neq('destination_status', 'rejected')
+    .order('qualification_pending', { ascending: false })
     .order('next_run_at')
     .order('id')
     .limit(1)
     .maybeSingle()
   if (error) throw error
   if (!source) return { skipped: true }
-  // Durable hourly reservation across replicas; never run without the reservation table.
+  // Durable per-minute reservation across replicas; never run without the reservation table.
   const { error: claimError } = await sb
     .from('automation_job_runs')
     .insert({ job: 'tourism-site-research', slot: slot.toISOString() })
@@ -87,21 +85,26 @@ export function startTourismResearchScheduler() {
     return
   started = true
   const sb = createServiceRoleClient()
+  let running = false
   const tick = () => {
-    runTourismResearchTick(sb).catch((error) =>
-      console.error(
-        '[tourism-site-research]',
-        error instanceof Error ? error.message : 'Research failed'
-      )
-    )
-    setTimeout(
-      tick,
-      60 * 60 * 1000 - (Date.now() % (60 * 60 * 1000)) + 1500
-    ).unref()
+    if (!running) {
+      running = true
+      runTourismResearchTick(sb)
+        .catch((error) =>
+          console.error(
+            '[tourism-site-research]',
+            error instanceof Error ? error.message : 'Research failed'
+          )
+        )
+        .finally(() => {
+          running = false
+        })
+    }
+    setTimeout(tick, 60000 - (Date.now() % 60000) + 1500).unref()
   }
   // Source leases and the database daily request cap also apply to manual scans.
   setTimeout(tick, 10000).unref()
   console.log(
-    '[tourism-site-research] hourly worker ready; only enabled sites, no paid AI'
+    '[tourism-site-research] queue worker ready; one-time sitemap checks and enabled recurring sites, no paid AI'
   )
 }

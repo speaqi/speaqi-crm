@@ -9,6 +9,7 @@ import {
   type PoiCandidate
 } from '@/lib/tourism-research'
 import type { TourismEntity, Evidence } from '@/lib/tourism'
+import { TARGET_LABELS } from '@/lib/tourism-site-qualification'
 import s from './research.module.css'
 
 const PoiPreview = dynamic(() => import('./PoiPreview'), { ssr: false })
@@ -35,6 +36,8 @@ const download = (
   setTimeout(() => URL.revokeObjectURL(u), 1000)
 }
 type Overview = {
+  qualification_pending?: number
+  qualification_checked?: number
   worker_available: boolean
   sources: number
   enabled: number
@@ -193,6 +196,7 @@ export default function TourismResearch({
     [total, setTotal] = useState(0),
     [page, setPage] = useState(0),
     [country, setCountry] = useState(''),
+    [sourceAvailability, setSourceAvailability] = useState('active'),
     [query, setQuery] = useState(''),
     [sourceId, setSourceId] = useState(''),
     [detail, setDetail] = useState<SourceDetail | null>(null),
@@ -241,12 +245,26 @@ export default function TourismResearch({
     }
   }, [reload])
   useEffect(() => {
+    if (!overview?.qualification_pending) return
+    const timer = setInterval(() => {
+      apiFetch<Overview>(endpoint + '?view=overview')
+        .then(setOverview)
+        .catch(() => {})
+    }, 30000)
+    return () => clearInterval(timer)
+  }, [overview?.qualification_pending])
+  useEffect(() => {
     if (tab !== 'sites') return
     let live = true
     apiFetch<{ sources: SiteSource[]; total: number }>(
       endpoint +
         '?' +
-        new URLSearchParams({ page: String(page), country, q: query })
+        new URLSearchParams({
+          page: String(page),
+          country,
+          q: query,
+          availability: sourceAvailability
+        })
     )
       .then((r) => {
         if (live) {
@@ -260,7 +278,7 @@ export default function TourismResearch({
     return () => {
       live = false
     }
-  }, [tab, page, country, query, reload])
+  }, [tab, page, country, query, sourceAvailability, reload])
   useEffect(() => {
     if (!sourceId) {
       setDetail(null)
@@ -427,18 +445,36 @@ export default function TourismResearch({
               disabled={busy}
               onClick={() =>
                 act(async () => {
-                  const r = await post<{ added: number }>({
+                  const r = await post<{ added: number; queued: number }>({
                     action: 'register_candidates'
                   })
                   setNotice(
-                    `${r.added} nuovi siti registrati come candidati. Controlli periodici disattivati per i nuovi ingressi.`
+                    `${r.added} nuovi URL registrati; ${r.queued} controlli sitemap in coda. Le esclusioni manuali vengono rispettate.`
                   )
                 })
               }
             >
-              Aggiorna dal catalogo
+              Controlla tutti gli URL
             </button>
+            <button onClick={refresh}>Aggiorna esiti</button>
+            <select
+              aria-label="Disponibilità dei siti"
+              value={sourceAvailability}
+              onChange={(e) => {
+                setSourceAvailability(e.target.value)
+                setPage(0)
+              }}
+            >
+              <option value="active">Siti attivi</option>
+              <option value="disabled">Siti disabilitati</option>
+            </select>
           </div>
+          <p>
+            Controllo sitemap: {number(overview?.qualification_checked || 0)}{' '}
+            siti controllati · {number(overview?.qualification_pending || 0)} in
+            coda. Il controllo comprende anche i siti classificati DMC, incoming
+            e OTA.
+          </p>
           <p className={s.muted}>
             Le categorie del catalogo generano candidati: il ruolo ufficiale e
             la natura di destinazione richiedono conferma. I conteggi degli URL
@@ -452,6 +488,7 @@ export default function TourismResearch({
                   <th>Paese</th>
                   <th>Identità</th>
                   <th>Ultimo controllo</th>
+                  <th>Sitemap e destinazione</th>
                   <th>Osservato</th>
                   <th />
                 </tr>
@@ -478,7 +515,29 @@ export default function TourismResearch({
                       {when(r.last_scanned_at)}
                       <small>
                         {r.last_state || 'Non analizzato'} ·{' '}
-                        {r.enabled ? 'Periodico attivo' : 'Manuale'}
+                        {r.qualification_pending
+                          ? 'Controllo XML in coda'
+                          : r.enabled
+                            ? 'Periodico attivo'
+                            : 'Controllo singolo'}
+                      </small>
+                    </td>
+                    <td>
+                      {r.latest_report?.target_check
+                        ? TARGET_LABELS[
+                            r.latest_report.target_check.classification
+                          ]
+                        : 'Non controllato'}
+                      <small>
+                        {r.latest_report?.sitemap?.status === 'found'
+                          ? r.latest_report.sitemap.enumeration_complete
+                            ? 'Sitemap letta'
+                            : 'Sitemap parziale'
+                          : r.latest_report?.sitemap?.status === 'unavailable'
+                            ? 'Non accessibile'
+                            : r.latest_report?.sitemap?.status === 'not_found'
+                              ? 'XML non trovata'
+                              : ''}
                       </small>
                     </td>
                     <td>
@@ -495,6 +554,26 @@ export default function TourismResearch({
                       >
                         Analizza
                       </button>
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          act(async () => {
+                            await post({
+                              action: 'source_settings',
+                              id: r.id,
+                              version: r.version,
+                              excluded: !r.excluded
+                            })
+                            setNotice(
+                              r.excluded
+                                ? 'Sito riattivato.'
+                                : 'Sito disabilitato; dati e storico conservati.'
+                            )
+                          })
+                        }
+                      >
+                        {r.excluded ? 'Riattiva sito' : 'Disabilita sito'}
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -502,8 +581,8 @@ export default function TourismResearch({
             </table>
             {!sources.length && (
               <p>
-                Nessun sito in questa selezione. Usa “Aggiorna dal catalogo” per
-                preparare il registro.
+                Nessun sito in questa selezione. Usa “Controlla tutti gli URL”
+                per preparare il registro.
               </p>
             )}
           </div>
@@ -1000,6 +1079,52 @@ function SourcePanel({
             ))}
           </div>
           <p className={s.muted}>{report.count_note}</p>
+          {report.sitemap && (
+            <div className={s.card}>
+              <h4>Verifica sitemap XML</h4>
+              <p>
+                {report.sitemap.status === 'found'
+                  ? 'Sitemap XML trovata'
+                  : report.sitemap.status === 'unavailable'
+                    ? 'Sitemap non verificabile per un blocco di accesso'
+                    : 'Sitemap XML non trovata nei percorsi controllati'}
+                .{' '}
+                {report.sitemap.enumeration_complete
+                  ? 'Letti tutti i file XML raggiungibili scoperti.'
+                  : 'Enumerazione parziale o non disponibile.'}{' '}
+                La sitemap non garantisce che siano elencate tutte le pagine del
+                sito.
+              </p>
+              <p>
+                {report.sitemap.documents.length} file XML letti ·{' '}
+                {report.sitemap.pending_documents} ancora da leggere ·{' '}
+                {report.sitemap.sampled_catalogue_links_missing ?? '—'} URL di
+                catalogo osservati non presenti nelle sitemap lette.
+              </p>
+              {report.sitemap.documents.map((d) => (
+                <p key={d.url}>
+                  <a href={d.url} target="_blank" rel="noreferrer">
+                    {d.url}
+                  </a>{' '}
+                  · {d.kind} · {d.urls} voci
+                </p>
+              ))}
+            </div>
+          )}
+          {report.target_check && (
+            <div className={s.card}>
+              <h4>{TARGET_LABELS[report.target_check.classification]}</h4>
+              <p>{report.target_check.note}</p>
+              {report.target_check.evidence.map((e, i) => (
+                <p key={i}>
+                  <a href={e.url} target="_blank" rel="noreferrer">
+                    Fonte
+                  </a>{' '}
+                  · {e.signal}
+                </p>
+              ))}
+            </div>
+          )}
           <p>
             {report.requests} richieste · {(report.bytes / 1e6).toFixed(2)} MB ·{' '}
             {(report.duration_ms / 1000).toFixed(1)} secondi · Lingue osservate:{' '}

@@ -95,6 +95,15 @@ before(async () => {
       'utf8'
     )
   )
+  await db.exec(
+    await readFile(
+      new URL(
+        '../supabase/migrations/20261019051155_tourism_sitemap_targeting.sql',
+        import.meta.url
+      ),
+      'utf8'
+    )
+  )
   await asUser(OWNER)
 })
 after(async () => {
@@ -1216,4 +1225,233 @@ test('commercial dossiers remain research until identity is verified and CRM-lin
     assert.equal(summary.stages.meeting, 1)
     assert.equal(summary.project_statuses.trial, 1)
     assert.equal(summary.coverage[0].official_denominator, null)
+  }))
+
+test('directory disable is reversible, preserves verified evidence and cancels future site work', () =>
+  researchTransaction(async () => {
+    const e = normalizeRecord({
+      ...records[0],
+      name: 'Target toggle fixture',
+      website: 'https://target.example.org/'
+    })
+    const eid = (await importRecords([e], []))!.ids[0]
+    await verify(eid)
+    const sid = await scalar(
+      "insert into tourism_site_sources(user_id,entity_id,url,label,country_code,enabled,qualification_pending) values($1,$2,'https://target.example.org/','Target fixture','IT',true,true) returning id as v",
+      [OWNER, eid]
+    )
+    const version = await scalar<number>(
+      'select version as v from tourism_entities where id=$1',
+      [eid]
+    )
+    await db.query('select tourism_toggle_entity($1,$2,true)', [eid, version])
+    assert.equal(
+      await scalar<boolean>(
+        'select disabled as v from tourism_entities where id=$1',
+        [eid]
+      ),
+      true
+    )
+    assert.equal(
+      await scalar('select status as v from tourism_entities where id=$1', [
+        eid
+      ]),
+      'VERIFIED'
+    )
+    assert.equal(
+      await scalar(
+        'select status as v from tourism_evidence where entity_id=$1 limit 1',
+        [eid]
+      ),
+      'VERIFIED'
+    )
+    assert.equal(
+      await scalar<boolean>(
+        'select excluded as v from tourism_site_sources where id=$1',
+        [sid]
+      ),
+      true
+    )
+    assert.equal(
+      await scalar('select tourism_claim_site($1) as v', [sid]),
+      null
+    )
+    await rejectedStatement(
+      () =>
+        db.query('select tourism_toggle_entity($1,$2,false)', [eid, version]),
+      /Version conflict/
+    )
+    await db.query('select tourism_toggle_entity($1,$2,false)', [
+      eid,
+      version + 1
+    ])
+    assert.equal(
+      await scalar<boolean>(
+        'select disabled as v from tourism_entities where id=$1',
+        [eid]
+      ),
+      false
+    )
+    assert.equal(
+      await scalar<boolean>(
+        'select qualification_pending as v from tourism_site_sources where id=$1',
+        [sid]
+      ),
+      true
+    )
+    await asUser(OTHER)
+    await rejectedStatement(
+      () =>
+        db.query('select tourism_toggle_entity($1,$2,true)', [
+          eid,
+          version + 2
+        ]),
+      /Entity not found/
+    )
+    await asUser(OWNER)
+  }))
+
+test('all-URL qualification includes DMC and OTA, deduplicates identical URLs and respects manual exclusions', () =>
+  researchTransaction(async () => {
+    const input = ['DMC', 'OTA', 'Disabled'].map((n, i) =>
+      normalizeRecord({
+        ...records[0],
+        name: 'All URLs ' + n,
+        type_code: i === 1 ? 'ota' : 'dmc',
+        website:
+          i === 2
+            ? 'https://disabled.example.org/'
+            : 'https://incoming.example.org/'
+      })
+    )
+    const ids = (await importRecords(input, []))!.ids
+    await db.query('select tourism_toggle_entity($1,1,true)', [ids[2]])
+    const result = await scalar<any>('select tourism_queue_site_checks() as v')
+    assert.ok(result.queued >= 1)
+    assert.equal(
+      await scalar<number>(
+        "select count(*)::int as v from tourism_site_sources where url='https://incoming.example.org/'"
+      ),
+      1
+    )
+    assert.equal(
+      await scalar<number>(
+        "select count(*)::int as v from tourism_site_sources where url='https://disabled.example.org/'"
+      ),
+      0
+    )
+    await db.query(
+      "update tourism_site_sources set excluded=true,exclusion_origin='manual',qualification_pending=false where url='https://incoming.example.org/'"
+    )
+    await db.query('select tourism_queue_site_checks()')
+    assert.equal(
+      await scalar<boolean>(
+        "select qualification_pending as v from tourism_site_sources where url='https://incoming.example.org/'"
+      ),
+      false
+    )
+  }))
+
+test('a source shared by two records remains available until both are disabled', () =>
+  researchTransaction(async () => {
+    const ids = (await importRecords(
+      ['A', 'B'].map((n) =>
+        normalizeRecord({
+          ...records[0],
+          name: 'Shared target ' + n,
+          website: 'https://shared-target.example.org/'
+        })
+      ),
+      []
+    ))!.ids
+    await db.query('select tourism_queue_site_checks()')
+    await db.query('select tourism_toggle_entity($1,1,true)', [ids[0]])
+    assert.equal(
+      await scalar<boolean>(
+        "select excluded as v from tourism_site_sources where url='https://shared-target.example.org/'"
+      ),
+      false
+    )
+    await db.query('select tourism_toggle_entity($1,1,true)', [ids[1]])
+    assert.equal(
+      await scalar<boolean>(
+        "select excluded as v from tourism_site_sources where url='https://shared-target.example.org/'"
+      ),
+      true
+    )
+  }))
+
+test('qualification persists its reasons without verifying organizations or changing human exclusion', () =>
+  researchTransaction(async () => {
+    const record = normalizeRecord({
+      ...records[0],
+      name: 'Qualified incoming fixture',
+      website: 'https://research.example.org/'
+    })
+    const eid = (await importRecords([record], []))!.ids[0]
+    const sid = await researchSource()
+    await db.query(
+      'update tourism_site_sources set qualification_pending=true where id=$1',
+      [sid]
+    )
+    const claim = await scalar<any>('select tourism_claim_site($1) as v', [sid])
+    const report = {
+      ...researchReport(),
+      sitemap: { status: 'found', enumeration_complete: true },
+      target_check: {
+        classification: 'incoming_likely',
+        evidence: [
+          {
+            url: 'https://research.example.org/',
+            signal: 'Incoming tour operator',
+            kind: 'incoming_self_description'
+          }
+        ]
+      }
+    }
+    await db.query('select tourism_finish_site($1,$2,$3,$4)', [
+      sid,
+      claim.lease_token,
+      JSON.stringify(report),
+      '{}'
+    ])
+    assert.equal(
+      await scalar(
+        "select site_qualification->>'classification' as v from tourism_entities where id=$1",
+        [eid]
+      ),
+      'incoming_likely'
+    )
+    assert.equal(
+      await scalar('select status as v from tourism_entities where id=$1', [
+        eid
+      ]),
+      'UNVERIFIED'
+    )
+    assert.equal(
+      await scalar<boolean>(
+        'select disabled as v from tourism_entities where id=$1',
+        [eid]
+      ),
+      false
+    )
+    assert.equal(
+      await scalar<boolean>(
+        'select qualification_pending as v from tourism_site_sources where id=$1',
+        [sid]
+      ),
+      false
+    )
+    assert.ok(
+      await scalar(
+        'select qualification_checked_at as v from tourism_site_sources where id=$1',
+        [sid]
+      )
+    )
+    assert.equal(
+      await scalar<boolean>(
+        "select has_table_privilege('authenticated','tourism_site_work_queue','SELECT') as v"
+      ),
+      false
+    )
   }))

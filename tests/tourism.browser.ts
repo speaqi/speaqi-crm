@@ -18,6 +18,7 @@ const rows = pilot.records.map((r, i) => ({
   id: `33333333-3333-4333-8333-${String(i + 1).padStart(12, '0')}`,
   name_key: nameKey(r.name),
   status: 'UNVERIFIED',
+  disabled: false,
   version: 1,
   created_at: now,
   updated_at: now,
@@ -376,6 +377,11 @@ async function main() {
           let entities = rows.filter(
             (r) => r.kind === (url.searchParams.get('kind') || 'organization')
           )
+          const availability = url.searchParams.get('availability') || 'active'
+          if (availability !== 'all')
+            entities = entities.filter(
+              (r) => r.disabled === (availability === 'disabled')
+            )
           if (url.searchParams.get('crm') === 'matched')
             entities = entities.filter((row) =>
               Boolean(suggestions.get(row.id)?.length)
@@ -409,6 +415,13 @@ async function main() {
         }
         if (body.action === 'preview')
           return json(parseTourismImport(body.text))
+        if (body.action === 'set_disabled') {
+          const r = rows.find((r) => r.id === body.id)!
+          assert.equal(body.version, r.version)
+          r.disabled = body.disabled
+          r.version++
+          return json({ id: r.id, disabled: r.disabled, version: r.version })
+        }
         if (body.action === 'review') {
           const e = evidence.find((e) => e.id === body.evidence_id)!
           e.status = body.approve ? 'VERIFIED' : 'REJECTED'
@@ -479,49 +492,72 @@ async function main() {
       .getByRole('button', { name: 'Directory', exact: false })
       .first()
       .click()
-    await page.getByRole('button', { name: 'ENIT S.p.A.' }).waitFor()
+    await page
+      .locator('button[class*=entityName]')
+      .filter({ hasText: 'ENIT S.p.A.' })
+      .waitFor()
     await page
       .getByLabel('Corrispondenze CRM', { exact: true })
       .selectOption('matched')
     await page
-      .getByRole('button', { name: 'Toscana Promozione Turistica' })
+      .locator('button[class*=entityName]')
+      .filter({ hasText: 'Toscana Promozione Turistica' })
       .waitFor()
     await page
-      .getByRole('button', { name: 'ENIT S.p.A.' })
+      .locator('button[class*=entityName]')
+      .filter({ hasText: 'ENIT S.p.A.' })
       .waitFor({ state: 'hidden' })
     await page
       .getByLabel('Corrispondenze CRM', { exact: true })
       .selectOption('')
-    await page.getByRole('button', { name: 'ENIT S.p.A.' }).waitFor()
+    await page
+      .locator('button[class*=entityName]')
+      .filter({ hasText: 'ENIT S.p.A.' })
+      .waitFor()
     await page.getByLabel('Categoria', { exact: true }).selectOption('ota')
     await page
-      .getByRole('button', { name: 'ENIT S.p.A.' })
+      .locator('button[class*=entityName]')
+      .filter({ hasText: 'ENIT S.p.A.' })
       .waitFor({ state: 'hidden' })
     assert.equal(
       await page.getByLabel('Categoria', { exact: true }).inputValue(),
       'ota'
     )
     await page.getByLabel('Categoria', { exact: true }).selectOption('dmc')
-    await page.getByRole('button', { name: 'Italy Creative' }).waitFor()
     await page
-      .getByRole('button', { name: 'ENIT S.p.A.' })
+      .locator('button[class*=entityName]')
+      .filter({ hasText: 'Italy Creative' })
+      .waitFor()
+    await page
+      .locator('button[class*=entityName]')
+      .filter({ hasText: 'ENIT S.p.A.' })
       .waitFor({ state: 'hidden' })
     assert.equal(
-      await page.getByRole('button', { name: 'ENIT S.p.A.' }).count(),
+      await page
+        .locator('button[class*=entityName]')
+        .filter({ hasText: 'ENIT S.p.A.' })
+        .count(),
       0
     )
     await page.getByLabel('Categoria', { exact: true }).selectOption('')
     await page.getByLabel('Cerca organizzazioni').fill('Toscana')
     await page
-      .getByRole('button', { name: 'Toscana Promozione Turistica' })
+      .locator('button[class*=entityName]')
+      .filter({ hasText: 'Toscana Promozione Turistica' })
       .waitFor()
     await page.waitForFunction(
       () => document.querySelectorAll('tbody tr').length === 1
     )
     assert.equal(await page.locator('tbody tr').count(), 1)
     await page.getByLabel('Cerca organizzazioni').fill('')
-    await page.getByRole('button', { name: 'ENIT S.p.A.' }).waitFor()
-    await page.getByRole('button', { name: 'ENIT S.p.A.' }).click()
+    await page
+      .locator('button[class*=entityName]')
+      .filter({ hasText: 'ENIT S.p.A.' })
+      .waitFor()
+    await page
+      .locator('button[class*=entityName]')
+      .filter({ hasText: 'ENIT S.p.A.' })
+      .click()
     const detail = page.getByRole('dialog', { name: 'ENIT S.p.A.' })
     await detail.waitFor()
     assert.equal(
@@ -549,7 +585,8 @@ async function main() {
     })
     await detail.getByRole('button', { name: 'Chiudi finestra' }).click()
     await page
-      .getByRole('button', { name: 'Toscana Promozione Turistica' })
+      .locator('button[class*=entityName]')
+      .filter({ hasText: 'Toscana Promozione Turistica' })
       .click()
     const matchingDetail = page.getByRole('dialog', {
       name: 'Toscana Promozione Turistica'
@@ -647,6 +684,33 @@ async function main() {
       ),
       false
     )
+    await page
+      .getByRole('button', { name: 'Directory', exact: false })
+      .first()
+      .click()
+    const toggleName = rows[7].name
+    const websiteLink = page.getByRole('link', {
+      name: `Apri sito di ${toggleName}`,
+      exact: true
+    })
+    assert.equal(await websiteLink.getAttribute('href'), rows[7].website)
+    assert.equal(await websiteLink.getAttribute('target'), '_blank')
+    await page
+      .getByRole('button', { name: `Disabilita ${toggleName}`, exact: true })
+      .click()
+    await page
+      .locator('button[class*=entityName]').filter({ hasText: toggleName })
+      .waitFor({ state: 'hidden' })
+    await page
+      .getByLabel('Disponibilità nel catalogo', { exact: true })
+      .selectOption('disabled')
+    await page
+      .getByRole('button', { name: `Riattiva ${toggleName}`, exact: true })
+      .click()
+    await page
+      .getByLabel('Disponibilità nel catalogo', { exact: true })
+      .selectOption('active')
+    await page.locator('button[class*=entityName]').filter({ hasText: toggleName }).waitFor()
     await page
       .getByRole('button', { name: 'Ricerca siti e progetti', exact: true })
       .click()
@@ -769,7 +833,9 @@ async function main() {
             'cost assumptions visible',
             'batch verification requires manual attestation',
             'territorial coverage does not claim completeness',
-            'project dossiers do not trigger CRM actions'
+            'project dossiers do not trigger CRM actions',
+            'direct external website links',
+            'disable and reactivate directly from directory with availability filter'
           ],
           pageErrors: errors,
           mode: 'Browser UI with mocked API contracts; no remote writes'
@@ -778,7 +844,7 @@ async function main() {
         2
       )
     )
-    console.log(`17 browser checks passed. Screenshots: ${output}`)
+    console.log(`19 browser checks passed. Screenshots: ${output}`)
   } finally {
     await browser.close()
   }

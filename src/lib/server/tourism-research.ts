@@ -24,7 +24,9 @@ export async function runSiteResearch(
     }
   const source = data as SiteSource & { lease_token: string }
   const report = await crawlTourismSite(source.url, {
-    maxRequests: source.max_requests
+    maxRequests: source.qualification_pending
+      ? Math.min(10, source.max_requests)
+      : source.max_requests
   })
   const changes = inventoryChanges(source.latest_report, report)
   const { data: scanId, error: finishError } = await supabase.rpc(

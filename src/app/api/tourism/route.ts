@@ -250,6 +250,24 @@ export async function GET(request: NextRequest) {
     if (!(ENTITY_KINDS as readonly string[]).includes(kind))
       throw new TourismInputError('Tipo entità non valido')
     query = query.eq('kind', kind)
+    const availability = params.get('availability') || 'active'
+    if (!['active', 'disabled', 'all'].includes(availability))
+      throw new TourismInputError('Disponibilità non valida')
+    if (availability !== 'all')
+      query = query.eq('disabled', availability === 'disabled')
+    const target = params.get('target') || ''
+    if (target) {
+      if (
+        ![
+          'destination_likely',
+          'incoming_likely',
+          'mixed',
+          'inconclusive'
+        ].includes(target)
+      )
+        throw new TourismInputError('Filtro destinazione non valido')
+      query = query.eq('site_qualification->>classification', target)
+    }
     const country = params.get('country')
     if (country) {
       if (!/^[A-Z]{2}$/.test(country))
@@ -293,6 +311,17 @@ export async function POST(request: NextRequest) {
   const owner = auth.user.id
   try {
     const body = await tourismBody(request)
+    if (body.action === 'set_disabled') {
+      if (typeof body.disabled !== 'boolean' || !Number.isInteger(body.version))
+        throw new TourismInputError('Versione e decisione richieste')
+      const result = await sb.rpc('tourism_toggle_entity', {
+        p_entity_id: requireId(body.id),
+        p_version: body.version,
+        p_disabled: body.disabled
+      })
+      if (result.error) throw result.error
+      return tourismResponse(result.data)
+    }
     if (body.action === 'preview')
       return tourismResponse(parseTourismImport(String(body.text || '')))
     if (

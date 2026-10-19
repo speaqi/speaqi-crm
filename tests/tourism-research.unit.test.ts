@@ -210,24 +210,127 @@ test('cost scenarios expose assumptions and apply changes, browser and AI indepe
   assert.throws(() => estimateCrawlCost(1, 1, 2), /Quota/)
 })
 
-test('the hourly worker does not scan when no enabled source is due or another replica reserved the hour',async()=>{
-  for(const due of [false,true]) {
-    let inserts=0
-    const chain:any={}
-    for(const method of ['select','eq','lte','or','neq','order','limit']) chain[method]=()=>chain
-    chain.maybeSingle=async()=>({data:due?{id:'source',user_id:'owner'}:null,error:null})
-    const sb:any={from:(name:string)=>{
-      if(name==='tourism_site_sources')return chain
-      assert.equal(name,'automation_job_runs')
-      return{insert:async()=>{inserts++;return{error:{code:'23505'}}}}
-    },rpc:()=>{throw new Error('No crawl may be claimed')}}
-    assert.deepEqual(await runTourismResearchTick(sb,new Date('2026-10-18T10:30:00Z')),{skipped:true})
-    assert.equal(inserts,due?1:0)
+test('the queue worker does not scan when no enabled source is due or another replica reserved the minute', async () => {
+  for (const due of [false, true]) {
+    let inserts = 0
+    const chain: any = {}
+    for (const method of ['select', 'eq', 'lte', 'or', 'neq', 'order', 'limit'])
+      chain[method] = () => chain
+    chain.maybeSingle = async () => ({
+      data: due ? { id: 'source', user_id: 'owner' } : null,
+      error: null
+    })
+    const sb: any = {
+      from: (name: string) => {
+        if (name === 'tourism_site_work_queue') return chain
+        assert.equal(name, 'automation_job_runs')
+        return {
+          insert: async () => {
+            inserts++
+            return { error: { code: '23505' } }
+          }
+        }
+      },
+      rpc: () => {
+        throw new Error('No crawl may be claimed')
+      }
+    }
+    assert.deepEqual(
+      await runTourismResearchTick(sb, new Date('2026-10-18T10:30:00Z')),
+      { skipped: true }
+    )
+    assert.equal(inserts, due ? 1 : 0)
   }
 })
 
-test('Vienna map attributes produce sourced candidates without evaluating scripts',()=>{
-  const attribute=JSON.stringify({location:{contentType:'WTVLocation',title:'Albertina',lat:'48.20459',long:'16.36837',category:'Museums',address:'Albertinaplatz 1',myviennalink:'/en/albertina-131590'}})
-  const p=analyseTourismHtml(`<span data-location='${attribute}'></span>`,'https://www.wien.info/en/article')
-  assert.equal(p.candidates.length,1);assert.equal(p.candidates[0].source_url,'https://www.wien.info/en/albertina-131590');assert.equal(p.candidates[0].latitude,48.20459)
+test('Vienna map attributes produce sourced candidates without evaluating scripts', () => {
+  const attribute = JSON.stringify({
+    location: {
+      contentType: 'WTVLocation',
+      title: 'Albertina',
+      lat: '48.20459',
+      long: '16.36837',
+      category: 'Museums',
+      address: 'Albertinaplatz 1',
+      myviennalink: '/en/albertina-131590'
+    }
+  })
+  const p = analyseTourismHtml(
+    `<span data-location='${attribute}'></span>`,
+    'https://www.wien.info/en/article'
+  )
+  assert.equal(p.candidates.length, 1)
+  assert.equal(
+    p.candidates[0].source_url,
+    'https://www.wien.info/en/albertina-131590'
+  )
+  assert.equal(p.candidates[0].latitude, 48.20459)
+})
+
+test('sitemap indexes and observed venue pages qualify a destination without asserting full site coverage', async () => {
+  const calls: string[] = []
+  const pages = {
+    'https://example.com/robots.txt':
+      'User-agent: *\nSitemap: https://example.com/sitemap.xml',
+    'https://example.com/':
+      '<title>Official tourism board</title><a href="/restaurants">Restaurants</a>',
+    'https://example.com/sitemap.xml':
+      '<sitemapindex><sitemap><loc>https://example.com/places.xml</loc></sitemap></sitemapindex>',
+    'https://example.com/places.xml':
+      '<sm:urlset xmlns:sm="https://www.sitemaps.org/schemas/sitemap/0.9"><sm:url><sm:loc>https://example.com/restaurants</sm:loc></sm:url></sm:urlset>',
+    'https://example.com/restaurants':
+      '<script type="application/ld+json">{"@type":"Restaurant","name":"Public cafe","geo":{"latitude":40,"longitude":14}}</script>'
+  }
+  const report = await crawlTourismSite('https://example.com/', {
+    maxRequests: 10,
+    fetch: fake(pages, calls),
+    pause: async () => {}
+  })
+  assert.equal(report.sitemap?.status, 'found')
+  assert.equal(report.sitemap?.documents.length, 2)
+  assert.equal(report.sitemap?.enumeration_complete, true)
+  assert.equal(report.sitemap?.all_site_pages_confirmed, false)
+  assert.equal(report.target_check?.classification, 'destination_likely')
+})
+
+test('a commercial incoming agency is not promoted to destination because restaurant pages exist', async () => {
+  const calls: string[] = []
+  const pages = {
+    'https://example.com/robots.txt': 'User-agent: *',
+    'https://example.com/':
+      '<title>Incoming tour operator</title><a href="/restaurants/food-tour">Restaurants tour</a>',
+    'https://example.com/sitemap.xml':
+      '<urlset><url><loc>https://example.com/restaurants/food-tour</loc></url></urlset>',
+    'https://example.com/restaurants/food-tour':
+      '<h1>Food tour booking</h1><p>Discover bars and restaurants on our tour.</p>'
+  }
+  const report = await crawlTourismSite('https://example.com/', {
+    maxRequests: 10,
+    fetch: fake(pages, calls),
+    pause: async () => {}
+  })
+  assert.equal(report.target_check?.classification, 'incoming_likely')
+  assert.equal(report.candidates.length, 0)
+})
+
+test('budget-limited XML enumeration remains partial and blocked access is never treated as no sitemap', async () => {
+  const calls: string[] = []
+  const pages = {
+    'https://example.com/robots.txt': 'User-agent: *',
+    'https://example.com/': '<title>Tourism</title>',
+    'https://example.com/sitemap.xml':
+      '<sitemapindex><sitemap><loc>https://example.com/a.xml</loc></sitemap><sitemap><loc>https://example.com/b.xml</loc></sitemap></sitemapindex>'
+  }
+  const report = await crawlTourismSite('https://example.com/', {
+    maxRequests: 3,
+    fetch: fake(pages, calls),
+    pause: async () => {}
+  })
+  assert.equal(report.sitemap?.enumeration_complete, false)
+  assert.equal(report.sitemap?.pending_documents, 2)
+  const blocked = await crawlTourismSite('https://blocked.example/', {
+    fetch: fake({}, []),
+    pause: async () => {}
+  })
+  assert.equal(blocked.sitemap?.status, 'unavailable')
 })

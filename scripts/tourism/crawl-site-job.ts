@@ -16,7 +16,9 @@ async function main() {
   if (!source.id || !source.lease_token)
     throw new Error('A claimed source and lease token are required')
   const report = await crawlTourismSite(source.url, {
-    maxRequests: source.max_requests
+    maxRequests: source.qualification_pending
+      ? Math.min(10, source.max_requests)
+      : source.max_requests
   })
   await writeFile(
     output,

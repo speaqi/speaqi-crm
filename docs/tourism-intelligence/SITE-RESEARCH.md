@@ -2,7 +2,13 @@
 
 Rilevazione del 18 ottobre 2026. Il catalogo delle organizzazioni e il catalogo dei luoghi sono livelli distinti: una pagina di un espositore, un portale di destinazione e una scheda di un ristorante non rappresentano la stessa entità.
 
-## Stato verificato
+## Aggiornamento del 19 ottobre 2026
+
+Controllo iniziale esteso a tutti gli URL attivi, senza limitazione alle categorie: 2.448 organizzazioni con URL, 2.399 siti distinti messi in coda. La presenza in coda non equivale a verifica completata. La Directory offre **Apri sito**, **Disabilita/Riattiva**, filtro di disponibilità e classificazione del sito. Disabilitare conserva identità, prove e storico; una fonte condivisa resta disponibile se serve un’altra organizzazione attiva.
+
+Il crawler legge robots.txt, sitemap XML anche annidate e un campione di pagine; distingue destinazione probabile, incoming probabile, attività mista e inconclusivo. La classificazione combina descrizione del gestore e cataloghi/schede di luoghi: citare ristoranti in un tour non basta. Nessuna esclusione o verifica ufficiale automatica. Una sitemap enumerata non certifica tutte le pagine effettive del sito; blocchi e limiti restano espliciti.
+
+## Stato storico del campione del 18 ottobre
 
 - Database: 652 fonti nel nuovo registro, 649 selezionate dal catalogo e tre portali pilota aggiuntivi.
 - Soltanto i tre portali pilota sono abilitati ai controlli periodici. Le altre fonti sono candidate, disabilitate e non attestano automaticamente un ruolo ufficiale.
@@ -54,19 +60,19 @@ Partenza consigliata: campioni mensili e approfondimento delle destinazioni sele
 
 ## Pianificazione e operatività
 
-Il worker applicativo `src/lib/server/tourism-research-scheduler.ts` controlla la coda all'avvio e ogni ora, soltanto se il server dispone della configurazione necessaria. Non attiva le altre automazioni del CRM. La UI espone se il worker è disponibile.
+Il worker applicativo `src/lib/server/tourism-research-scheduler.ts` controlla la coda all'avvio e ogni minuto, soltanto se il server dispone della configurazione necessaria. Non attiva le altre automazioni del CRM. La UI espone se il worker è disponibile.
 
-- Un sito abilitato e dovuto per esecuzione; prenotazione oraria in `automation_job_runs` contro duplicazioni fra repliche.
+- Un sito in attesa del controllo iniziale oppure abilitato e dovuto per esecuzione; prenotazione al minuto in `automation_job_runs` contro duplicazioni fra repliche.
 - Lease di sei minuti per fonte; controllo del token al salvataggio.
-- Tetto di **120 richieste giornaliere per workspace**, includendo le prenotazioni attive, anche per le analisi manuali.
+- Tetto di **5.000 richieste giornaliere per workspace per il controllo iniziale** (massimo 10 per sito) e **120 per le scansioni ordinarie**, includendo le prenotazioni attive, anche per le analisi manuali.
 - Default: **15 richieste per sito**, intervallo di **30 giorni**. Siti bloccati: attesa crescente da 7 giorni fino all'intervallo configurato.
 - `robots.txt` prima delle pagine, ritardo minimo di un secondo, backoff su 429/503, limiti di tempo e dimensione, nessun tentativo di aggirare challenge.
 - HTTP diretto con DNS pubblico controllato anche alla connessione; nel cloud si usa il proxy gestito che risolve e autorizza i domini. Redirect ad altre autorità richiedono registrazione della URL canonica.
 - Parsing JSON-LD/microdata e adattatori per i dati pubblici delle mappe di Vienna e NapoliForMe.
-- Hash e ricevute delle pagine; snapshot conservati per 90 giorni e almeno quattro rilevazioni per fonte. Una scheda non riosservata nel campione non viene cancellata né presentata come rimossa.
+- Hash e ricevute delle pagine; storico delle scansioni conservato senza cancellazioni automatiche. Una scheda non riosservata nel campione non viene cancellata né presentata come rimossa.
 - Disattivazione per singolo sito dalla UI; `TOURISM_RESEARCH_ENABLED=false` ferma il worker applicativo.
 
-È inoltre configurato un controllo settimanale dell'assistente, il lunedì nel fuso Europe/Rome, che usa la stessa coda e gli stessi lease se trova una fonte dovuta. Non abilita nuovi siti e rimane silenzioso in assenza di novità significative. Non è ancora stata osservata un'esecuzione futura del controllo o del worker sul nuovo codice in produzione.
+È inoltre configurato un controllo settimanale dell'assistente, il lunedì nel fuso Europe/Rome, che usa la stessa coda e gli stessi lease se trova una fonte dovuta. Considera anche la coda dei controlli iniziali, rispetta le esclusioni manuali e rimane silenzioso in assenza di novità significative. Non è ancora stata osservata un'esecuzione futura del controllo o del worker sul nuovo codice in produzione.
 
 Per l'esecuzione operatore/assistente senza una sessione web:
 

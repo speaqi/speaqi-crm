@@ -99,6 +99,14 @@ export type EntityDetails = {
   indicators?: Partial<Record<FactorKey, Indicator>>
 }
 export type TourismEntity = {
+  disabled?: boolean
+  site_qualification?: {
+    classification?: import('./tourism-site-qualification').TargetCheck['classification']
+    sitemap_status?: 'found' | 'not_found' | 'unavailable'
+    sitemap_enumerated?: boolean
+    checked_at?: string
+    state?: string
+  }
   id: string
   kind: (typeof ENTITY_KINDS)[number]
   name: string

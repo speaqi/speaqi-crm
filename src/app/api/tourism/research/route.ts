@@ -5,7 +5,6 @@ import {
   tourismError,
   tourismResponse
 } from '@/lib/server/tourism'
-import { DESTINATION_TYPES } from '@/lib/tourism-research'
 import {
   isUuid,
   safePublicUrl,
@@ -42,11 +41,31 @@ export async function GET(request: NextRequest) {
     owner = auth.user.id,
     p = request.nextUrl.searchParams
   try {
-    if (p.get('view') === 'overview')
+    if (p.get('view') === 'overview') {
+      const pending = checked(
+        await sb
+          .from('tourism_site_sources')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', owner)
+          .eq('qualification_pending', true)
+          .eq('excluded', false)
+      )
+      const checkedSites = checked(
+        await sb
+          .from('tourism_site_sources')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', owner)
+          .not('qualification_checked_at', 'is', null)
+      )
       return tourismResponse({
+        qualification_pending: pending.count || 0,
+        qualification_checked: checkedSites.count || 0,
         ...checked(await sb.rpc('tourism_research_overview')).data,
-        worker_available: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY) && process.env.TOURISM_RESEARCH_ENABLED !== 'false'
+        worker_available:
+          Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY) &&
+          process.env.TOURISM_RESEARCH_ENABLED !== 'false'
       })
+    }
     if (p.get('source_id')) {
       const sourceId = id(p.get('source_id')),
         page = pageOf(p.get('page'))
@@ -123,6 +142,7 @@ export async function GET(request: NextRequest) {
         .eq('user_id', owner)
         .eq('kind', 'organization')
         .in('status', ['UNVERIFIED', 'NEEDS_REVIEW', 'DISCOVERED'])
+      query = query.eq('excluded', p.get('availability') === 'disabled')
       if (p.get('country')) query = query.eq('country_code', p.get('country')!)
       const page = pageOf(p.get('page')),
         result = checked(
@@ -225,6 +245,7 @@ export async function GET(request: NextRequest) {
       .from('tourism_site_sources')
       .select('*', { count: 'exact' })
       .eq('user_id', owner)
+    query = query.eq('excluded', p.get('availability') === 'disabled')
     if (p.get('country')) query = query.eq('country_code', p.get('country')!)
     if (p.get('state')) query = query.eq('last_state', p.get('state')!)
     if (p.get('q'))
@@ -262,68 +283,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await tourismBody(request)
     if (body.action === 'register_candidates') {
-      const entities = []
-      for (let offset = 0; offset < 100000; offset += 1000) {
-        const result = checked(
-          await sb
-            .from('tourism_entities')
-            .select('id,name,country_code,type_code,website,details')
-            .eq('user_id', owner)
-            .eq('kind', 'organization')
-            .in('type_code', [...DESTINATION_TYPES])
-            .not('website', 'is', null)
-            .not('status', 'in', '(DUPLICATE,INACTIVE)')
-            .order('id')
-            .range(offset, offset + 999)
-        )
-        entities.push(...(result.data || []))
-        if ((result.data || []).length < 1000) break
-      }
-      const hosts = new Map<string, Record<string, unknown>>()
-      for (const e of entities) {
-        if (
-          e.details?.scope_requires_review ||
-          e.details?.identity_requires_review
-        )
-          continue
-        const website = safePublicUrl(e.website)
-        if (!website) continue
-        const host = new URL(website).hostname.replace(/^www\./, '')
-        if (
-          /(^|\.)(facebook\.com|instagram\.com|linkedin\.com|youtube\.com|wikipedia\.org|wikidata\.org|linktr\.ee)$/.test(
-            host
-          )
-        )
-          continue
-        if (!hosts.has(host))
-          hosts.set(host, {
-            user_id: owner,
-            entity_id: e.id,
-            url: website,
-            label: e.name,
-            country_code: e.country_code,
-            enabled: false
-          })
-      }
-      let added = 0
-      const rows = [...hosts.values()]
-      for (let offset = 0; offset < rows.length; offset += 100) {
-        const result = checked(
-          await sb
-            .from('tourism_site_sources')
-            .upsert(rows.slice(offset, offset + 100), {
-              onConflict: 'user_id,url',
-              ignoreDuplicates: true
-            })
-            .select('id')
-        )
-        added += (result.data || []).length
-      }
-      return tourismResponse({
-        added,
-        candidate_organizations: entities.length,
-        unique_hosts: hosts.size
-      })
+      const result = checked(await sb.rpc('tourism_queue_site_checks'))
+      return tourismResponse(result.data)
     }
     if (body.action === 'register') {
       const label = textValue(body.label, 200),
@@ -379,6 +340,14 @@ export async function POST(request: NextRequest) {
         throw new TourismInputError('Versione richiesta')
       const patch: Record<string, unknown> = {}
       if (typeof body.enabled === 'boolean') patch.enabled = body.enabled
+      if (typeof body.excluded === 'boolean') {
+        patch.excluded = body.excluded
+        patch.exclusion_origin = body.excluded ? 'manual' : ''
+        if (body.excluded) {
+          patch.enabled = false
+          patch.qualification_pending = false
+        }
+      }
       for (const key of ['interval_days', 'max_requests'])
         if (body[key] !== undefined) {
           if (!Number.isInteger(body[key]))

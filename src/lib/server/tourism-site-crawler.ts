@@ -6,13 +6,17 @@ import { Agent, ProxyAgent, request, type Dispatcher } from 'undici'
 import { load } from 'cheerio'
 import { safePublicUrl } from '../tourism'
 import type { PoiCandidate, SiteReport } from '../tourism-research'
+import {
+  siteRoleSignals,
+  qualifyTourismSite
+} from '../tourism-site-qualification'
 
 export const CRAWLER_AGENT = 'SpeaqiTourismResearch/1.0 (+https://speaqi.com)'
 const MAX_BYTES = 3_000_000
 const POI_TYPES =
   /^(TouristAttraction|Museum|LandmarksOrHistoricalBuildings|Park|Church|PlaceOfWorship|ArtGallery|Restaurant|CafeOrCoffeeShop|Winery|Zoo|Beach|HistoricalPlace|CivicStructure|Place)$/i
 const RESTAURANT =
-  /ristoran|restaurant|restaurants|restaurantes|ristorazione|gastronom|where.to.eat|dove.mangiare|essen.trinken|food.drink|cafes/i
+  /ristoran|restaurant|restaurantes|ristorazione|gastronom|where.to.eat|dove.mangiare|essen.trinken|food.drink|caf[eé]s?|(?:^|[\s/\-_])bars?(?:$|[\s/\-_])/i
 const PLACES =
   /attrazion|attraction|luoghi|places|points.of.interest|punti.di.interesse|sightseeing|sights|sehensw|muse[ou]|monument|cosa.vedere|things.to.do|visitare|patrimon|poi\//i
 const SKIP =
@@ -145,6 +149,16 @@ export function analyseTourismHtml(html: string, pageUrl: string) {
     declared: SiteReport['declared_lists'] = []
   const links: SiteReport['catalogue_pages'] = []
   const title = $('title').first().text().trim().slice(0, 300)
+  const roleText = [
+    title,
+    $('meta[name="description"]').attr('content') || '',
+    $('h1').first().text(),
+    $('main p,article p').slice(0, 5).text()
+  ]
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .slice(0, 6000)
+  const role = siteRoleSignals(roleText)
   const languages = new Set<string>()
   const lang = $('html').attr('lang')
   if (lang) languages.add(lang.slice(0, 20))
@@ -357,6 +371,7 @@ export function analyseTourismHtml(html: string, pageUrl: string) {
     signals.push('Sezione dedicata a ristorazione o gastronomia')
   if (candidates.length) signals.push('Schede di luoghi con dati strutturati')
   return {
+    role,
     title,
     languages: [...languages].sort(),
     links: [...new Map(links.map((l) => [l.url, l])).values()],
@@ -388,9 +403,7 @@ const directAgent = new Agent({
   }
 })
 let proxyAgent: Dispatcher | undefined
-export type ResearchFetch = (
-  url: string
-) => Promise<{
+export type ResearchFetch = (url: string) => Promise<{
   status: number
   text: string
   bytes: number
@@ -494,6 +507,15 @@ export async function crawlTourismSite(
     errors: [],
     receipts: []
   }
+  const incomingEvidence: { url: string; signal: string }[] = [],
+    territorialEvidence: { url: string; signal: string }[] = [],
+    venueEvidence: { url: string; signal: string }[] = []
+  const observedVenueLinks = new Set<string>()
+  let checkedPages = 0,
+    sitemapTruncated = false,
+    sitemapReadError = false,
+    pendingMaps = 0
+  const sitemapDocuments: NonNullable<SiteReport['sitemap']>['documents'] = []
   const seen = new Set<string>(),
     placeUrls = new Set<string>(),
     restaurantUrls = new Set<string>(),
@@ -579,6 +601,40 @@ export async function crawlTourismSite(
     report.geocoded_candidates = report.candidates.filter(
       (p) => p.latitude !== null && p.longitude !== null
     ).length
+    report.sitemap = {
+      status: sitemapDocuments.length
+        ? 'found'
+        : report.state === 'blocked' ||
+            report.errors.some((e) => e.message !== 'HTTP 404')
+          ? 'unavailable'
+          : 'not_found',
+      documents: sitemapDocuments,
+      enumeration_complete:
+        sitemapDocuments.length > 0 &&
+        !sitemapTruncated &&
+        pendingMaps === 0 &&
+        !sitemapReadError,
+      all_site_pages_confirmed: false,
+      pending_documents: pendingMaps,
+      sampled_catalogue_links_missing: sitemapDocuments.length
+        ? report.catalogue_pages.filter((l) => !sitemapUrls.has(l.url)).length
+        : null
+    }
+    report.target_check = qualifyTourismSite({
+      incoming: incomingEvidence,
+      territorial: territorialEvidence,
+      venues: venueEvidence,
+      catalogueUrls: placeUrls.size + restaurantUrls.size,
+      distinctVenues: Math.max(
+        observedVenueLinks.size,
+        new Set(
+          report.candidates.map(
+            (p) => p.name.toLowerCase() + '|' + p.latitude + '|' + p.longitude
+          )
+        ).size
+      ),
+      checkedPages
+    })
     return report
   }
   const robotsUrl = new URL('/robots.txt', site).href
@@ -600,12 +656,43 @@ export async function crawlTourismSite(
     return finish()
   }
   const home = await get(site)
-  if (!home) {
-    report.state = 'blocked'
-    return finish()
-  }
+  if (!home) report.state = 'blocked'
   const absorb = (text: string, url: string) => {
     const page = analyseTourismHtml(text, url)
+    checkedPages++
+    if (
+      url === site ||
+      /about|chi-siamo|company|azienda|quienes/i.test(new URL(url).pathname)
+    ) {
+      if (page.role.incoming)
+        incomingEvidence.push({
+          url,
+          signal: 'Il sito si presenta come operatore o agenzia incoming / DMC'
+        })
+      if (page.role.territorial)
+        territorialEvidence.push({
+          url,
+          signal:
+            'Il sito si presenta come portale o ente turistico territoriale'
+        })
+    }
+    if (page.candidates.length)
+      venueEvidence.push({
+        url,
+        signal: `${page.candidates.length} schede di luoghi o locali osservate nella pagina`
+      })
+    const detailLinks = page.links.filter((l) =>
+      /\/(?:pois?\/(?:-\/poi\/)?|restaurants?\/|ristoranti\/|bars?\/|cafes?\/)[^/?#]+/i.test(
+        new URL(l.url).pathname
+      )
+    )
+    if (detailLinks.length >= 3) {
+      for (const l of detailLinks) observedVenueLinks.add(l.url)
+      venueEvidence.push({
+        url,
+        signal: `Catalogo con ${detailLinks.length} collegamenti a schede di luoghi o locali`
+      })
+    }
     if (!report.title) report.title = page.title
     report.destination_signals = [
       ...new Set([...report.destination_signals, ...page.signals])
@@ -624,38 +711,98 @@ export async function crawlTourismSite(
     for (const l of page.links)
       (l.category === 'restaurant' ? restaurantUrls : placeUrls).add(l.url)
   }
-  absorb(home.text, home.url)
-  const sitemapQueue = policy.sitemaps.length
-    ? policy.sitemaps.slice(0, 3)
-    : [new URL('/sitemap.xml', site).href]
-  // At most a quarter of the request budget goes to sitemaps; reserve pages for extraction.
+  if (home) absorb(home.text, home.url)
+  const sitemapQueue = [
+    ...new Set([...policy.sitemaps, new URL('/sitemap.xml', site).href])
+  ]
+  const requiredMaps = new Set(policy.sitemaps)
+  const fallbackMaps = [
+    new URL('/sitemap_index.xml', site).href,
+    new URL('/wp-sitemap.xml', site).href
+  ]
   let maps = 0
-  while (sitemapQueue.length && maps < Math.max(1, Math.floor(max / 4))) {
-    const url = sitemapQueue.shift()!
+  const maxMaps = Math.max(1, Math.min(20, max - 6))
+  while (
+    (sitemapQueue.length ||
+      (!sitemapDocuments.length && fallbackMaps.length)) &&
+    maps < maxMaps &&
+    report.requests < max &&
+    !stopped
+  ) {
+    if (Date.now() - start >= deadline) break
+    const url = sitemapQueue.shift() || fallbackMaps.shift()!
+    if (seen.has(url)) continue
     maps++
     const page = await get(url)
-    if (!page) continue
-    const $ = load(page.text, { xml: true }),
-      index = $('sitemapindex').length > 0
-    $('loc')
-      .slice(0, 50000)
-      .each((_, el) => {
-        const loc = researchUrl($(el).text().trim(), url)
-        if (!loc || !sameSite(loc, site)) return
-        if (index) {
-          if (sitemapQueue.length < 100 && !seen.has(loc))
+    if (!page) {
+      if (requiredMaps.has(url)) sitemapReadError = true
+      continue
+    }
+    if (
+      !/<(?:[A-Za-z_][\w.-]*:)?(?:urlset|sitemapindex)\b/i.test(page.text) ||
+      /<!DOCTYPE/i.test(page.text)
+    ) {
+      if (requiredMaps.has(url)) sitemapReadError = true
+      continue
+    }
+    const $ = load(page.text, { xml: true })
+    const elements = $('*').toArray()
+    const localName = (el: unknown) =>
+      String((el as { name?: string }).name || '')
+        .split(':')
+        .pop()
+    const index = elements.some((el) => localName(el) === 'sitemapindex')
+    const locs = elements.filter((el) => localName(el) === 'loc')
+    sitemapDocuments.push({
+      url,
+      kind: index ? 'index' : 'urlset',
+      urls: locs.length
+    })
+    if (locs.length > 50000) sitemapTruncated = true
+    for (const el of locs.slice(0, 50000)) {
+      const loc = researchUrl($(el).text().trim(), url)
+      if (!loc) continue
+      if (!sameSite(loc, site)) {
+        if (index) sitemapTruncated = true
+        continue
+      }
+      if (index) {
+        if (!seen.has(loc) && !sitemapQueue.includes(loc)) {
+          if (sitemapQueue.length < 200) {
             sitemapQueue.push(loc)
-          return
+            requiredMaps.add(loc)
+          } else sitemapTruncated = true
         }
-        sitemapUrls.add(loc)
-        if (SKIP.test(loc)) return
-        const c = category(loc)
-        if (c === 'restaurant') restaurantUrls.add(loc)
-        if (c === 'place') placeUrls.add(loc)
-      })
+        continue
+      }
+      if (sitemapUrls.size >= 100000) {
+        sitemapTruncated = true
+        break
+      }
+      sitemapUrls.add(loc)
+      if (SKIP.test(loc)) continue
+      const c = category(loc)
+      if (c === 'restaurant') restaurantUrls.add(loc)
+      if (c === 'place') placeUrls.add(loc)
+    }
   }
+  pendingMaps = sitemapQueue.filter((u) => !seen.has(u)).length
+  const homeDom = load(home?.text || '')
+  const about = homeDom('a[href]')
+    .toArray()
+    .map((el) => researchUrl(homeDom(el).attr('href') || '', site))
+    .find(
+      (u) =>
+        u &&
+        sameSite(u, site) &&
+        /about-us|chi-siamo|about\/?$|company|quienes-somos/i.test(
+          new URL(u).pathname
+        )
+    )
   const queue = [
     ...new Set([
+      ...(about ? [about] : []),
+      ...[...restaurantUrls].slice(0, 2),
       ...report.catalogue_pages.map((p) => p.url),
       ...restaurantUrls,
       ...placeUrls
@@ -671,7 +818,12 @@ export async function crawlTourismSite(
           queue.push(link.url)
     }
   }
-  report.state = report.errors.length ? 'partial' : 'completed'
+  report.state =
+    !home && !sitemapDocuments.length
+      ? 'blocked'
+      : report.errors.length || pendingMaps || sitemapTruncated
+        ? 'partial'
+        : 'completed'
   // Even a completed technical run is a bounded inventory, not a certified complete catalogue.
   return finish()
 }

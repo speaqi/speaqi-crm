@@ -32,6 +32,7 @@ import {
   type DiscoveryJob,
   type FactorKey
 } from '@/lib/tourism'
+import { TARGET_LABELS } from '@/lib/tourism-site-qualification'
 import s from './tourism.module.css'
 import TourismResearch, { EntityPicker } from './TourismResearch'
 
@@ -137,6 +138,8 @@ type Graph = {
   limit: number
 }
 type Filters = {
+  availability: string
+  target: string
   q: string
   country: string
   type: string
@@ -146,6 +149,8 @@ type Filters = {
   crm: string
 }
 const INITIAL: Filters = {
+  availability: 'active',
+  target: '',
   q: '',
   country: '',
   type: '',
@@ -966,6 +971,27 @@ export default function TourismWorkspace() {
             </div>
             <div className={s.directoryTools}>
               <select
+                aria-label="Disponibilità nel catalogo"
+                value={filters.availability || 'active'}
+                onChange={(e) => setFilter('availability', e.target.value)}
+              >
+                <option value="active">Attive</option>
+                <option value="disabled">Disabilitate</option>
+                <option value="all">Attive e disabilitate</option>
+              </select>
+              <select
+                aria-label="Controllo del sito"
+                value={filters.target || ''}
+                onChange={(e) => setFilter('target', e.target.value)}
+              >
+                <option value="">Tutti gli esiti dei siti</option>
+                {Object.entries(TARGET_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <select
                 aria-label="Corrispondenze CRM"
                 value={filters.crm || ''}
                 onChange={(event) => setFilter('crm', event.target.value)}
@@ -1057,11 +1083,14 @@ export default function TourismWorkspace() {
                       />
                     </th>
                     <th>Organizzazione / entità</th>
+                    <th>Sito internet</th>
                     <th>Paese</th>
                     <th>Categoria</th>
                     <th>Verifica</th>
                     <th>Opportunity score</th>
                     <th>CRM</th>
+                    <th>Controllo destinazione</th>
+                    <th>Disponibilità</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1102,6 +1131,20 @@ export default function TourismWorkspace() {
                           </button>
                         </td>
                         <td>
+                          {r.website ? (
+                            <a
+                              href={r.website}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label={`Apri sito di ${r.name}`}
+                            >
+                              Apri sito ↗
+                            </a>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td>
                           <span className={s.countryPill}>
                             {r.country_code || 'Mondo'}
                           </span>
@@ -1132,6 +1175,49 @@ export default function TourismWorkspace() {
                                 ? 'Corrispondenza da confermare'
                                 : 'Da qualificare'}
                           </span>
+                        </td>
+                        <td>
+                          {r.site_qualification?.classification
+                            ? TARGET_LABELS[r.site_qualification.classification]
+                            : 'Non controllato'}
+                          <small className={s.scoreSub}>
+                            {r.site_qualification?.sitemap_status === 'found'
+                              ? r.site_qualification.sitemap_enumerated
+                                ? 'Sitemap letta'
+                                : 'Sitemap parziale'
+                              : r.site_qualification?.sitemap_status ===
+                                  'unavailable'
+                                ? 'Sito non accessibile'
+                                : r.site_qualification?.sitemap_status ===
+                                    'not_found'
+                                  ? 'Sitemap XML non trovata'
+                                  : ''}
+                          </small>
+                        </td>
+                        <td>
+                          <button
+                            className={s.secondary}
+                            disabled={busy}
+                            aria-label={`${r.disabled ? 'Riattiva' : 'Disabilita'} ${r.name}`}
+                            onClick={() =>
+                              act(async () => {
+                                await post({
+                                  action: 'set_disabled',
+                                  id: r.id,
+                                  version: r.version,
+                                  disabled: !r.disabled
+                                })
+                                refresh()
+                                notify(
+                                  r.disabled
+                                    ? 'Organizzazione riattivata.'
+                                    : 'Organizzazione disabilitata; dati e storico conservati.'
+                                )
+                              })
+                            }
+                          >
+                            {r.disabled ? 'Riattiva' : 'Disabilita'}
+                          </button>
                         </td>
                       </tr>
                     )
