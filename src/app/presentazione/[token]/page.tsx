@@ -1,0 +1,29 @@
+import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
+import DeckPlayer from '@/components/tourism/deck/DeckPlayer'
+import { createServiceRoleClient } from '@/lib/server/supabase'
+import { loadPublicDeck } from '@/lib/server/tourism-decks'
+
+export const dynamic = 'force-dynamic'
+
+// Pagina pubblica di una presentazione approvata: chi ha il link la vede e la salva in PDF.
+// Il token è lungo e non indovinabile; la pagina non si indicizza e non rivela il referrer.
+export const metadata: Metadata = {
+  title: 'Speaqi',
+  robots: { index: false, follow: false },
+  referrer: 'no-referrer'
+}
+
+export default async function PresentationPage({
+  params,
+  searchParams
+}: {
+  params: Promise<{ token: string }>
+  searchParams: Promise<{ print?: string }>
+}) {
+  const { token } = await params
+  const { print } = await searchParams
+  const deck = await loadPublicDeck(createServiceRoleClient(), token)
+  if (!deck) notFound()
+  return <DeckPlayer mode="full" slides={deck.slides} images={deck.images} destination={deck.destination} printable autoPrint={print === '1'} />
+}

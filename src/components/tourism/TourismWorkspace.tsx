@@ -12,6 +12,7 @@ import {
 } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
 import { createClient } from '@/lib/supabase'
 import {
@@ -35,6 +36,8 @@ import {
 import { TARGET_LABELS } from '@/lib/tourism-site-qualification'
 import s from './tourism.module.css'
 import TourismResearch, { EntityPicker } from './TourismResearch'
+import TourismDecks from './deck/TourismDecks'
+import DeckWizard from './deck/DeckWizard'
 
 const WorldMap = dynamic(() => import('./WorldMap'), {
   ssr: false,
@@ -299,6 +302,8 @@ function Dialog({
 }
 
 export default function TourismWorkspace() {
+  const router = useRouter()
+  const [deckFor, setDeckFor] = useState<TourismEntity | null>(null)
   const [tab, setTab] = useState('overview'),
     [overview, setOverview] = useState<Overview | null>(null),
     [coverage, setCoverage] = useState<Coverage | null>(null),
@@ -561,7 +566,8 @@ export default function TourismWorkspace() {
             { key: 'directory', label: 'Directory', icon: 'search' },
             { key: 'explorer', label: 'Territori e relazioni', icon: 'link' },
             { key: 'discovery', label: 'AI Discovery', icon: 'spark' },
-            { key: 'research', label: 'Ricerca siti e progetti', icon: 'globe' }
+            { key: 'research', label: 'Ricerca siti e progetti', icon: 'globe' },
+            { key: 'decks', label: 'Presentazioni', icon: 'spark' }
           ].map((t) => (
             <button
               key={t.key}
@@ -1259,6 +1265,7 @@ export default function TourismWorkspace() {
             </footer>
           </section>
         )}
+        {tab === 'decks' && <TourismDecks />}
         {tab === 'research' && (
           <TourismResearch
             onOpen={setDetailId}
@@ -1542,6 +1549,13 @@ export default function TourismWorkspace() {
             </section>
           </>
         )}
+        {deckFor && (
+          <DeckWizard
+            entity={deckFor}
+            onClose={() => setDeckFor(null)}
+            onCreated={(id) => router.push(`/tourism/presentazioni/${id}`)}
+          />
+        )}
         <footer className={s.workspaceFooter}>
           <span>SPEAQI INTELLIGENCE</span>
           <span>
@@ -1587,6 +1601,14 @@ export default function TourismWorkspace() {
                   >
                     Modifica scheda
                   </button>
+                  {detail.entity.kind === 'organization' && (
+                    <button
+                      className={s.primary}
+                      onClick={() => setDeckFor(detail.entity)}
+                    >
+                      Crea la presentazione
+                    </button>
+                  )}
                   <button
                     className={s.secondary}
                     disabled={busy}
