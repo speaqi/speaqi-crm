@@ -20,6 +20,14 @@ Documenti: [acquisizione mondiale reale](./ACQUISITION.md), [audit e architettur
 - Matching con il CRM esistente: filtro delle organizzazioni con possibili corrispondenze, conferma o rifiuto in scheda, collegamento esplicito dopo la verifica. L'acquisizione non crea contatti CRM.
 - Il campione italiano di **8 organizzazioni, 7 territori, 1 brand, 1 portale, 7 relazioni** resta una fixture facoltativa; i record acquisiti da fonti pubbliche richiedono revisione prima della promozione.
 
+## Ordine di contatto delle destinazioni (campo "top")
+
+`tourism_entities.outreach_priority` (1 = top, da contattare per prime; 2 e 3 = ondate successive; vuoto = fuori lista) e `outreach_note` (perché). Si cambia dalla colonna **Contatto** della directory, si filtra con "Top: da contattare prima" / "Lista destinazioni" e si ordina con "Da contattare prima". Migration `20261019085842_tourism_outreach_priority.sql`, RPC `tourism_set_outreach`.
+
+- **Dato commerciale, non un attributo verificato**: non è fra le colonne che `tourism_entity_guard` confronta, quindi assegnare o togliere la priorità non porta la scheda a `NEEDS_REVIEW` e non invalida le fonti. Il test `tourism.db.test.ts` lo controlla.
+- **Prima lista (ottobre 2026)**: 40 destinazioni italiane per il pilota "guida multilingue della destinazione" — 12 top, 14 in seconda ondata, 14 in terza. 13 erano già nel catalogo, 27 sono state aggiunte con fonte `ai` non verificata (contatti da ricontrollare prima di scrivere). Elenco con motivi e fonti in [destinazioni-italia-2026-10.csv](./destinazioni-italia-2026-10.csv).
+- Dove il catalogo aveva un soggetto che non è il compratore (Consorzio Pistoia, Urbino Incoming, Visit Ferrara, Consorzio Laguna dello Stagnone) la lista punta al Comune; la scheda di catalogo resta, senza priorità.
+
 ## Prima attivazione sul CRM
 
 1. Identificare il progetto Supabase realmente usato dal CRM. Le credenziali dell'app principale non dimostrano che sia lo stesso database. Non applicare la migrazione a un progetto diverso per tentativi.
