@@ -1,5 +1,6 @@
 import {
   AUTOMATION_JOBS,
+  selectAutomationJobs,
   DEFAULT_STEP_TIMEOUT_MS,
   dueJobs,
   slotOf,
@@ -176,6 +177,11 @@ export function startAutomationScheduler() {
     log('[scheduler] AUTOMATION_SECRET mancante: pianificatore spento')
     return
   }
+  const jobs = selectAutomationJobs(AUTOMATION_JOBS, process.env.AUTOMATION_SCHEDULER_JOBS)
+  if (!jobs.length) {
+    log('[scheduler] AUTOMATION_SCHEDULER_JOBS non indica nessun job esistente: pianificatore spento')
+    return
+  }
   started = true
 
   const timeZone = String(process.env.AUTOMATION_TIMEZONE || 'Europe/Rome').trim()
@@ -203,9 +209,9 @@ export function startAutomationScheduler() {
   // cosi' la deriva di setInterval non fa saltare o ripetere un minuto.
   const tick = () => {
     const now = new Date()
-    runDueJobs(deps, now, timeZone)
+    runDueJobs(deps, now, timeZone, jobs)
     setTimeout(tick, 60_000 - (Date.now() % 60_000) + 500).unref()
   }
   setTimeout(tick, 60_000 - (Date.now() % 60_000) + 500).unref()
-  log(`[scheduler] acceso: ${AUTOMATION_JOBS.length} automazioni, fuso ${timeZone}`)
+  log(`[scheduler] acceso: ${jobs.map((job) => job.name).join(', ')} (${jobs.length} automazioni), fuso ${timeZone}`)
 }

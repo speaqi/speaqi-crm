@@ -56,6 +56,8 @@ Copy `.env.local.example` to `.env.local`. Required keys:
 | `APP_BASE_URL` | Base URL pubblico del CRM (e.g. `https://crm.speaqi.com`) |
 | `AUTOMATION_SECRET` | Auth secret for the `/api/automation/*` endpoints (il pianificatore lo manda in `x-automation-secret`) |
 | `AUTOMATION_SCHEDULER_ENABLED` | `true` accende il pianificatore delle automazioni dentro il CRM. Spento di default: acceso insieme a un altro scheduler farebbe partire tutto due volte |
+| `AUTOMATION_SCHEDULER_JOBS` | Elenco di job ammessi, separati da virgola (es. `backup`). Con `AUTOMATION_SCHEDULER_ENABLED=true` gira solo quello: serve per accendere il backup notturno senza invii, follow-up e sequenze. Vuota = tutti. Un nome sbagliato non fa partire niente |
+| `TOURISM_RESEARCH_ENABLED` / `TOURISM_RESEARCH_INTERVAL_SEC` | Il worker della ricerca Tourism e' **spento di default**: parte solo con `true`, con una pausa fra i giri di `INTERVAL_SEC` secondi (default 300, minimo 60) |
 | `AUTOMATION_WORKSPACE_USER_ID` | Workspace owner the automations act as — server-side only, never accepted from a request body |
 | `AUTOMATION_SENDER_USER_ID` | Gmail account used to send; defaults to the workspace owner |
 | `AUTOMATION_TIMEZONE` | Timezone for the daily cap window (default `Europe/Rome`) |
