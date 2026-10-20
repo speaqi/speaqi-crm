@@ -32,6 +32,7 @@ export const ALL_AREA_KEYS: AreaKey[] = AREAS.map((area) => area.key)
 
 // Riservati al proprietario del workspace: non delegabili dal pannello.
 export const SUPER_ADMIN_PATHS = [
+  '/agency',
   '/tourism',
   '/acumbamail',
   '/hospitality',

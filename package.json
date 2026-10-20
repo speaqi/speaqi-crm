@@ -22,7 +22,8 @@
     "test:db": "tsx --test tests/campaigns.db.test.ts",
     "test:postgrest": "bash tests/postgrest.sh",
     "test:tourism:decks:ui": "node --import tsx tests/tourism-decks.browser.ts",
-    "test:tourism:pdf": "node --import tsx --test tests/tourism-deck-pdf.chromium.test.ts"
+    "test:tourism:pdf": "node --import tsx --test tests/tourism-deck-pdf.chromium.test.ts",
+    "test:agency": "node --import tsx tests/agency-deck.unit.test.ts"
   },
   "engines": {
     "node": "20.x"

@@ -45,6 +45,7 @@ const NAV_ITEMS = [
 ]
 
 const FOOTER_ITEMS = [
+  { href: '/agency', label: 'Speaqi Agency', icon: '◈' },
   { href: '/incassi', label: 'Da incassare', icon: '💰' },
   { href: '/navigazione', label: 'Navigazione', icon: '🚢' },
   { href: '/fiere', label: 'Fiere', icon: '🎪' },
