@@ -114,6 +114,18 @@ export type BackupResult = {
   pruned: number
 }
 
+/**
+ * Un backup e' sano se il dump e' nello Storage, nessun invio e' fallito e
+ * esiste almeno una copia fuori da Supabase (R2 o email). L'email saltata perche'
+ * troppo grande non e' un guasto: lo e' restare senza copia esterna.
+ */
+export function backupDegraded(result: Pick<BackupResult, 'storage' | 'email' | 'r2'>) {
+  const emailFailed = !['ok', 'skipped_too_large', 'not_configured', 'disabled'].includes(result.email)
+  const r2Failed = !['ok', 'not_configured'].includes(result.r2)
+  const noOffsiteCopy = result.r2 !== 'ok' && result.email !== 'ok' && result.email !== 'disabled'
+  return result.storage !== 'ok' || emailFailed || r2Failed || noOffsiteCopy
+}
+
 async function fetchAllRows(supabase: any, table: string) {
   const rows: unknown[] = []
 
