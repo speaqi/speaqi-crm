@@ -29,6 +29,8 @@ interface SidebarProps {
 // Hospitality e i verticali che verranno stanno tutti li dentro.
 // "To Do" sta subito dopo "Oggi" perché è la lista che si guarda per prima la
 // mattina, e raccoglie anche le cose che con Speaqi non c'entrano.
+// "Speaqi Agency" raccoglie le proposte su misura (siti, branding, SEO, software,
+// AI): il cliente resta un contatto, il prezzo resta nel preventivo.
 // "Da incassare" sta in fondo, separato dal core loop: sono soldi personali
 // che con Speaqi non c'entrano.
 const NAV_ITEMS = [
@@ -39,6 +41,7 @@ const NAV_ITEMS = [
   { href: '/calendario', label: 'Follow-up', icon: '📅', badgeKey: 'tasks' as const, badgeRed: true },
   { href: '/preventivi', label: 'Preventivi', icon: '💶' },
   { href: '/commerciale', label: 'Commerciale', icon: '📣' },
+  { href: '/agency', label: 'Speaqi Agency', icon: '✦' },
   { href: '/tourism', label: 'Tourism Intelligence', icon: '◎' },
   { href: '/attivita', label: 'Analytics', icon: '📊' },
   { href: '/impostazioni', label: 'Impostazioni', icon: '⚙️' },
@@ -71,7 +74,7 @@ export function Sidebar({ counts, allowedAreas, isAdmin }: SidebarProps) {
             <Link
               key={item.href}
               href={item.href}
-              className={`nav-item ${pathname === item.href ? 'active' : ''}`}
+              className={`nav-item ${pathname === item.href || (item.href === '/agency' && pathname.startsWith('/agency/')) ? 'active' : ''}`}
             >
               <span className="icon">{item.icon}</span>
               {item.label}

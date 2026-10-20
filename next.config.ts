@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
     '/api/tourism/decks/[id]/pdf': ['./node_modules/@sparticuz/chromium/bin/**'],
     '/api/tourism/decks/[id]/approve': ['./node_modules/@sparticuz/chromium/bin/**'],
     '/presentazione/[token]/pdf': ['./node_modules/@sparticuz/chromium/bin/**'],
+    '/api/agency/presentations/[id]/pdf': ['./node_modules/@sparticuz/chromium/bin/**'],
+    '/proposta/[token]/pdf': ['./node_modules/@sparticuz/chromium/bin/**'],
   },
   // La pagina di reclutamento commerciali si e' spostata su Speaqi Guides
   // (stesso indirizzo di SALES_RECRUIT_URL). Le candidature continuano ad
