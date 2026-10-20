@@ -26,11 +26,13 @@ export async function ensureCorePorts(supabase: SupabaseClient, userId: string) 
   const index = buildPortIndex(existing.map((row) => ({ ...row, aliases: row.aliases || [] })))
   const missing = CORE_PORTS
     .filter((port) => !slugs.has(port.slug) && !resolvePort(index, { name: port.name, alt: null }))
-    .map((port) => ({ ...port, user_id: userId }))
+    .map((port) => ({ ...port, user_id: userId, mode: 'sea' }))
   if (missing.length) {
+    // Sulla tabella e non sulla vista shipping_ports: l'upsert vuole il vincolo
+    // unico vero, che dopo l'arrivo di aeroporti e stazioni e' (user_id, mode, slug).
     const inserted = await supabase
-      .from('shipping_ports')
-      .upsert(missing, { onConflict: 'user_id,slug', ignoreDuplicates: true })
+      .from('tourism_hubs')
+      .upsert(missing, { onConflict: 'user_id,mode,slug', ignoreDuplicates: true })
     if (inserted.error) throw inserted.error
   }
   seededWorkspaces.add(userId)

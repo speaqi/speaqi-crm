@@ -20,6 +20,17 @@ export const TOURISM_TYPES = {
   local_office: 'Ufficio turistico',
   network: 'Rete / partnership',
   development_authority: 'Autorità di sviluppo',
+  // Distribuzione: chi vende e chi porta i visitatori.
+  tour_operator: 'Tour operator',
+  wholesaler: 'Wholesaler',
+  travel_agency: 'Rete di agenzie',
+  bedbank: 'Bedbank',
+  experience_marketplace: 'Marketplace esperienze',
+  cruise_line: 'Compagnia di crociera',
+  ferry_operator: 'Traghetti',
+  airline: 'Compagnia aerea',
+  rail_operator: 'Operatore ferroviario',
+  bus_operator: 'Operatore bus',
   other: 'Da classificare'
 } as const
 export const ENTITY_KINDS = [

@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
       auth.supabase.from('shipping_itineraries').select('id, company_id').eq('user_id', auth.workspaceUserId),
       auth.supabase
         .from('shipping_itinerary_stops')
-        .select('itinerary_id, port:shipping_ports(slug)')
+        .select('itinerary_id, port:tourism_hubs(slug)')
         .eq('user_id', auth.workspaceUserId),
     ])
     if (itinerariesResult.error) throw itinerariesResult.error

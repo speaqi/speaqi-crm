@@ -60,9 +60,12 @@ export const BACKUP_TABLES = [
   'tourism_poi_candidates',
   'tourism_project_opportunities',
   'tourism_canonical_links',
+  // Porti, aeroporti e stazioni; i porti di Navigazione sono la vista shipping_ports su questa tabella.
+  'tourism_hubs',
+  'tourism_destinations',
+  'tourism_hub_operators',
   // Navigazione e fiere.
   'shipping_companies',
-  'shipping_ports',
   'shipping_itineraries',
   'shipping_itinerary_stops',
   'trade_fair_exhibitors',
@@ -93,6 +96,7 @@ export const BACKUP_ORDER: Record<string, string> = {
   wine_project_reply_checks: 'contact_id',
   tourism_taxonomy: 'code',
   tourism_crm_links: 'entity_id',
+  tourism_destinations: 'entity_id',
 }
 
 /** PostgREST tronca a 1000 righe: senza paginazione il backup e silenziosamente incompleto. */

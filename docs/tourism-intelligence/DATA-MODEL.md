@@ -12,6 +12,9 @@ Le migrazioni additive sono `supabase/migrations/20261017205455_tourism_intellig
 | `tourism_revisions` | Un evento di modifica di entità, fonte, relazione o collegamento | Attore, data, operazione, snapshot precedente e successivo. Inserimenti tramite trigger; l'utente può leggere il proprio audit ma non scriverlo o modificarlo |
 | `tourism_jobs` | Una ricerca discovery con stato, tentativi, lease, risultati e consumo | Coda persistente; massimo tre tentativi; esclusione di ricerche simultanee per proprietario; token della lease impedisce a una risposta precedente di sovrascrivere il tentativo corrente |
 | `tourism_acquisitions` | Ricevuta di un'acquisizione: fonti, ambito, conteggi, errori, date | RLS del proprietario, chiave esecuzione univoca, audit; completata indica il batch documentato, non la completezza mondiale |
+| `tourism_hubs` | Un porto, aeroporto o stazione (`mode` sea/air/rail): codici ufficiali, coordinate, città servita, passeggeri con anno e fonte, stato superguida | Unicità proprietario + tipo + slug e per codice (IATA per tipo, ICAO, UIC). `destination_id` solo verso un luogo (trigger). Import con `tourism_import_hubs`: idempotente, riempie i vuoti, aggiorna i numeri solo con un anno più recente. `shipping_ports` è la vista dei porti |
+| `tourism_destinations` | I dati di una destinazione (luogo): arrivi internazionali, mercati di provenienza, lingue necessarie, superguida, mappa Speaqi | Chiave = entità `kind=place` (trigger). Arrivi solo con anno e fonte; priorità solo per guide da fare o in lavorazione |
+| `tourism_hub_operators` | Un operatore attivo in un hub, con ruolo, stagione e frequenza | FK composite workspace/hub/entità; unicità hub + entità + ruolo |
 | `tourism_crm_matches` | Suggerimento organizzazione → contatto, regola, punteggio e stato candidato/confermato/rifiutato | FK workspace/entità e trigger sul contatto impediscono riferimenti fra workspace; suggerimenti distinti dai collegamenti confermati |
 
 ## Entità e geografia
@@ -21,6 +24,10 @@ Le migrazioni additive sono `supabase/migrations/20261017205455_tourism_intellig
 `external_ids` accoglie riferimenti Wikidata, GeoNames, OSM, ISO, Speaqi e le edizioni WTM. Sono riferimenti dichiarati, non una verifica dell'identità. Gli acquisitori riconciliano identificativi stabili e nomi normalizzati entro lo stesso paese, conservando alias e fonti. Un dominio condiviso non determina una fusione. La riconciliazione con le destinazioni dell'app principale resta da implementare.
 
 Brand e portale hanno UUID distinti. `OPERATES_BRAND` e `OPERATES_PORTAL` collegano il gestore documentato. `MEMBER_OF` e `PARTNER_OF` modellano reti e collaborazioni. `WORKS_FOR` prepara il collegamento professionale, ma l'importazione di `person` è bloccata fino al workflow su base giuridica, conservazione e diritti delle persone. Nel pilota sono ammessi solo recapiti istituzionali pubblici documentati.
+
+## Hub, destinazioni e distribuzione (ottobre 2026)
+
+Il catalogo risponde a «quale città raccontiamo dopo, in quante lingue, e a chi la vendiamo». Una destinazione è un luogo (`kind=place`) con i suoi dati in `tourism_destinations`; porti, aeroporti e stazioni (`tourism_hubs`) portano i visitatori e puntano alla destinazione che servono; gli operatori della distribuzione sono organizzazioni con le nuove categorie commerciali (`tour_operator`, `wholesaler`, `travel_agency`, `bedbank`, `experience_marketplace`, `cruise_line`, `ferry_operator`, `airline`, `rail_operator`, `bus_operator`, tutte `governance=false`). `SELLS` collega un operatore a una destinazione che vende (stessa forma di `COVERS`, con evidenza `relationship`); `tourism_hub_operators` dice dove opera. Gli hub non passano dal regime di evidenze delle entità: nascono da dataset pubblici con codici ufficiali, e ogni numero porta anno e fonte.
 
 ## Tassonomia iniziale
 
