@@ -75,14 +75,24 @@ export async function runTourismResearchTick(
   }
 }
 
+/**
+ * Il worker parte solo se acceso apposta: con il default "acceso" bastava togliere
+ * la variabile per rimettere in coda migliaia di siti, uno al minuto, e scrivere
+ * senza sosta sul database (il 19/10/2026 ha esaurito il budget di Disk IO).
+ */
+export function tourismResearchEnabled(env: NodeJS.ProcessEnv = process.env) {
+  return env.TOURISM_RESEARCH_ENABLED === 'true'
+}
+
+/** Pausa fra due giri, in millisecondi: minimo 60 secondi, 5 minuti se non indicata. */
+export function tourismResearchIntervalMs(env: NodeJS.ProcessEnv = process.env) {
+  const seconds = Number(env.TOURISM_RESEARCH_INTERVAL_SEC)
+  return Math.max(60, Number.isFinite(seconds) && seconds > 0 ? seconds : 300) * 1000
+}
+
 let started = false
 export function startTourismResearchScheduler() {
-  if (
-    started ||
-    process.env.TOURISM_RESEARCH_ENABLED === 'false' ||
-    !process.env.SUPABASE_SERVICE_ROLE_KEY
-  )
-    return
+  if (started || !tourismResearchEnabled() || !process.env.SUPABASE_SERVICE_ROLE_KEY) return
   started = true
   const sb = createServiceRoleClient()
   let running = false
@@ -100,7 +110,8 @@ export function startTourismResearchScheduler() {
           running = false
         })
     }
-    setTimeout(tick, 60000 - (Date.now() % 60000) + 1500).unref()
+    const interval = tourismResearchIntervalMs()
+    setTimeout(tick, interval - (Date.now() % interval) + 1500).unref()
   }
   // Source leases and the database daily request cap also apply to manual scans.
   setTimeout(tick, 10000).unref()

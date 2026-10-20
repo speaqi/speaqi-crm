@@ -70,7 +70,7 @@ Il worker applicativo `src/lib/server/tourism-research-scheduler.ts` controlla l
 - HTTP diretto con DNS pubblico controllato anche alla connessione; nel cloud si usa il proxy gestito che risolve e autorizza i domini. Redirect ad altre autorità richiedono registrazione della URL canonica.
 - Parsing JSON-LD/microdata e adattatori per i dati pubblici delle mappe di Vienna e NapoliForMe.
 - Hash e ricevute delle pagine; storico delle scansioni conservato senza cancellazioni automatiche. Una scheda non riosservata nel campione non viene cancellata né presentata come rimossa.
-- Disattivazione per singolo sito dalla UI; `TOURISM_RESEARCH_ENABLED=false` ferma il worker applicativo.
+- Disattivazione per singolo sito dalla UI; il worker applicativo è **spento di default**: parte solo con `TOURISM_RESEARCH_ENABLED=true`, con una pausa fra i giri di `TOURISM_RESEARCH_INTERVAL_SEC` secondi (default 300, minimo 60). Era acceso di default e dopo l'import del 19/10/2026 ha fatto un giro al minuto per 11 ore, esaurendo il budget di Disk IO di Supabase.
 
 È inoltre configurato un controllo settimanale dell'assistente, il lunedì nel fuso Europe/Rome, che usa la stessa coda e gli stessi lease se trova una fonte dovuta. Considera anche la coda dei controlli iniziali, rispetta le esclusioni manuali e rimane silenzioso in assenza di novità significative. Non è ancora stata osservata un'esecuzione futura del controllo o del worker sul nuovo codice in produzione.
 
