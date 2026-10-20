@@ -38,10 +38,10 @@ test('il PUT va al bucket giusto con firma e hash del contenuto', async () => {
 })
 
 test('un errore di R2 diventa un\'eccezione con il codice', async () => {
-  const fetchImpl = (async () => new Response('<Error>AccessDenied</Error>', { status: 403 })) as unknown as typeof fetch
+  const fetchImpl = (async () => new Response('<?xml version="1.0"?><Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>', { status: 403 })) as unknown as typeof fetch
   await assert.rejects(
     putR2Object({ accountId: 'a', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' }, 'x', Buffer.from('1'), 'text/plain', { fetchImpl }),
-    /R2 403: <Error>AccessDenied<\/Error>/
+    /R2 403 AccessDenied \(Access Denied\)$/
   )
 })
 

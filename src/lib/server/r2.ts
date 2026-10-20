@@ -80,7 +80,10 @@ export async function putR2Object(
     signal: AbortSignal.timeout(120_000),
   })
   if (!response.ok) {
-    const detail = (await response.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 200)
-    throw new Error(`R2 ${response.status}${detail ? `: ${detail}` : ''}`)
+    const text = (await response.text().catch(() => '')).replace(/\s+/g, ' ')
+    // R2 risponde in XML: della risposta serve il codice (AccessDenied, SignatureDoesNotMatch, ...).
+    const code = /<Code>([^<]+)<\/Code>/.exec(text)?.[1]
+    const message = /<Message>([^<]+)<\/Message>/.exec(text)?.[1]
+    throw new Error(`R2 ${response.status} ${code || text.slice(0, 120)}${message && message !== code ? ` (${message.slice(0, 120)})` : ''}`)
   }
 }
