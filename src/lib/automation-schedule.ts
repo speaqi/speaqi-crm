@@ -94,7 +94,7 @@ export const AUTOMATION_JOBS: ScheduledJob[] = [
     name: 'backup',
     cron: '0 3 * * *',
     description: 'Backup notturno del database',
-    steps: [{ path: '/api/automation/backup', body: { keep: 30 }, timeoutMs: 300_000 }],
+    steps: [{ path: '/api/automation/backup', body: { keep: 7 }, timeoutMs: 300_000 }],
   },
   {
     name: 'score-leads',
