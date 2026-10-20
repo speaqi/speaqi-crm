@@ -87,7 +87,7 @@ export default function DeckWizard({
       {error && <p className={s.error} role="alert">{error}</p>}
       <form className={s.form} onSubmit={submit}>
         <p className={e.help}>
-          Parti dal modello TTG. L’agente legge il testo, i documenti e le foto che aggiungi e riscrive le slide per questa destinazione. Quello che non trova resta <code>[DA VERIFICARE]</code>: lo completi tu prima di approvare.
+          Parti dalla proposta destinazioni di base. L’agente legge il testo, i documenti e le foto che aggiungi e riscrive le slide per questa destinazione. Quello che non trova resta <code>[DA VERIFICARE]</code>: lo completi tu prima di approvare.
         </p>
         {!entity && (
           <div>
@@ -102,8 +102,8 @@ export default function DeckWizard({
           <label>Contatto Speaqi in chiusura<input value={contatto} maxLength={300} onChange={(ev) => setContatto(ev.target.value)} placeholder="Nome, email, telefono" /></label>
         </div>
         <label>
-          Prezzo proposto
-          <input value={prezzo} maxLength={300} onChange={(ev) => setPrezzo(ev.target.value)} placeholder="Vuoto = offerta standard, da verificare per questo ente" />
+          Condizioni (la mappa è gratuita)
+          <input value={prezzo} maxLength={300} onChange={(ev) => setPrezzo(ev.target.value)} placeholder="Vuoto = almeno 100.000 accessi all’anno e distribuzione dei QR" />
         </label>
         <label>
           Informazioni sulla destinazione

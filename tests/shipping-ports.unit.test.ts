@@ -144,10 +144,11 @@ describe('posizione del porto', () => {
 
 test('superguida trasferita: si legge dalla destinazione, mai i valori vecchi del porto', async () => {
   const { applyDestinationGuides, patchTouchesGuide } = await import('../src/lib/shipping-ports')
-  const ports = [
-    { id: 'a', guide_status: 'planned' as const, guide_priority: 1 as const, guide_notes: 'x', destination_id: null, guide_moved_at: null },
-    { id: 'b', guide_status: 'none' as const, guide_priority: null, guide_notes: null, destination_id: 'roma', guide_moved_at: '2026-10-20' },
-    { id: 'c', guide_status: 'none' as const, guide_priority: null, guide_notes: null, destination_id: 'persa', guide_moved_at: '2026-10-20' },
+  type Row = { id: string; guide_status: string; guide_priority: number | null; guide_notes: string | null; destination_id: string | null; guide_moved_at: string | null }
+  const ports: Row[] = [
+    { id: 'a', guide_status: 'planned', guide_priority: 1, guide_notes: 'x', destination_id: null, guide_moved_at: null },
+    { id: 'b', guide_status: 'none', guide_priority: null, guide_notes: null, destination_id: 'roma', guide_moved_at: '2026-10-20' },
+    { id: 'c', guide_status: 'none', guide_priority: null, guide_notes: null, destination_id: 'persa', guide_moved_at: '2026-10-20' },
   ]
   const [a, b, c] = applyDestinationGuides(ports, [
     { entity_id: 'roma', guide_status: 'in_progress', guide_priority: 2, guide_notes: 'Roma in lavorazione' },
