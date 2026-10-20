@@ -220,7 +220,11 @@ export async function removeAsset(sb: Sb, service: Sb, row: DeckRow, assetId: st
 }
 
 export async function deleteDeck(sb: Sb, service: Sb, row: DeckRow) {
-  if (row.assets.length) await service.storage.from(DECK_BUCKET).remove(row.assets.map((a) => a.path))
+  // Foto, documenti e PDF generati: tutto ciò che sta nella cartella del deck.
+  const folder = `${row.user_id}/${row.id}`
+  const listing = await service.storage.from(DECK_BUCKET).list(folder)
+  const paths = new Set([...row.assets.map((a) => a.path), ...((listing?.data || []) as { name: string }[]).map((f) => `${folder}/${f.name}`)])
+  if (paths.size) await service.storage.from(DECK_BUCKET).remove([...paths])
   checked(await sb.from('tourism_decks').delete().eq('user_id', row.user_id).eq('id', row.id))
 }
 
@@ -449,11 +453,15 @@ export async function toView(sb: Sb, service: Sb, row: DeckRow): Promise<DeckVie
 }
 
 /** Solo una presentazione approvata si vede da fuori, a chi ha il token. */
-export async function loadPublicDeck(service: Sb, token: string) {
+export async function loadPublicRow(service: Sb, token: string): Promise<DeckRow | null> {
   if (!/^[0-9a-f]{64}$/.test(token)) return null
   const { data } = await service.from('tourism_decks').select('*').eq('public_token', token).eq('status', 'approved').maybeSingle()
-  if (!data) return null
-  const row = data as DeckRow
+  return (data as DeckRow) || null
+}
+
+export async function loadPublicDeck(service: Sb, token: string) {
+  const row = await loadPublicRow(service, token)
+  if (!row) return null
   const urls = await signedAssetUrls(service, row.assets.filter((a) => row.slides.some((s) => s.image_asset_id === a.id)), PUBLIC_URL_TTL_S)
   return { title: row.title, destination: row.destination, slides: row.slides, images: Object.fromEntries(urls) }
 }

@@ -125,6 +125,7 @@ export default function DeckPlayer({
   index,
   onIndexChange,
   printable = false,
+  pdfHref,
   autoPrint = false
 }: {
   slides: DeckSlide[]
@@ -134,6 +135,8 @@ export default function DeckPlayer({
   index?: number
   onIndexChange?: (i: number) => void
   printable?: boolean
+  /** Se c'è, il pulsante PDF scarica questo file invece di aprire la stampa del browser. */
+  pdfHref?: string
   autoPrint?: boolean
 }) {
   const [inner, setInner] = useState(0)
@@ -201,7 +204,9 @@ export default function DeckPlayer({
         <button type="button" onClick={() => go(current - 1)} aria-label="Slide precedente">←</button>
         <span>{current + 1} / {slides.length}</span>
         <button type="button" onClick={() => go(current + 1)} aria-label="Slide successiva">→</button>
-        {printable && <button type="button" onClick={() => window.print()} aria-label="Salva come PDF">PDF</button>}
+        {printable && (pdfHref
+          ? <a href={pdfHref} aria-label="Scarica il PDF" style={{ color: 'inherit', font: 'inherit', fontSize: 15, padding: '4px 10px', textDecoration: 'none' }}>PDF</a>
+          : <button type="button" onClick={() => window.print()} aria-label="Salva come PDF">PDF</button>)}
       </div>
     </div>
   )

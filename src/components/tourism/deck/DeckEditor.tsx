@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
+import { createClient } from '@/lib/supabase'
 import { countTodo, type DeckSlide } from '@/lib/tourism-deck'
 import type { DeckView } from '@/lib/server/tourism-decks'
 import DeckPlayer from './DeckPlayer'
@@ -116,6 +117,20 @@ export default function DeckEditor({ id }: { id: string }) {
       setSlides((cur) => cur.map((sl) => (sl.image_asset_id === assetId ? { ...sl, image_asset_id: null } : sl)))
     })
 
+  // Il PDF è dietro il login: si scarica con il token e si salva come file.
+  const downloadPdf = () =>
+    run('pdf', async () => {
+      const { data } = await createClient().auth.getSession()
+      const res = await fetch(`/api/tourism/decks/${id}/pdf`, { headers: { Authorization: `Bearer ${data.session?.access_token ?? ''}` }, cache: 'no-store' })
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || 'PDF non generato')
+      const url = URL.createObjectURL(await res.blob())
+      const a = document.createElement('a')
+      a.href = url
+      a.download = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')?.[1] || 'presentazione.pdf'
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    })
+
   const remove = () => {
     if (!confirm('Eliminare questa presentazione e i suoi file?')) return
     return run('delete', async () => {
@@ -153,7 +168,7 @@ export default function DeckEditor({ id }: { id: string }) {
             <>
               <button className={s.secondary} onClick={() => approve(false)} disabled={!!busy}>Riporta in revisione</button>
               <a className={s.primary} href={`/presentazione/${deck.public_token}`} target="_blank" rel="noreferrer">Apri la presentazione ↗</a>
-              <a className={s.secondary} href={`/presentazione/${deck.public_token}?print=1`} target="_blank" rel="noreferrer">Salva come PDF</a>
+              <button className={s.secondary} onClick={downloadPdf} disabled={!!busy}>{busy === 'pdf' ? <><span className={e.spin} /> Preparo il PDF…</> : 'Scarica il PDF'}</button>
             </>
           ) : (
             <button className={s.primary} onClick={() => approve(true)} disabled={!!busy || generating || todo > 0} title={todo ? `Restano ${todo} [DA VERIFICARE]` : undefined}>

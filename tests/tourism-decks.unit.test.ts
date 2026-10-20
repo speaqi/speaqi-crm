@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test, { afterEach, beforeEach } from 'node:test'
 import sharp from 'sharp'
 import { DECK_TODO, applyVars, DEFAULT_DECK_TEMPLATE } from '../src/lib/tourism-deck'
-import { addAssets, createDeck, generateIntoDeck, loadDeck, loadPublicDeck, saveDeckEdits, setApproval, type DeckRow } from '../src/lib/server/tourism-decks'
+import { addAssets, createDeck, deleteDeck, generateIntoDeck, loadDeck, loadPublicDeck, saveDeckEdits, setApproval, type DeckRow } from '../src/lib/server/tourism-decks'
 
 type Row = Record<string, any>
 
@@ -21,6 +21,7 @@ class Db {
     from: () => ({
       upload: async (path: string, buf: Buffer) => (this.files.set(path, buf), { error: null }),
       download: async (path: string) => (this.files.has(path) ? { data: new Blob([new Uint8Array(this.files.get(path)!)]), error: null } : { data: null, error: { message: 'no' } }),
+      list: async (folder: string) => ({ data: [...this.files.keys()].filter((p) => p.startsWith(folder + '/')).map((p) => ({ name: p.slice(folder.length + 1) })) }),
       remove: async (paths: string[]) => (paths.forEach((p) => this.files.delete(p)), { error: null }),
       createSignedUrls: async (paths: string[]) => ({ data: paths.map((p) => ({ path: p, signedUrl: `https://signed/${p}` })) })
     })
@@ -188,4 +189,14 @@ test('la vista pubblica mostra solo ciò che è approvato, con token valido', as
   const pub = await loadPublicDeck(db, row.public_token)
   assert.equal(pub?.destination, 'Capri')
   assert.equal((await loadDeck(db, USER, row.id)).status, 'approved')
+})
+
+test('cancellare un deck toglie foto, documenti e PDF generati', async () => {
+  const row = await createDeck(db, USER, fields)
+  await addAssets(db, db, row, [{ name: 'a.png', buffer: await png() }])
+  db.files.set(`${row.user_id}/${row.id}/deck-v2.pdf`, Buffer.from('%PDF-1.7'))
+  db.files.set('altro-utente/altro-deck/deck-v1.pdf', Buffer.from('%PDF-1.7'))
+  await deleteDeck(db, db, row)
+  assert.deepEqual([...db.files.keys()], ['altro-utente/altro-deck/deck-v1.pdf'])
+  assert.equal(db.tables.tourism_decks.length, 0)
 })
