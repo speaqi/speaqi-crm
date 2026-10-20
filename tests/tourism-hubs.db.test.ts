@@ -65,6 +65,7 @@ before(async () => {
   await db.exec('reset role')
   await migration('20261020090000_tourism_hubs.sql')
   await migration('20261020090100_tourism_hubs_absorb_ports.sql')
+  await migration('20261020120000_tourism_property_managers.sql')
 })
 
 test('i porti passano in tourism_hubs con lo stesso id e gli stessi numeri', async () => {
@@ -170,6 +171,9 @@ test('le nuove tipologie della distribuzione e la relazione SELLS', async () => 
     [to]
   )
   await db.query(`insert into tourism_relations(from_id,to_id,relation,evidence_id) values($1,$2,'SELLS',$3)`, [to, roma, evidence])
+  // Un property manager e' un'azienda della distribuzione, mai una persona.
+  await db.exec(`insert into tourism_entities(kind,name,country_code,type_code) values('organization','Halldis','IT','property_manager')`)
+  await assert.rejects(db.exec(`insert into tourism_entities(kind,name,country_code) values('person','Mario Rossi','IT')`), /Personal data/)
   const hub = await scalar(`select id as v from tourism_hubs where iata='FCO'`)
   await db.query(`insert into tourism_hub_operators(hub_id,entity_id,role) values($1,$2,'route')`, [hub, to])
   assert.equal(await scalar<number>(`select count(*)::int as v from tourism_revisions where table_name='tourism_hub_operators'`), 1)
