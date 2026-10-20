@@ -1,4 +1,5 @@
 import { gzipSync } from 'node:zlib'
+import { putR2Object, r2BackupConfig } from './r2'
 
 /**
  * Backup del database eseguito in produzione.
@@ -107,6 +108,8 @@ export type BackupResult = {
   bytes: number
   tables: Record<string, { rows: number } | { error: string }>
   storage: 'ok' | string
+  /** Copia su Cloudflare R2, fuori da Supabase: `not_configured` finche' mancano le variabili R2_BACKUP_*. */
+  r2: 'ok' | 'not_configured' | string
   email: 'ok' | 'skipped_too_large' | 'not_configured' | 'disabled' | string
   pruned: number
 }
@@ -195,6 +198,19 @@ export async function runDatabaseBackup(
   })
   const storage = upload.error ? upload.error.message : ('ok' as const)
 
+  // La copia fuori da Supabase non deve mai far fallire il backup: se R2 non
+  // risponde il dump resta comunque nel bucket e l'errore si legge nel risultato.
+  let r2: BackupResult['r2'] = 'not_configured'
+  const r2Config = r2BackupConfig()
+  if (r2Config) {
+    try {
+      await putR2Object(r2Config, `crm/${file}`, payload, 'application/gzip')
+      r2 = 'ok'
+    } catch (error) {
+      r2 = error instanceof Error ? error.message : String(error)
+    }
+  }
+
   // Rotazione solo dopo un backup integro: uno rotto non deve far scadere i buoni.
   const pruned = !upload.error && !failed ? await pruneStorage(supabase, keep) : 0
 
@@ -220,5 +236,5 @@ export async function runDatabaseBackup(
     }
   }
 
-  return { file, bytes: payload.byteLength, tables, storage, email, pruned }
+  return { file, bytes: payload.byteLength, tables, storage, r2, email, pruned }
 }
