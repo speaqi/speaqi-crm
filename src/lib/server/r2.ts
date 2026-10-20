@@ -22,6 +22,14 @@ export function r2BackupConfig(env: NodeJS.ProcessEnv = process.env): R2Config |
   return accountId && bucket && accessKeyId && secretAccessKey ? { accountId, bucket, accessKeyId, secretAccessKey } : null
 }
 
+/**
+ * Descrizione per l'errore: bucket e lunghezze, mai i valori. Basta a vedere se
+ * hai incollato la coppia S3 giusta (ID 32 caratteri, segreto 64) o il valore del token.
+ */
+export function describeR2Config(config: R2Config) {
+  return `bucket=${config.bucket}, account=${config.accountId.length} car., idChiave=${config.accessKeyId.length} car., segreto=${config.secretAccessKey.length} car.`
+}
+
 const hmac = (key: Buffer | string, data: string) => createHmac('sha256', key).update(data).digest()
 const sha256 = (data: Buffer | string) => createHash('sha256').update(data).digest('hex')
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { putR2Object, r2BackupConfig, signingKey } from '../src/lib/server/r2'
+import { describeR2Config, putR2Object, r2BackupConfig, signingKey } from '../src/lib/server/r2'
 
 test('la chiave di firma SigV4 coincide con l\'esempio ufficiale AWS', () => {
   const key = signingKey('wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY', '20150830', 'us-east-1', 'iam')
@@ -43,4 +43,10 @@ test('un errore di R2 diventa un\'eccezione con il codice', async () => {
     putR2Object({ accountId: 'a', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' }, 'x', Buffer.from('1'), 'text/plain', { fetchImpl }),
     /R2 403: <Error>AccessDenied<\/Error>/
   )
+})
+
+test('la descrizione per l\'errore mostra lunghezze e bucket, mai i valori', () => {
+  const text = describeR2Config({ accountId: 'a'.repeat(32), bucket: 'bk', accessKeyId: 'k'.repeat(32), secretAccessKey: 'SEGRETO-DI-PROVA' })
+  assert.equal(text, 'bucket=bk, account=32 car., idChiave=32 car., segreto=16 car.')
+  assert.ok(!text.includes('SEGRETO'))
 })
