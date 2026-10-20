@@ -15,8 +15,17 @@
 --   `kind='place'`, che resta la sua identita' (evidenze, revisioni, PART_OF).
 -- - tourism_hub_operators: chi opera dove (una compagnia che fa scalo a un
 --   porto, un vettore con base in un aeroporto), con ruolo e stagione.
--- - nuovi tipi in tassonomia per la distribuzione e la relazione SELLS
---   (un operatore vende una destinazione).
+-- - tourism_hub_destinations: le destinazioni AGGIUNTIVE di un hub che serve
+--   piu' citta'. La principale e' tourism_hubs.destination_id e non si ripete.
+-- - nuovi tipi in tassonomia per la distribuzione e due relazioni del grafo:
+--   SELLS (un operatore vende una destinazione) e OPERATES_IN (ci ha attivita'
+--   o alloggi: property manager, catene, DMC). Non esistono SERVES ne'
+--   OPERATES_AT: hub → destinazione e operatore → hub hanno ciascuno un solo
+--   posto autorevole, le due tabelle qui sotto.
+--
+-- Tre famiglie di numeri, mai sommate fra loro: arrivi turistici misurati
+-- nella destinazione, traffico degli hub (accessibilita', non turisti) e stime
+-- dichiarate con metodo e affidabilita'.
 
 insert into public.tourism_taxonomy(code, labels, governance) values
  ('ota','{"it":"OTA · agenzia di viaggi online","en":"Online travel agency"}',false),
@@ -35,7 +44,7 @@ on conflict (code) do nothing;
 -- Un operatore vende una destinazione: la stessa forma di COVERS (organizzazione → luogo).
 alter table public.tourism_relations drop constraint if exists tourism_relations_relation_check;
 alter table public.tourism_relations add constraint tourism_relations_relation_check
-  check (relation in ('PART_OF','COVERS','MANAGES','PROMOTES','SELLS','OPERATES_BRAND','OPERATES_PORTAL','MEMBER_OF','PARTNER_OF','WORKS_FOR'));
+  check (relation in ('PART_OF','COVERS','MANAGES','PROMOTES','SELLS','OPERATES_IN','OPERATES_BRAND','OPERATES_PORTAL','MEMBER_OF','PARTNER_OF','WORKS_FOR'));
 
 create or replace function public.tourism_relation_guard() returns trigger
 language plpgsql set search_path = public as $$
@@ -49,7 +58,7 @@ begin
   if not exists(select 1 from public.tourism_evidence where id=new.evidence_id and fields && array['coverage','relationship']) then raise exception 'Relationship evidence required'; end if;
   if not (
     (new.relation = 'PART_OF' and fk = 'place' and tk = 'place') or
-    (new.relation in ('COVERS','MANAGES','PROMOTES','SELLS') and fk = 'organization' and tk = 'place') or
+    (new.relation in ('COVERS','MANAGES','PROMOTES','SELLS','OPERATES_IN') and fk = 'organization' and tk = 'place') or
     (new.relation = 'OPERATES_BRAND' and fk = 'organization' and tk = 'brand') or
     (new.relation = 'OPERATES_PORTAL' and fk = 'organization' and tk = 'portal') or
     (new.relation in ('MEMBER_OF','PARTNER_OF') and fk = 'organization' and tk = 'organization') or
@@ -99,10 +108,14 @@ create table public.tourism_hubs (
   stats_source text,
   is_homeport boolean,
   scheduled_service boolean,
-  -- Superguida Speaqi: qui finche' non passa alla destinazione (Fase 4).
+  -- Superguida Speaqi: sta qui solo finche' l'hub non e' collegato a una
+  -- destinazione. Il collegamento (tourism_link_hub_destination) la sposta
+  -- sulla destinazione, svuota questi campi e scrive guide_moved_at: da li' in
+  -- poi ogni lettura prende la guida dalla destinazione.
   guide_status text not null default 'none' check (guide_status in ('none','planned','in_progress','live','skip')),
   guide_priority smallint check (guide_priority is null or guide_priority between 1 and 3),
   guide_notes text,
+  guide_moved_at timestamptz,
   notes text,
   active boolean not null default true,
   version integer not null default 1,
@@ -113,7 +126,9 @@ create table public.tourism_hubs (
   foreign key (user_id, destination_id) references public.tourism_entities(user_id, id) on delete set null (destination_id),
   -- Un numero senza anno non si confronta con niente.
   constraint tourism_hubs_passengers_need_year check (passengers is null or passengers_year is not null),
-  constraint tourism_hubs_guide_priority_open check (guide_priority is null or guide_status in ('planned','in_progress'))
+  constraint tourism_hubs_guide_priority_open check (guide_priority is null or guide_status in ('planned','in_progress')),
+  -- Dopo il trasferimento sul porto non resta una seconda verita'.
+  constraint tourism_hubs_guide_moved_empty check (guide_moved_at is null or (guide_status = 'none' and guide_priority is null and guide_notes is null))
 );
 create unique index tourism_hubs_iata_idx on public.tourism_hubs (user_id, mode, iata) where iata is not null;
 create unique index tourism_hubs_icao_idx on public.tourism_hubs (user_id, icao) where icao is not null;
@@ -131,6 +146,12 @@ create table public.tourism_destinations (
   intl_arrivals integer check (intl_arrivals is null or intl_arrivals >= 0),
   arrivals_year smallint check (arrivals_year is null or arrivals_year between 1990 and 2100),
   arrivals_source text,
+  -- A che livello e' misurato il numero: il comune di Roma non e' la provincia.
+  arrivals_granularity text check (arrivals_granularity is null or arrivals_granularity in ('municipality','province','region','country')),
+  -- Un numero stimato e non misurato porta metodo e affidabilita'.
+  arrivals_estimated boolean not null default false,
+  estimate_method text,
+  reliability text check (reliability is null or reliability in ('high','medium','low')),
   -- [{"country":"US","share":18.5}], quote 0-100 dei mercati di provenienza.
   source_markets jsonb not null default '[]' check (jsonb_typeof(source_markets) = 'array'),
   -- Lingue che una guida dovrebbe avere (codici ISO 639-1).
@@ -145,9 +166,23 @@ create table public.tourism_destinations (
   updated_at timestamptz not null default now(),
   foreign key (user_id, entity_id) references public.tourism_entities(user_id, id) on delete cascade,
   constraint tourism_destinations_arrivals_need_year check (intl_arrivals is null or (arrivals_year is not null and arrivals_source is not null)),
+  constraint tourism_destinations_estimate_declared check (not arrivals_estimated or (estimate_method is not null and reliability is not null)),
   constraint tourism_destinations_guide_priority_open check (guide_priority is null or guide_status in ('planned','in_progress'))
 );
 create index tourism_destinations_guide_idx on public.tourism_destinations (user_id, guide_status, guide_priority);
+
+-- Solo le destinazioni aggiuntive: la principale e' tourism_hubs.destination_id.
+create table public.tourism_hub_destinations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  hub_id uuid not null,
+  destination_id uuid not null,
+  source_url text check (source_url is null or source_url ~ '^https?://[^[:space:]]+$'),
+  created_at timestamptz not null default now(),
+  foreign key (user_id, hub_id) references public.tourism_hubs(user_id, id) on delete cascade,
+  foreign key (user_id, destination_id) references public.tourism_entities(user_id, id) on delete cascade,
+  unique (user_id, hub_id, destination_id)
+);
 
 create table public.tourism_hub_operators (
   id uuid primary key default gen_random_uuid(),
@@ -190,6 +225,32 @@ create trigger tourism_hubs_guard before insert or update on public.tourism_hubs
 create trigger tourism_destinations_guard before insert or update on public.tourism_destinations
   for each row execute function public.tourism_place_guard();
 
+create or replace function public.tourism_hub_destination_guard() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if not exists (select 1 from public.tourism_entities where id = new.destination_id and user_id = new.user_id and kind = 'place') then
+    raise exception 'Destination must be a place';
+  end if;
+  if exists (select 1 from public.tourism_hubs where id = new.hub_id and user_id = new.user_id and destination_id = new.destination_id) then
+    raise exception 'Primary destination is not an additional destination';
+  end if;
+  return new;
+end $$;
+create trigger tourism_hub_destinations_guard before insert or update on public.tourism_hub_destinations
+  for each row execute function public.tourism_hub_destination_guard();
+
+-- Cambiare la principale toglie la riga aggiuntiva uguale: niente doppioni.
+create or replace function public.tourism_hub_primary_dedupe() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if new.destination_id is not null and new.destination_id is distinct from old.destination_id then
+    delete from public.tourism_hub_destinations where hub_id = new.id and user_id = new.user_id and destination_id = new.destination_id;
+  end if;
+  return new;
+end $$;
+create trigger tourism_hubs_primary_dedupe after update of destination_id on public.tourism_hubs
+  for each row execute function public.tourism_hub_primary_dedupe();
+
 -- Il registro delle revisioni identifica la riga con `id`; la destinazione ha
 -- come chiave l'entita'.
 create or replace function public.tourism_audit() returns trigger
@@ -207,7 +268,7 @@ begin
 end $$;
 
 do $$ declare t text; begin
-  foreach t in array array['tourism_hubs','tourism_destinations','tourism_hub_operators'] loop
+  foreach t in array array['tourism_hubs','tourism_destinations','tourism_hub_destinations','tourism_hub_operators'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('create policy tourism_owner on public.%I for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid())', t);
     execute format('create trigger tourism_audit after insert or update or delete on public.%I for each row execute function public.tourism_audit()', t);
@@ -215,7 +276,7 @@ do $$ declare t text; begin
     execute format('grant select, insert, update, delete on public.%I to authenticated', t);
   end loop;
 end $$;
-revoke all on function public.tourism_place_guard() from public, anon, authenticated;
+revoke all on function public.tourism_place_guard(), public.tourism_hub_destination_guard(), public.tourism_hub_primary_dedupe() from public, anon, authenticated;
 
 -- Importazione a blocchi da dataset pubblici. Idempotente: un hub si ritrova
 -- per codice ufficiale, poi per slug. Di un hub esistente si riempiono solo i
@@ -317,6 +378,41 @@ end $$;
 revoke all on function public.tourism_import_hubs(jsonb) from public, anon, authenticated;
 grant execute on function public.tourism_import_hubs(jsonb) to authenticated;
 
+-- Collega un hub alla sua destinazione principale e ci sposta la superguida.
+-- Regola: se la destinazione ha gia' una guida (stato diverso da 'none') vince
+-- la destinazione, e il porto dice "conflitto" nella risposta; altrimenti stato,
+-- priorita' e note del porto passano alla destinazione. Sul porto si svuotano
+-- comunque e resta guide_moved_at: una sola verita' da quel momento.
+create or replace function public.tourism_link_hub_destination(p_hub uuid, p_destination uuid) returns jsonb
+language plpgsql set search_path = public as $$
+declare h public.tourism_hubs; d public.tourism_destinations; moved boolean := false; conflict boolean := false;
+begin
+  if auth.uid() is null then raise exception 'Unauthorized'; end if;
+  select * into h from public.tourism_hubs where id = p_hub and user_id = auth.uid() for update;
+  if not found then raise exception 'Hub not found'; end if;
+  if not exists (select 1 from public.tourism_entities where id = p_destination and user_id = auth.uid() and kind = 'place') then
+    raise exception 'Destination must be a place';
+  end if;
+  insert into public.tourism_destinations(user_id, entity_id) values (auth.uid(), p_destination) on conflict (entity_id) do nothing;
+  select * into d from public.tourism_destinations where entity_id = p_destination and user_id = auth.uid() for update;
+  if h.guide_status <> 'none' or h.guide_notes is not null then
+    if d.guide_status = 'none' then
+      update public.tourism_destinations set guide_status = h.guide_status, guide_priority = h.guide_priority,
+        guide_notes = coalesce(h.guide_notes, guide_notes) where entity_id = p_destination;
+      moved := true;
+    elsif d.guide_status is distinct from h.guide_status or d.guide_priority is distinct from h.guide_priority then
+      conflict := true;
+    end if;
+  end if;
+  update public.tourism_hubs set destination_id = p_destination,
+    guide_status = 'none', guide_priority = null, guide_notes = null, guide_moved_at = coalesce(guide_moved_at, now())
+  where id = p_hub;
+  return jsonb_build_object('moved', moved, 'conflict', conflict,
+    'hub_guide', jsonb_build_object('status', h.guide_status, 'priority', h.guide_priority, 'notes', h.guide_notes));
+end $$;
+revoke all on function public.tourism_link_hub_destination(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.tourism_link_hub_destination(uuid, uuid) to authenticated;
+
 -- Quadro per la pagina: quanti hub per tipo, con e senza numeri, e quanti
 -- portano gia' a una destinazione.
 create or replace function public.tourism_hub_overview() returns jsonb
@@ -340,5 +436,7 @@ comment on table public.tourism_hubs is
   'Porti, aeroporti e stazioni (mode sea|air|rail): da dove arrivano i visitatori di una destinazione. shipping_ports e'' la vista dei porti.';
 comment on table public.tourism_destinations is
   'Dati di una destinazione (tourism_entities kind=place): arrivi internazionali, mercati, lingue, stato della superguida Speaqi.';
+comment on table public.tourism_hub_destinations is
+  'Destinazioni aggiuntive di un hub multi-citta''. La principale e'' tourism_hubs.destination_id e qui non si ripete.';
 comment on table public.tourism_hub_operators is
   'Chi opera dove: compagnie di crociera e traghetti nei porti, vettori negli aeroporti, operatori ferroviari nelle stazioni.';

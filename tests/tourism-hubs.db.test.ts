@@ -199,3 +199,58 @@ test("il catalogo aeroporti vero passa i vincoli, a blocchi, ed e' idempotente",
   assert.equal(await scalar<number>(`select count(*)::int as v from tourism_hubs where mode='air'`), hubs.length)
   assert.equal(await scalar(`select name as v from tourism_hubs where iata='FCO'`), 'Fiumicino Leonardo da Vinci')
 })
+
+test('destinazione principale e aggiuntive: mai la stessa due volte', async () => {
+  await asUser(OWNER)
+  const bangkok = await scalar(`insert into tourism_entities(kind,name,country_code) values('place','Bangkok','TH') returning id as v`)
+  const pattaya = await scalar(`insert into tourism_entities(kind,name,country_code) values('place','Pattaya','TH') returning id as v`)
+  const hub = await scalar(`insert into tourism_hubs(mode,slug,name,country,destination_id) values('sea','laem-chabang','Laem Chabang','TH',$1) returning id as v`, [bangkok])
+  await db.query(`insert into tourism_hub_destinations(hub_id,destination_id) values($1,$2)`, [hub, pattaya])
+  await assert.rejects(db.query(`insert into tourism_hub_destinations(hub_id,destination_id) values($1,$2)`, [hub, bangkok]), /Primary destination/)
+  // Pattaya diventa la principale: la riga aggiuntiva uguale sparisce.
+  await db.query(`update tourism_hubs set destination_id=$1 where id=$2`, [pattaya, hub])
+  assert.equal(await scalar<number>(`select count(*)::int as v from tourism_hub_destinations where hub_id=$1`, [hub]), 0)
+})
+
+test('collegare un porto sposta la superguida sulla destinazione e la toglie dal porto', async () => {
+  await asUser(OWNER)
+  const napoli = await scalar(`insert into tourism_entities(kind,name,country_code) values('place','Napoli','IT') returning id as v`)
+  const result = await scalar<{ moved: boolean; conflict: boolean }>(`select tourism_link_hub_destination($1,$2) as v`, [NAPOLI, napoli])
+  assert.equal(result.moved, true)
+  assert.equal(result.conflict, false)
+  const destination = (await db.query<Record<string, unknown>>(`select * from tourism_destinations where entity_id=$1`, [napoli])).rows[0]
+  assert.equal(destination.guide_status, 'planned')
+  assert.equal(destination.guide_priority, 1)
+  const port = (await db.query<Record<string, unknown>>(`select * from shipping_ports where id=$1`, [NAPOLI])).rows[0]
+  assert.equal(port.guide_status, 'none')
+  assert.equal(port.guide_priority, null)
+  assert.ok(port.guide_moved_at)
+  assert.equal(port.destination_id, napoli)
+  // Sul porto trasferito la guida non si riscrive: una sola verita'.
+  await assert.rejects(db.query(`update shipping_ports set guide_status='live' where id=$1`, [NAPOLI]), /guide_moved_empty/)
+})
+
+test('se la destinazione ha gia una guida diversa vince lei e il porto segnala il conflitto', async () => {
+  await asUser(OWNER)
+  const salerno = await scalar(`insert into tourism_entities(kind,name,country_code) values('place','Salerno','IT') returning id as v`)
+  await db.query(`insert into tourism_destinations(entity_id,guide_status) values($1,'in_progress')`, [salerno])
+  const port = await scalar(`select id as v from shipping_ports where slug='salerno'`)
+  const result = await scalar<{ moved: boolean; conflict: boolean; hub_guide: { status: string } }>(`select tourism_link_hub_destination($1,$2) as v`, [port, salerno])
+  assert.equal(result.moved, false)
+  assert.equal(result.conflict, true)
+  assert.equal(result.hub_guide.status, 'live')
+  assert.equal(await scalar(`select guide_status as v from tourism_destinations where entity_id=$1`, [salerno]), 'in_progress')
+  assert.equal(await scalar(`select guide_status as v from tourism_hubs where id=$1`, [port]), 'none')
+})
+
+test('OPERATES_IN: un property manager ha alloggi in una citta', async () => {
+  await asUser(OWNER)
+  const pm = await scalar(`select id as v from tourism_entities where name='Halldis'`)
+  const roma = await scalar(`select id as v from tourism_entities where kind='place' and name='Roma'`)
+  const evidence = await scalar(
+    `insert into tourism_evidence(entity_id,source_url,title,fields) values($1,'https://halldis.com/roma','Appartamenti a Roma','{relationship}') returning id as v`,
+    [pm]
+  )
+  await db.query(`insert into tourism_relations(from_id,to_id,relation,evidence_id) values($1,$2,'OPERATES_IN',$3)`, [pm, roma, evidence])
+  await assert.rejects(db.query(`insert into tourism_relations(from_id,to_id,relation,evidence_id) values($1,$2,'SERVES',$3)`, [pm, roma, evidence]))
+})

@@ -141,3 +141,24 @@ describe('posizione del porto', () => {
     assert.ok('patch' in result && !('latitude' in result.patch))
   })
 })
+
+test('superguida trasferita: si legge dalla destinazione, mai i valori vecchi del porto', async () => {
+  const { applyDestinationGuides, patchTouchesGuide } = await import('../src/lib/shipping-ports')
+  const ports = [
+    { id: 'a', guide_status: 'planned' as const, guide_priority: 1 as const, guide_notes: 'x', destination_id: null, guide_moved_at: null },
+    { id: 'b', guide_status: 'none' as const, guide_priority: null, guide_notes: null, destination_id: 'roma', guide_moved_at: '2026-10-20' },
+    { id: 'c', guide_status: 'none' as const, guide_priority: null, guide_notes: null, destination_id: 'persa', guide_moved_at: '2026-10-20' },
+  ]
+  const [a, b, c] = applyDestinationGuides(ports, [
+    { entity_id: 'roma', guide_status: 'in_progress', guide_priority: 2, guide_notes: 'Roma in lavorazione' },
+  ])
+  assert.equal(a.guide_source, 'port')
+  assert.equal(a.guide_status, 'planned')
+  assert.equal(b.guide_source, 'destination')
+  assert.equal(b.guide_status, 'in_progress')
+  assert.equal(b.guide_priority, 2)
+  assert.equal(c.guide_status, 'none')
+  assert.equal(c.guide_source, 'destination')
+  assert.equal(patchTouchesGuide({ region: 'Asia' }), false)
+  assert.equal(patchTouchesGuide({ guide_priority: null }), true)
+})

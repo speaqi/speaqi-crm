@@ -33,7 +33,10 @@ create view public.shipping_ports with (security_invoker = true) as
   select id, user_id, slug, name, country, unlocode, aliases, latitude, longitude, notes,
          created_at, updated_at, region, subregion, destination,
          passengers as cruise_passengers, passengers_year, movements as cruise_calls,
-         stats_source, is_homeport, guide_status, guide_priority, guide_notes, mode
+         stats_source, is_homeport, guide_status, guide_priority, guide_notes, mode,
+         -- Dopo il collegamento a una destinazione la guida si legge da li':
+         -- la vista non la ricopia, cosi' resta semplice e aggiornabile.
+         destination_id, guide_moved_at
   from public.tourism_hubs
   where mode = 'sea'
   with cascaded check option;

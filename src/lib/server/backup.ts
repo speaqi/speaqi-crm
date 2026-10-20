@@ -63,6 +63,7 @@ export const BACKUP_TABLES = [
   // Porti, aeroporti e stazioni; i porti di Navigazione sono la vista shipping_ports su questa tabella.
   'tourism_hubs',
   'tourism_destinations',
+  'tourism_hub_destinations',
   'tourism_hub_operators',
   // Navigazione e fiere.
   'shipping_companies',

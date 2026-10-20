@@ -25,6 +25,12 @@ export interface ShippingPort {
   guide_status?: 'none' | 'planned' | 'in_progress' | 'live' | 'skip'
   guide_priority?: 1 | 2 | 3 | null
   guide_notes?: string | null
+  /** Destinazione di Tourism Intelligence a cui il porto e' collegato. */
+  destination_id?: string | null
+  /** Quando la superguida e' passata alla destinazione: da li' i campi guide_* vengono dalla destinazione. */
+  guide_moved_at?: string | null
+  /** 'destination' quando la guida mostrata e' quella della destinazione, non del porto. */
+  guide_source?: 'port' | 'destination'
 }
 
 export interface ShippingItineraryStop {
