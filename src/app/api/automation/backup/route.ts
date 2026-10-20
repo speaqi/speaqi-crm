@@ -26,7 +26,9 @@ export async function POST(request: NextRequest) {
     // Storage, R2 o email falliti, o nessuna copia fuori da Supabase, non sono un successo.
     const degraded = backupDegraded(result)
 
-    return Response.json({ ok: !degraded, ...result }, { status: degraded ? 500 : 200 })
+    // r2 subito dopo ok: e' la riga che si cerca, e la risposta e lunga (una voce per tabella).
+    const { r2, ...rest } = result
+    return Response.json({ ok: !degraded, r2, ...rest }, { status: degraded ? 500 : 200 })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Backup non riuscito') }, { status: 500 })
   }

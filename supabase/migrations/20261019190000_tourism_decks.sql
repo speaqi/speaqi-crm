@@ -5,7 +5,7 @@
 -- Operazioni riservate al proprietario del workspace; la vista pubblica passa dal service role
 -- con il token del deck, mai da una policy aperta.
 
-create table public.tourism_deck_templates (
+create table if not exists public.tourism_deck_templates (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   name text not null default 'Mappa per destinazioni (TTG)' check (length(btrim(name)) between 1 and 120),
@@ -16,9 +16,9 @@ create table public.tourism_deck_templates (
   updated_at timestamptz not null default now()
 );
 -- Un solo modello di partenza per proprietario.
-create unique index tourism_deck_templates_default_idx on public.tourism_deck_templates(user_id) where is_default;
+create unique index if not exists tourism_deck_templates_default_idx on public.tourism_deck_templates(user_id) where is_default;
 
-create table public.tourism_decks (
+create table if not exists public.tourism_decks (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   entity_id uuid references public.tourism_entities(id) on delete set null,
@@ -39,10 +39,12 @@ create table public.tourism_decks (
   updated_at timestamptz not null default now(),
   check ((status = 'approved') = (approved_at is not null))
 );
-create index tourism_decks_owner_idx on public.tourism_decks(user_id, updated_at desc);
-create index tourism_decks_entity_idx on public.tourism_decks(entity_id) where entity_id is not null;
+create index if not exists tourism_decks_owner_idx on public.tourism_decks(user_id, updated_at desc);
+create index if not exists tourism_decks_entity_idx on public.tourism_decks(entity_id) where entity_id is not null;
 
 alter table public.tourism_deck_templates enable row level security;
 alter table public.tourism_decks enable row level security;
+drop policy if exists tourism_owner on public.tourism_deck_templates;
 create policy tourism_owner on public.tourism_deck_templates for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists tourism_owner on public.tourism_decks;
 create policy tourism_owner on public.tourism_decks for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());

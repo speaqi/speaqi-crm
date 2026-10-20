@@ -1,5 +1,5 @@
 import { gzipSync } from 'node:zlib'
-import { putR2Object, r2BackupConfig } from './r2'
+import { describeR2Config, probeR2Read, putR2Object, r2BackupConfig } from './r2'
 
 /**
  * Backup del database eseguito in produzione.
@@ -224,7 +224,8 @@ export async function runDatabaseBackup(
       await putR2Object(r2Config, `crm/${file}`, payload, 'application/gzip')
       r2 = 'ok'
     } catch (error) {
-      r2 = error instanceof Error ? error.message : String(error)
+      const reading = await probeR2Read(r2Config)
+      r2 = `${error instanceof Error ? error.message : String(error)} [${describeR2Config(r2Config)}; lettura=${reading}]`
     }
   }
 
