@@ -688,6 +688,7 @@ Nessuna dipendenza di test oltre `tsx`: si usa `node:test`.
 ```bash
 npm run test:unit   # pianificatore automazioni, motore campagne, Wine Project, WhatsApp, lavagna To Do, Telegram, abbonamenti/firma/link vendita, programma commerciali, Da incassare, compagnie di navigazione, itinerari e mappa rotte
 npm run test:db     # integrazione e concorrenza su un Postgres locale usa-e-getta
+npm run test:postgrest # Navigazione su Postgres + PostgREST veri dopo il passaggio dei porti in tourism_hubs (scarica PostgREST la prima volta)
 npm test            # entrambi
 ```
 
