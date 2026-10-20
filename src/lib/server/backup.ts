@@ -5,15 +5,27 @@ import { gzipSync } from 'node:zlib'
  *
  * Il piano Free di Supabase non ha backup automatici ne PITR: senza questo,
  * una scrittura sbagliata sui contatti non e recuperabile. Il dump viene
- * salvato su Supabase Storage (ripristino comodo, storico datato) e spedito
- * via email (copia fuori da Supabase).
+ * salvato su Supabase Storage (ripristino comodo, storico datato) e, solo se
+ * pesa meno di 8 MB, spedito via email. Oggi il dump e' piu' grande: l'email
+ * viene saltata (`skipped_too_large`) e l'unica copia sta dentro Supabase.
  *
  * La versione locale e `scripts/backup_supabase.mjs` (`npm run backup`), che
  * fa lo stesso lavoro attaccandosi al database direttamente: se cambi l'elenco
  * delle tabelle qui, allineala.
  */
 
-/** Contatti piu tutto cio che li rende leggibili: storia, impegni, trattative. */
+/**
+ * Cio che non si rigenera: contatti con la loro storia, trattative, preventivi,
+ * l'elenco delle aziende turistiche e le ricerche (Tourism Intelligence), le
+ * compagnie e i porti di Navigazione (lavoro fatto a mano), le fiere, bozze e
+ * invii email, le impostazioni e le campagne.
+ *
+ * Fuori di proposito: `tourism_revisions` (36 MB di storico, pesa piu di meta
+ * del database e farebbe saltare memoria e tempo del dump), `gmail_accounts`
+ * (segreti: si ricollega l'account), `automation_job_runs` e le tabelle di n8n
+ * rimaste (log). Aggiungendo una tabella con chiave diversa da `id`, mettila
+ * anche in BACKUP_ORDER.
+ */
 export const BACKUP_TABLES = [
   'contacts',
   'deals',
@@ -24,11 +36,63 @@ export const BACKUP_TABLES = [
   'quote_signatures',
   'lead_memories',
   'pipeline_stages',
+  'stage_transitions',
   'team_members',
   'user_settings',
+  'user_state',
+  'sales_links',
+  'todo_board_columns',
+  'business_goals',
   // Soldi da ricevere (/incassi): pochi, ma sono soldi.
   'receivables',
+  // Tourism Intelligence: l'elenco delle aziende turistiche e cio che si e' trovato.
+  'tourism_taxonomy',
+  'tourism_entities',
+  'tourism_evidence',
+  'tourism_relations',
+  'tourism_crm_links',
+  'tourism_crm_matches',
+  'tourism_jobs',
+  'tourism_acquisitions',
+  'tourism_site_sources',
+  'tourism_site_scans',
+  'tourism_poi_candidates',
+  'tourism_project_opportunities',
+  'tourism_canonical_links',
+  // Navigazione e fiere.
+  'shipping_companies',
+  'shipping_ports',
+  'shipping_itineraries',
+  'shipping_itinerary_stops',
+  'trade_fair_exhibitors',
+  // Email, campagne e notifiche.
+  'email_drafts',
+  'email_logs',
+  'gmail_messages',
+  'ai_decision_logs',
+  'acumbamail_campaigns',
+  'acumbamail_campaign_engagements',
+  'wine_project_automation_settings',
+  'wine_project_followup_events',
+  'wine_project_reply_checks',
+  'commercial_campaigns',
+  'commercial_campaign_steps',
+  'commercial_import_batches',
+  'commercial_enrollments',
+  'commercial_messages',
+  'commercial_suppressions',
+  'whatsapp_notification_settings',
 ] as const
+
+/** Colonna di ordinamento per le tabelle senza `id`: la paginazione ne ha bisogno. */
+export const BACKUP_ORDER: Record<string, string> = {
+  user_state: 'user_id',
+  whatsapp_notification_settings: 'user_id',
+  wine_project_automation_settings: 'user_id',
+  wine_project_reply_checks: 'contact_id',
+  tourism_taxonomy: 'code',
+  tourism_crm_links: 'entity_id',
+}
 
 /** PostgREST tronca a 1000 righe: senza paginazione il backup e silenziosamente incompleto. */
 const PAGE_SIZE = 1000
@@ -54,7 +118,7 @@ async function fetchAllRows(supabase: any, table: string) {
     const { data, error } = await supabase
       .from(table)
       .select('*')
-      .order('id', { ascending: true })
+      .order(BACKUP_ORDER[table] || 'id', { ascending: true })
       .range(from, from + PAGE_SIZE - 1)
 
     if (error) throw error
