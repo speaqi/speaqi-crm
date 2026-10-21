@@ -94,9 +94,11 @@ export async function buildPptx(input: PptxInput): Promise<Buffer> {
         const cx = 132 + (i % cols) * (width + gap)
         const cy = top + Math.floor(i / cols) * (height + gap)
         slide.addShape(pptx.ShapeType.roundRect, { x: X(cx), y: X(cy), w: X(width), h: X(height), fill: { color: p.card }, line: { color: p.line, width: 1 }, rectRadius: 0.12 })
-        text(mark(i), { x: X(cx + 36), y: X(cy + 30), w: X(width - 72), h: X(60), fontSize: PT(30), bold: true, color: p.accent })
-        text(it.title, { x: X(cx + 36), y: X(cy + 100), w: X(width - 72), h: X(90), fontSize: PT(36), bold: true })
-        if (it.text) text(it.text, { x: X(cx + 36), y: X(cy + 190), w: X(width - 72), h: X(Math.max(60, height - 220)), fontSize: PT(25), color: muted })
+        const big = numberedMark(it) !== null
+        const off = big ? 70 : 0
+        text(mark(i), { x: X(cx + 36), y: X(cy + 24), w: X(width - 72), h: X(big ? 120 : 60), fontSize: PT(big ? 80 : 30), bold: !big, color: p.accent })
+        text(it.title, { x: X(cx + 36), y: X(cy + 100 + off), w: X(width - 72), h: X(90), fontSize: PT(big ? 32 : 36), bold: true })
+        if (it.text) text(it.text, { x: X(cx + 36), y: X(cy + 190 + off), w: X(width - 72), h: X(Math.max(60, height - 220 - off)), fontSize: PT(big ? 22 : 25), color: muted })
       })
     }
 
@@ -162,26 +164,24 @@ export async function buildPptx(input: PptxInput): Promise<Buffer> {
         const included = q.lines.length - priced.length
         const rows: PptxGenJS.TableRow[] = priced.slice(0, 10).map((l) => [
           { text: [{ text: l.description, options: { bold: true, breakLine: Boolean(l.details) } }, ...(l.details ? [{ text: l.details, options: { fontSize: PT(20), color: muted } }] : [])], options: { fontSize: PT(26) } },
-          { text: formatMoney(l.total, q.currency), options: { align: 'right', fontSize: PT(26), bold: true } }
+          { text: [...(l.list_total && l.list_total > l.total ? [{ text: formatMoney(l.list_total, q.currency), options: { strike: true, fontSize: PT(20), color: muted, breakLine: true } }] : []), { text: formatMoney(l.total, q.currency), options: { bold: true } }], options: { align: 'right', fontSize: PT(26) } }
         ])
         if (priced.length > 10) rows.push([{ text: `+ altre ${priced.length - 10} voci nel preventivo`, options: { colspan: 2, fontSize: PT(20), color: muted } }])
         if (included > 0) rows.push([{ text: `Compresi nel prezzo: ${included} ${included === 1 ? 'voce' : 'voci'}, elencate nel preventivo`, options: { colspan: 2, fontSize: PT(20), color: muted } }])
         slide.addTable(rows, { x: X(132), y: X(top), w: X(1050), colW: [X(800), X(250)], fontFace: FONT, color: ink, border: { type: 'solid', color: p.line, pt: 1 }, margin: 0.08 })
         slide.addShape(pptx.ShapeType.roundRect, { x: X(1260), y: X(top), w: X(528), h: X(560), fill: { color: p.darkBg }, line: { color: p.darkBg }, rectRadius: 0.12 })
         const lines = [
-          `Imponibile  ${formatMoney(Math.max(0, q.subtotal - q.discount), q.currency)}`,
-          ...(q.discount > 0 ? [`Sconto incluso  − ${formatMoney(q.discount, q.currency)}`] : []),
-          `IVA ${q.tax_rate}%  ${formatMoney(q.tax, q.currency)}`
+          ...(q.discount > 0 ? [`Sconto incluso  − ${formatMoney(q.discount, q.currency)}`] : [])
         ]
         text(lines.join('\n'), { x: X(1300), y: X(top + 40), w: X(448), h: X(130), fontSize: PT(24), color: p.darkMuted })
-        text('TOTALE', { x: X(1300), y: X(top + 200), w: X(448), h: X(36), fontSize: PT(22), color: p.darkMuted, bold: true })
-        text(`${formatMoney(q.total, q.currency)}${q.billing_interval === 'year' ? ' / anno' : ''}`, { x: X(1300), y: X(top + 240), w: X(448), h: X(100), fontSize: PT(62), bold: true, color: p.accent })
+        text(`PREZZO + IVA ${q.tax_rate}%`, { x: X(1300), y: X(top + 200), w: X(448), h: X(36), fontSize: PT(22), color: p.darkMuted, bold: true })
+        text(`${formatMoney(Math.max(0, q.subtotal - q.discount), q.currency)}${q.billing_interval === 'year' ? ' / anno' : ''}`, { x: X(1300), y: X(top + 240), w: X(448), h: X(100), fontSize: PT(62), bold: true, color: p.accent })
         let metaY = top + 350
         if (q.deposit_net !== null && q.balance_net !== null) {
           text(`Alla firma  ${formatMoney(q.deposit_net, q.currency)} + IVA\nSaldo  ${formatMoney(q.balance_net, q.currency)} + IVA`, { x: X(1300), y: X(top + 330), w: X(448), h: X(80), fontSize: PT(22), color: p.darkMuted })
           metaY = top + 420
         }
-        text(`Preventivo ${q.number}${q.valid_until ? ` · valido fino al ${new Date(q.valid_until).toLocaleDateString('it-IT')}` : ''}${q.payment_note ? `\n${q.payment_note}` : ''}${q.note ? `\n${q.note}` : ''}`, { x: X(1300), y: X(metaY), w: X(448), h: X(Math.max(60, 480 - (metaY - top) - 10)), fontSize: PT(18), color: p.darkMuted })
+        text(`Preventivo ${q.number}${q.valid_until ? ` · valido fino al ${new Date(q.valid_until).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}${q.payment_note ? `\n${q.payment_note}` : ''}${q.note ? `\n${q.note}` : ''}`, { x: X(1300), y: X(metaY), w: X(448), h: X(Math.max(60, 480 - (metaY - top) - 10)), fontSize: PT(18), color: p.darkMuted })
         foot()
         return
       }

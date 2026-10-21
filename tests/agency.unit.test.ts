@@ -318,7 +318,7 @@ test('PowerPoint esportato: un file valido con una slide per slide e testi modif
   assert.ok(entries.some((n) => /^ppt\/charts\/chart\d+\.xml$/.test(n)), 'il grafico è nativo, con i dati modificabili')
   const text = extractPptxText(buf)
   assert.match(text, /Traffico/)
-  assert.match(text, /10\.980,00/, 'l’investimento arriva dal preventivo')
+  assert.match(text, /9000,00/, "l’investimento arriva dal preventivo, al netto di IVA")
 })
 
 test('preventivo: acconto e saldo senza IVA, note del preventivo; mai su un abbonamento', () => {

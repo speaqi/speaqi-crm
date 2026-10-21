@@ -281,7 +281,7 @@ export type QuoteSummary = {
   status: string
   currency: string
   billing_interval: 'one_time' | 'year'
-  lines: { description: string; details: string; quantity: number; total: number }[]
+  lines: { description: string; details: string; quantity: number; total: number; list_total: number | null }[]
   subtotal: number
   discount: number
   tax_rate: number
@@ -326,7 +326,8 @@ export function quoteSummary(row: Record<string, any> | null | undefined): Quote
         description: clip(i?.description, 200),
         details: clip(i?.details, 400),
         quantity: money(i?.quantity),
-        total: money(i?.line_total ?? Number(i?.quantity) * Number(i?.unit_price))
+        total: money(i?.line_total ?? Number(i?.quantity) * Number(i?.unit_price)),
+        list_total: Number(i?.list_unit_price) > 0 ? money(Number(i?.quantity) * Number(i?.list_unit_price)) : null
       })),
     subtotal: money(row.subtotal_amount),
     discount: money(row.discount_amount),
