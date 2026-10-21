@@ -13,9 +13,17 @@ type Sb = any
 /** Si alza quando cambia il disegno delle slide: i PDF in cache si rigenerano. */
 export const AGENCY_DESIGN_VERSION = 2
 
-/** Cambia quando cambiano le slide (versione), il preventivo mostrato, l'identità dell'agenzia o il disegno. */
-export function pdfStamp(row: Pick<PresentationRow, 'version' | 'status'>, quoteUpdatedAt: string | null, settings: unknown) {
-  const h = createHash('sha256').update(JSON.stringify([quoteUpdatedAt || '', settings || {}, row.status === 'approved', AGENCY_DESIGN_VERSION])).digest('hex').slice(0, 10)
+/**
+ * Cambia quando cambiano le slide (versione), il preventivo mostrato, l'identità dell'agenzia,
+ * il marchio del cliente, le foto scelte o il disegno. Marchio e foto entrano a parte perché
+ * cambiarli (o togliere un file dal progetto) non alza la versione della presentazione.
+ */
+export function pdfStamp(row: Pick<PresentationRow, 'version' | 'status'> & { slides?: PresentationRow['slides'] }, quoteUpdatedAt: string | null, settings: unknown, brand: unknown = null) {
+  const images = (row.slides || []).map((s) => s?.image_asset_id || null)
+  const h = createHash('sha256')
+    .update(JSON.stringify([quoteUpdatedAt || '', settings || {}, row.status === 'approved', AGENCY_DESIGN_VERSION, brand || {}, images]))
+    .digest('hex')
+    .slice(0, 10)
   return `v${row.version}-${h}`
 }
 

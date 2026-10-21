@@ -90,7 +90,8 @@ export default function ProjectPage({ id }: { id: string }) {
 
   const newPresentation = (generate: boolean) =>
     run('new', async () => {
-      if (dirty) await patch({ brief, title, services })
+      // Salvataggio diretto, non `patch`: se fallisce si ferma qui, senza generare dal brief vecchio.
+      if (dirty && p) adopt(await post<ProjectView>(`/api/agency/projects/${id}`, { brief, title, services, version: p.version }, 'PATCH'))
       const v = await post<{ id: string }>(`/api/agency/projects/${id}/presentations`, { generate })
       router.push(`/agency/presentazioni/${v.id}`)
     })

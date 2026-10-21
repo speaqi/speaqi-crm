@@ -17,7 +17,8 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ token: 
   try {
     const quote = row.quote_id ? (await service.from('quotes').select('updated_at').eq('user_id', row.user_id).eq('id', row.quote_id).maybeSingle()).data : null
     const settings = normalizeAgencySettings((await service.from('agency_settings').select('content').eq('user_id', row.user_id).maybeSingle()).data?.content)
-    const pdf = await getOrCreatePresentationPdf(service, row, pdfStamp(row, quote?.updated_at || null, settings))
+    const brand = (await service.from('agency_projects').select('client_brand').eq('user_id', row.user_id).eq('id', row.project_id).maybeSingle()).data?.client_brand
+    const pdf = await getOrCreatePresentationPdf(service, row, pdfStamp(row, quote?.updated_at || null, settings, brand))
     return new Response(new Uint8Array(pdf), {
       headers: {
         'Content-Type': 'application/pdf',

@@ -331,6 +331,8 @@ export function countTodo(slides: AgencySlide[], opts: { hasQuote: boolean } = {
   let n = 0
   for (const s of slides) {
     for (const text of slideStrings(s)) n += text.match(DECK_TODO_PATTERN)?.length || 0
+    // Un valore vuoto si mostra come [DA VERIFICARE]: conta come mancanza.
+    if (s.kind === 'metrics' || s.kind === 'chart') n += s.items.filter((i) => !String(i.value || '').trim()).length
     if (s.kind === 'investment' && !opts.hasQuote) n++
   }
   return n

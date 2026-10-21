@@ -324,6 +324,23 @@ test('un errore dell’agente lascia le slide com’erano, con il motivo', async
   assert.deepEqual(failed.slides, before.slides)
 })
 
+test('un giro superato da un altro non sovrascrive né segna fallita la presentazione', async () => {
+  const before = await loadPresentation(owner, OWNER, presentationId)
+  const claimed = await claimGeneration(owner, before)
+  // Un'altra richiesta riprende il turno (giro fermo oltre la soglia): la firma cambia.
+  const takeover = new Date(Date.now() + 60_000).toISOString()
+  assert.ok(!(await service.from('agency_presentations').update({ updated_at: takeover }).eq('id', presentationId)).error)
+  nextModelResponse = { title: 'Superato', style: 'bold', analysis: {}, slides: [slide({ id: 'cover', kind: 'cover', title: 'Del giro vecchio' })] }
+  const late = await runGeneration(owner, service, claimed)
+  assert.equal(late.status, 'generating', 'il turno resta al giro nuovo')
+  assert.equal(late.version, before.version, 'nessuna versione scritta dal giro vecchio')
+  assert.deepEqual(late.slides, before.slides)
+  nextModelResponse = { slides: 'rotto' }
+  const lateFail = await runGeneration(owner, service, claimed)
+  assert.equal(lateFail.status, 'generating', 'un errore del giro vecchio non segna fallito quello nuovo')
+  assert.ok(!(await service.from('agency_presentations').update({ status: 'ready', error: null }).eq('id', presentationId)).error)
+})
+
 test('RLS e proprietario: un altro utente non vede né aggancia', async () => {
   const seen = await other.from('agency_projects').select('id')
   assert.equal(seen.data?.length, 0)
@@ -345,8 +362,13 @@ test('vista del progetto e pulizia: rimozione file, scollegamento, cancellazione
   await removeProjectAsset(owner, service, project, photoId)
   const pres = await loadPresentation(owner, OWNER, presentationId)
   assert.ok(!pres.slides.some((s) => s.image_asset_id === photoId), 'la foto tolta esce dalle slide')
+  // Una presentazione approvata che perde il preventivo torna da approvare: il link si spegne.
+  assert.ok(!(await service.from('agency_presentations').update({ quote_id: quoteId, status: 'approved', approved_at: new Date().toISOString() }).eq('id', presentationId)).error)
   await detachQuote(owner, project, quoteId)
-  assert.equal((await loadPresentation(owner, OWNER, presentationId)).quote_id, null)
+  const detached = await loadPresentation(owner, OWNER, presentationId)
+  assert.equal(detached.quote_id, null)
+  assert.equal(detached.status, 'ready')
+  assert.equal(detached.approved_at, null)
   await attachQuote(owner, project, quoteId)
   const paths = project.assets.map((a) => a.path)
   await deleteProject(owner, service, project)

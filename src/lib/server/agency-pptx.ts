@@ -153,6 +153,7 @@ export async function buildPptx(input: PptxInput): Promise<Buffer> {
           { text: [{ text: l.description, options: { bold: true, breakLine: Boolean(l.details) } }, ...(l.details ? [{ text: l.details, options: { fontSize: PT(20), color: muted } }] : [])], options: { fontSize: PT(26) } },
           { text: formatMoney(l.total, q.currency), options: { align: 'right', fontSize: PT(26), bold: true } }
         ])
+        if (q.lines.length > 10) rows.push([{ text: `+ altre ${q.lines.length - 10} voci nel preventivo`, options: { colspan: 2, fontSize: PT(20), color: muted } }])
         slide.addTable(rows, { x: X(132), y: X(top), w: X(1050), colW: [X(800), X(250)], fontFace: FONT, color: ink, border: { type: 'solid', color: p.line, pt: 1 }, margin: 0.08 })
         slide.addShape(pptx.ShapeType.roundRect, { x: X(1260), y: X(top), w: X(528), h: X(480), fill: { color: p.darkBg }, line: { color: p.darkBg }, rectRadius: 0.12 })
         const lines = [
@@ -170,7 +171,8 @@ export async function buildPptx(input: PptxInput): Promise<Buffer> {
       case 'chart': {
         const top = head()
         const values = s.items.map((it) => Number(String(it.value).replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '')))
-        if (values.every((v) => Number.isFinite(v)) && s.items.length) {
+        // Un valore vuoto non è uno zero: senza tutti i valori niente grafico, si mostra la lista.
+        if (s.items.length && s.items.every((it) => String(it.value || '').trim()) && values.every((v) => Number.isFinite(v))) {
           slide.addChart(pptx.ChartType.bar, [{ name: s.title, labels: s.items.map((it) => it.title), values }], {
             x: X(132), y: X(top), w: X(1656), h: X(900 - top),
             barDir: 'bar', chartColors: [p.accent], catAxisLabelColor: ink, valAxisLabelColor: muted,

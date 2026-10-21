@@ -14,7 +14,8 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
     const row = await loadPresentation(auth.supabase, auth.user.id, (await ctx.params).id)
     const quote = row.quote_id ? (await auth.supabase.from('quotes').select('updated_at').eq('user_id', row.user_id).eq('id', row.quote_id).maybeSingle()).data : null
     const settings = await getSettings(auth.supabase, row.user_id)
-    const pdf = await getOrCreatePresentationPdf(createServiceRoleClient(), row, pdfStamp(row, quote?.updated_at || null, settings))
+    const brand = (await auth.supabase.from('agency_projects').select('client_brand').eq('user_id', row.user_id).eq('id', row.project_id).maybeSingle()).data?.client_brand
+    const pdf = await getOrCreatePresentationPdf(createServiceRoleClient(), row, pdfStamp(row, quote?.updated_at || null, settings, brand))
     return new Response(new Uint8Array(pdf), {
       headers: {
         'Content-Type': 'application/pdf',

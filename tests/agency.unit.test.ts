@@ -105,6 +105,14 @@ test('[DA VERIFICARE] contati, e la slide investimento senza preventivo è una m
   assert.equal(countTodo(slides, { hasQuote: false }), 2)
 })
 
+test('un valore vuoto su numeri o grafico si mostra [DA VERIFICARE] e blocca l’approvazione', () => {
+  const slides = normalizeSlides([
+    { kind: 'metrics', title: 'Numeri', items: [{ title: 'Visite', value: '' }, { title: 'Ordini', value: '120' }] },
+    { kind: 'chart', title: 'Grafico', items: [{ title: 'A', value: ' ' }, { title: 'B', value: '3' }] }
+  ])
+  assert.equal(countTodo(slides, { hasQuote: true }), 2)
+})
+
 test('revisione: solo le slide nominate cambiano, gli id restano', () => {
   const start = normalizeSlides([
     { id: 'cover', kind: 'cover', title: 'Copertina' },
@@ -317,6 +325,10 @@ test('PDF: il timbro cambia con versione e preventivo; la chiave di render vale 
   assert.notEqual(a, pdfStamp({ version: 4, status: 'ready' }, '2026-10-20T10:00:00Z', { name: 'A' }))
   assert.notEqual(a, pdfStamp({ version: 3, status: 'ready' }, '2026-10-20T11:00:00Z', { name: 'A' }))
   assert.notEqual(a, pdfStamp({ version: 3, status: 'approved' }, '2026-10-20T10:00:00Z', { name: 'A' }))
+  // Marchio del cliente e foto delle slide non alzano la versione, ma cambiano il PDF.
+  assert.notEqual(a, pdfStamp({ version: 3, status: 'ready' }, '2026-10-20T10:00:00Z', { name: 'A' }, { accent: '#ff0000' }))
+  const withPhoto = normalizeSlides([{ id: 's', kind: 'statement', image_asset_id: PHOTO }])
+  assert.notEqual(a, pdfStamp({ version: 3, status: 'ready', slides: withPhoto }, '2026-10-20T10:00:00Z', { name: 'A' }))
   process.env.AGENCY_RENDER_SECRET = 'segreto'
   const token = 'a'.repeat(64)
   const key = renderKey(token, 5)

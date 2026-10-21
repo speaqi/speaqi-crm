@@ -420,11 +420,13 @@ export async function removeProjectAsset(sb: Sb, service: Sb, row: ProjectRow, a
   if (brand.logo_asset_id === assetId) brand.logo_asset_id = null
   checked(await sb.from('agency_projects').update({ assets, client_brand: brand, updated_at: now() }).eq('user_id', row.user_id).eq('id', row.id))
   // Una foto tolta non resta scelta in nessuna slide del progetto.
-  const pres = checked(await sb.from('agency_presentations').select('id,slides').eq('user_id', row.user_id).eq('project_id', row.id)).data || []
-  for (const p of pres as { id: string; slides: AgencySlide[] }[]) {
+  const pres = checked(await sb.from('agency_presentations').select('id,slides,status').eq('user_id', row.user_id).eq('project_id', row.id)).data || []
+  for (const p of pres as { id: string; slides: AgencySlide[]; status: string }[]) {
     if (!(p.slides || []).some((s) => s.image_asset_id === assetId)) continue
     const slides = p.slides.map((s) => (s.image_asset_id === assetId ? { ...s, image_asset_id: null } : s))
-    checked(await sb.from('agency_presentations').update({ slides, updated_at: now() }).eq('user_id', row.user_id).eq('id', p.id))
+    // Su una presentazione in generazione non si tocca updated_at: è la firma del turno dell'agente.
+    const generating = p.status === 'generating'
+    checked(await sb.from('agency_presentations').update(generating ? { slides } : { slides, updated_at: now() }).eq('user_id', row.user_id).eq('id', p.id))
   }
   await service.storage.from(AGENCY_BUCKET).remove([asset.path])
   row.assets = assets
@@ -498,8 +500,13 @@ export async function attachQuote(sb: Sb, project: ProjectRow, quoteId: string) 
 export async function detachQuote(sb: Sb, project: ProjectRow, quoteId: string) {
   if (!isUuid(quoteId)) throw new AgencyInputError('Preventivo non valido')
   checked(await sb.from('quotes').update({ agency_project_id: null }).eq('user_id', project.user_id).eq('id', quoteId).eq('agency_project_id', project.id))
-  // Le presentazioni che lo mostravano tornano senza preventivo: la slide investimento resta da completare.
-  checked(await sb.from('agency_presentations').update({ quote_id: null, updated_at: now() }).eq('user_id', project.user_id).eq('project_id', project.id).eq('quote_id', quoteId))
+  // Le presentazioni che lo mostravano tornano senza preventivo: la slide investimento resta da
+  // completare, e una presentazione approvata torna da approvare (il link si spegne).
+  const scope = (q: any) => q.eq('user_id', project.user_id).eq('project_id', project.id).eq('quote_id', quoteId)
+  checked(await scope(sb.from('agency_presentations').update({ quote_id: null, status: 'ready', approved_at: null, updated_at: now() })).eq('status', 'approved'))
+  // In generazione si stacca il preventivo senza toccare updated_at, la firma del turno dell'agente.
+  checked(await scope(sb.from('agency_presentations').update({ quote_id: null })).eq('status', 'generating'))
+  checked(await scope(sb.from('agency_presentations').update({ quote_id: null, updated_at: now() })))
 }
 
 /** I preventivi del cliente non ancora collegati ad altre opportunità: fra questi si sceglie. */
@@ -542,7 +549,8 @@ export type PresentationRow = {
   updated_at: string
 }
 
-const GENERATING_STALE_MS = 8 * 60_000
+// Più lungo del giro peggiore (due tentativi da 240 s più la lettura dei materiali).
+const GENERATING_STALE_MS = 12 * 60_000
 
 export async function loadPresentation(sb: Sb, userId: string, id: string): Promise<PresentationRow> {
   if (!isUuid(id)) throw new AgencyInputError('ID non valido')
@@ -666,21 +674,41 @@ async function finishWith(sb: Sb, row: PresentationRow, patch: Record<string, un
       .update({ ...patch, status: 'ready', error: null, approved_at: null, version, updated_at: now() })
       .eq('user_id', row.user_id)
       .eq('id', row.id)
+      // Solo se il turno è ancora di questo giro: un giro ripreso da un'altra richiesta non va sovrascritto.
+      .eq('status', 'generating')
+      .eq('updated_at', row.updated_at)
       .select('*')
-      .single()
-  ).data as PresentationRow
+      .maybeSingle()
+  ).data as PresentationRow | null
+  if (!updated) throw new SupersededError()
   await snapshot(sb, updated, reason)
   return updated
 }
 
+class SupersededError extends Error {
+  constructor() {
+    super('Generazione superata da un giro più recente')
+  }
+}
+
 async function failWith(sb: Sb, row: PresentationRow, error: unknown) {
+  // Il turno è passato a un altro giro: non si tocca la riga, il risultato è il suo.
+  if (error instanceof SupersededError) return loadPresentation(sb, row.user_id, row.id)
   const message = (error instanceof Error ? error.message : 'Errore sconosciuto').slice(0, 500)
   console.error('Speaqi Agency: agente non riuscito', { presentation: row.id, message })
   // Le slide restano quelle di prima: si può sempre correggere a mano.
   const failed = checked(
-    await sb.from('agency_presentations').update({ status: 'failed', error: message, updated_at: now() }).eq('user_id', row.user_id).eq('id', row.id).select('*').single()
+    await sb
+      .from('agency_presentations')
+      .update({ status: 'failed', error: message, updated_at: now() })
+      .eq('user_id', row.user_id)
+      .eq('id', row.id)
+      .eq('status', 'generating')
+      .eq('updated_at', row.updated_at)
+      .select('*')
+      .maybeSingle()
   ).data
-  return failed as PresentationRow
+  return (failed as PresentationRow | null) || loadPresentation(sb, row.user_id, row.id)
 }
 
 /** Fase A-E: acquisizione dei materiali, analisi, strategia, struttura e slide. */

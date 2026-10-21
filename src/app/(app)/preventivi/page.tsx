@@ -269,6 +269,7 @@ export default function PreventiviPage() {
     urlIntent.current = { edit: params.get('edit'), agency: params.get('agency_project') }
     const agencyId = urlIntent.current.agency
     if (!agencyId) return
+    let mounted = true
     apiFetch<{
       id: string
       title: string
@@ -277,8 +278,10 @@ export default function PreventiviPage() {
       contact: { id: string; name: string; email?: string | null; company?: string | null } | null
     }>(`/api/agency/projects/${agencyId}`)
       .then((project) => {
+        if (!mounted) return
         setAgencyProject({ id: project.id, title: project.title, client_name: project.client_name })
-        setEditingId(null)
+        // Con ?edit= il costruttore apre quel preventivo: il precompilato serve solo a uno nuovo.
+        if (urlIntent.current?.edit) return
         setContactQuery(project.contact ? [project.contact.company, project.contact.name].filter(Boolean).join(' · ') : '')
         setDraft((previous) => ({
           ...previous,
@@ -290,7 +293,12 @@ export default function PreventiviPage() {
           customer_company: project.contact?.company || '',
         }))
       })
-      .catch((agencyError) => setError(agencyError instanceof Error ? agencyError.message : 'Opportunità Agency non trovata'))
+      .catch((agencyError) => {
+        if (mounted) setError(agencyError instanceof Error ? agencyError.message : 'Opportunità Agency non trovata')
+      })
+    return () => {
+      mounted = false
+    }
   }, [])
 
   // ?edit=<id> apre quel preventivo nel costruttore (link da Speaqi Agency).
