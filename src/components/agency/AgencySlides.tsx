@@ -120,19 +120,17 @@ function Investment({ slide, ctx }: { slide: AgencySlide; ctx: DeckContext }) {
               <strong>{l.description}</strong>
               {l.details && <span>{l.details}</span>}
             </div>
-            <em>{formatMoney(l.total, q.currency)}</em>
+            <em>{l.list_total && l.list_total > l.total && <s className={d.investWas}>{formatMoney(l.list_total, q.currency)}</s>}{formatMoney(l.total, q.currency)}</em>
           </div>
         ))}
         {hidden > 0 && <div className={d.investMore}>+ altre {hidden} voci nel preventivo</div>}
         {included > 0 && <div className={d.investMore}>Compresi nel prezzo: {included} {included === 1 ? 'voce' : 'voci'}, elencate nel preventivo</div>}
       </div>
       <div className={d.investTotal}>
-        <div className={d.investRow}><span>Imponibile</span><span>{formatMoney(Math.max(0, q.subtotal - q.discount), q.currency)}</span></div>
         {q.discount > 0 && <div className={d.investRow}><span>Sconto incluso</span><span>− {formatMoney(q.discount, q.currency)}</span></div>}
-        <div className={d.investRow}><span>IVA {q.tax_rate}%</span><span>{formatMoney(q.tax, q.currency)}</span></div>
         <div className={d.investBig}>
-          <span>Totale</span>
-          <strong>{formatMoney(q.total, q.currency)}{per}</strong>
+          <span>Prezzo + IVA {q.tax_rate}%</span>
+          <strong>{formatMoney(Math.max(0, q.subtotal - q.discount), q.currency)}{per}</strong>
         </div>
         {q.deposit_net !== null && q.balance_net !== null && (
           <div className={d.investPay}>
@@ -143,7 +141,7 @@ function Investment({ slide, ctx }: { slide: AgencySlide; ctx: DeckContext }) {
         )}
         <div className={d.investMeta}>
           Preventivo {q.number}
-          {q.valid_until && <> · valido fino al {new Date(q.valid_until).toLocaleDateString('it-IT')}</>}
+          {q.valid_until && <> · valido fino al {new Date(q.valid_until).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</>}
         </div>
         {q.note && <div className={d.investMeta}>{q.note}</div>}
         {slide.note && <div className={d.investMeta}><Txt value={slide.note} /></div>}
@@ -346,7 +344,7 @@ export function SlideView({ slide, ctx, n, total, active }: { slide: AgencySlide
           <div className={cls(d.cards, slide.items.length > 4 && d.dense)} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
             {slide.items.map((it, i) => (
               <div className={d.card} key={i}>
-                <div className={d.cardMark}>
+                <div className={`${d.cardMark}${numberedMark(it) ? ` ${d.cardBig}` : ''}`}>
                   {numberedMark(it) || (slide.kind === 'problems' ? two(i) : slide.kind === 'opportunities' ? '↗' : slide.kind === 'benefits' ? '✦' : two(i))}
                 </div>
                 <h3><Txt value={it.title} /></h3>

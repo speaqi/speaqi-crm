@@ -40,9 +40,9 @@ export const SAMPLE_QUOTE: QuoteSummary = {
   currency: 'EUR',
   billing_interval: 'one_time',
   lines: [
-    { description: 'Strategia e brand', details: 'Workshop, posizionamento, identità', quantity: 1, total: 4000 },
-    { description: 'Sito web', details: 'Design e sviluppo', quantity: 1, total: 9000 },
-    { description: 'SEO e GEO', details: 'Primo trimestre', quantity: 1, total: 2400 }
+    { description: 'Strategia e brand', details: 'Workshop, posizionamento, identità', quantity: 1, total: 4000, list_total: null },
+    { description: 'Sito web', details: 'Design e sviluppo', quantity: 1, total: 9000, list_total: null },
+    { description: 'SEO e GEO', details: 'Primo trimestre', quantity: 1, total: 2400, list_total: null }
   ],
   subtotal: 15400,
   discount: 0,
