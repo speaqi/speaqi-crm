@@ -1,5 +1,5 @@
 import PptxGenJS from 'pptxgenjs'
-import { AGENCY_TODO, formatMoney, inkOn, isDarkSlide, type AgencySlide, type AgencyTheme, type QuoteSummary } from '../agency'
+import { AGENCY_TODO, formatMoney, inkOn, isDarkSlide, numberedMark, type AgencySlide, type AgencyTheme, type QuoteSummary } from '../agency'
 
 // Export PowerPoint: ogni testo è una casella di testo vera, il grafico è un grafico
 // nativo con i dati modificabili, le foto sono immagini sostituibili. Il disegno segue
@@ -157,13 +157,17 @@ export async function buildPptx(input: PptxInput): Promise<Buffer> {
           foot()
           return
         }
-        const rows: PptxGenJS.TableRow[] = q.lines.slice(0, 10).map((l) => [
+        // Le righe a 0 € sono "incluse": una riga sola, l'elenco intero sta nel preventivo.
+        const priced = q.lines.filter((l) => l.total > 0)
+        const included = q.lines.length - priced.length
+        const rows: PptxGenJS.TableRow[] = priced.slice(0, 10).map((l) => [
           { text: [{ text: l.description, options: { bold: true, breakLine: Boolean(l.details) } }, ...(l.details ? [{ text: l.details, options: { fontSize: PT(20), color: muted } }] : [])], options: { fontSize: PT(26) } },
           { text: formatMoney(l.total, q.currency), options: { align: 'right', fontSize: PT(26), bold: true } }
         ])
-        if (q.lines.length > 10) rows.push([{ text: `+ altre ${q.lines.length - 10} voci nel preventivo`, options: { colspan: 2, fontSize: PT(20), color: muted } }])
+        if (priced.length > 10) rows.push([{ text: `+ altre ${priced.length - 10} voci nel preventivo`, options: { colspan: 2, fontSize: PT(20), color: muted } }])
+        if (included > 0) rows.push([{ text: `Compresi nel prezzo: ${included} ${included === 1 ? 'voce' : 'voci'}, elencate nel preventivo`, options: { colspan: 2, fontSize: PT(20), color: muted } }])
         slide.addTable(rows, { x: X(132), y: X(top), w: X(1050), colW: [X(800), X(250)], fontFace: FONT, color: ink, border: { type: 'solid', color: p.line, pt: 1 }, margin: 0.08 })
-        slide.addShape(pptx.ShapeType.roundRect, { x: X(1260), y: X(top), w: X(528), h: X(480), fill: { color: p.darkBg }, line: { color: p.darkBg }, rectRadius: 0.12 })
+        slide.addShape(pptx.ShapeType.roundRect, { x: X(1260), y: X(top), w: X(528), h: X(560), fill: { color: p.darkBg }, line: { color: p.darkBg }, rectRadius: 0.12 })
         const lines = [
           `Imponibile  ${formatMoney(Math.max(0, q.subtotal - q.discount), q.currency)}`,
           ...(q.discount > 0 ? [`Sconto incluso  − ${formatMoney(q.discount, q.currency)}`] : []),
@@ -172,7 +176,12 @@ export async function buildPptx(input: PptxInput): Promise<Buffer> {
         text(lines.join('\n'), { x: X(1300), y: X(top + 40), w: X(448), h: X(130), fontSize: PT(24), color: p.darkMuted })
         text('TOTALE', { x: X(1300), y: X(top + 200), w: X(448), h: X(36), fontSize: PT(22), color: p.darkMuted, bold: true })
         text(`${formatMoney(q.total, q.currency)}${q.billing_interval === 'year' ? ' / anno' : ''}`, { x: X(1300), y: X(top + 240), w: X(448), h: X(100), fontSize: PT(62), bold: true, color: p.accent })
-        text(`Preventivo ${q.number}${q.valid_until ? ` · valido fino al ${new Date(q.valid_until).toLocaleDateString('it-IT')}` : ''}`, { x: X(1300), y: X(top + 360), w: X(448), h: X(80), fontSize: PT(20), color: p.darkMuted })
+        let metaY = top + 350
+        if (q.deposit_net !== null && q.balance_net !== null) {
+          text(`Alla firma  ${formatMoney(q.deposit_net, q.currency)} + IVA\nSaldo  ${formatMoney(q.balance_net, q.currency)} + IVA`, { x: X(1300), y: X(top + 330), w: X(448), h: X(80), fontSize: PT(22), color: p.darkMuted })
+          metaY = top + 420
+        }
+        text(`Preventivo ${q.number}${q.valid_until ? ` · valido fino al ${new Date(q.valid_until).toLocaleDateString('it-IT')}` : ''}${q.payment_note ? `\n${q.payment_note}` : ''}${q.note ? `\n${q.note}` : ''}`, { x: X(1300), y: X(metaY), w: X(448), h: X(Math.max(60, 480 - (metaY - top) - 10)), fontSize: PT(18), color: p.darkMuted })
         foot()
         return
       }
@@ -296,7 +305,7 @@ export async function buildPptx(input: PptxInput): Promise<Buffer> {
       default: {
         const top = head()
         const cols = s.kind === 'services' ? Math.min(3, Math.max(2, Math.ceil(s.items.length / 2))) : Math.min(4, Math.max(2, s.items.length))
-        cardRow(top, s.items, cols, (i) => (s.kind === 'opportunities' ? '↗' : s.kind === 'benefits' ? '✦' : two(i)))
+        cardRow(top, s.items, cols, (i) => numberedMark(s.items[i]) || (s.kind === 'opportunities' ? '↗' : s.kind === 'benefits' ? '✦' : two(i)))
         foot()
       }
     }

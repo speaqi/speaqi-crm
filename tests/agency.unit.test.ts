@@ -8,6 +8,7 @@ import {
   blankSlide,
   categorySlug,
   countTodo,
+  numberedMark,
   ensureFrame,
   guardSlides,
   inkOn,
@@ -318,6 +319,34 @@ test('PowerPoint esportato: un file valido con una slide per slide e testi modif
   const text = extractPptxText(buf)
   assert.match(text, /Traffico/)
   assert.match(text, /10\.980,00/, 'l’investimento arriva dal preventivo')
+})
+
+test('preventivo: acconto e saldo senza IVA, note del preventivo; mai su un abbonamento', () => {
+  const row = {
+    id: 'q', quote_number: 'PREV-1', status: 'sent', items: [{ description: 'Progetto', quantity: 1, unit_price: 5500, line_total: 5500 }, { description: 'Compreso', quantity: 1, unit_price: 0, line_total: 0 }],
+    subtotal_amount: 5500, discount_amount: 0, tax_rate: 22, tax_amount: 1210, total_amount: 6710,
+    payment_terms_mode: 'manual', deposit_manual_amount: 2500, deposit_amount: 3050, balance_amount: 3660,
+    payment_terms_note: 'Saldo alla messa online.', public_note: 'Dal secondo anno: Shopify e Iubenda.'
+  }
+  const q = quoteSummary(row)!
+  assert.equal(q.deposit_net, 2500)
+  assert.equal(q.balance_net, 3000)
+  assert.equal(q.payment_note, 'Saldo alla messa online.')
+  assert.equal(q.note, 'Dal secondo anno: Shopify e Iubenda.')
+  assert.equal(q.lines.filter((l) => l.total === 0).length, 1, 'le righe a 0 € restano nel riepilogo')
+  const sub = quoteSummary({ ...row, billing_interval: 'year', deposit_amount: 6710, balance_amount: 0 })!
+  assert.equal(sub.deposit_net, null)
+  assert.equal(sub.balance_net, null)
+  const single = quoteSummary({ ...row, deposit_amount: 0 })!
+  assert.equal(single.deposit_net, null, 'senza acconto non c’è una divisione da mostrare')
+})
+
+test('schede numerate a mano: solo un value di una o due cifre', () => {
+  assert.equal(numberedMark({ value: '6' }), '06')
+  assert.equal(numberedMark({ value: ' 10 ' }), '10')
+  assert.equal(numberedMark({ value: '2026' }), null)
+  assert.equal(numberedMark({ value: '12 mesi' }), null)
+  assert.equal(numberedMark({ value: '' }), null)
 })
 
 test('PDF: il timbro cambia con versione e preventivo; la chiave di render vale per una versione', () => {

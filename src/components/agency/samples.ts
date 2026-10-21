@@ -50,6 +50,10 @@ export const SAMPLE_QUOTE: QuoteSummary = {
   tax: 3388,
   total: 18788,
   valid_until: null,
+  deposit_net: 6160,
+  balance_net: 9240,
+  payment_note: 'Saldo alla messa online.',
+  note: '',
   public_token: null,
   updated_at: null
 }

@@ -288,6 +288,12 @@ export type QuoteSummary = {
   tax: number
   total: number
   valid_until: string | null
+  /** Acconto e saldo senza IVA, quando il preventivo li divide (mai per gli abbonamenti, che si pagano per intero). */
+  deposit_net: number | null
+  balance_net: number | null
+  /** "Saldo alla messa online", "Dal secondo anno…": le condizioni scritte nel preventivo. */
+  payment_note: string
+  note: string
   public_token: string | null
   updated_at: string | null
 }
@@ -301,6 +307,12 @@ const money = (v: unknown) => {
 export function quoteSummary(row: Record<string, any> | null | undefined): QuoteSummary | null {
   if (!row || !row.id) return null
   const items = Array.isArray(row.items) ? row.items : []
+  // Acconto e saldo si mostrano senza IVA, come l'imponibile: il preventivo li tiene lordi.
+  const taxRate = money(row.tax_rate)
+  const taxable = Math.max(0, money(row.subtotal_amount) - money(row.discount_amount))
+  const depositGross = money(row.deposit_amount)
+  const depositNet = taxRate > 0 ? money(depositGross / (1 + taxRate / 100)) : depositGross
+  const split = row.billing_interval !== 'year' && depositGross > 0 && depositNet < taxable - 0.005
   return {
     id: String(row.id),
     number: String(row.quote_number || ''),
@@ -322,9 +334,23 @@ export function quoteSummary(row: Record<string, any> | null | undefined): Quote
     tax: money(row.tax_amount),
     total: money(row.total_amount),
     valid_until: row.valid_until ? String(row.valid_until) : null,
+    deposit_net: split ? depositNet : null,
+    balance_net: split ? money(taxable - depositNet) : null,
+    payment_note: clip(row.payment_terms_note, 300),
+    note: clip(row.public_note, 600),
     public_token: row.status === 'cancelled' ? null : row.public_token ? String(row.public_token) : null,
     updated_at: row.updated_at ? String(row.updated_at) : null
   }
+}
+
+/**
+ * Numero scritto a mano su una scheda (value di una o due cifre su Servizi, Problemi, Opportunità,
+ * Benefici): serve a numerare su più slide una lista unica ("interventi 6-10"). Senza, la scheda
+ * prende il numero d'ordine della slide.
+ */
+export function numberedMark(item: { value: string }): string | null {
+  const v = item.value.trim()
+  return /^\d{1,2}$/.test(v) ? v.padStart(2, '0') : null
 }
 
 export function formatMoney(value: number, currency = 'EUR') {
