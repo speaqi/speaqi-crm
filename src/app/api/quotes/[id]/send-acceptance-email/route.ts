@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { sendQuoteAcceptanceRequestEmail } from '@/lib/email'
 import { createActivities } from '@/lib/server/crm'
 import { errorMessage } from '@/lib/server/http'
+import { quoteCompletionIssues } from '@/lib/commercial-proposal'
 import {
   buildQuoteAcceptanceToken,
   normalizeText,
@@ -74,13 +75,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const { data: quote, error: readError } = await auth.supabase
       .from('quotes')
-      .select('id, user_id, contact_id, quote_number, public_token, status, title, customer_name, customer_email, customer_company')
+      .select('id, user_id, contact_id, quote_number, public_token, status, title, customer_name, customer_email, customer_company, items, contract_terms, payment_terms_note, public_note')
       .eq('user_id', auth.workspaceUserId)
       .eq('id', id)
       .maybeSingle()
 
     if (readError) throw readError
     if (!quote) return Response.json({ error: 'Preventivo non trovato' }, { status: 404 })
+    const issues = quoteCompletionIssues(quote)
+    if (issues.length) return Response.json({ error: issues[0] }, { status: 400 })
     if (quote.status === 'cancelled') {
       return Response.json({ error: 'Non puoi inviare un preventivo annullato' }, { status: 400 })
     }

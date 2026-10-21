@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
 import { createClient } from '@/lib/supabase'
 import { countTodo, type DeckSlide } from '@/lib/tourism-deck'
+import { formatMoney } from '@/lib/agency'
 import type { DeckView } from '@/lib/server/tourism-decks'
 import DeckPlayer from './DeckPlayer'
 import SlideFields from './SlideFields'
@@ -194,6 +195,16 @@ export default function DeckEditor({ id }: { id: string }) {
 
       <div className={e.layout}>
         <div className={e.col}>
+          <div className={e.fieldset}>
+            <header><strong>Preventivo e contratto Tourism</strong></header>
+            <p className={e.help}>Riprendi destinatario, voci e contratto dalla base Tourism. Conferma il modello economico prima di inviare.</p>
+            <Link className={s.primary} href={`/preventivi?tourism_deck=${id}`}>＋ Prepara preventivo e contratto</Link>
+            {(deck.quotes || []).map(q => <p key={q.id}>
+              <Link href={`/preventivi?edit=${q.id}`}>{q.number} · {q.title}</Link><br />
+              <small>{q.status} · {formatMoney(q.total, q.currency)}</small>
+            </p>)}
+            <small>Il link pubblico della presentazione include il preventivo inviato più recente e il relativo contratto. Le bozze restano interne.</small>
+          </div>
           {todo > 0 && <div className={e.warn}><strong>{todo} [DA VERIFICARE] da completare</strong> prima di poter approvare. Sono evidenziati nell’anteprima.</div>}
           {deck.warnings.length > 0 && (
             <div className={e.warn}>

@@ -87,7 +87,7 @@ export default function DeckWizard({
       {error && <p className={s.error} role="alert">{error}</p>}
       <form className={s.form} onSubmit={submit}>
         <p className={e.help}>
-          Parti dalla proposta destinazioni di base. L’agente legge il testo, i documenti e le foto che aggiungi e riscrive le slide per questa destinazione. Quello che non trova resta <code>[DA VERIFICARE]</code>: lo completi tu prima di approvare.
+          Parti dal modello Tourism salvato. L’agente legge testo, documenti e foto e adatta le slide al destinatario. Scegli la base aziende o partnership destinazioni in “Modifica il modello”. Quello che manca resta <code>[DA VERIFICARE]</code>: lo completi prima di approvare.
         </p>
         {!entity && (
           <div>

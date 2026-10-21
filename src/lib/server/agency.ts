@@ -4,6 +4,7 @@ import { requireRouteUser } from './supabase'
 import { getOpenDeal } from './deal-ops'
 import {
   AGENCY_STAGES,
+  agencyBaseSlides,
   DEFAULT_AGENCY_SETTINGS,
   DEFAULT_SERVICE_CATEGORIES,
   categorySlug,
@@ -569,16 +570,7 @@ async function snapshot(sb: Sb, row: Pick<PresentationRow, 'user_id' | 'id' | 'v
 
 /** Slide di partenza senza AI: si costruisce a mano, o si aspetta l'agente. */
 export function starterSlides(project: Pick<ProjectRow, 'title' | 'client_name'>, settings: AgencySettings): AgencySlide[] {
-  return ensureFrame(
-    normalizeSlides([
-      { id: 'cover', kind: 'cover', title: project.title, body: `Proposta per ${project.client_name}` },
-      { id: 'context', kind: 'context', title: `${project.client_name} oggi`, body: '[DA VERIFICARE] Il contesto del cliente.' },
-      { id: 'solution', kind: 'solution', title: 'La nostra proposta', body: '[DA VERIFICARE] La soluzione in sintesi.' },
-      { id: 'next-steps', kind: 'next_steps', title: 'I prossimi passi', items: [{ title: 'Allineamento', text: 'Rivediamo insieme la proposta.' }, { title: 'Avvio', text: 'Partiamo dopo la conferma.' }] },
-      { id: 'closing', kind: 'closing', title: 'Parliamone', body: settings.contact || '[DA VERIFICARE] contatto' }
-    ]),
-    project.title
-  )
+  return agencyBaseSlides(settings, { cliente: project.client_name, progetto: project.title, contatto: settings.contact, servizi: '[DA VERIFICARE] Servizi del progetto' })
 }
 
 export async function createPresentation(sb: Sb, project: ProjectRow, raw: Record<string, unknown> = {}): Promise<PresentationRow> {
@@ -654,6 +646,7 @@ export async function buildBrief(sb: Sb, project: ProjectRow, presentation: Pick
       notes: contact?.note ? String(contact.note).slice(0, 1500) : null
     },
     services,
+    base_slides: agencyBaseSlides(settings, { cliente: project.client_name, progetto: project.title, contatto: settings.contact, servizi: services.map(s => s.name).join(', ') }),
     brief: [project.brief, presentation.instruction && `Indicazioni per questa presentazione: ${presentation.instruction}`].filter(Boolean).join('\n\n'),
     agency: {
       name: settings.name,

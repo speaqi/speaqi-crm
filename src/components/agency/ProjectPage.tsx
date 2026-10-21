@@ -112,7 +112,7 @@ export default function ProjectPage({ id }: { id: string }) {
   const a = p.analysis
   const hasAnalysis = Boolean(a.client_summary || a.verified_facts.length || a.missing.length)
   const approved = p.presentations.find((x) => x.status === 'approved')
-  const quote = p.quotes.find((q) => q && q.status !== 'cancelled')
+  const quote = p.quotes.find((q) => q && q.id === approved?.quote_id)
   const origin = typeof window === 'undefined' ? '' : window.location.origin
   const packageText = approved
     ? [

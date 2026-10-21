@@ -45,6 +45,7 @@ export type AgencyBrief = {
   agency: { name: string; signature: string; contact: string; about: string }
   quote: { linked: boolean; lines: string[] }
   language: 'it' | 'en'
+  base_slides?: AgencySlide[]
 }
 
 export type GenerateArgs = { brief: AgencyBrief; materials: AgencyMaterials; instruction?: string }
@@ -96,6 +97,7 @@ const RULES = [
 ].join('\n')
 
 const STRUCTURE = [
+  'MODELLO DI BASE. Se il brief contiene modello_base, usalo come punto di partenza: conserva i messaggi riutilizzabili e adatta il contesto al cliente. Puoi aggiungere o rimuovere moduli secondo il brief. I segnaposto sono dati da completare, mai fatti verificati. Il modello non giustifica promesse, numeri o testimonianze sul cliente.',
   'STRUTTURA. Il numero e il tipo di slide dipendono dal progetto: una proposta semplice sta in 7-9 slide, un progetto complesso in 12-18. Nessuno schema fisso.',
   'La prima slide è sempre "cover" (titolo della proposta e, nel body, "Proposta per <cliente>"), l’ultima "closing" con il contatto dell’agenzia.',
   'Un buon arco: contesto del cliente → problemi → opportunità → soluzione → servizi/deliverable → metodo o roadmap → benefici → investimento (se pertinente) → prossimi passi → chiusura. Scegli e adatta, non elencare tutto per forza.',
@@ -216,6 +218,7 @@ function briefPayload(brief: AgencyBrief, materials: AgencyMaterials) {
     servizi_richiesti: brief.services,
     brief_dell_utente: brief.brief || null,
     agenzia: brief.agency,
+    modello_base: brief.base_slides || null,
     preventivo: brief.quote.linked
       ? { collegato: true, voci: brief.quote.lines, nota: 'Le cifre si mostrano dal preventivo: non scriverle.' }
       : { collegato: false },

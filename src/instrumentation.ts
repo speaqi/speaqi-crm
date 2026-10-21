@@ -4,13 +4,16 @@
  * posto di n8n.
  */
 export async function register() {
-  if (process.env.NEXT_RUNTIME !== 'nodejs') return
-  const { startAutomationScheduler } = await import(
-    '@/lib/server/automation-scheduler'
-  )
-  startAutomationScheduler()
-  const { startTourismResearchScheduler } = await import(
-    '@/lib/server/tourism-research-scheduler'
-  )
-  startTourismResearchScheduler()
+  // Il ramo esplicito permette a Next di escludere i moduli Node (undici)
+  // dalla compilazione Edge dell'instrumentation.
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { startAutomationScheduler } = await import(
+      '@/lib/server/automation-scheduler'
+    )
+    startAutomationScheduler()
+    const { startTourismResearchScheduler } = await import(
+      '@/lib/server/tourism-research-scheduler'
+    )
+    startTourismResearchScheduler()
+  }
 }

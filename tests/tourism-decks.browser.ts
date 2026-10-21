@@ -9,6 +9,7 @@ import { chromium } from 'playwright'
 import pilot from '../src/data/tourism-italy-pilot'
 import { normalizeRecord, nameKey } from '../src/lib/tourism'
 import { DEFAULT_DECK_TEMPLATE, applyVars, countTodo, normalizeTemplate, type DeckSlide } from '../src/lib/tourism-deck'
+import { normalizeQuoteTemplate, quoteDraftFromTemplate } from '../src/lib/commercial-proposal'
 
 const baseUrl = process.env.TOURISM_TEST_URL || 'http://127.0.0.1:3000'
 const output = process.env.TOURISM_TEST_OUTPUT || '/tmp/speaqi-tourism-decks'
@@ -64,6 +65,14 @@ async function main() {
       const isMultipart = (route.request().headers()['content-type'] || '').startsWith('multipart/')
       const body = method === 'GET' || isMultipart ? {} : route.request().postDataJSON() || {}
       calls.push({ method, path: url.pathname, body: isMultipart ? route.request().postData() : body })
+      if (url.pathname === '/api/proposal-quote-context' && deck) return json({
+        type: 'tourism', id: deck.id, title: deck.title, client_name: 'Capri Tourism', contact_id: null,
+        draft: { ...quoteDraftFromTemplate(normalizeQuoteTemplate(template.template.quote_template, 'tourism'), { ente: 'Capri Tourism' }), title: deck.title }
+      })
+      if (url.pathname === '/api/quotes') {
+        if (method === 'POST') return json({ quote: { id: 'q1', ...body } }, 201)
+        return json({ quotes: [] })
+      }
 
       if (url.pathname === '/api/tourism/deck-template') {
         if (method === 'PUT') {
@@ -145,7 +154,12 @@ async function main() {
     const tpl = page.getByRole('dialog', { name: 'Modello della presentazione' })
     await tpl.getByText('Copertina').first().waitFor()
     assert.equal(await tpl.getByLabel('Tipo di slide').count(), DEFAULT_DECK_TEMPLATE.slides.length)
-    await tpl.locator('input').nth(2).fill('{{destinazione}}: la guida che parla ogni lingua')
+    await tpl.getByLabel('Titolo (il messaggio della slide)').first().fill('{{destinazione}}: la guida che parla ogni lingua')
+    await tpl.getByText('Preventivo e contratto Tourism di base', { exact: true }).click()
+    await tpl.getByLabel('Contratto di base').fill('Accordo Tourism approvato per {{ente}}')
+    await tpl.getByRole('button', { name: '＋ Voce riutilizzabile' }).click()
+    await tpl.getByLabel('Servizio 1', { exact: true }).fill('Progetto per {{ente}}')
+    await tpl.getByLabel('Prezzo unitario, IVA esclusa').fill('990')
     await page.screenshot({ path: output + '/template.png' })
     await tpl.getByRole('button', { name: 'Salva il modello' }).click()
     await tpl.getByText('Modello salvato').waitFor()
@@ -184,7 +198,21 @@ async function main() {
     assert.ok(calls.some((c) => c.method === 'PATCH'), 'le modifiche si salvano prima di approvare')
     await page.screenshot({ path: output + '/editor-approved.png', fullPage: true })
 
-    // 6. Dalla scheda di un ente il bottone parte con i dati dell'ente.
+    // 6. Un solo passaggio riprende cliente, prezzo e contratto Tourism.
+    await page.getByRole('link', { name: '＋ Prepara preventivo e contratto' }).click()
+    await page.getByLabel('Contratto abbinato al preventivo').waitFor()
+    await page.waitForFunction(() => (document.querySelector('textarea[maxlength="30000"]') as HTMLTextAreaElement)?.value === 'Accordo Tourism approvato per Capri Tourism')
+    assert.equal(await page.getByLabel('Contratto abbinato al preventivo').inputValue(), 'Accordo Tourism approvato per Capri Tourism')
+    await page.screenshot({ path: output + '/tourism-quote-contract.png', fullPage: true })
+    await page.getByRole('button', { name: 'Genera preventivo', exact: true }).click()
+    await page.waitForURL('**/tourism/presentazioni/**')
+    const quoteCall = calls.find(c => c.method === 'POST' && c.path === '/api/quotes')
+    assert.equal(quoteCall?.body.tourism_deck_id, deck!.id)
+    assert.equal(quoteCall?.body.status, 'draft')
+    assert.equal(quoteCall?.body.items[0].unit_price, 990)
+    assert.equal(quoteCall?.body.contract_terms, 'Accordo Tourism approvato per Capri Tourism')
+
+    // 7. Dalla scheda di un ente il bottone parte con i dati dell'ente.
     await page.goto(baseUrl + '/tourism')
     await page.getByRole('button', { name: 'Directory', exact: false }).first().click()
     await page.locator('button[class*=entityName]').first().click()

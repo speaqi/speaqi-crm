@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import {
   DEFAULT_ACCENT,
+  DEFAULT_AGENCY_SLIDES,
   SLIDE_KINDS,
   SLIDE_KIND_INFO,
   THEME_STYLES,
@@ -16,6 +17,9 @@ import AgencyDeck, { type DeckContext } from './AgencySlides'
 import { SAMPLE_QUOTE, SAMPLE_SLIDES } from './samples'
 import { errorText, post } from './client'
 import s from './agency.module.css'
+import BaseTemplateFields from './BaseTemplateFields'
+import QuoteTemplateFields from './QuoteTemplateFields'
+import { normalizeQuoteTemplate } from '@/lib/commercial-proposal'
 
 type Category = ServiceCategory & { id: string }
 
@@ -72,6 +76,15 @@ export default function TemplateTab({ settings, categories, onChanged }: { setti
     <div className={s.stack}>
       {error && <p className={s.error} role="alert">{error}</p>}
       {notice && <p className={s.notice} role="status">{notice}</p>}
+
+      <div className={s.panel}>
+        <header><h2>Base commerciale Speaqi Agency</h2></header>
+        <BaseTemplateFields slides={form.proposal_slides || DEFAULT_AGENCY_SLIDES} onChange={proposal_slides => setForm({ ...form, proposal_slides })} />
+        <details><summary>Preventivo e contratto riutilizzabili</summary>
+          <QuoteTemplateFields value={normalizeQuoteTemplate(form.quote_template, 'agency')} onChange={quote_template => setForm({ ...form, quote_template })} />
+        </details>
+        <button className={s.primary} onClick={saveSettings} disabled={!!busy}>Salva la base Agency</button>
+      </div>
 
       <div className={s.panel}>
         <header><h2>Sistemi grafici</h2></header>
