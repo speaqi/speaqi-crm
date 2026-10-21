@@ -268,6 +268,8 @@ export default function PreventiviPage() {
     const params = new URLSearchParams(window.location.search)
     urlIntent.current = { edit: params.get('edit'), agency: params.get('agency_project') }
     const agencyId = urlIntent.current.agency
+    // Letto subito: l'effetto di ?edit= svuota l'intento appena apre il preventivo.
+    const opensQuote = Boolean(urlIntent.current.edit)
     if (!agencyId) return
     let mounted = true
     apiFetch<{
@@ -281,7 +283,7 @@ export default function PreventiviPage() {
         if (!mounted) return
         setAgencyProject({ id: project.id, title: project.title, client_name: project.client_name })
         // Con ?edit= il costruttore apre quel preventivo: il precompilato serve solo a uno nuovo.
-        if (urlIntent.current?.edit) return
+        if (opensQuote) return
         setContactQuery(project.contact ? [project.contact.company, project.contact.name].filter(Boolean).join(' · ') : '')
         setDraft((previous) => ({
           ...previous,
