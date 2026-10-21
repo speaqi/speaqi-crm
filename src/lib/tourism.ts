@@ -27,6 +27,7 @@ export const TOURISM_TYPES = {
   bedbank: 'Bedbank',
   experience_marketplace: 'Marketplace esperienze',
   property_manager: 'Property manager',
+  municipality: 'Comune',
   cruise_line: 'Compagnia di crociera',
   ferry_operator: 'Traghetti',
   airline: 'Compagnia aerea',
