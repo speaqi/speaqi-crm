@@ -48,74 +48,145 @@ const slide = (s: Partial<DeckSlide> & Pick<DeckSlide, 'id' | 'kind' | 'title'>)
 })
 
 /**
- * La presentazione TTG "Mappa per destinazioni": promessa, contenuti, visitatore,
- * metodo e prezzo, più copertina e chiusura. Fonte: profilo Speaqi (repo speaqidesign).
- * Nessuna funzione, tempo o prezzo che non stia nel profilo: il resto è [DA VERIFICARE].
+ * La proposta base per le destinazioni ("Speaqi — Proposta destinazioni",
+ * ottobre 2026): la mappa è gratuita per l'ente, che in cambio garantisce
+ * almeno 100.000 accessi all'anno e la distribuisce (QR nei luoghi, sulle
+ * mappe, sul sito e sui social). Dodici slide nello stesso ordine della
+ * presentazione di riferimento: apertura, territorio, problema, risposta,
+ * prova, contenuti, lingue, visitatore, metodo, prezzo, area riservata, demo.
+ * Nessuna funzione, tempo o prezzo che non stia lì: il resto è [DA VERIFICARE].
  */
 export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
   version: 1,
   vars: {
-    prezzo: 'da 249 €/mese. Extra e video su preventivo [DA VERIFICARE per questo ente]',
+    prezzo:
+      'in cambio garantite almeno 100.000 accessi all’anno: QR in ogni luogo, sulle mappe e sui materiali, link sul sito e sui social. A pagamento, su richiesta: Concierge personalizzato e sezione eventi.',
     contatto: DECK_TODO
   },
   slides: [
     slide({
       id: 'cover',
       kind: 'cover',
-      title: '{{destinazione}}, nella lingua di ogni visitatore',
-      body: 'Proposta per {{ente}}',
-      hint: 'Titolo con il nome della destinazione. Nel corpo il nome dell’ente destinatario. Scegli come foto la più rappresentativa della destinazione, se ce n’è una.'
+      title: 'La mappa perfetta per {{ente}}',
+      body: 'Costruita da Speaqi. Distribuita insieme a voi, fino a 50 lingue.',
+      hint: 'Il titolo porta il nome dell’ente. Come foto scegli una schermata della mappa o la foto più rappresentativa della destinazione, se ce n’è una.'
     }),
     slide({
-      id: 'promise',
+      id: 'territorio',
+      kind: 'cards',
+      title: 'Tutto {{destinazione}} in una mappa sola',
+      items: [
+        { title: 'Luoghi da vedere', text: '[DA VERIFICARE: quanti] luoghi, dai monumenti ai panorami.' },
+        { title: 'Itinerari', text: '[DA VERIFICARE: quanti] itinerari, a piedi, a tema, di mezza giornata o più giorni.' },
+        { title: 'Strutture e servizi', text: '[DA VERIFICARE: quanti] fra dove dormire, dove mangiare e servizi utili.' }
+      ],
+      hint: 'Metti i tre numeri del territorio solo se stanno nei materiali o nei luoghi approvati. Se un numero non è noto, sostituisci il segnaposto con una frase qualitativa sulla destinazione, senza cifre.'
+    }),
+    slide({
+      id: 'problema',
       kind: 'statement',
-      title: 'Una sola conoscenza. Ogni lingua. Ogni punto di contatto.',
-      body: 'Raccontate {{destinazione}} una volta. Speaqi la fa parlare con i visitatori nella loro lingua, in ogni luogo.',
-      hint: 'Mantieni la promessa nel titolo. Nel corpo aggiungi al massimo un dettaglio sulla destinazione che sia scritto nei materiali; se non c’è, lascia il testo com’è.'
+      title: 'Oggi il visitatore scopre {{destinazione}} a pezzi.',
+      body: 'Google Maps, Tripadvisor, Instagram, TikTok, brochure, blog e il sito dell’ente: sette fonti diverse, in lingue diverse, con informazioni che non si parlano. Nessuna parla per voi.',
+      hint: 'Puoi adattare l’elenco delle fonti a quelle che i materiali citano per questa destinazione. Chiudi sempre con «Nessuna parla per voi».'
     }),
     slide({
-      id: 'content',
+      id: 'soluzione',
+      kind: 'statement',
+      title: 'Una mappa. Tutto il territorio. Ogni lingua.',
+      body: 'Speaqi crea la guida digitale ufficiale di {{destinazione}}: la voce della destinazione, nella lingua di chi la visita. Si apre da un link o da un QR Code, senza app.',
+      hint: 'Mantieni il titolo. Nel corpo nessuna funzione in più.'
+    }),
+    slide({
+      id: 'prova',
       kind: 'cards',
-      title: 'Ogni luogo di {{destinazione}} ha voce, immagini e video',
+      title: 'Prima del resto, provate una mappa vera',
+      body: 'Aprite il link o scansionate il QR. È gratis, senza app.',
       items: [
-        { title: 'Mappa interattiva', text: 'I luoghi della destinazione su una mappa che si apre dal browser.' },
-        { title: 'Audio guida', text: 'Ogni luogo racconta la sua storia, in più lingue.' },
-        { title: 'Video girati sul posto', text: 'Brevi video girati nei luoghi, per far vedere prima di andare.' },
-        { title: 'AI Concierge', text: 'Risponde ai visitatori usando solo le informazioni che approvate voi.' }
+        { title: 'Napoli', text: 'guides.speaqi.com/napoli' },
+        { title: 'Roma', text: 'guides.speaqi.com/roma' },
+        { title: 'E altre', text: 'guides.speaqi.com' }
       ],
-      hint: 'Mantieni le quattro voci. Puoi citare nel testo i luoghi o le esperienze di questa destinazione solo se compaiono nei materiali. Non aggiungere funzioni.'
+      hint: 'Lascia le mappe reali di Speaqi così come sono: sono la prova. Non inventare altri link.'
     }),
     slide({
-      id: 'visitor',
+      id: 'contenuti',
       kind: 'cards',
-      title: 'Il visitatore apre la guida da dove si trova, senza app',
+      title: 'Tutto quello che il visitatore cerca, in un posto solo',
       items: [
-        { title: 'Da QR Code o link', text: 'Un QR sul luogo o un link: si apre dal browser, senza scaricare niente.' },
-        { title: '«Sono qui»', text: 'Il visitatore trova subito i luoghi intorno a sé.' },
-        { title: 'In oltre 50 lingue', text: 'Testi e audio nella lingua di chi visita.' }
+        { title: 'Luoghi da vedere', text: 'Monumenti, musei, piazze, panorami.' },
+        { title: 'Itinerari', text: 'A piedi, a tema, di mezza giornata o più giorni.' },
+        { title: 'Esperienze', text: 'Cultura, natura, eventi, enogastronomia.' },
+        { title: 'Dove dormire', text: 'Hotel, B&B, agriturismi.' },
+        { title: 'Dove mangiare', text: 'Ristoranti, trattorie, prodotti tipici.' },
+        { title: 'Servizi utili', text: 'Infopoint, trasporti, parcheggi.' }
       ],
-      hint: 'Se i materiali dicono quali sono le lingue dei visitatori di questa destinazione, citale nella terza voce. Altrimenti lascia il testo com’è.'
+      note: 'Ogni luogo ha la sua audio guida e può avere un video girato sul posto.',
+      hint: 'Mantieni le sei categorie. Negli esempi puoi citare luoghi o esperienze di questa destinazione solo se compaiono nei materiali.'
     }),
     slide({
-      id: 'method',
+      id: 'lingue',
+      kind: 'statement',
+      title: 'Fino a 50 lingue. Le prime 10 sono incluse, con audio.',
+      body: 'Le dieci lingue si scelgono sui mercati di {{destinazione}}: per esempio italiano, inglese, spagnolo, francese, tedesco, portoghese, russo, giapponese, cinese e polacco. Le altre, fino a 50, su richiesta.',
+      hint: 'Se i materiali dicono da quali paesi arrivano i visitatori, scegli le dieci lingue su quelli e togli «per esempio». Altrimenti lascia l’elenco d’esempio.'
+    }),
+    slide({
+      id: 'visitatore',
       kind: 'steps',
-      title: 'Cinque passi, e approvate voi prima di pubblicare',
+      title: 'Dal QR alla visita, in quattro passi',
       items: [
-        { title: 'Analisi', text: 'Partiamo dai luoghi e dai materiali della destinazione.' },
-        { title: 'Costruzione', text: 'Creiamo mappa, testi, audio e video.' },
-        { title: 'Approvazione', text: 'La destinazione rivede e approva i contenuti.' },
-        { title: 'Pubblicazione', text: 'La guida va online solo dopo l’approvazione.' },
-        { title: 'Aggiornamento', text: 'I contenuti restano aggiornati nel tempo.' }
+        { title: 'Scansiona', text: 'Un QR Code o un link. Nessuna app da scaricare.' },
+        { title: 'È già nella sua lingua', text: 'La mappa si apre nella lingua del telefono. Nessuna scelta da fare.' },
+        { title: 'Esplora', text: '«Sono qui» mostra cosa c’è intorno, a due passi.' },
+        { title: 'Chiede all’AI Concierge', text: 'Risponde solo con le informazioni approvate dall’ente.' }
       ],
-      note: 'Offerta Destinazioni: {{prezzo}}',
-      hint: 'Non promettere tempi di consegna. Non cambiare il prezzo nella nota: usa solo quello indicato dall’utente. Non parlare di white label.'
+      hint: 'Mantieni i quattro passi così come sono.'
     }),
     slide({
-      id: 'closing',
+      id: 'metodo',
+      kind: 'steps',
+      title: 'La custodiamo noi. Voi la provate.',
+      items: [
+        { title: 'Analisi', text: 'Partiamo dai dati che avete già, a cominciare dal vostro sito.' },
+        { title: 'Costruzione', text: 'La costruiamo noi: testi, lingue e audio.' },
+        { title: 'Approvazione', text: 'Voi la provate e la approvate prima di pubblicare.' },
+        { title: 'Pubblicazione', text: 'La mappa va online, con i QR Code pronti.' },
+        { title: 'Aggiornamento', text: 'La custodiamo e la manteniamo noi, nel tempo.' }
+      ],
+      hint: 'Non promettere tempi di consegna. Non parlare di white label.'
+    }),
+    slide({
+      id: 'prezzo',
+      kind: 'cards',
+      title: 'La mappa è gratuita.',
+      items: [
+        { title: '500 punti di interesse', text: 'I luoghi del territorio, ognuno con la sua scheda.' },
+        { title: '10 lingue, con audio', text: 'Scelte sui mercati della destinazione.' },
+        { title: '10 itinerari', text: 'Pronti da seguire, sulla mappa.' },
+        { title: 'AI Concierge', text: 'Risponde solo con le informazioni approvate.' },
+        { title: 'QR Code pronti', text: 'Per i luoghi, le mappe e i materiali.' },
+        { title: 'Area riservata', text: 'Con le statistiche degli accessi.' }
+      ],
+      note: 'In cambio: {{prezzo}}',
+      hint: 'Non cambiare le condizioni nella nota: usa solo quelle indicate dall’utente. Non aggiungere il video di presentazione fra gli inclusi finché non è confermato. Nessun importo in euro.'
+    }),
+    slide({
+      id: 'area-riservata',
+      kind: 'cards',
+      title: 'Seguite tutto, in chiaro',
+      items: [
+        { title: 'Statistiche degli accessi', text: 'Sempre visibili nell’area riservata di {{ente}}.' },
+        { title: 'Report condiviso', text: 'Lo stesso report lo vediamo noi e lo vedete voi.' },
+        { title: 'Regole scritte', text: 'Che cosa è un «accesso» lo scriviamo nel contratto.' }
+      ],
+      hint: 'Mantieni le tre voci. Non mostrare numeri di accessi inventati.'
+    }),
+    slide({
+      id: 'demo',
       kind: 'closing',
-      title: 'Partiamo da {{destinazione}}',
-      body: 'Scrivici e cominciamo dall’analisi dei luoghi. {{contatto}}',
-      hint: 'Chiusura breve e concreta. Non inventare contatti: usa solo quello indicato.'
+      title: 'Guardate la mappa di {{ente}}',
+      body: 'Provate la demo, definiamo insieme le soglie e partiamo con la mappa. {{contatto}}',
+      hint: 'Chiusura breve. Non inventare link della demo o contatti: usa solo quelli indicati.'
     })
   ]
 }

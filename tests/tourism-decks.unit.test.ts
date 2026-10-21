@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
 import test, { afterEach, beforeEach } from 'node:test'
 import sharp from 'sharp'
-import { DECK_TODO, applyVars, DEFAULT_DECK_TEMPLATE } from '../src/lib/tourism-deck'
+import { DECK_TODO, DECK_TODO_PATTERN, applyVars, DEFAULT_DECK_TEMPLATE, type DeckSlide } from '../src/lib/tourism-deck'
+
+// I numeri del territorio restano da verificare nel modello: per approvare li si scrive.
+const completed = (slides: DeckSlide[]) => slides.map((s) => JSON.parse(JSON.stringify(s).replace(DECK_TODO_PATTERN, '12')) as DeckSlide)
 import { addAssets, createDeck, deleteDeck, generateIntoDeck, loadDeck, loadPublicDeck, saveDeckEdits, setApproval, type DeckRow } from '../src/lib/server/tourism-decks'
 
 type Row = Record<string, any>
@@ -91,7 +94,7 @@ const provider = (slides: unknown[]) => (async () => ({ ok: true, status: 200, j
 test('createDeck parte dal modello con i segnaposto riempiti', async () => {
   const row = await createDeck(db, USER, fields)
   assert.equal(row.status, 'draft')
-  assert.equal(row.slides[0].title, 'Capri, nella lingua di ogni visitatore')
+  assert.equal(row.slides[0].title, 'La mappa perfetta per Capri Tourism')
   assert.equal(db.tables.tourism_deck_templates.length, 1)
 })
 
@@ -157,7 +160,7 @@ test('due generazioni insieme non si pestano i piedi; una ferma da tempo si ripr
 
 test('salvataggio con versione vecchia = conflitto; una modifica toglie l’approvazione', async () => {
   const row = await createDeck(db, USER, fields)
-  const edited = applyVars(DEFAULT_DECK_TEMPLATE, { destinazione: 'Capri', ente: 'X', prezzo: '199 €/mese', contatto: 'a@b.it' })
+  const edited = completed(applyVars(DEFAULT_DECK_TEMPLATE, { destinazione: 'Capri', ente: 'X', prezzo: 'almeno 100.000 accessi', contatto: 'a@b.it' }))
   const saved = await saveDeckEdits(db, row, { version: 1, slides: edited })
   assert.equal(saved.version, 2)
   await assert.rejects(saveDeckEdits(db, saved, { version: 1, slides: edited }), /Version conflict/)
@@ -185,7 +188,7 @@ test('la vista pubblica mostra solo ciò che è approvato, con token valido', as
   const row = await createDeck(db, USER, fields)
   assert.equal(await loadPublicDeck(db, 'zz'), null)
   assert.equal(await loadPublicDeck(db, row.public_token), null)
-  const full = applyVars(DEFAULT_DECK_TEMPLATE, { destinazione: 'Capri', ente: 'X', prezzo: '199 €/mese', contatto: 'a@b.it' })
+  const full = completed(applyVars(DEFAULT_DECK_TEMPLATE, { destinazione: 'Capri', ente: 'X', prezzo: 'almeno 100.000 accessi', contatto: 'a@b.it' }))
   const saved = await saveDeckEdits(db, row, { version: 1, slides: full })
   await setApproval(db, saved, true)
   const pub = await loadPublicDeck(db, row.public_token)

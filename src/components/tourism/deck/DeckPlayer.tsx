@@ -53,7 +53,10 @@ export function SlideView({
   active: boolean
 }) {
   const cls = (...c: (string | false)[]) => c.filter(Boolean).join(' ')
-  const columns = Math.min(Math.max(slide.items.length, 1), slide.kind === 'steps' ? 6 : 4)
+  // Le schede oltre quattro vanno su due righe da tre, compatte: in quattro colonne la seconda riga uscirebbe dal palco.
+  const columns =
+    slide.kind === 'cards' && slide.items.length > 4 ? 3 : Math.min(Math.max(slide.items.length, 1), slide.kind === 'steps' ? 6 : 4)
+  const compact = slide.kind === 'cards' && slide.items.length > 4
 
   if (slide.kind === 'cover') {
     return (
@@ -97,7 +100,7 @@ export function SlideView({
     <section className={cls(d.slide, dark ? d.dark : d.light, active && d.active)} aria-hidden={!active}>
       <h2><Text value={slide.title} /></h2>
       {slide.body && <p className={cls(d.lead, dark && d.muted)}><Text value={slide.body} /></p>}
-      <div className={cls(d.cards, columns >= 5 && d.dense)} style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+      <div className={cls(d.cards, columns >= 5 && d.dense, compact && d.compact)} style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
         {slide.items.map((item, i) => (
           <div className={d.card} key={i}>
             <div className={d.num}>{slide.kind === 'steps' ? i + 1 : String(i + 1).padStart(2, '0')}</div>

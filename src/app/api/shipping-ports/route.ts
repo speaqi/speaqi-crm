@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
 import { requireArea, requireRouteUser } from '@/lib/server/supabase'
 import { loadShippingPorts, PORT_COLUMNS } from '@/lib/server/shipping-ports'
-import { normalizePortWorldPatch } from '@/lib/shipping-ports'
+import { applyDestinationGuides, DestinationGuide, normalizePortWorldPatch, patchTouchesGuide } from '@/lib/shipping-ports'
 import { countryCode, normalizePortKey } from '@/lib/shipping-itineraries'
 
 /**
@@ -100,6 +100,22 @@ export async function PATCH(request: NextRequest) {
 
     const world = normalizePortWorldPatch(body)
     if ('error' in world) return Response.json({ error: world.error }, { status: 400 })
+    // Una superguida passata alla destinazione si cambia da Tourism Intelligence:
+    // scriverla qui ricreerebbe la seconda verita' che il trasferimento ha tolto.
+    if (patchTouchesGuide(world.patch)) {
+      const { data: current } = await auth.supabase
+        .from('shipping_ports')
+        .select('guide_moved_at')
+        .eq('user_id', auth.workspaceUserId)
+        .eq('id', id)
+        .maybeSingle()
+      if (current?.guide_moved_at) {
+        return Response.json(
+          { error: 'La superguida di questo porto ora sta sulla destinazione: si cambia da Tourism Intelligence' },
+          { status: 409 }
+        )
+      }
+    }
     const payload: Record<string, unknown> = { ...world.patch, updated_at: new Date().toISOString() }
     const name = body.name === undefined ? undefined : String(body.name || '').replace(/\s+/g, ' ').trim().slice(0, 120)
     if (name !== undefined) {
@@ -139,7 +155,17 @@ export async function PATCH(request: NextRequest) {
       throw error
     }
     if (!data) return Response.json({ error: 'Porto non trovato' }, { status: 404 })
-    return Response.json({ port: data })
+    let guides: DestinationGuide[] = []
+    if (data.guide_moved_at && data.destination_id) {
+      const { data: guide } = await auth.supabase
+        .from('tourism_destinations')
+        .select('entity_id, guide_status, guide_priority, guide_notes')
+        .eq('user_id', auth.workspaceUserId)
+        .eq('entity_id', data.destination_id)
+        .maybeSingle()
+      if (guide) guides = [guide as DestinationGuide]
+    }
+    return Response.json({ port: applyDestinationGuides([data], guides)[0] })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Impossibile aggiornare il porto') }, { status: 500 })
   }

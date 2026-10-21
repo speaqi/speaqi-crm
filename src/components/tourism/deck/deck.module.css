@@ -66,6 +66,11 @@
 .dense .card h3 { font-size: 31px; }
 .dense .card p { font-size: 26px; }
 .dense .card .num { font-size: 52px; }
+.compact { gap: 22px; margin-top: 36px; }
+.compact .card { padding: 24px 30px; min-height: 0; }
+.compact .card .num { font-size: 40px; }
+.compact .card h3 { font-size: 34px; margin: 10px 0 8px; }
+.compact .card p { font-size: 26px; }
 
 .note { margin-top: 36px; align-self: flex-start; background: var(--orange); color: #fff; font-family: var(--title); font-weight: 700; font-size: 40px; padding: 20px 36px; border-radius: 999px; max-width: 1650px; line-height: 1.25; }
 

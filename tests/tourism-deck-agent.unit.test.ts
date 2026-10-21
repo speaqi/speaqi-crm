@@ -33,7 +33,7 @@ test('la richiesta porta testo, documenti, PDF e foto, e dice che sono dati', ()
   // Ogni slide del modello è nel brief, con la sua istruzione.
   const brief = JSON.parse((user[0].text as string).replace('BRIEF (JSON):\n', ''))
   assert.equal(brief.slide.length, DEFAULT_DECK_TEMPLATE.slides.length)
-  assert.equal(brief.slide[0].testo_attuale.title, 'Capri, nella lingua di ogni visitatore')
+  assert.equal(brief.slide[0].testo_attuale.title, 'La mappa perfetta per Capri Tourism')
   assert.equal(brief.foto[0].id, PHOTO)
 })
 
@@ -50,12 +50,12 @@ test('si legge anche il testo dentro output[].content', () => {
 test('la risposta si fonde, un importo inventato e una foto estranea vengono fermati', async () => {
   const fetcher = (async () => reply([
     { id: 'cover', title: 'Capri, l’isola nella lingua di chi arriva', body: 'Proposta per Capri Tourism', note: '', items: [], image_asset_id: PHOTO },
-    { id: 'method', title: 'Cinque passi', body: '', note: 'Offerta Destinazioni: 99 €/mese', items: [], image_asset_id: '99999999-9999-4999-8999-999999999999' }
+    { id: 'metodo', title: 'Cinque passi', body: '', note: 'Offerta Destinazioni: 99 €/mese', items: [], image_asset_id: '99999999-9999-4999-8999-999999999999' }
   ], ['il referente'])) as unknown as typeof fetch
   const r = await runDeckAgent(args(), fetcher)
   assert.equal(r.slides[0].title, 'Capri, l’isola nella lingua di chi arriva')
   assert.equal(r.slides[0].image_asset_id, PHOTO)
-  const method = r.slides.find((s) => s.id === 'method')!
+  const method = r.slides.find((s) => s.id === 'metodo')!
   assert.equal(method.note, `Offerta Destinazioni: ${DECK_TODO}/mese`)
   assert.equal(method.image_asset_id, null)
   assert.equal(method.items.length, 5)

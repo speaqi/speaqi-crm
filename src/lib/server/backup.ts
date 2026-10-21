@@ -1,5 +1,5 @@
 import { gzipSync } from 'node:zlib'
-import { putR2Object, r2BackupConfig } from './r2'
+import { describeR2Config, probeR2Read, putR2Object, r2BackupConfig } from './r2'
 
 /**
  * Backup del database eseguito in produzione.
@@ -60,9 +60,13 @@ export const BACKUP_TABLES = [
   'tourism_poi_candidates',
   'tourism_project_opportunities',
   'tourism_canonical_links',
+  // Porti, aeroporti e stazioni; i porti di Navigazione sono la vista shipping_ports su questa tabella.
+  'tourism_hubs',
+  'tourism_destinations',
+  'tourism_hub_destinations',
+  'tourism_hub_operators',
   // Navigazione e fiere.
   'shipping_companies',
-  'shipping_ports',
   'shipping_itineraries',
   'shipping_itinerary_stops',
   'trade_fair_exhibitors',
@@ -93,6 +97,7 @@ export const BACKUP_ORDER: Record<string, string> = {
   wine_project_reply_checks: 'contact_id',
   tourism_taxonomy: 'code',
   tourism_crm_links: 'entity_id',
+  tourism_destinations: 'entity_id',
 }
 
 /** PostgREST tronca a 1000 righe: senza paginazione il backup e silenziosamente incompleto. */
@@ -219,7 +224,8 @@ export async function runDatabaseBackup(
       await putR2Object(r2Config, `crm/${file}`, payload, 'application/gzip')
       r2 = 'ok'
     } catch (error) {
-      r2 = error instanceof Error ? error.message : String(error)
+      const reading = await probeR2Read(r2Config)
+      r2 = `${error instanceof Error ? error.message : String(error)} [${describeR2Config(r2Config)}; lettura=${reading}]`
     }
   }
 
