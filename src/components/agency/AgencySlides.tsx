@@ -6,6 +6,7 @@ import {
   AGENCY_TODO_PATTERN,
   formatMoney,
   inkOn,
+  isDarkSlide,
   type AgencySlide,
   type AgencyTheme,
   type QuoteSummary
@@ -44,8 +45,6 @@ export type DeckContext = {
 const cls = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ')
 const bg = (url?: string | null): CSSProperties | undefined => (url ? { backgroundImage: `url("${url}")` } : undefined)
 const two = (i: number) => String(i + 1).padStart(2, '0')
-const DARK_KINDS = new Set(['cover', 'section', 'closing', 'quote'])
-
 function Brand({ ctx, dark }: { ctx: DeckContext; dark: boolean }) {
   return (
     <span className={d.brand}>
@@ -56,18 +55,20 @@ function Brand({ ctx, dark }: { ctx: DeckContext; dark: boolean }) {
   )
 }
 
-function Foot({ ctx, n, total, dark }: { ctx: DeckContext; n: number; total: number; dark: boolean }) {
+/**
+ * Piede del pitch: a sinistra la fonte della slide (se c'è) o chi parla a chi, a destra
+ * il numero della slide.
+ */
+function Foot({ ctx, n, total, source }: { ctx: DeckContext; n: number; total: number; source?: string }) {
   return (
     <footer className={d.foot}>
-      <Brand ctx={ctx} dark={dark} />
+      <span className={d.footLeft}>{source ? <Txt value={source} /> : <>{ctx.agencyName} / {ctx.clientName}</>}</span>
       <span className={d.footRight}>
-        {ctx.clientLogo && ctx.theme.client_logo ? (
+        {ctx.clientLogo && ctx.theme.client_logo && (
           // eslint-disable-next-line @next/next/no-img-element
           <img className={d.footLogo} src={ctx.clientLogo} alt={ctx.clientName} />
-        ) : (
-          <span>{ctx.clientName}</span>
         )}
-        <span className={d.pager}>{String(n).padStart(2, '0')} / {String(total).padStart(2, '0')}</span>
+        <span className={d.pager}>{n} / {total}</span>
       </span>
     </footer>
   )
@@ -176,15 +177,17 @@ function Fit({ children, slideKey, className }: { children: ReactNode; slideKey:
 
 export function SlideView({ slide, ctx, n, total, active }: { slide: AgencySlide; ctx: DeckContext; n: number; total: number; active: boolean }) {
   const image = slide.image_asset_id ? ctx.images[slide.image_asset_id] : null
-  const dark = DARK_KINDS.has(slide.kind)
+  const dark = isDarkSlide(slide.kind, ctx.theme.style)
   const base = cls(d.slide, dark ? d.dark : d.light, active && d.active, d[`k_${slide.kind}`])
-  const foot = <Foot ctx={ctx} n={n} total={total} dark={dark} />
-  const fitKey = JSON.stringify(slide) + (ctx.quote?.updated_at || '') + ctx.theme.style
-  let content: ReactNode
-
   // Un layout a voci senza voci resta una slide vuota a metà: si mostra come messaggio.
   const ITEM_KINDS = ['agenda', 'problems', 'opportunities', 'benefits', 'services', 'process', 'roadmap', 'deliverables', 'metrics', 'chart', 'comparison', 'next_steps']
   const kind = ITEM_KINDS.includes(slide.kind) && !slide.items.length ? 'statement' : slide.kind
+  // Sulle slide di contenuto la nota è la fonte del dato: va in piccolo nel piede, come nel pitch.
+  const SOURCE_KINDS = ['context', 'solution', 'statement', 'agenda', 'problems', 'opportunities', 'benefits', 'services', 'deliverables', 'metrics', 'chart', 'comparison']
+  const foot = <Foot ctx={ctx} n={n} total={total} source={SOURCE_KINDS.includes(kind) ? slide.note : ''} />
+  const fitKey = JSON.stringify(slide) + (ctx.quote?.updated_at || '') + ctx.theme.style
+  let content: ReactNode
+
 
   switch (kind) {
     case 'cover':
@@ -192,7 +195,7 @@ export function SlideView({ slide, ctx, n, total, active }: { slide: AgencySlide
         <section className={cls(base, image && d.hasImage)} aria-hidden={!active}>
           {image ? <div className={d.coverImage} style={bg(image)} /> : <div className={d.coverShape} />}
           <div className={d.coverTop}>
-            <Brand ctx={ctx} dark />
+            <Brand ctx={ctx} dark={dark} />
             {ctx.clientLogo && ctx.theme.client_logo && (
               <span className={d.coverClient}>
                 <span>per</span>
@@ -259,7 +262,6 @@ export function SlideView({ slide, ctx, n, total, active }: { slide: AgencySlide
             {slide.kicker && <div className={d.kicker}><Txt value={slide.kicker} /></div>}
             <h2 className={cls(d.title, d.statementTitle)}><Txt value={slide.title} /></h2>
             {slide.body && <p className={d.lead}><Txt value={slide.body} /></p>}
-            {slide.note && <p className={d.noteLine}><Txt value={slide.note} /></p>}
           </div>
           {withImage && <div className={d.photo} style={bg(image)} />}
         </div>
@@ -290,7 +292,6 @@ export function SlideView({ slide, ctx, n, total, active }: { slide: AgencySlide
           <div className={cls(d.split, d.centerY)}>
             <div className={d.col}>
               <Head slide={slide} />
-              {slide.note && <p className={d.noteLine}><Txt value={slide.note} /></p>}
             </div>
           </div>
         )
@@ -300,7 +301,6 @@ export function SlideView({ slide, ctx, n, total, active }: { slide: AgencySlide
         <div className={cls(d.split, image ? d.splitImage : d.splitText, slide.layout === 'image_left' && d.reverse)}>
           <div className={d.col}>
             <Head slide={slide} />
-            {slide.note && <p className={d.noteLine}><Txt value={slide.note} /></p>}
           </div>
           {image && !slide.items.length ? (
             <div className={d.photo} style={bg(image)} />
@@ -340,7 +340,6 @@ export function SlideView({ slide, ctx, n, total, active }: { slide: AgencySlide
               </div>
             ))}
           </div>
-          {slide.note && <p className={d.source}><Txt value={slide.note} /></p>}
         </>
       )
       break
@@ -424,7 +423,6 @@ export function SlideView({ slide, ctx, n, total, active }: { slide: AgencySlide
               </div>
             ))}
           </div>
-          {slide.note && <p className={d.source}><Txt value={slide.note} /></p>}
         </>
       )
       break
@@ -449,7 +447,6 @@ export function SlideView({ slide, ctx, n, total, active }: { slide: AgencySlide
               )
             })}
           </div>
-          {slide.note && <p className={d.source}><Txt value={slide.note} /></p>}
         </>
       )
       break
