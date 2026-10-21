@@ -7,6 +7,7 @@ import {
   formatMoney,
   inkOn,
   isDarkSlide,
+  numberedMark,
   type AgencySlide,
   type AgencyTheme,
   type QuoteSummary
@@ -105,10 +106,15 @@ function Investment({ slide, ctx }: { slide: AgencySlide; ctx: DeckContext }) {
     )
   }
   const per = q.billing_interval === 'year' ? ' / anno' : ''
+  // Le righe a 0 € sono "incluse": si contano in una riga sola, l'elenco intero sta nel preventivo.
+  const priced = q.lines.filter((l) => l.total > 0)
+  const included = q.lines.length - priced.length
+  const shown = priced.slice(0, 8)
+  const hidden = priced.length - shown.length
   return (
     <div className={d.invest}>
       <div className={d.investLines}>
-        {q.lines.slice(0, 8).map((l, i) => (
+        {shown.map((l, i) => (
           <div className={d.investLine} key={i}>
             <div>
               <strong>{l.description}</strong>
@@ -117,7 +123,8 @@ function Investment({ slide, ctx }: { slide: AgencySlide; ctx: DeckContext }) {
             <em>{formatMoney(l.total, q.currency)}</em>
           </div>
         ))}
-        {q.lines.length > 8 && <div className={d.investMore}>+ altre {q.lines.length - 8} voci nel preventivo</div>}
+        {hidden > 0 && <div className={d.investMore}>+ altre {hidden} voci nel preventivo</div>}
+        {included > 0 && <div className={d.investMore}>Compresi nel prezzo: {included} {included === 1 ? 'voce' : 'voci'}, elencate nel preventivo</div>}
       </div>
       <div className={d.investTotal}>
         <div className={d.investRow}><span>Imponibile</span><span>{formatMoney(Math.max(0, q.subtotal - q.discount), q.currency)}</span></div>
@@ -127,10 +134,18 @@ function Investment({ slide, ctx }: { slide: AgencySlide; ctx: DeckContext }) {
           <span>Totale</span>
           <strong>{formatMoney(q.total, q.currency)}{per}</strong>
         </div>
+        {q.deposit_net !== null && q.balance_net !== null && (
+          <div className={d.investPay}>
+            <div className={d.investRow}><span>Alla firma</span><span>{formatMoney(q.deposit_net, q.currency)} + IVA</span></div>
+            <div className={d.investRow}><span>Saldo</span><span>{formatMoney(q.balance_net, q.currency)} + IVA</span></div>
+            {q.payment_note && <div className={d.investMeta}>{q.payment_note}</div>}
+          </div>
+        )}
         <div className={d.investMeta}>
           Preventivo {q.number}
           {q.valid_until && <> · valido fino al {new Date(q.valid_until).toLocaleDateString('it-IT')}</>}
         </div>
+        {q.note && <div className={d.investMeta}>{q.note}</div>}
         {slide.note && <div className={d.investMeta}><Txt value={slide.note} /></div>}
         {ctx.quoteHref && <a className={d.investLink} href={ctx.quoteHref} target="_blank" rel="noreferrer">Apri il preventivo e accetta →</a>}
       </div>
@@ -332,11 +347,11 @@ export function SlideView({ slide, ctx, n, total, active }: { slide: AgencySlide
             {slide.items.map((it, i) => (
               <div className={d.card} key={i}>
                 <div className={d.cardMark}>
-                  {slide.kind === 'problems' ? two(i) : slide.kind === 'opportunities' ? '↗' : slide.kind === 'benefits' ? '✦' : two(i)}
+                  {numberedMark(it) || (slide.kind === 'problems' ? two(i) : slide.kind === 'opportunities' ? '↗' : slide.kind === 'benefits' ? '✦' : two(i))}
                 </div>
                 <h3><Txt value={it.title} /></h3>
                 {it.text && <p><Txt value={it.text} /></p>}
-                {it.value && <div className={d.cardValue}><Txt value={it.value} /></div>}
+                {it.value && !numberedMark(it) && <div className={d.cardValue}><Txt value={it.value} /></div>}
               </div>
             ))}
           </div>

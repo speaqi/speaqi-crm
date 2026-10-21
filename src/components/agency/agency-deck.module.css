@@ -240,6 +240,7 @@
 .investBig { display: flex; flex-direction: column; gap: 6px; border-top: 2px solid rgba(255, 255, 255, 0.18); padding-top: 22px; margin-top: 8px; }
 .investBig span { font-size: 21px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: rgba(255, 255, 255, 0.72); }
 .investBig strong { font-family: var(--t); font-weight: 400; font-size: 80px; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
+.investPay { display: flex; flex-direction: column; gap: 10px; border-top: 2px solid rgba(255, 255, 255, 0.18); padding-top: 18px; }
 .investMeta { font-size: 21px; color: rgba(255, 255, 255, 0.72); }
 .investLink { margin-top: 10px; display: inline-block; background: var(--accent); color: var(--accent-ink); text-decoration: none; font-weight: 700; font-size: 24px; padding: 14px 24px; border-radius: 999px; align-self: flex-start; }
 .investEmpty { margin-top: 60px; font-size: 32px; color: var(--muted); }

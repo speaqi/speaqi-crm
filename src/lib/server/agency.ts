@@ -474,7 +474,7 @@ export async function loadMaterials(service: Sb, row: ProjectRow): Promise<{ mat
 
 // ---- Preventivi collegati -------------------------------------------------
 
-const QUOTE_FIELDS = 'id,quote_number,title,status,currency,billing_interval,items,subtotal_amount,discount_amount,tax_rate,tax_amount,total_amount,valid_until,public_token,updated_at,contact_id,agency_project_id,created_at'
+const QUOTE_FIELDS = 'id,quote_number,title,status,currency,billing_interval,items,subtotal_amount,discount_amount,tax_rate,tax_amount,total_amount,deposit_amount,payment_terms_note,public_note,valid_until,public_token,updated_at,contact_id,agency_project_id,created_at'
 
 export async function projectQuotes(sb: Sb, userId: string, projectId: string) {
   const rows = checked(await sb.from('quotes').select(QUOTE_FIELDS).eq('user_id', userId).eq('agency_project_id', projectId).order('created_at', { ascending: false })).data || []
