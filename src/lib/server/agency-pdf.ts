@@ -11,7 +11,7 @@ import { AgencyInputError, renderKey, type PresentationRow } from './agency'
 type Sb = any
 
 /** Si alza quando cambia il disegno delle slide: i PDF in cache si rigenerano. */
-export const AGENCY_DESIGN_VERSION = 3
+export const AGENCY_DESIGN_VERSION = 4
 
 /**
  * Cambia quando cambiano le slide (versione), il preventivo mostrato, l'identità dell'agenzia,

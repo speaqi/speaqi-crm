@@ -219,6 +219,34 @@ export const THEME_STYLE_INFO: Record<ThemeStyle, { label: string; description: 
 
 // Modello "Speaqi" (editorial): fondo crema, navy dove serve il respiro, come il pitch.
 const DARK_KINDS_EDITORIAL = new Set<string>(['cover', 'section', 'statement', 'metrics', 'chart', 'quote', 'closing'])
+/**
+ * Ogni slide è un campo di colore pieno ("colour chapters"): il colore lo sceglie il tipo di
+ * slide, poi due slide vicine non hanno mai lo stesso campo. Vale per web, PDF e PowerPoint.
+ */
+export type SlideField = 'cream' | 'sand' | 'navy' | 'deep' | 'accent'
+export const FIELD_HEX: Record<Exclude<SlideField, 'accent'>, string> = { cream: '#faf7ed', sand: '#efe7d6', navy: '#1d2d44', deep: '#121c2c' }
+const FIELD_PREF: Record<ThemeStyle, (kind: string) => SlideField> = {
+  editorial: (k) => (k === 'closing' || k === 'section' ? 'accent' : ['cover', 'quote', 'metrics'].includes(k) ? 'navy' : 'cream'),
+  institutional: (k) => (k === 'closing' ? 'accent' : 'cream'),
+  bold: (k) => (k === 'closing' || k === 'section' ? 'accent' : 'navy')
+}
+const FIELD_ALT: Record<ThemeStyle, Record<SlideField, SlideField>> = {
+  editorial: { cream: 'navy', navy: 'cream', accent: 'navy', sand: 'navy', deep: 'cream' },
+  institutional: { cream: 'sand', sand: 'cream', accent: 'cream', navy: 'cream', deep: 'cream' },
+  bold: { navy: 'deep', deep: 'navy', accent: 'navy', cream: 'navy', sand: 'navy' }
+}
+export function deckFields(kinds: string[], style: ThemeStyle): SlideField[] {
+  const st: ThemeStyle = FIELD_PREF[style] ? style : 'editorial'
+  const out: SlideField[] = []
+  kinds.forEach((k, i) => {
+    let f = FIELD_PREF[st](k)
+    if (i > 0 && f === out[i - 1]) f = FIELD_ALT[st][f]
+    out.push(f)
+  })
+  return out
+}
+export const fieldIsDark = (f: SlideField, accent: string) => f === 'navy' || f === 'deep' || (f === 'accent' && inkOn(accent) === '#ffffff')
+
 /** Navy o crema: lo decide il modello, non la singola slide. Vale per web, PDF e PowerPoint. */
 export function isDarkSlide(kind: string, style: ThemeStyle) {
   if (style === 'bold') return true
@@ -354,12 +382,17 @@ export function numberedMark(item: { value: string }): string | null {
   return /^\d{1,2}$/.test(v) ? v.padStart(2, '0') : null
 }
 
+/**
+ * "5.500 €", "1.250,50 €": scritto a mano perché Node senza ICU completo e Chromium non
+ * mettono lo stesso separatore delle migliaia, e i centesimi a zero sulle slide sono rumore.
+ */
 export function formatMoney(value: number, currency = 'EUR') {
-  try {
-    return new Intl.NumberFormat('it-IT', { style: 'currency', currency, minimumFractionDigits: 2 }).format(value)
-  } catch {
-    return `${value.toFixed(2)} ${currency}`
-  }
+  const v = Number.isFinite(value) ? value : 0
+  const cents = Math.round(Math.abs(v) * 100)
+  const int = String(Math.floor(cents / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  const dec = cents % 100 ? ',' + String(cents % 100).padStart(2, '0') : ''
+  const sym = currency === 'EUR' ? '€' : currency
+  return `${v < 0 ? '−' : ''}${int}${dec} ${sym}`
 }
 
 // ---- [DA VERIFICARE] ------------------------------------------------------

@@ -1,5 +1,5 @@
 import PptxGenJS from 'pptxgenjs'
-import { AGENCY_TODO, formatMoney, inkOn, isDarkSlide, numberedMark, type AgencySlide, type AgencyTheme, type QuoteSummary } from '../agency'
+import { AGENCY_TODO, FIELD_HEX, deckFields, fieldIsDark, formatMoney, inkOn, numberedMark, type AgencySlide, type AgencyTheme, type QuoteSummary, type SlideField } from '../agency'
 
 // Export PowerPoint: ogni testo è una casella di testo vera, il grafico è un grafico
 // nativo con i dati modificabili, le foto sono immagini sostituibili. Il disegno segue
@@ -30,18 +30,30 @@ const FONT = 'Inter'
 const TITLE_FONT = 'Heuvel Grotesk'
 const hex = (c: string) => c.replace('#', '').toUpperCase()
 
-type Palette = { bg: string; ink: string; muted: string; card: string; line: string; darkBg: string; darkInk: string; darkMuted: string; accent: string; accentInk: string }
+type Palette = { accent: string; accentInk: string }
 
 export function palette(theme: AgencyTheme): Palette {
-  const accent = hex(theme.accent)
-  const accentInk = hex(inkOn(theme.accent))
-  // Stessi colori in tutti i modelli: cambia solo quali slide sono navy (isDarkSlide).
-  return { bg: 'FAF7ED', ink: '1D2D44', muted: '5A6478', card: 'FFFFFF', line: 'E3E0D6', darkBg: '1D2D44', darkInk: 'FFFFFF', darkMuted: 'C9CCD3', accent, accentInk }
+  return { accent: hex(theme.accent), accentInk: hex(inkOn(theme.accent)) }
 }
 
-const SOURCE_KINDS = new Set(['context', 'solution', 'statement', 'agenda', 'problems', 'opportunities', 'benefits', 'services', 'deliverables', 'metrics', 'chart', 'comparison'])
+/** I colori di un campo: lo stesso schema delle slide web (agency-deck.module.css). */
+function fieldColors(f: SlideField, p: Palette) {
+  const NAVY = '1D2D44', NAVY2 = '253A59', CREAM = 'FAF7ED', SAND = 'EFE7D6'
+  switch (f) {
+    case 'navy': return { bg: NAVY, ink: CREAM, mark: p.accent, panel: p.accent, panelInk: p.accentInk, tone: NAVY2 }
+    case 'deep': return { bg: hex(FIELD_HEX.deep), ink: CREAM, mark: p.accent, panel: p.accent, panelInk: p.accentInk, tone: NAVY }
+    case 'accent': return { bg: p.accent, ink: p.accentInk, mark: p.accentInk, panel: NAVY, panelInk: CREAM, tone: NAVY }
+    case 'sand': return { bg: SAND, ink: NAVY, mark: p.accent, panel: NAVY, panelInk: CREAM, tone: CREAM }
+    default: return { bg: CREAM, ink: NAVY, mark: p.accent, panel: NAVY, panelInk: CREAM, tone: SAND }
+  }
+}
+
+const SOURCE_KINDS = new Set(['context', 'solution', 'agenda', 'problems', 'opportunities', 'benefits', 'services', 'deliverables', 'metrics', 'chart'])
+const ITEM_KINDS = new Set(['agenda', 'problems', 'opportunities', 'benefits', 'services', 'process', 'roadmap', 'deliverables', 'metrics', 'chart', 'comparison', 'next_steps'])
+const PHOTO_KINDS = new Set(['statement', 'context', 'solution', 'next_steps', 'closing', 'section', 'deliverables'])
 const strip = (s: string) => s.trim()
 const two = (i: number) => String(i + 1).padStart(2, '0')
+const lines = (t: string) => t.split(/\n+/).map((l) => l.replace(/^[-•·*]\s*/, '').trim()).filter(Boolean)
 
 export async function buildPptx(input: PptxInput): Promise<Buffer> {
   const pptx = new PptxGenJS()
@@ -51,261 +63,251 @@ export async function buildPptx(input: PptxInput): Promise<Buffer> {
   pptx.author = input.agencyName
   const p = palette(input.theme)
   const total = input.slides.length
+  const fields = deckFields(input.slides.map((s) => s.kind), input.theme.style)
 
   input.slides.forEach((s, index) => {
-    const dark = isDarkSlide(s.kind, input.theme.style)
+    const f = fields[index]
+    const c = fieldColors(f, p)
+    const dark = fieldIsDark(f, input.theme.accent)
     const slide = pptx.addSlide()
-    slide.background = { color: dark ? p.darkBg : p.bg }
-    const ink = dark ? p.darkInk : p.ink
-    const muted = dark ? p.darkMuted : p.muted
+    slide.background = { color: c.bg }
+    const ink = c.ink
     const image = s.image_asset_id ? input.images[s.image_asset_id] : null
+    const kind = ITEM_KINDS.has(s.kind) && !s.items.length ? 'statement' : s.kind
+    const half = Boolean(image) && PHOTO_KINDS.has(kind)
+    const left = half && s.layout === 'image_left'
+    // Area del testo: tutta la slide, o la metà libera dalla foto.
+    const AX = half ? (left ? 1040 : 112) : 112
+    const AW = half ? 768 : 1696
     const text = (value: string, opts: PptxGenJS.TextPropsOptions) => slide.addText(strip(value), { fontFace: FONT, color: ink, valign: 'top', margin: 0, fit: 'shrink', ...opts })
     // Titoli e cifre grandi: Heuvel Grotesk, peso normale (il carattere ha un peso solo).
     const display = (value: string, opts: PptxGenJS.TextPropsOptions) => text(value, { ...opts, fontFace: TITLE_FONT, bold: false })
-    const kickerColor = dark ? p.accent : 'C2461A'
+    const rect = (x: number, y: number, w: number, h: number, color: string) => slide.addShape(pptx.ShapeType.rect, { x: X(x), y: X(y), w: X(w), h: X(h), fill: { color }, line: { color, width: 0 } })
 
-    const head = (x = 132, w = 1500, y = 104) => {
-      let top = y
-      if (s.kicker) {
-        text(s.kicker.toUpperCase(), { x: X(x), y: X(top), w: X(w), h: X(40), fontSize: PT(25), bold: true, color: kickerColor, charSpacing: 3 })
-        top += 56
-      }
-      display(s.title, { x: X(x), y: X(top), w: X(w), h: X(200), fontSize: PT(100) })
-      top += 210
+    if (half && image) slide.addImage({ data: image, x: left ? 0 : W / 2, y: 0, w: W / 2, h: H, sizing: { type: 'cover', w: W / 2, h: H } })
+    // Testata corrente: il capitolo a sinistra, a che punto si è a destra.
+    const run = () => {
+      text(s.kicker || input.clientName, { x: X(AX), y: X(46), w: X(AW - 220), h: X(36), fontSize: PT(24), bold: true })
+      slide.addText([{ text: two(index), options: { color: c.mark } }, { text: ` / ${two(total - 1)}`, options: { color: ink } }], { x: X(AX + AW - 220), y: X(46), w: X(220), h: X(36), fontFace: FONT, fontSize: PT(24), bold: true, align: 'right', margin: 0 })
+    }
+    const head = (top = 150, w = AW, x = AX) => {
+      display(s.title, { x: X(x), y: X(top), w: X(w), h: X(240), fontSize: PT(half ? 96 : 112) })
+      let y = top + 250
       if (s.body) {
-        text(s.body, { x: X(x), y: X(top), w: X(Math.min(w, 1240)), h: X(150), fontSize: PT(34), color: muted })
-        top += 170
+        text(s.body, { x: X(x), y: X(y), w: X(Math.min(w, 1180)), h: X(150), fontSize: PT(32) })
+        y += 160
       }
-      return top
+      return y
     }
-    // Piede del pitch: a sinistra chi parla a chi, a destra il numero della slide.
     const foot = () => {
-      // Sulle slide di contenuto la nota è la fonte del dato: sta qui, in piccolo, come nel pitch.
-      const source = SOURCE_KINDS.has(s.kind) && s.note ? s.note : ''
-      text(source || `${input.agencyName} / ${input.clientName}`, { x: X(128), y: X(1004), w: X(1300), h: X(34), fontSize: PT(21), color: muted })
-      text(`${index + 1} / ${total}`, { x: X(1500), y: X(1004), w: X(292), h: X(34), fontSize: PT(21), bold: true, color: ink, align: 'right' })
+      if (SOURCE_KINDS.has(kind) && s.note) text(s.note, { x: X(AX), y: X(1012), w: X(AW), h: X(34), fontSize: PT(21), color: ink, transparency: 25 })
     }
-    const cardRow = (top: number, items: AgencySlide['items'], cols: number, mark: (i: number) => string) => {
-      const gap = 30
-      const width = (1656 - gap * (cols - 1)) / cols
-      const rows = Math.ceil(items.length / cols)
-      const height = Math.min(380, (930 - top - gap * (rows - 1)) / rows)
-      items.forEach((it, i) => {
-        const cx = 132 + (i % cols) * (width + gap)
-        const cy = top + Math.floor(i / cols) * (height + gap)
-        slide.addShape(pptx.ShapeType.roundRect, { x: X(cx), y: X(cy), w: X(width), h: X(height), fill: { color: p.card }, line: { color: p.line, width: 1 }, rectRadius: 0.12 })
-        const big = numberedMark(it) !== null
-        const off = big ? 70 : 0
-        text(mark(i), { x: X(cx + 36), y: X(cy + 24), w: X(width - 72), h: X(big ? 120 : 60), fontSize: PT(big ? 80 : 30), bold: !big, color: p.accent })
-        text(it.title, { x: X(cx + 36), y: X(cy + 100 + off), w: X(width - 72), h: X(90), fontSize: PT(big ? 32 : 36), bold: true })
-        if (it.text) text(it.text, { x: X(cx + 36), y: X(cy + 190 + off), w: X(width - 72), h: X(Math.max(60, height - 220 - off)), fontSize: PT(big ? 22 : 25), color: muted })
+    const poster = (big: boolean) => {
+      run()
+      display(s.title, { x: X(AX), y: X(170), w: X(AW), h: X(560), fontSize: PT(half ? 104 : big && s.title.length <= 56 ? 168 : 118), valign: 'bottom' })
+      if (s.body) text(s.body, { x: X(AX), y: X(760), w: X(Math.min(AW, 1240)), h: X(170), fontSize: PT(32) })
+      if (s.note && kind !== 'statement') display(s.note, { x: X(AX), y: X(940), w: X(AW), h: X(90), fontSize: PT(40), color: c.mark })
+    }
+    // Voci in righe grandi: numero (se serve), titolo in Heuvel, testo sotto.
+    const rows = (x: number, y: number, w: number, h: number, numbers: boolean) => {
+      const n = Math.max(1, s.items.length)
+      const rh = h / n
+      s.items.forEach((it, i) => {
+        const cy = y + i * rh
+        const tx = numbers ? x + 90 : x
+        if (numbers) display(String(i + 1), { x: X(x), y: X(cy), w: X(80), h: X(80), fontSize: PT(72), color: c.mark })
+        display(it.title, { x: X(tx), y: X(cy), w: X(w - (tx - x)), h: X(Math.min(70, rh * 0.45)), fontSize: PT(48) })
+        const extra = [it.value, it.text].filter(Boolean).join(' · ')
+        if (extra) text(extra, { x: X(tx), y: X(cy + Math.min(72, rh * 0.46)), w: X(w - (tx - x)), h: X(Math.max(30, rh - 82)), fontSize: PT(25) })
       })
     }
 
-    switch (s.kind) {
+    switch (kind) {
       case 'cover': {
-        if (image) {
-          // Foto a destra, come la copertina del pitch; il velo a sinistra tiene leggibile il titolo.
-          slide.addImage({ data: image, x: X(690), y: 0, w: X(1230), h: H, sizing: { type: 'cover', w: X(1230), h: H } })
-          slide.addShape(pptx.ShapeType.rect, { x: X(690), y: 0, w: X(500), h: H, fill: { color: dark ? p.darkBg : p.bg, transparency: 30 }, line: { color: p.bg, transparency: 100 } })
-        } else {
-          slide.addShape(pptx.ShapeType.ellipse, { x: X(1180), y: X(-260), w: X(1000), h: X(1000), fill: { color: p.accent, transparency: 55 }, line: { color: p.accent, transparency: 100 } })
-        }
-        if (input.clientLogo && input.theme.client_logo) slide.addImage({ data: input.clientLogo, x: X(1500), y: X(90), w: X(300), h: X(90), sizing: { type: 'contain', w: X(300), h: X(90) } })
+        if (image) slide.addImage({ data: image, x: X(998), y: 0, w: X(922), h: H, sizing: { type: 'cover', w: X(922), h: H } })
+        const tw = image ? 860 : 1696
         const logo = input.speaqiLogo ? (dark ? input.speaqiLogo.dark : input.speaqiLogo.light) : null
-        if (logo) slide.addImage({ data: logo, x: X(128), y: X(96), h: X(46), w: X(46 * 3.4) })
-        text(input.agencyName.replace(/^speaqi\s*/i, '') || 'Agency', { x: X(logo ? 300 : 128), y: X(104), w: X(600), h: X(40), fontSize: PT(22), bold: true, color: p.accent })
-        if (s.kicker) text(s.kicker.toUpperCase(), { x: X(128), y: X(300), w: X(1150), h: X(40), fontSize: PT(25), bold: true, color: kickerColor, charSpacing: 3 })
-        display(s.title, { x: X(128), y: X(350), w: X(1150), h: X(420), fontSize: PT(150), valign: 'bottom' })
-        if (s.body) display(s.body, { x: X(128), y: X(790), w: X(1150), h: X(140), fontSize: PT(58) })
-        if (input.agencySignature) text(`${input.agencyName} · ${input.agencySignature}`, { x: X(128), y: X(980), w: X(1300), h: X(40), fontSize: PT(22), color: muted })
+        if (logo) slide.addImage({ data: logo, x: X(112), y: X(80), h: X(50), w: X(50 * 3.4) })
+        text(input.agencyName.replace(/^speaqi\s*/i, '') || 'Agency', { x: X(logo ? 300 : 112), y: X(88), w: X(500), h: X(40), fontSize: PT(24), bold: true })
+        if (input.clientLogo && input.theme.client_logo) slide.addImage({ data: input.clientLogo, x: X(image ? 640 : 1500), y: X(70), w: X(300), h: X(80), sizing: { type: 'contain', w: X(300), h: X(80) } })
+        display(s.title, { x: X(112), y: X(260), w: X(tw), h: X(440), fontSize: PT(s.title.length > 40 ? 128 : image ? 176 : 230), valign: 'bottom' })
+        if (s.body) text(s.body, { x: X(112), y: X(730), w: X(tw), h: X(110), fontSize: PT(40) })
+        if (s.kicker) text(s.kicker, { x: X(112), y: X(850), w: X(tw), h: X(40), fontSize: PT(26), bold: true, color: c.mark })
+        if (input.agencySignature) text(`${input.agencyName} · ${input.agencySignature}`, { x: X(112), y: X(930), w: X(tw), h: X(40), fontSize: PT(24) })
         return
       }
       case 'section':
-      case 'closing': {
-        if (s.kind === 'section') display(String(index + 1).padStart(2, '0'), { x: X(1100), y: X(40), w: X(700), h: X(520), fontSize: PT(420), color: p.accent, align: 'right', transparency: 60 })
-        if (s.kicker) text(s.kicker.toUpperCase(), { x: X(128), y: X(430), w: X(1500), h: X(40), fontSize: PT(25), bold: true, color: kickerColor, charSpacing: 3 })
-        display(s.title, { x: X(128), y: X(480), w: X(1640), h: X(300), fontSize: PT(140), valign: 'bottom' })
-        if (s.body) text(s.body, { x: X(132), y: X(800), w: X(1300), h: X(110), fontSize: PT(34), color: muted })
-        if (s.note) text(s.note, { x: X(132), y: X(910), w: X(1300), h: X(50), fontSize: PT(28), color: p.accent, bold: true })
-        foot()
+      case 'closing':
+      case 'statement':
+        poster(true)
         return
-      }
       case 'quote': {
-        display('“', { x: X(132), y: X(120), w: X(300), h: X(240), fontSize: PT(300), color: p.accent })
-        display(s.title, { x: X(132), y: X(340), w: X(1560), h: X(420), fontSize: PT(76) })
-        if (s.note) text(`— ${s.note}`, { x: X(132), y: X(790), w: X(1560), h: X(60), fontSize: PT(30), color: p.accent, bold: true })
-        foot()
-        return
-      }
-      case 'statement': {
-        const w = image ? 900 : 1500
-        const x = image && s.layout === 'image_left' ? 1000 : 132
-        if (s.kicker) text(s.kicker.toUpperCase(), { x: X(x), y: X(300), w: X(w), h: X(40), fontSize: PT(25), bold: true, color: kickerColor, charSpacing: 3 })
-        display(s.title, { x: X(x), y: X(350), w: X(w), h: X(330), fontSize: PT(120), valign: 'bottom' })
-        if (s.body) text(s.body, { x: X(x), y: X(700), w: X(w), h: X(200), fontSize: PT(34), color: muted })
-        if (image) {
-          const ix = s.layout === 'image_left' ? 132 : 1100
-          slide.addImage({ data: image, x: X(ix), y: X(104), w: X(688), h: X(850), sizing: { type: 'cover', w: X(688), h: X(850) }, rounding: false })
-        }
-        foot()
+        run()
+        display(`“${s.title}`, { x: X(112), y: X(200), w: X(1660), h: X(560), fontSize: PT(92), valign: 'bottom' })
+        if (s.note) text(`— ${s.note}`, { x: X(112), y: X(800), w: X(1560), h: X(60), fontSize: PT(32), color: c.mark, bold: true })
         return
       }
       case 'investment': {
+        run()
         const top = head()
         const q = input.quote
         if (!q) {
-          text(`${AGENCY_TODO} Collega un preventivo: le cifre arrivano da lì.`, { x: X(132), y: X(top), w: X(1500), h: X(60), fontSize: PT(30), color: muted })
-          foot()
+          text(`${AGENCY_TODO} Collega un preventivo: le cifre arrivano da lì.`, { x: X(112), y: X(top), w: X(1500), h: X(60), fontSize: PT(30) })
           return
         }
-        // Le righe a 0 € sono "incluse": una riga sola, l'elenco intero sta nel preventivo.
         const priced = q.lines.filter((l) => l.total > 0)
         const included = q.lines.length - priced.length
-        const rows: PptxGenJS.TableRow[] = priced.slice(0, 10).map((l) => [
-          { text: [{ text: l.description, options: { bold: true, breakLine: Boolean(l.details) } }, ...(l.details ? [{ text: l.details, options: { fontSize: PT(20), color: muted } }] : [])], options: { fontSize: PT(26) } },
-          { text: [...(l.list_total && l.list_total > l.total ? [{ text: formatMoney(l.list_total, q.currency), options: { strike: true, fontSize: PT(20), color: muted, breakLine: true } }] : []), { text: formatMoney(l.total, q.currency), options: { bold: true } }], options: { align: 'right', fontSize: PT(26) } }
+        const rowsT: PptxGenJS.TableRow[] = priced.slice(0, 6).map((l) => [
+          { text: [{ text: l.description, options: { bold: true, breakLine: Boolean(l.details) } }, ...(l.details ? [{ text: l.details, options: { fontSize: PT(22) } }] : [])], options: { fontSize: PT(32) } },
+          { text: [...(l.list_total && l.list_total > l.total ? [{ text: formatMoney(l.list_total, q.currency), options: { strike: true, fontSize: PT(22), breakLine: true } }] : []), { text: formatMoney(l.total, q.currency), options: { fontFace: TITLE_FONT, fontSize: PT(46) } }], options: { align: 'right' } }
         ])
-        if (priced.length > 10) rows.push([{ text: `+ altre ${priced.length - 10} voci nel preventivo`, options: { colspan: 2, fontSize: PT(20), color: muted } }])
-        if (included > 0) rows.push([{ text: `Compresi nel prezzo: ${included} ${included === 1 ? 'voce' : 'voci'}, elencate nel preventivo`, options: { colspan: 2, fontSize: PT(20), color: muted } }])
-        slide.addTable(rows, { x: X(132), y: X(top), w: X(1050), colW: [X(800), X(250)], fontFace: FONT, color: ink, border: { type: 'solid', color: p.line, pt: 1 }, margin: 0.08 })
-        slide.addShape(pptx.ShapeType.roundRect, { x: X(1260), y: X(top), w: X(528), h: X(560), fill: { color: p.darkBg }, line: { color: p.darkBg }, rectRadius: 0.12 })
-        const lines = [
-          ...(q.discount > 0 ? [`Sconto incluso  − ${formatMoney(q.discount, q.currency)}`] : [])
-        ]
-        text(lines.join('\n'), { x: X(1300), y: X(top + 40), w: X(448), h: X(130), fontSize: PT(24), color: p.darkMuted })
-        text(`PREZZO + IVA ${q.tax_rate}%`, { x: X(1300), y: X(top + 200), w: X(448), h: X(36), fontSize: PT(22), color: p.darkMuted, bold: true })
-        text(`${formatMoney(Math.max(0, q.subtotal - q.discount), q.currency)}${q.billing_interval === 'year' ? ' / anno' : ''}`, { x: X(1300), y: X(top + 240), w: X(448), h: X(100), fontSize: PT(62), bold: true, color: p.accent })
-        let metaY = top + 350
-        if (q.deposit_net !== null && q.balance_net !== null) {
-          text(`Alla firma  ${formatMoney(q.deposit_net, q.currency)} + IVA\nSaldo  ${formatMoney(q.balance_net, q.currency)} + IVA`, { x: X(1300), y: X(top + 330), w: X(448), h: X(80), fontSize: PT(22), color: p.darkMuted })
-          metaY = top + 420
-        }
-        text(`Preventivo ${q.number}${q.valid_until ? ` · valido fino al ${new Date(q.valid_until).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}${q.payment_note ? `\n${q.payment_note}` : ''}${q.note ? `\n${q.note}` : ''}`, { x: X(1300), y: X(metaY), w: X(448), h: X(Math.max(60, 480 - (metaY - top) - 10)), fontSize: PT(18), color: p.darkMuted })
-        foot()
+        if (included > 0) rowsT.push([{ text: `Compresi nel prezzo: ${included} ${included === 1 ? 'voce' : 'voci'}, elencate nel preventivo`, options: { colspan: 2, fontSize: PT(22), bold: true } }])
+        slide.addTable(rowsT, { x: X(112), y: X(top), w: X(1020), colW: [X(760), X(260)], fontFace: FONT, color: ink, margin: [0, 0, 0.12, 0] })
+        const px = 1200, pw = 608
+        rect(px, top, pw, 1020 - top, c.panel)
+        text(`Il prezzo, IVA ${q.tax_rate}% esclusa`, { x: X(px + 56), y: X(top + 48), w: X(pw - 112), h: X(40), fontSize: PT(26), bold: true, color: c.panelInk })
+        display(`${formatMoney(Math.max(0, q.subtotal - q.discount), q.currency)}${q.billing_interval === 'year' ? ' / anno' : ''}`, { x: X(px + 56), y: X(top + 96), w: X(pw - 112), h: X(140), fontSize: PT(118), color: c.panelInk })
+        const meta: string[] = []
+        if (q.discount > 0) meta.push(`Sconto incluso  − ${formatMoney(q.discount, q.currency)}`)
+        if (q.deposit_net !== null && q.balance_net !== null) meta.push(`Alla firma  ${formatMoney(q.deposit_net, q.currency)} + IVA`, `Saldo  ${formatMoney(q.balance_net, q.currency)} + IVA`)
+        if (q.payment_note) meta.push(q.payment_note)
+        meta.push(`Preventivo ${q.number}${q.valid_until ? ` · valido fino al ${new Date(q.valid_until).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}`)
+        if (q.note) meta.push(q.note)
+        text(meta.join('\n'), { x: X(px + 56), y: X(top + 260), w: X(pw - 112), h: X(1020 - top - 300), fontSize: PT(24), color: c.panelInk })
         return
       }
       case 'chart': {
+        run()
         const top = head()
         const values = s.items.map((it) => Number(String(it.value).replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '')))
         // Un valore vuoto non è uno zero: senza tutti i valori niente grafico, si mostra la lista.
         if (s.items.length && s.items.every((it) => String(it.value || '').trim()) && values.every((v) => Number.isFinite(v))) {
           slide.addChart(pptx.ChartType.bar, [{ name: s.title, labels: s.items.map((it) => it.title), values }], {
-            x: X(132), y: X(top), w: X(1656), h: X(900 - top),
-            barDir: 'bar', chartColors: [p.accent], catAxisLabelColor: ink, valAxisLabelColor: muted,
-            catAxisLabelFontFace: FONT, valAxisLabelFontFace: FONT, catAxisLabelFontSize: PT(26), valAxisLabelFontSize: PT(20),
-            showValue: true, dataLabelColor: ink, dataLabelFontSize: PT(24), valGridLine: { color: p.line, size: 1 }, catGridLine: { style: 'none' }
+            x: X(112), y: X(top), w: X(1696), h: X(960 - top),
+            barDir: 'bar', chartColors: [c.mark], catAxisLabelColor: ink, valAxisLabelColor: ink,
+            catAxisLabelFontFace: FONT, valAxisLabelFontFace: FONT, catAxisLabelFontSize: PT(28), valAxisLabelFontSize: PT(20),
+            showValue: true, dataLabelColor: ink, dataLabelFontSize: PT(26), valGridLine: { style: 'none' }, catGridLine: { style: 'none' }
           })
         } else {
-          text(s.items.map((it) => `${it.title}: ${it.value || AGENCY_TODO}`).join('\n'), { x: X(132), y: X(top), w: X(1500), h: X(500), fontSize: PT(32) })
+          text(s.items.map((it) => `${it.title}: ${it.value || AGENCY_TODO}`).join('\n'), { x: X(112), y: X(top), w: X(1500), h: X(500), fontSize: PT(32) })
         }
         foot()
         return
       }
       case 'metrics': {
-        const top = head() + 30
-        const cols = Math.max(1, s.items.length)
-        const width = (1656 - 40 * (cols - 1)) / cols
+        run()
+        head()
+        const n = Math.max(1, s.items.length)
+        const width = (1696 - 72 * (n - 1)) / n
         s.items.forEach((it, i) => {
-          const cx = 132 + i * (width + 40)
-          slide.addShape(pptx.ShapeType.line, { x: X(cx), y: X(top), w: X(width), h: 0, line: { color: i === 0 ? p.accent : dark ? '6B7890' : p.ink, width: 3 } })
-          display(it.value || AGENCY_TODO, { x: X(cx), y: X(top + 30), w: X(width), h: X(170), fontSize: PT(170), color: i === 0 ? p.accent : ink })
-          text(it.title, { x: X(cx), y: X(top + 200), w: X(width), h: X(60), fontSize: PT(34), bold: true })
-          if (it.text) text(it.text, { x: X(cx), y: X(top + 270), w: X(width), h: X(120), fontSize: PT(24), color: muted })
+          const cx = 112 + i * (width + 72)
+          display(it.value || AGENCY_TODO, { x: X(cx), y: X(560), w: X(width), h: X(200), fontSize: PT(n > 3 ? 190 : 240), color: c.mark })
+          text(it.title, { x: X(cx), y: X(790), w: X(width), h: X(60), fontSize: PT(38), bold: true })
+          if (it.text) text(it.text, { x: X(cx), y: X(860), w: X(width), h: X(130), fontSize: PT(26) })
         })
         foot()
         return
       }
       case 'comparison': {
-        const top = head()
+        run()
+        const top = Math.max(head(), 600)
         s.items.slice(0, 2).forEach((it, i) => {
-          const cx = 132 + i * 873
-          const after = i === 1
-          slide.addShape(pptx.ShapeType.roundRect, { x: X(cx), y: X(top), w: X(783), h: X(920 - top), fill: { color: after ? p.accent : p.card }, line: { color: after ? p.accent : p.line }, rectRadius: 0.12 })
-          text(it.title.toUpperCase(), { x: X(cx + 48), y: X(top + 40), w: X(687), h: X(40), fontSize: PT(24), bold: true, color: after ? p.accentInk : muted })
-          const bullets = it.text.split(/\n+/).map((l) => l.replace(/^[-•·*]\s*/, '').trim()).filter(Boolean)
+          const cx = 112 + i * 848
+          rect(cx, top, 848, 1010 - top, i ? c.panel : c.tone)
+          const col = i ? c.panelInk : ink
+          display(it.title, { x: X(cx + 56), y: X(top + 44), w: X(736), h: X(70), fontSize: PT(56), color: col })
           slide.addText(
-            bullets.map((b) => ({ text: b, options: { bullet: true, breakLine: true } })),
-            { x: X(cx + 48), y: X(top + 100), w: X(687), h: X(820 - top - 140), fontFace: FONT, fontSize: PT(28), color: after ? p.accentInk : ink, valign: 'top', fit: 'shrink', paraSpaceAfter: 6 }
+            lines(it.text).map((b) => ({ text: b, options: { bullet: { code: '25A0' }, breakLine: true } })),
+            { x: X(cx + 56), y: X(top + 130), w: X(736), h: X(1010 - top - 170), fontFace: FONT, fontSize: PT(28), color: col, valign: 'top', fit: 'shrink', paraSpaceAfter: 6, margin: 0 }
           )
         })
-        foot()
         return
       }
       case 'roadmap': {
+        run()
         const top = head()
         const n = Math.max(1, s.items.length)
-        const rowH = Math.min(120, (920 - top) / n - 16)
+        const rowH = Math.min(130, (980 - top) / n - 14)
         s.items.forEach((it, i) => {
-          const cy = top + i * (rowH + 16)
-          text(it.value || `Fase ${i + 1}`, { x: X(132), y: X(cy + rowH / 2 - 20), w: X(230), h: X(44), fontSize: PT(26), bold: true, color: p.accent, align: 'right' })
-          const left = 400 + (i / n) * 0.7 * 1388
-          const width = Math.min(1788 - left, (0.3 + 0.7 / n) * 1388)
-          slide.addShape(pptx.ShapeType.roundRect, { x: X(left), y: X(cy), w: X(width), h: X(rowH), fill: { color: i % 2 ? p.ink : p.accent }, line: { color: i % 2 ? p.ink : p.accent }, rectRadius: 0.1 })
+          const cy = top + i * (rowH + 14)
+          display(it.value || `Fase ${i + 1}`, { x: X(112), y: X(cy + rowH / 2 - 28), w: X(220), h: X(56), fontSize: PT(46), color: c.mark })
+          const lx = 360 + (i / n) * 0.34 * 1448
+          const fill = i % 2 ? c.tone : c.panel
+          rect(lx, cy, 1808 - lx, rowH, fill)
           slide.addText(
-            [{ text: it.title, options: { bold: true, fontSize: PT(28), breakLine: Boolean(it.text) } }, ...(it.text ? [{ text: it.text, options: { fontSize: PT(20) } }] : [])],
-            { x: X(left + 24), y: X(cy + 8), w: X(width - 48), h: X(rowH - 16), fontFace: FONT, color: i % 2 ? p.bg : p.accentInk, valign: 'middle', fit: 'shrink' }
+            [{ text: it.title, options: { bold: true, fontSize: PT(30), breakLine: Boolean(it.text) } }, ...(it.text ? [{ text: it.text, options: { fontSize: PT(21) } }] : [])],
+            { x: X(lx + 28), y: X(cy + 8), w: X(1808 - lx - 56), h: X(rowH - 16), fontFace: FONT, color: i % 2 ? ink : c.panelInk, valign: 'middle', fit: 'shrink', margin: 0 }
           )
         })
-        foot()
+        if (s.note) text(s.note, { x: X(112), y: X(1000), w: X(1696), h: X(40), fontSize: PT(24), bold: true, color: c.mark })
         return
       }
-      case 'process':
-      case 'next_steps': {
-        const top = head() + 20
+      case 'process': {
+        run()
+        const top = Math.max(head(), 560)
         const n = Math.max(1, s.items.length)
-        const width = (1656 - 30 * (n - 1)) / n
-        slide.addShape(pptx.ShapeType.line, { x: X(172), y: X(top + 40), w: X(1576), h: 0, line: { color: p.accent, width: 2 } })
+        const width = (1696 - 48 * (n - 1)) / n
+        rect(112, top, 1696, 14, c.tone)
         s.items.forEach((it, i) => {
-          const cx = 132 + i * (width + 30)
-          slide.addShape(pptx.ShapeType.ellipse, { x: X(cx), y: X(top), w: X(80), h: X(80), fill: { color: p.accent }, line: { color: p.accent } })
-          text(String(i + 1), { x: X(cx), y: X(top), w: X(80), h: X(80), fontSize: PT(36), bold: true, color: p.accentInk, align: 'center', valign: 'middle' })
-          text(it.title, { x: X(cx), y: X(top + 110), w: X(width), h: X(100), fontSize: PT(34), bold: true })
-          if (it.value) text(it.value.toUpperCase(), { x: X(cx), y: X(top + 210), w: X(width), h: X(34), fontSize: PT(20), bold: true, color: p.accent })
-          if (it.text) text(it.text, { x: X(cx), y: X(top + 250), w: X(width), h: X(260), fontSize: PT(24), color: muted })
+          const cx = 112 + i * (width + 48)
+          display(String(i + 1), { x: X(cx), y: X(top + 40), w: X(width), h: X(130), fontSize: PT(n > 4 ? 110 : 140), color: c.mark })
+          text(it.title, { x: X(cx), y: X(top + 180), w: X(width), h: X(50), fontSize: PT(n > 4 ? 32 : 38), bold: true })
+          let y = top + 236
+          if (it.value && !/^\d{1,2}$/.test(it.value.trim())) { text(it.value, { x: X(cx), y: X(y), w: X(width), h: X(32), fontSize: PT(24), bold: true, color: c.mark }); y += 40 }
+          if (it.text) text(it.text, { x: X(cx), y: X(y), w: X(width), h: X(960 - y - (s.note ? 90 : 0)), fontSize: PT(n > 4 ? 23 : 26) })
         })
-        if (s.note) text(s.note, { x: X(132), y: X(900), w: X(1600), h: X(50), fontSize: PT(28), bold: true, color: p.accent })
-        foot()
+        if (s.note) {
+          rect(112, 940, 1696, 90, c.panel)
+          display(s.note, { x: X(150), y: X(958), w: X(1620), h: X(56), fontSize: PT(36), color: c.panelInk, valign: 'middle' })
+        }
         return
       }
       case 'agenda':
-      case 'deliverables': {
-        const top = head(132, 640)
-        void top
-        s.items.forEach((it, i) => {
-          const cy = 150 + i * (780 / Math.max(s.items.length, 1))
-          slide.addShape(pptx.ShapeType.line, { x: X(880), y: X(cy), w: X(908), h: 0, line: { color: p.line, width: 1 } })
-          text(s.kind === 'agenda' ? two(i) : '✓', { x: X(880), y: X(cy + 16), w: X(110), h: X(60), fontSize: PT(44), bold: true, color: p.accent })
-          text(it.title, { x: X(1000), y: X(cy + 16), w: X(788), h: X(56), fontSize: PT(36), bold: true })
-          if (it.text) text(it.text, { x: X(1000), y: X(cy + 74), w: X(788), h: X(Math.max(30, 780 / Math.max(s.items.length, 1) - 90)), fontSize: PT(22), color: muted })
-        })
-        foot()
-        return
-      }
+      case 'deliverables':
       case 'context':
-      case 'solution': {
-        head(132, 820)
-        if (s.items.length) {
-          const h = Math.min(200, (860 - 104) / s.items.length - 18)
-          s.items.forEach((it, i) => {
-            const cy = 104 + i * (h + 18)
-            slide.addShape(pptx.ShapeType.rect, { x: X(1030), y: X(cy), w: X(758), h: X(h), fill: { color: p.card }, line: { color: p.line } })
-            slide.addShape(pptx.ShapeType.rect, { x: X(1030), y: X(cy), w: X(8), h: X(h), fill: { color: p.accent }, line: { color: p.accent } })
-            slide.addText(
-              [{ text: it.title, options: { bold: true, fontSize: PT(32), breakLine: Boolean(it.text) } }, ...(it.text ? [{ text: it.text, options: { fontSize: PT(22), color: muted } }] : [])],
-              { x: X(1066), y: X(cy + 14), w: X(700), h: X(h - 28), fontFace: FONT, color: ink, valign: 'middle', fit: 'shrink' }
-            )
-          })
-        } else if (image) {
-          slide.addImage({ data: image, x: X(1030), y: X(104), w: X(758), h: X(850), sizing: { type: 'cover', w: X(758), h: X(850) } })
+      case 'solution':
+      case 'next_steps': {
+        run()
+        const numbers = kind === 'agenda' || kind === 'next_steps'
+        if (half) {
+          const y = head(150)
+          rows(AX, y + 20, AW, 1000 - y - 20, numbers)
+        } else {
+          head(150, 760)
+          rows(1000, 160, 808, 860, numbers)
         }
         foot()
         return
       }
       default: {
-        const top = head()
-        const cols = s.kind === 'services' ? Math.min(3, Math.max(2, Math.ceil(s.items.length / 2))) : Math.min(4, Math.max(2, s.items.length))
-        cardRow(top, s.items, cols, (i) => numberedMark(s.items[i]) || (s.kind === 'opportunities' ? '↗' : s.kind === 'benefits' ? '✦' : two(i)))
+        // Problemi, opportunità, benefici, servizi: colonne senza scatole, numero enorme se c'è.
+        run()
+        const top = Math.max(head(), 520)
+        const n = Math.max(1, s.items.length)
+        const cols = n <= 4 ? Math.max(2, n) : 3
+        const rowsN = Math.ceil(n / cols)
+        const gap = 72
+        const width = (1696 - gap * (cols - 1)) / cols
+        const showNum = kind === 'problems' || s.items.some((it) => numberedMark(it))
+        const rh = (990 - top - 48 * (rowsN - 1)) / rowsN
+        s.items.forEach((it, i) => {
+          const cx = 112 + (i % cols) * (width + gap)
+          const cy = top + Math.floor(i / cols) * (rh + 48)
+          let y = cy
+          if (showNum) {
+            display(numberedMark(it) || two(i), { x: X(cx), y: X(y), w: X(width), h: X(rowsN > 1 ? 110 : 150), fontSize: PT(rowsN > 1 ? 110 : 150), color: c.mark })
+            y += rowsN > 1 ? 120 : 165
+          } else {
+            rect(cx, cy, width, rh, c.tone)
+            y += 40
+          }
+          const ix = showNum ? cx : cx + 40
+          const iw = showNum ? width : width - 80
+          if (showNum) text(it.title, { x: X(ix), y: X(y), w: X(iw), h: X(56), fontSize: PT(n > 3 ? 36 : 42), bold: true })
+          else display(it.title, { x: X(ix), y: X(y), w: X(iw), h: X(70), fontSize: PT(n > 3 ? 42 : 50) })
+          if (it.text) text(it.text, { x: X(ix), y: X(y + 70), w: X(iw), h: X(Math.max(40, cy + rh - y - 80)), fontSize: PT(n > 3 ? 25 : 28) })
+          if (it.value && !numberedMark(it)) display(it.value, { x: X(ix), y: X(cy + rh - 80), w: X(iw), h: X(64), fontSize: PT(56), color: c.mark })
+        })
         foot()
       }
     }

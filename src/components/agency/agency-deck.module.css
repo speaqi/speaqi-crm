@@ -1,10 +1,9 @@
-/* Speaqi Agency — sistema grafico delle presentazioni.
-   Un palco 1920x1080, lo stesso del pitch Speaqi (ottobre 2026): Heuvel Grotesk per i titoli,
-   Inter per etichette e testo, crema e navy con l'arancio come accento.
-   Tre modelli con gli stessi caratteri, cambiano solo i fondi:
-   - editorial ("Speaqi"): crema, con copertina, capitoli, numeri e chiusura su navy;
-   - institutional ("Chiaro"): tutto crema, anche la copertina;
-   - bold ("Navy"): tutto navy. */
+/* Speaqi Agency — sistema grafico delle presentazioni ("colour chapters").
+   Un palco 1920x1080. Ogni slide è un campo di colore pieno, da bordo a bordo, e due slide
+   vicine non hanno mai lo stesso campo (deckFields in lib/agency.ts): la presentazione si
+   legge come una serie di manifesti. Heuvel Grotesk per titoli e cifre (un peso solo),
+   Inter per il resto. Niente schede con bordo, niente filetti sottili, niente ombre,
+   niente sfumature: si separa con lo spazio, con la scala e con un campo di colore. */
 
 @font-face { font-family: 'AgencyTitle'; font-weight: 400; font-display: block; src: url('/deck/heuvel-grotesk-regular.woff2') format('woff2'); }
 @font-face { font-family: 'AgencyBody'; font-weight: 400; font-display: block; src: url('/deck/inter-latin-400-normal.woff2') format('woff2'); }
@@ -15,26 +14,14 @@
 .player {
   --navy: #1d2d44;
   --navy-2: #253a59;
+  --deep: #121c2c;
   --cream: #faf7ed;
+  --sand: #efe7d6;
   --accent: #fc511f;
   --accent-ink: #ffffff;
-  --bg: var(--cream);
-  --ink: var(--navy);
-  --muted: #5a6478;
-  --card: #ffffff;
-  --line: rgba(29, 45, 68, 0.14);
-  --rule: rgba(29, 45, 68, 0.75);
-  --kicker: color-mix(in srgb, var(--accent) 80%, #5a1a00);
-  --dark-bg: var(--navy);
-  --dark-ink: #ffffff;
-  --dark-muted: rgba(255, 255, 255, 0.72);
-  --dark-card: var(--navy-2);
-  --dark-line: rgba(255, 255, 255, 0.16);
-  --dark-rule: rgba(255, 255, 255, 0.42);
-  --title-size: 100px;
-  --radius: 22px;
   --t: 'AgencyTitle', 'Heuvel Grotesk', 'HeuvelGrotesk', Arial, sans-serif;
   --b: 'AgencyBody', Inter, Arial, sans-serif;
+  --mx: 112px;
   position: relative;
   width: 100%;
   background: #0f1826;
@@ -42,16 +29,14 @@
   font-family: var(--b);
   font-synthesis: none;
 }
-/* Sulle slide scure le stesse variabili prendono i valori navy: un solo insieme di regole. */
-.dark {
-  --bg: var(--dark-bg);
-  --ink: var(--dark-ink);
-  --muted: var(--dark-muted);
-  --card: var(--dark-card);
-  --line: var(--dark-line);
-  --rule: var(--dark-rule);
-  --kicker: var(--accent);
-}
+
+/* I campi. --ink è il testo, --mark il colore dei numeri e delle cifre, --panel il campo
+   che si appoggia sopra (il riquadro del prezzo, la seconda colonna di un confronto). */
+.f_cream { --bg: var(--cream); --ink: var(--navy); --soft: rgba(29, 45, 68, 0.72); --mark: var(--accent); --panel: var(--navy); --panel-ink: var(--cream); --tone: var(--sand); }
+.f_sand { --bg: var(--sand); --ink: var(--navy); --soft: rgba(29, 45, 68, 0.72); --mark: var(--accent); --panel: var(--navy); --panel-ink: var(--cream); --tone: var(--cream); }
+.f_navy { --bg: var(--navy); --ink: var(--cream); --soft: rgba(250, 247, 237, 0.74); --mark: var(--accent); --panel: var(--accent); --panel-ink: var(--accent-ink); --tone: var(--navy-2); }
+.f_deep { --bg: var(--deep); --ink: var(--cream); --soft: rgba(250, 247, 237, 0.72); --mark: var(--accent); --panel: var(--accent); --panel-ink: var(--accent-ink); --tone: var(--navy); }
+.f_accent { --bg: var(--accent); --ink: var(--accent-ink); --soft: color-mix(in srgb, var(--accent-ink) 82%, var(--accent)); --mark: var(--accent-ink); --panel: var(--navy); --panel-ink: var(--cream); --tone: color-mix(in srgb, var(--accent) 86%, #000); }
 
 .full { position: fixed; inset: 0; z-index: 1; }
 .embedded { aspect-ratio: 16 / 9; border-radius: 10px; }
@@ -60,208 +45,191 @@
 .stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
 
 .slide {
-  position: absolute; inset: 0; padding: 140px 128px 72px; overflow: hidden;
+  position: absolute; inset: 0; padding: 0 var(--mx) 52px; overflow: hidden;
   display: flex; flex-direction: column;
-  opacity: 0; visibility: hidden; transition: opacity 280ms ease;
-  font-size: 30px; line-height: 1.45;
+  opacity: 0; visibility: hidden; transition: opacity 320ms ease;
+  font-size: 30px; line-height: 1.42;
   background: var(--bg); color: var(--ink);
 }
 .active { opacity: 1; visibility: visible; }
-.body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* Testata corrente: di che capitolo si parla a sinistra, a che punto si è a destra.
+   Sta al posto dell'etichetta sopra il titolo: niente maiuscoletto spaziato. */
+.run { height: 128px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; gap: 40px; font-size: 24px; font-weight: 600; color: var(--ink); position: relative; z-index: 2; }
+.runLeft { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.runRight { display: inline-flex; align-items: center; gap: 24px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.runLogo { height: 40px; max-width: 200px; object-fit: contain; }
+.pagerNow { color: var(--mark); }
+.foot { margin-top: 22px; font-size: 21px; color: var(--soft); max-width: 1500px; flex-shrink: 0; position: relative; z-index: 2; }
+
 /* Adattamento: il blocco interno si disegna più grande (1/k) e si riduce di k. */
 .fitBox { flex: 1; min-height: 0; position: relative; }
 .fit { --k: 1; position: absolute; left: 0; top: 0; width: calc(100% / var(--k)); height: calc(100% / var(--k)); transform: scale(var(--k)); transform-origin: 0 0; display: flex; flex-direction: column; overflow: hidden; }
-.bottomBox .fit { justify-content: flex-end; }
-.centerBox .fit { justify-content: center; }
-.coverLong { font-size: 118px !important; }
+/* In fondo alla slide senza flex-end: con flex-end ciò che sfora esce dall'alto e l'adattamento non lo vede. */
+.endBox .fit > :first-child { margin-top: auto; }
+.midBox .fit > :first-child { margin-top: auto; margin-bottom: auto; }
 
-.todo { background: color-mix(in srgb, var(--accent) 22%, transparent); outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 4px; color: inherit; }
+.todo { background: color-mix(in srgb, var(--mark) 24%, transparent); outline: 3px dashed var(--mark); outline-offset: 2px; color: inherit; }
 
-/* Etichetta sopra il titolo: maiuscolo, spaziato, arancio. */
-.kicker { font-family: var(--b); font-weight: 700; font-size: 25px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--kicker); margin-bottom: 18px; line-height: 1.2; }
-.head { max-width: 1560px; }
-.center { text-align: center; margin: 0 auto; }
-.title { font-family: var(--t); font-weight: 400; letter-spacing: -0.012em; line-height: 1.05; font-size: var(--title-size); margin: 0; text-wrap: balance; }
-.lead { font-size: 34px; line-height: 1.42; max-width: 1260px; margin: 28px 0 0; color: var(--muted); text-wrap: pretty; }
-.giant { font-family: var(--t); font-weight: 400; letter-spacing: -0.015em; line-height: 1.02; font-size: 140px; margin: 0; max-width: 1640px; text-wrap: balance; }
-.noteLine { margin-top: 30px; font-family: var(--t); font-size: 40px; line-height: 1.25; border-left: 6px solid var(--accent); padding-left: 30px; }
-.source { margin-top: auto; padding-top: 24px; font-size: 22px; color: var(--muted); }
-.pill { margin-top: 36px; align-self: flex-start; background: var(--card); color: var(--ink); border: 1px solid var(--line); font-weight: 600; font-size: 28px; padding: 18px 30px; border-radius: 18px; max-width: 1650px; line-height: 1.3; }
-.pill::before { content: ''; display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); margin-right: 16px; vertical-align: middle; }
+/* Tipografia: tre misure fanno il lavoro. */
+.title { font-family: var(--t); font-weight: 400; letter-spacing: -0.03em; line-height: 0.98; font-size: 112px; margin: 0; max-width: 1640px; text-wrap: balance; }
+.long { font-size: 118px; line-height: 0.98; }
+.display { font-family: var(--t); font-weight: 400; letter-spacing: -0.035em; line-height: 0.94; font-size: 168px; margin: 0; max-width: 1680px; text-wrap: balance; }
+.lead { font-size: 34px; line-height: 1.38; max-width: 1180px; margin: 40px 0 0; color: var(--ink); text-wrap: pretty; }
+.head { flex-shrink: 0; }
+.note { margin-top: 44px; font-family: var(--t); font-size: 44px; line-height: 1.12; letter-spacing: -0.015em; max-width: 1500px; color: var(--mark); text-wrap: balance; }
 
-.foot { margin-top: 26px; display: flex; justify-content: space-between; align-items: center; gap: 30px; font-size: 21px; color: var(--muted); }
-.footLeft { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.footRight { display: inline-flex; align-items: center; gap: 24px; flex-shrink: 0; }
-.footLogo { height: 38px; max-width: 200px; object-fit: contain; }
-.pager { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+/* Marchio */
+.brand { display: inline-flex; align-items: center; gap: 14px; font-weight: 700; font-size: 24px; color: var(--ink); }
+.brand img { height: 50px; }
 
-/* Marchio: logo Speaqi + nome dell'agenzia in arancio, come nella proposta Paparo. */
-.brand { display: inline-flex; align-items: center; gap: 12px; font-weight: 700; font-size: 22px; color: var(--accent); }
-.brand img { height: 46px; }
+/* Copertina: campo pieno con il titolo enorme in basso; la foto, se c'è, occupa la metà
+   destra da bordo a bordo, con un taglio netto (niente velo sfumato). */
+.k_cover { padding: 0; }
+.coverField { position: absolute; inset: 0 auto 0 0; width: 100%; padding: 80px var(--mx) 96px; display: flex; flex-direction: column; justify-content: space-between; }
+.hasImage .coverField { width: 52%; }
+.coverPhoto { position: absolute; top: 0; right: 0; bottom: 0; width: 48%; background-size: cover; background-position: center; }
+.coverTop { display: flex; justify-content: space-between; align-items: center; gap: 30px; }
+.coverClient { display: inline-flex; align-items: center; gap: 16px; font-size: 22px; font-weight: 600; }
+.coverClient img { height: 72px; max-width: 300px; object-fit: contain; background: #fff; padding: 10px 16px; }
+.k_cover h1 { font-family: var(--t); font-weight: 400; letter-spacing: -0.045em; line-height: 0.86; font-size: 230px; margin: 0; text-wrap: balance; }
+.hasImage h1 { font-size: 176px; }
+.coverLong h1 { font-size: 128px; line-height: 0.95; }
+.coverSub { font-size: 40px; line-height: 1.2; margin: 44px 0 0; max-width: 900px; font-weight: 500; }
+.coverBy { font-size: 24px; font-weight: 600; margin: 52px 0 0; color: var(--soft); }
+.coverRun { margin-top: 28px; font-size: 26px; font-weight: 600; color: var(--mark); }
 
-/* Copertina: foto a destra che sfuma nel fondo, titolo grande a sinistra. */
-.k_cover { padding: 96px 128px 72px; justify-content: space-between; }
-.coverImage { position: absolute; top: 0; right: 0; bottom: 0; width: 64%; background-size: cover; background-position: center; }
-.coverImage::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, var(--bg) 0%, color-mix(in srgb, var(--bg) 82%, transparent) 22%, color-mix(in srgb, var(--bg) 20%, transparent) 62%, transparent 100%); }
-.coverShape { position: absolute; right: -220px; top: -220px; width: 980px; height: 980px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); }
-.coverShape::after { content: ''; position: absolute; inset: 150px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, color-mix(in srgb, var(--accent) 70%, transparent), transparent 68%); opacity: 0.5; }
-.coverTop, .coverBottom { position: relative; }
-.coverTop { display: flex; justify-content: space-between; align-items: center; }
-.coverClient { display: inline-flex; align-items: center; gap: 18px; font-size: 20px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
-.coverClient img { height: 76px; max-width: 320px; object-fit: contain; background: rgba(255, 255, 255, 0.96); border-radius: 14px; padding: 10px 16px; }
-.k_cover h1 { font-family: var(--t); font-weight: 400; letter-spacing: -0.02em; line-height: 0.98; font-size: 150px; margin: 0; max-width: 1180px; text-wrap: balance; }
-.coverSub { font-family: var(--t); font-weight: 400; font-size: 58px; line-height: 1.12; margin: 34px 0 0; max-width: 1180px; }
-.coverSign { font-size: 22px; font-weight: 500; margin: 40px 0 0; color: var(--muted); }
+/* Capitolo, messaggio senza foto, chiusura, citazione: un manifesto. */
+.poster { display: flex; flex-direction: column; padding-bottom: 20px; }
+.poster .lead { max-width: 1240px; }
+.quoteText { font-family: var(--t); font-weight: 400; font-size: 92px; line-height: 1.04; letter-spacing: -0.025em; margin: 0; max-width: 1660px; text-wrap: balance; }
+.quoteText::before { content: '“'; color: var(--mark); margin-left: -0.42em; }
+.quoteAuthor { margin-top: 48px; font-size: 32px; font-weight: 700; color: var(--mark); }
 
-/* Capitolo, citazione, chiusura */
-.k_section { justify-content: flex-end; }
-.sectionNum { position: absolute; right: 120px; top: 80px; font-family: var(--t); font-weight: 400; font-size: 480px; line-height: 1; color: transparent; -webkit-text-stroke: 2px color-mix(in srgb, var(--accent) 70%, transparent); letter-spacing: -0.04em; }
-.sectionBody { position: relative; margin-top: auto; }
-.k_quote { justify-content: center; }
-.quoteMark { font-family: var(--t); font-size: 300px; line-height: 0.6; color: var(--accent); height: 140px; }
-.quoteText { font-family: var(--t); font-weight: 400; font-size: 76px; line-height: 1.14; letter-spacing: -0.012em; margin: 0; max-width: 1580px; text-wrap: balance; border-left: 8px solid var(--accent); padding-left: 44px; }
-.quoteAuthor { margin-top: 40px; font-size: 30px; color: var(--accent); font-weight: 700; padding-left: 52px; }
-.k_quote .foot { margin-top: auto; }
-.closingBody { margin-top: auto; margin-bottom: auto; }
-.closingNote { margin-top: 40px; font-size: 32px; color: var(--accent); font-weight: 700; }
+/* Messaggio con foto: la foto prende metà slide, da bordo a bordo. */
+.withPhoto .fitBox, .withPhoto .run, .withPhoto .foot { margin-right: 928px; }
+.reverse.withPhoto .fitBox, .reverse.withPhoto .foot, .reverse.withPhoto .run { margin-right: 0; margin-left: 928px; }
+.withPhoto .display { font-size: 112px; line-height: 0.98; }
+.withPhoto .title { font-size: 96px; }
+.halfPhoto { position: absolute; top: 0; bottom: 0; right: 0; width: 50%; background-size: cover; background-position: center; }
+.reverse .halfPhoto { right: auto; left: 0; }
 
-/* Messaggio e colonne */
-/* Come nel pitch, etichetta e titolo partono sempre alla stessa altezza: le colonne si allineano in alto. */
-.split { display: grid; grid-template-columns: 1fr; gap: 90px; flex: 1; min-height: 0; align-items: start; }
-.splitImage { grid-template-columns: 1.02fr 0.98fr; align-items: stretch; }
-.splitText { grid-template-columns: 1fr 1fr; align-items: start; }
-.reverse > :first-child { order: 2; }
-.centerY { align-content: start; }
-.col { display: flex; flex-direction: column; justify-content: flex-start; min-width: 0; }
-.statementTitle { font-size: calc(var(--title-size) * 1.2); }
-.photo { border-radius: var(--radius); background-size: cover; background-position: center; min-height: 0; border: 6px solid var(--card); box-shadow: 0 40px 80px -44px rgba(13, 22, 38, 0.55); }
-.photoSmall { height: 260px; border-radius: var(--radius); background-size: cover; background-position: center; }
-/* Voci a colonna: filetto in alto, titolo in Inter bold (come "Nessun canale diretto"). */
-.pillars { display: flex; flex-direction: column; }
-.pillar { border-top: 2px solid var(--line); padding: 26px 0 28px; }
-.pillar:first-child { border-top-color: var(--rule); }
-.pillar h3 { font-weight: 700; font-size: 36px; line-height: 1.15; margin: 0; }
-.pillar p { font-size: 25px; line-height: 1.42; margin: 8px 0 0; color: var(--muted); }
-.pillarValue { font-family: var(--t); font-size: 56px; color: var(--accent); line-height: 1; margin-bottom: 10px; }
+/* Voci in colonne: niente scatole. Il numero, quando c'è, è la cosa più grande. */
+.cols { display: grid; column-gap: 72px; row-gap: 64px; margin-top: auto; padding-top: 56px; align-content: end; }
+.colItem { min-width: 0; display: flex; flex-direction: column; }
+.num { font-family: var(--t); font-weight: 400; font-size: 168px; line-height: 0.8; letter-spacing: -0.05em; color: var(--mark); margin: 0 0 28px; font-variant-numeric: tabular-nums; }
+.dense .num { font-size: 124px; margin-bottom: 20px; }
+.colItem h3 { font-weight: 700; font-size: 42px; line-height: 1.08; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+.colItem p { font-size: 28px; line-height: 1.38; margin: 14px 0 0; color: var(--ink); opacity: 0.86; }
+.dense .colItem h3 { font-size: 36px; }
+.dense .colItem p { font-size: 25px; }
+.colValue { margin-top: 18px; font-family: var(--t); font-size: 52px; line-height: 1; color: var(--mark); letter-spacing: -0.02em; }
+/* Una fascia di tono per ogni voce, senza bordi: si usa sulle liste senza numeri. */
+.toned .colItem { background: var(--tone); padding: 40px 40px 44px; }
 
-/* Indice */
-.agenda { display: grid; grid-template-columns: 0.8fr 1.2fr; gap: 110px; flex: 1; align-items: start; }
-.agendaList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.agendaList li { display: grid; grid-template-columns: 110px 1fr; gap: 20px; align-items: baseline; padding: 24px 0; border-bottom: 2px solid var(--line); }
-.agendaList li:first-child { border-top: 2px solid var(--rule); }
-.agendaNum { font-weight: 700; font-size: 28px; color: var(--accent); letter-spacing: 0.06em; }
-.agendaList strong { font-family: var(--t); font-size: 50px; font-weight: 400; display: block; line-height: 1.08; }
-.agendaList em { font-style: normal; font-size: 24px; color: var(--muted); display: block; margin-top: 6px; }
+/* Due colonne: titolo a sinistra, voci a destra in grande. */
+.twoCol { display: grid; grid-template-columns: 0.92fr 1.08fr; gap: 120px; align-items: end; }
+.rows { display: flex; flex-direction: column; gap: 36px; }
+.row { display: grid; grid-template-columns: auto 1fr; column-gap: 32px; align-items: baseline; }
+.rowNum { font-family: var(--t); font-size: 72px; line-height: 0.9; color: var(--mark); letter-spacing: -0.03em; min-width: 1.1em; font-variant-numeric: tabular-nums; }
+.row h3 { font-family: var(--t); font-weight: 400; font-size: 52px; line-height: 1.02; letter-spacing: -0.02em; margin: 0; }
+.row p { grid-column: 2; font-size: 27px; line-height: 1.36; margin: 10px 0 0; }
+.row .rowValue { grid-column: 2; font-weight: 700; font-size: 24px; margin-top: 8px; color: var(--mark); }
+.rowsPlain .row { grid-template-columns: 1fr; }
+.rowsPlain .row p, .rowsPlain .row .rowValue { grid-column: 1; }
 
-/* Schede bianche con il tassello dell'icona (piattaforma del pitch). */
-.cards { display: grid; gap: 28px; margin-top: 60px; flex: 1; min-height: 0; align-content: center; padding-bottom: 20px; }
-.card { border-radius: var(--radius); padding: 42px 40px; background: var(--card); border: 1px solid var(--line); display: flex; flex-direction: column; overflow-wrap: break-word; min-height: 340px; }
-.cardMark { width: 76px; height: 76px; border-radius: 18px; background: color-mix(in srgb, var(--accent) 14%, var(--card)); color: var(--accent); display: grid; place-items: center; font-weight: 700; font-size: 30px; margin-bottom: 30px; }
-.card h3 { font-weight: 700; font-size: 40px; line-height: 1.12; margin: 0 0 14px; }
-.card p { font-size: 27px; line-height: 1.42; margin: 0; color: var(--muted); }
-.cardValue { margin-top: auto; padding-top: 22px; font-family: var(--t); font-size: 40px; color: var(--accent); }
-.dense { gap: 22px; }
-.dense .card { padding: 30px; min-height: 0; }
-.card .cardBig, .dense .card .cardBig { width: auto; height: auto; background: none; border-radius: 0; display: block; place-items: unset; font-family: var(--t); font-weight: 400; font-size: 110px; line-height: 0.85; letter-spacing: -0.02em; margin: 0 0 20px; }
-.card:has(.cardBig) h3 { font-size: 38px; }
-.dense .card h3 { font-size: 31px; }
-.dense .card p { font-size: 23px; }
-.dense .cardMark { width: 60px; height: 60px; font-size: 24px; margin-bottom: 18px; border-radius: 14px; }
-/* Problemi e benefici: colonne con il filetto, senza scatole (slide "Il problema"). */
-.k_problems .card, .k_benefits .card { background: transparent; border: 0; border-top: 3px solid var(--line); border-radius: 0; padding: 34px 0 0; min-height: 0; }
-.k_problems .card:first-child, .k_benefits .card:first-child { border-top-color: var(--accent); }
-.k_problems .cardMark, .k_benefits .cardMark { width: auto; height: auto; background: none; border-radius: 0; display: block; font-size: 26px; letter-spacing: 0.1em; margin-bottom: 18px; }
+/* Metodo: fasi in fila, con il numero enorme e un nastro pieno che le lega. */
+.steps { display: grid; column-gap: 48px; margin-top: auto; padding-top: 48px; position: relative; }
+.steps::before { content: ''; position: absolute; left: 0; right: 0; top: 48px; height: 14px; background: var(--tone); }
+.step { position: relative; padding-top: 52px; min-width: 0; }
+.stepNum { font-family: var(--t); font-size: 140px; line-height: 0.8; letter-spacing: -0.05em; color: var(--mark); }
+.step h3 { font-weight: 700; font-size: 38px; line-height: 1.08; margin: 30px 0 0; }
+.stepWhen { font-weight: 700; font-size: 24px; margin-top: 10px; color: var(--mark); }
+.step p { font-size: 26px; line-height: 1.38; margin: 12px 0 0; }
+.manySteps .stepNum { font-size: 110px; }
+.manySteps .step h3 { font-size: 32px; }
+.manySteps .step p { font-size: 23px; }
+.band { margin-top: 48px; background: var(--panel); color: var(--panel-ink); font-family: var(--t); font-size: 40px; line-height: 1.14; letter-spacing: -0.015em; padding: 34px 44px; flex-shrink: 0; text-wrap: balance; }
 
-/* Metodo */
-.steps { display: grid; gap: 34px; margin: auto 0; padding-top: 40px; position: relative; }
-.steps::before { content: ''; position: absolute; left: 36px; right: 36px; top: 75px; height: 3px; background: var(--line); }
-.step { position: relative; }
-.stepDot { width: 74px; height: 74px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-weight: 700; font-size: 30px; box-shadow: 0 0 0 12px var(--bg); }
-.step h3 { font-weight: 700; font-size: 36px; line-height: 1.12; margin: 34px 0 10px; }
-.step p { font-size: 25px; line-height: 1.42; color: var(--muted); margin: 0; }
-.stepWhen { display: inline-block; font-size: 20px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--kicker); margin-bottom: 8px; }
+/* Roadmap: barre piene, a gradini, senza griglia. */
+.roadmap { margin-top: auto; padding-top: 48px; display: flex; flex-direction: column; gap: 14px; }
+.roadRow { display: grid; grid-template-columns: 200px 1fr; gap: 36px; align-items: stretch; }
+.roadWhen { font-family: var(--t); font-size: 48px; line-height: 1; letter-spacing: -0.02em; color: var(--mark); align-self: center; }
+.roadTrack { position: relative; min-height: 116px; }
+.roadBar { position: absolute; top: 0; bottom: 0; background: var(--panel); color: var(--panel-ink); padding: 20px 30px; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
+.roadRow:nth-child(even) .roadBar { background: var(--tone); color: var(--ink); }
+.roadBar strong { font-weight: 700; font-size: 30px; line-height: 1.1; }
+.roadBar span { font-size: 21px; line-height: 1.3; margin-top: 6px; }
 
-/* Roadmap */
-.roadmap { margin-top: 48px; display: grid; grid-auto-rows: minmax(90px, 1fr); gap: 16px; flex: 1; min-height: 0; }
-.roadRow { display: grid; grid-template-columns: 250px 1fr; gap: 34px; align-items: center; }
-.roadWhen { font-weight: 700; font-size: 24px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--kicker); text-align: right; }
-.roadTrack { position: relative; min-height: 90px; height: 100%; border-radius: 16px; background: repeating-linear-gradient(90deg, var(--line) 0 2px, transparent 2px 16.66%); }
-.roadBar { position: absolute; top: 0; bottom: 0; border-radius: 16px; background: var(--accent); color: var(--accent-ink); padding: 18px 28px; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
-.roadBar strong { font-weight: 700; font-size: 28px; line-height: 1.12; }
-.roadBar span { font-size: 20px; opacity: 0.92; line-height: 1.28; margin-top: 4px; }
-.roadRow:nth-child(even) .roadBar { background: var(--ink); color: var(--bg); }
+/* Numeri: cifre enormi, una per colonna. */
+.metrics { display: grid; column-gap: 72px; margin-top: auto; padding-top: 56px; }
+.metricValue { font-family: var(--t); font-weight: 400; font-size: 240px; line-height: 0.8; letter-spacing: -0.06em; color: var(--mark); }
+.metrics.many .metricValue { font-size: 190px; }
+.metric h3 { font-weight: 700; font-size: 38px; line-height: 1.1; margin: 36px 0 0; }
+.metric p { font-size: 26px; line-height: 1.36; margin: 12px 0 0; }
 
-/* Deliverable */
-.checks { list-style: none; margin: 52px 0 0; padding: 0; display: grid; gap: 26px 48px; align-content: start; }
-.checks li { display: grid; grid-template-columns: 56px 1fr; gap: 20px; align-items: start; padding-bottom: 22px; border-bottom: 2px solid var(--line); }
-.check { width: 48px; height: 48px; border-radius: 14px; background: color-mix(in srgb, var(--accent) 14%, var(--card)); color: var(--accent); display: grid; place-items: center; font-weight: 700; font-size: 26px; }
-.checks strong { font-weight: 700; font-size: 34px; display: block; line-height: 1.15; }
-.checks em { font-style: normal; font-size: 25px; color: var(--muted); display: block; margin-top: 6px; line-height: 1.38; }
+/* Grafico: barre piene, cifre grandi. */
+.chart { margin-top: auto; padding-top: 48px; display: flex; flex-direction: column; gap: 26px; }
+.chartRow { display: grid; grid-template-columns: 420px 1fr 230px; gap: 34px; align-items: center; }
+.chartLabel { font-weight: 700; font-size: 32px; line-height: 1.12; }
+.chartLabel span { display: block; font-weight: 400; font-size: 22px; }
+.chartTrack { height: 72px; background: var(--tone); }
+.chartBar { height: 100%; background: var(--ink); }
+.chartRow:first-child .chartBar { background: var(--mark); }
+.chartValue { font-family: var(--t); font-size: 72px; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
 
-/* Numeri: filetto sopra, cifra enorme in Heuvel, la prima in arancio (slide "Perché ora"). */
-.metrics { display: grid; gap: 54px; margin: auto 0; }
-.metric { border-top: 3px solid var(--rule); padding-top: 26px; }
-.metric:first-child { border-top-color: var(--accent); }
-.metricValue { font-family: var(--t); font-weight: 400; font-size: 170px; line-height: 1; letter-spacing: -0.03em; color: var(--ink); }
-.metric:first-child .metricValue { color: var(--accent); }
-.metric h3 { font-weight: 700; font-size: 34px; line-height: 1.2; margin: 26px 0 8px; }
-.metric p { font-size: 25px; color: var(--muted); margin: 0; line-height: 1.38; }
-.chart { margin-top: 64px; display: flex; flex-direction: column; gap: 28px; flex: 1; justify-content: center; }
-.chartRow { display: grid; grid-template-columns: 420px 1fr 220px; gap: 30px; align-items: center; }
-.chartLabel { font-weight: 700; font-size: 30px; line-height: 1.15; }
-.chartLabel span { display: block; font-weight: 400; font-size: 21px; color: var(--muted); }
-.chartTrack { height: 60px; border-radius: 12px; background: var(--line); overflow: hidden; }
-.chartBar { height: 100%; border-radius: 12px; background: var(--ink); }
-.chartRow:first-child .chartBar { background: var(--accent); }
-.chartValue { font-family: var(--t); font-size: 58px; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
-.chartRow:first-child .chartValue { color: var(--accent); }
-
-/* Prima / dopo: due schede, la seconda navy (slide "Modello di business"). */
-.compare { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 56px; flex: 1; min-height: 0; }
-.compareCol { border-radius: var(--radius); padding: 48px 50px; background: var(--card); border: 1px solid var(--line); }
-.compareCol h3 { font-weight: 700; margin: 0 0 24px; color: var(--kicker); text-transform: uppercase; letter-spacing: 0.12em; font-size: 24px; }
-.compareCol ul { margin: 0; padding-left: 30px; display: flex; flex-direction: column; gap: 16px; font-size: 30px; line-height: 1.32; }
-.compareAfter { background: var(--navy); color: #fff; border: 0; }
-.dark .compareAfter { background: var(--accent); color: var(--accent-ink); }
-.compareAfter h3 { color: var(--accent); }
-.dark .compareAfter h3 { color: inherit; opacity: 0.85; }
-.compareArrow { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 74px; height: 74px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-size: 36px; font-weight: 700; }
+/* Confronto e investimento: due campi che si toccano su un taglio netto. */
+.compareHead { flex-shrink: 0; }
+.compareCols { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin-top: auto; padding-top: 52px; }
+.compareCol { padding: 52px 60px 56px; display: flex; flex-direction: column; min-width: 0; background: var(--tone); }
+.compareCol + .compareCol { background: var(--panel); color: var(--panel-ink); }
+.compareCol h3 { font-family: var(--t); font-weight: 400; font-size: 60px; line-height: 1; letter-spacing: -0.025em; margin: 0 0 32px; }
+.compareCol ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 14px; font-size: 30px; line-height: 1.3; }
+.compareCol li::before { content: ''; display: inline-block; width: 14px; height: 14px; background: currentColor; margin: 0 18px 4px 0; }
 
 /* Investimento */
-.invest { display: grid; grid-template-columns: 1.25fr 0.75fr; gap: 60px; margin-top: 56px; flex: 1; min-height: 0; }
-.investLines { display: flex; flex-direction: column; }
-.investLine { display: flex; justify-content: space-between; gap: 30px; padding: 20px 0; border-bottom: 2px solid var(--line); }
-.investLine:first-child { border-top: 2px solid var(--rule); }
-.investLine strong { font-weight: 700; font-size: 29px; display: block; line-height: 1.18; }
-.investLine span { font-size: 21px; color: var(--muted); display: block; margin-top: 4px; line-height: 1.35; }
-.investLine em { font-style: normal; font-weight: 600; font-size: 28px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.investMore { font-size: 22px; color: var(--muted); padding-top: 14px; }
-.investTotal { background: var(--navy); color: #fff; border-radius: var(--radius); padding: 44px; display: flex; flex-direction: column; gap: 14px; align-self: start; }
-.dark .investTotal { background: var(--navy-2); }
-.investRow { display: flex; justify-content: space-between; font-size: 24px; color: rgba(255, 255, 255, 0.72); font-variant-numeric: tabular-nums; }
-.investBig { display: flex; flex-direction: column; gap: 6px; border-top: 2px solid rgba(255, 255, 255, 0.18); padding-top: 22px; margin-top: 8px; }
-.investBig span { font-size: 21px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: rgba(255, 255, 255, 0.72); }
-.investBig strong { font-family: var(--t); font-weight: 400; font-size: 80px; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
-.investPay { display: flex; flex-direction: column; gap: 10px; border-top: 2px solid rgba(255, 255, 255, 0.18); padding-top: 18px; }
-.investWas { display: block; font-size: 22px; font-weight: 400; color: var(--muted); text-decoration: line-through; text-align: right; }
-.investMeta { font-size: 21px; color: rgba(255, 255, 255, 0.72); }
-.investLink { margin-top: 10px; display: inline-block; background: var(--accent); color: var(--accent-ink); text-decoration: none; font-weight: 700; font-size: 24px; padding: 14px 24px; border-radius: 999px; align-self: flex-start; }
-.investEmpty { margin-top: 60px; font-size: 32px; color: var(--muted); }
+.invest { display: grid; grid-template-columns: 1.3fr 0.7fr; flex: 1; min-height: 0; margin-top: 48px; }
+.investLines { display: flex; flex-direction: column; gap: 30px; padding: 8px 80px 40px 0; }
+.investLine { display: flex; justify-content: space-between; gap: 40px; }
+.investLine strong { font-weight: 700; font-size: 34px; display: block; line-height: 1.12; }
+.investLine span { font-size: 23px; display: block; margin-top: 8px; line-height: 1.36; }
+.investLine em { font-style: normal; font-family: var(--t); font-size: 46px; line-height: 1; white-space: nowrap; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; text-align: right; }
+.investWas { display: block; font-family: var(--b); font-size: 24px; text-decoration: line-through; opacity: 0.6; margin-bottom: 8px; }
+.investMore { font-size: 24px; font-weight: 600; }
+.investTotal { background: var(--panel); color: var(--panel-ink); padding: 52px 60px; display: flex; flex-direction: column; gap: 16px; }
+.investLabel { font-size: 26px; font-weight: 600; }
+.investBig { white-space: nowrap; font-family: var(--t); font-weight: 400; font-size: 128px; line-height: 0.84; letter-spacing: -0.05em; font-variant-numeric: tabular-nums; margin: 4px 0 6px; }
+.investBig small { font-size: 0.24em; letter-spacing: 0; margin-left: 12px; }
+.investRow { display: flex; justify-content: space-between; gap: 24px; font-size: 27px; font-variant-numeric: tabular-nums; }
+.investRow b { font-weight: 700; }
+.investPay { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.investMeta { font-size: 22px; line-height: 1.38; opacity: 0.86; }
+.investLink { margin-top: auto; display: inline-block; background: var(--panel-ink); color: var(--panel); text-decoration: none; font-weight: 700; font-size: 26px; padding: 18px 28px; align-self: flex-start; }
+.investEmpty { margin-top: 60px; font-size: 34px; }
 
-/* Prossimi passi */
-.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; position: relative; }
-.timeline li { display: grid; grid-template-columns: 70px 1fr; gap: 26px; padding: 26px 0; border-top: 2px solid var(--line); }
-.timeline li:first-child { border-top-color: var(--rule); }
-.timelineDot { font-weight: 700; font-size: 26px; letter-spacing: 0.08em; color: var(--accent); padding-top: 8px; }
-.timeline strong { font-weight: 700; font-size: 36px; display: block; line-height: 1.16; }
-.timeline em { font-style: normal; font-size: 25px; color: var(--muted); display: block; margin-top: 6px; }
-.timeline b { display: block; margin-top: 6px; }
+/* Indice */
+.agenda { display: grid; grid-template-columns: 0.8fr 1.2fr; gap: 120px; align-items: end; }
 
-.draftMark { position: absolute; right: 40px; top: 30px; z-index: 6; background: #fde8e8; color: #9b1c1c; font: 700 22px var(--b); letter-spacing: 0.16em; text-transform: uppercase; padding: 8px 18px; border-radius: 8px; pointer-events: none; }
+.draftMark { position: absolute; right: 40px; bottom: 30px; z-index: 6; background: #fde8e8; color: #9b1c1c; font: 700 22px var(--b); padding: 8px 18px; pointer-events: none; }
+.f_accent .draftMark, .f_navy .draftMark { background: #fff; }
+
+/* Movimento: alla comparsa della slide il titolo sale dalla sua linea, poi il resto. */
+@media (prefers-reduced-motion: no-preference) {
+  .active .title, .active .display, .active h1, .active .quoteText { animation: rise 820ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .active .lead, .active .coverSub, .active .note { animation: rise 820ms 120ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .active .colItem, .active .step, .active .metric, .active .row, .active .roadRow, .active .chartRow, .active .investLine { animation: rise 700ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .active .colItem:nth-child(2), .active .step:nth-child(2), .active .metric:nth-child(2), .active .row:nth-child(2), .active .roadRow:nth-child(2), .active .chartRow:nth-child(2), .active .investLine:nth-child(2) { animation-delay: 160ms; }
+  .active .colItem:nth-child(3), .active .step:nth-child(3), .active .metric:nth-child(3), .active .row:nth-child(3), .active .roadRow:nth-child(3), .active .chartRow:nth-child(3), .active .investLine:nth-child(3) { animation-delay: 240ms; }
+  .active .colItem:nth-child(n+4), .active .step:nth-child(n+4), .active .metric:nth-child(n+4), .active .row:nth-child(n+4), .active .roadRow:nth-child(n+4), .active .chartRow:nth-child(n+4) { animation-delay: 320ms; }
+  .active .coverPhoto, .active .halfPhoto { animation: drift 9s ease-out both; }
+}
+@keyframes rise { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: none; } }
+@keyframes drift { from { transform: scale(1.06); } to { transform: scale(1); } }
 
 .controls { position: absolute; right: 14px; bottom: 12px; z-index: 7; display: flex; gap: 6px; align-items: center; background: rgba(15, 24, 38, 0.85); color: #faf7ed; padding: 6px 10px; border-radius: 999px; font: 600 13px var(--b); }
 .controls button, .controls a { background: transparent; border: 0; color: inherit; font: inherit; font-size: 15px; padding: 4px 10px; border-radius: 999px; cursor: pointer; text-decoration: none; }
 .controls button:hover, .controls a:hover { background: rgba(255, 255, 255, 0.16); }
+.controls button:focus-visible, .controls a:focus-visible { outline: 2px solid #faf7ed; outline-offset: 1px; }
 .full .controls { opacity: 0; transition: opacity 200ms; }
 .full:hover .controls, .full:focus-within .controls { opacity: 1; }
 .bar { position: absolute; left: 0; right: 0; top: 0; height: 4px; background: rgba(255, 255, 255, 0.12); z-index: 7; }
@@ -273,7 +241,17 @@
   .stage { position: static; width: 1920px; height: auto; transform: none !important; }
   .slide { position: relative; width: 1920px; height: 1080px; opacity: 1; visibility: visible; break-after: page; page-break-after: always; transition: none; }
   .slide:last-of-type { break-after: auto; page-break-after: auto; }
+  .slide, .slide * { animation: none !important; }
   .controls, .bar { display: none; }
   .draftMark { position: fixed; }
   .player, .player * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+.photoRows { margin-top: 52px; }
+.photoRows .rows { gap: 26px; }
+.photoRows .row h3 { font-size: 44px; }
+.photoRows .row p { font-size: 25px; }
+.toned .colItem { padding: 48px 44px 52px; }
+.toned .colItem h3 { font-family: var(--t); font-weight: 400; font-size: 50px; line-height: 1.02; letter-spacing: -0.02em; }
+.toned .colItem p { font-size: 28px; margin-top: 18px; }
+.toned.dense .colItem h3 { font-size: 42px; }
+.toned .colValue { font-size: 60px; margin-top: 28px; }
