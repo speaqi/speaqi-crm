@@ -79,7 +79,7 @@ export function agencyError(error: unknown) {
   const message = error instanceof Error ? error.message : String((error as { message?: string })?.message || '')
   const code = String((error as { code?: string })?.code || '')
   if (/42P01|PGRST205|42703/.test(code)) {
-    return agencyResponse({ error: 'Schema Speaqi Agency assente: applicare la migration 20261020120000_agency.sql al database CRM.' }, 503)
+    return agencyResponse({ error: 'Schema Speaqi Agency assente: applicare la migration 20261020130000_agency.sql al database CRM.' }, 503)
   }
   if (error instanceof AgencyInputError || /not found for this owner|Immutable|violates check constraint/i.test(message)) {
     return agencyResponse({ error: message }, 400)
