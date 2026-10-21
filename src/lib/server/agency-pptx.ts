@@ -1,11 +1,12 @@
 import PptxGenJS from 'pptxgenjs'
-import { AGENCY_TODO, formatMoney, inkOn, type AgencySlide, type AgencyTheme, type QuoteSummary } from '../agency'
+import { AGENCY_TODO, formatMoney, inkOn, isDarkSlide, type AgencySlide, type AgencyTheme, type QuoteSummary } from '../agency'
 
 // Export PowerPoint: ogni testo è una casella di testo vera, il grafico è un grafico
 // nativo con i dati modificabili, le foto sono immagini sostituibili. Il disegno segue
 // le slide web (stessa griglia 1920x1080 → 13,33 x 7,5 pollici) senza pretendere di
 // riprodurre ogni effetto: sfumature e contorni restano al PDF.
-// Carattere: Arial, perché il file deve aprirsi uguale anche dove Bricolage e Inter mancano.
+// Caratteri del pitch Speaqi: Heuvel Grotesk per i titoli, Inter per il testo. PowerPoint non li
+// incorpora: vanno installati sul computer che apre il file, altrimenti li sostituisce.
 
 export type PptxInput = {
   title: string
@@ -25,7 +26,8 @@ const W = 13.333
 const H = 7.5
 const X = (px: number) => px / 144
 const PT = (px: number) => Math.round(px * 0.5 * 10) / 10
-const FONT = 'Arial'
+const FONT = 'Inter'
+const TITLE_FONT = 'Heuvel Grotesk'
 const hex = (c: string) => c.replace('#', '').toUpperCase()
 
 type Palette = { bg: string; ink: string; muted: string; card: string; line: string; darkBg: string; darkInk: string; darkMuted: string; accent: string; accentInk: string }
@@ -33,12 +35,11 @@ type Palette = { bg: string; ink: string; muted: string; card: string; line: str
 export function palette(theme: AgencyTheme): Palette {
   const accent = hex(theme.accent)
   const accentInk = hex(inkOn(theme.accent))
-  if (theme.style === 'bold') return { bg: '13203A', ink: 'FAF7ED', muted: 'B9BCC4', card: '1D2D44', line: '2E3D57', darkBg: '0B1424', darkInk: 'FAF7ED', darkMuted: 'B9BCC4', accent, accentInk }
-  if (theme.style === 'institutional') return { bg: 'FFFFFF', ink: '1D2D44', muted: '55607A', card: 'F4F6F9', line: 'DDE2EA', darkBg: '1D2D44', darkInk: 'FAF7ED', darkMuted: 'C9CCD3', accent, accentInk }
-  return { bg: 'FAF7ED', ink: '1D2D44', muted: '55607A', card: 'FFFFFF', line: 'E3E0D6', darkBg: '1D2D44', darkInk: 'FAF7ED', darkMuted: 'C9CCD3', accent, accentInk }
+  // Stessi colori in tutti i modelli: cambia solo quali slide sono navy (isDarkSlide).
+  return { bg: 'FAF7ED', ink: '1D2D44', muted: '5A6478', card: 'FFFFFF', line: 'E3E0D6', darkBg: '1D2D44', darkInk: 'FFFFFF', darkMuted: 'C9CCD3', accent, accentInk }
 }
 
-const DARK = new Set(['cover', 'section', 'closing', 'quote'])
+const SOURCE_KINDS = new Set(['context', 'solution', 'statement', 'agenda', 'problems', 'opportunities', 'benefits', 'services', 'deliverables', 'metrics', 'chart', 'comparison'])
 const strip = (s: string) => s.trim()
 const two = (i: number) => String(i + 1).padStart(2, '0')
 
@@ -52,21 +53,24 @@ export async function buildPptx(input: PptxInput): Promise<Buffer> {
   const total = input.slides.length
 
   input.slides.forEach((s, index) => {
-    const dark = DARK.has(s.kind)
+    const dark = isDarkSlide(s.kind, input.theme.style)
     const slide = pptx.addSlide()
     slide.background = { color: dark ? p.darkBg : p.bg }
     const ink = dark ? p.darkInk : p.ink
     const muted = dark ? p.darkMuted : p.muted
     const image = s.image_asset_id ? input.images[s.image_asset_id] : null
     const text = (value: string, opts: PptxGenJS.TextPropsOptions) => slide.addText(strip(value), { fontFace: FONT, color: ink, valign: 'top', margin: 0, fit: 'shrink', ...opts })
+    // Titoli e cifre grandi: Heuvel Grotesk, peso normale (il carattere ha un peso solo).
+    const display = (value: string, opts: PptxGenJS.TextPropsOptions) => text(value, { ...opts, fontFace: TITLE_FONT, bold: false })
+    const kickerColor = dark ? p.accent : 'C2461A'
 
     const head = (x = 132, w = 1500, y = 104) => {
       let top = y
       if (s.kicker) {
-        text(s.kicker.toUpperCase(), { x: X(x), y: X(top), w: X(w), h: X(40), fontSize: PT(24), bold: true, color: p.accent, charSpacing: 3 })
+        text(s.kicker.toUpperCase(), { x: X(x), y: X(top), w: X(w), h: X(40), fontSize: PT(25), bold: true, color: kickerColor, charSpacing: 3 })
         top += 56
       }
-      text(s.title, { x: X(x), y: X(top), w: X(w), h: X(200), fontSize: PT(input.theme.style === 'institutional' ? 72 : 84), bold: true })
+      display(s.title, { x: X(x), y: X(top), w: X(w), h: X(200), fontSize: PT(100) })
       top += 210
       if (s.body) {
         text(s.body, { x: X(x), y: X(top), w: X(Math.min(w, 1240)), h: X(150), fontSize: PT(34), color: muted })
@@ -74,11 +78,12 @@ export async function buildPptx(input: PptxInput): Promise<Buffer> {
       }
       return top
     }
+    // Piede del pitch: a sinistra chi parla a chi, a destra il numero della slide.
     const foot = () => {
-      const logo = input.speaqiLogo ? (dark ? input.speaqiLogo.dark : input.speaqiLogo.light) : null
-      if (logo) slide.addImage({ data: logo, x: X(132), y: X(1000), h: X(38), w: X(38 * 3.4) })
-      text(input.agencyName.replace(/^speaqi\s*/i, '').toUpperCase() || 'AGENCY', { x: X(logo ? 270 : 132), y: X(1004), w: X(400), h: X(34), fontSize: PT(20), bold: true, color: muted })
-      text(`${input.clientName}   ${String(index + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}`, { x: X(1100), y: X(1004), w: X(688), h: X(34), fontSize: PT(20), color: muted, align: 'right' })
+      // Sulle slide di contenuto la nota è la fonte del dato: sta qui, in piccolo, come nel pitch.
+      const source = SOURCE_KINDS.has(s.kind) && s.note ? s.note : ''
+      text(source || `${input.agencyName} / ${input.clientName}`, { x: X(128), y: X(1004), w: X(1300), h: X(34), fontSize: PT(21), color: muted })
+      text(`${index + 1} / ${total}`, { x: X(1500), y: X(1004), w: X(292), h: X(34), fontSize: PT(21), bold: true, color: ink, align: 'right' })
     }
     const cardRow = (top: number, items: AgencySlide['items'], cols: number, mark: (i: number) => string) => {
       const gap = 30
@@ -89,7 +94,7 @@ export async function buildPptx(input: PptxInput): Promise<Buffer> {
         const cx = 132 + (i % cols) * (width + gap)
         const cy = top + Math.floor(i / cols) * (height + gap)
         slide.addShape(pptx.ShapeType.roundRect, { x: X(cx), y: X(cy), w: X(width), h: X(height), fill: { color: p.card }, line: { color: p.line, width: 1 }, rectRadius: 0.12 })
-        text(mark(i), { x: X(cx + 36), y: X(cy + 30), w: X(width - 72), h: X(60), fontSize: PT(48), bold: true, color: p.accent })
+        text(mark(i), { x: X(cx + 36), y: X(cy + 30), w: X(width - 72), h: X(60), fontSize: PT(30), bold: true, color: p.accent })
         text(it.title, { x: X(cx + 36), y: X(cy + 100), w: X(width - 72), h: X(90), fontSize: PT(36), bold: true })
         if (it.text) text(it.text, { x: X(cx + 36), y: X(cy + 190), w: X(width - 72), h: X(Math.max(60, height - 220)), fontSize: PT(25), color: muted })
       })
@@ -98,32 +103,35 @@ export async function buildPptx(input: PptxInput): Promise<Buffer> {
     switch (s.kind) {
       case 'cover': {
         if (image) {
-          slide.addImage({ data: image, x: 0, y: 0, w: W, h: H, sizing: { type: 'cover', w: W, h: H } })
-          slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: W, h: H, fill: { color: '0D1626', transparency: 35 }, line: { color: '0D1626', transparency: 100 } })
+          // Foto a destra, come la copertina del pitch; il velo a sinistra tiene leggibile il titolo.
+          slide.addImage({ data: image, x: X(690), y: 0, w: X(1230), h: H, sizing: { type: 'cover', w: X(1230), h: H } })
+          slide.addShape(pptx.ShapeType.rect, { x: X(690), y: 0, w: X(500), h: H, fill: { color: dark ? p.darkBg : p.bg, transparency: 30 }, line: { color: p.bg, transparency: 100 } })
         } else {
           slide.addShape(pptx.ShapeType.ellipse, { x: X(1180), y: X(-260), w: X(1000), h: X(1000), fill: { color: p.accent, transparency: 55 }, line: { color: p.accent, transparency: 100 } })
         }
         if (input.clientLogo && input.theme.client_logo) slide.addImage({ data: input.clientLogo, x: X(1500), y: X(90), w: X(300), h: X(90), sizing: { type: 'contain', w: X(300), h: X(90) } })
-        text(input.agencyName.toUpperCase(), { x: X(132), y: X(100), w: X(900), h: X(50), fontSize: PT(26), bold: true, color: p.darkInk })
-        if (s.kicker) text(s.kicker.toUpperCase(), { x: X(132), y: X(560), w: X(1500), h: X(40), fontSize: PT(24), bold: true, color: p.accent })
-        text(s.title, { x: X(132), y: X(610), w: X(1560), h: X(270), fontSize: PT(112), bold: true, color: p.darkInk, valign: 'bottom' })
-        if (s.body) text(s.body, { x: X(132), y: X(890), w: X(1560), h: X(70), fontSize: PT(44), bold: true, color: p.accent })
-        if (input.agencySignature) text(`${input.agencyName} · ${input.agencySignature}`, { x: X(132), y: X(970), w: X(1560), h: X(40), fontSize: PT(22), color: p.darkMuted })
+        const logo = input.speaqiLogo ? (dark ? input.speaqiLogo.dark : input.speaqiLogo.light) : null
+        if (logo) slide.addImage({ data: logo, x: X(128), y: X(96), h: X(46), w: X(46 * 3.4) })
+        text(input.agencyName.replace(/^speaqi\s*/i, '') || 'Agency', { x: X(logo ? 300 : 128), y: X(104), w: X(600), h: X(40), fontSize: PT(22), bold: true, color: p.accent })
+        if (s.kicker) text(s.kicker.toUpperCase(), { x: X(128), y: X(300), w: X(1150), h: X(40), fontSize: PT(25), bold: true, color: kickerColor, charSpacing: 3 })
+        display(s.title, { x: X(128), y: X(350), w: X(1150), h: X(420), fontSize: PT(150), valign: 'bottom' })
+        if (s.body) display(s.body, { x: X(128), y: X(790), w: X(1150), h: X(140), fontSize: PT(58) })
+        if (input.agencySignature) text(`${input.agencyName} · ${input.agencySignature}`, { x: X(128), y: X(980), w: X(1300), h: X(40), fontSize: PT(22), color: muted })
         return
       }
       case 'section':
       case 'closing': {
-        if (s.kind === 'section') text(String(index + 1).padStart(2, '0'), { x: X(1100), y: X(40), w: X(700), h: X(520), fontSize: PT(420), bold: true, color: p.accent, align: 'right', transparency: 60 })
-        if (s.kicker) text(s.kicker.toUpperCase(), { x: X(132), y: X(430), w: X(1500), h: X(40), fontSize: PT(24), bold: true, color: p.accent })
-        text(s.title, { x: X(132), y: X(480), w: X(1600), h: X(300), fontSize: PT(120), bold: true, valign: 'bottom' })
+        if (s.kind === 'section') display(String(index + 1).padStart(2, '0'), { x: X(1100), y: X(40), w: X(700), h: X(520), fontSize: PT(420), color: p.accent, align: 'right', transparency: 60 })
+        if (s.kicker) text(s.kicker.toUpperCase(), { x: X(128), y: X(430), w: X(1500), h: X(40), fontSize: PT(25), bold: true, color: kickerColor, charSpacing: 3 })
+        display(s.title, { x: X(128), y: X(480), w: X(1640), h: X(300), fontSize: PT(140), valign: 'bottom' })
         if (s.body) text(s.body, { x: X(132), y: X(800), w: X(1300), h: X(110), fontSize: PT(34), color: muted })
         if (s.note) text(s.note, { x: X(132), y: X(910), w: X(1300), h: X(50), fontSize: PT(28), color: p.accent, bold: true })
         foot()
         return
       }
       case 'quote': {
-        text('“', { x: X(132), y: X(120), w: X(300), h: X(240), fontSize: PT(360), bold: true, color: p.accent })
-        text(s.title, { x: X(132), y: X(340), w: X(1560), h: X(420), fontSize: PT(68), bold: true })
+        display('“', { x: X(132), y: X(120), w: X(300), h: X(240), fontSize: PT(300), color: p.accent })
+        display(s.title, { x: X(132), y: X(340), w: X(1560), h: X(420), fontSize: PT(76) })
         if (s.note) text(`— ${s.note}`, { x: X(132), y: X(790), w: X(1560), h: X(60), fontSize: PT(30), color: p.accent, bold: true })
         foot()
         return
@@ -131,8 +139,8 @@ export async function buildPptx(input: PptxInput): Promise<Buffer> {
       case 'statement': {
         const w = image ? 900 : 1500
         const x = image && s.layout === 'image_left' ? 1000 : 132
-        if (s.kicker) text(s.kicker.toUpperCase(), { x: X(x), y: X(300), w: X(w), h: X(40), fontSize: PT(24), bold: true, color: p.accent })
-        text(s.title, { x: X(x), y: X(350), w: X(w), h: X(330), fontSize: PT(96), bold: true, valign: 'bottom' })
+        if (s.kicker) text(s.kicker.toUpperCase(), { x: X(x), y: X(300), w: X(w), h: X(40), fontSize: PT(25), bold: true, color: kickerColor, charSpacing: 3 })
+        display(s.title, { x: X(x), y: X(350), w: X(w), h: X(330), fontSize: PT(120), valign: 'bottom' })
         if (s.body) text(s.body, { x: X(x), y: X(700), w: X(w), h: X(200), fontSize: PT(34), color: muted })
         if (image) {
           const ix = s.layout === 'image_left' ? 132 : 1100
@@ -182,7 +190,6 @@ export async function buildPptx(input: PptxInput): Promise<Buffer> {
         } else {
           text(s.items.map((it) => `${it.title}: ${it.value || AGENCY_TODO}`).join('\n'), { x: X(132), y: X(top), w: X(1500), h: X(500), fontSize: PT(32) })
         }
-        if (s.note) text(s.note, { x: X(132), y: X(940), w: X(1600), h: X(40), fontSize: PT(20), color: muted })
         foot()
         return
       }
@@ -192,12 +199,11 @@ export async function buildPptx(input: PptxInput): Promise<Buffer> {
         const width = (1656 - 40 * (cols - 1)) / cols
         s.items.forEach((it, i) => {
           const cx = 132 + i * (width + 40)
-          slide.addShape(pptx.ShapeType.line, { x: X(cx), y: X(top), w: X(width), h: 0, line: { color: p.accent, width: 3 } })
-          text(it.value || AGENCY_TODO, { x: X(cx), y: X(top + 30), w: X(width), h: X(150), fontSize: PT(120), bold: true, color: p.accent })
+          slide.addShape(pptx.ShapeType.line, { x: X(cx), y: X(top), w: X(width), h: 0, line: { color: i === 0 ? p.accent : dark ? '6B7890' : p.ink, width: 3 } })
+          display(it.value || AGENCY_TODO, { x: X(cx), y: X(top + 30), w: X(width), h: X(170), fontSize: PT(170), color: i === 0 ? p.accent : ink })
           text(it.title, { x: X(cx), y: X(top + 200), w: X(width), h: X(60), fontSize: PT(34), bold: true })
           if (it.text) text(it.text, { x: X(cx), y: X(top + 270), w: X(width), h: X(120), fontSize: PT(24), color: muted })
         })
-        if (s.note) text(s.note, { x: X(132), y: X(940), w: X(1600), h: X(40), fontSize: PT(20), color: muted })
         foot()
         return
       }
@@ -284,7 +290,6 @@ export async function buildPptx(input: PptxInput): Promise<Buffer> {
         } else if (image) {
           slide.addImage({ data: image, x: X(1030), y: X(104), w: X(758), h: X(850), sizing: { type: 'cover', w: X(758), h: X(850) } })
         }
-        if (s.note) text(s.note, { x: X(132), y: X(860), w: X(820), h: X(60), fontSize: PT(24), color: muted })
         foot()
         return
       }
@@ -292,7 +297,6 @@ export async function buildPptx(input: PptxInput): Promise<Buffer> {
         const top = head()
         const cols = s.kind === 'services' ? Math.min(3, Math.max(2, Math.ceil(s.items.length / 2))) : Math.min(4, Math.max(2, s.items.length))
         cardRow(top, s.items, cols, (i) => (s.kind === 'opportunities' ? '↗' : s.kind === 'benefits' ? '✦' : two(i)))
-        if (s.note) text(s.note, { x: X(132), y: X(940), w: X(1600), h: X(40), fontSize: PT(24), bold: true, color: p.accent })
         foot()
       }
     }

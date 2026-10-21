@@ -207,10 +207,23 @@ export function blankSlide(kind: SlideKind, existingIds: string[] = []): AgencyS
 
 export const THEME_STYLES = ['editorial', 'institutional', 'bold'] as const
 export type ThemeStyle = (typeof THEME_STYLES)[number]
+/**
+ * Tre modelli, stessi caratteri (Heuvel Grotesk e Inter) e stesso disegno del pitch Speaqi:
+ * cambiano solo i fondi. Le chiavi restano quelle di prima, già salvate nelle presentazioni.
+ */
 export const THEME_STYLE_INFO: Record<ThemeStyle, { label: string; description: string }> = {
-  editorial: { label: 'Editoriale', description: 'Fondo crema, titoli grandi, molto respiro. Per proposte creative e di brand.' },
-  institutional: { label: 'Istituzionale', description: 'Fondo bianco, gerarchie sobrie, accento misurato. Per enti, aziende strutturate, gare.' },
-  bold: { label: 'Bold', description: 'Fondo scuro, tipografia fuori scala, accento forte. Per pitch d’impatto.' }
+  editorial: { label: 'Speaqi', description: 'Crema, con copertina, capitoli, numeri e chiusura su navy. Il modello del pitch: va bene quasi sempre.' },
+  institutional: { label: 'Chiaro', description: 'Tutto crema, anche la copertina. Sobrio, si stampa bene: enti, gare, documenti da allegare.' },
+  bold: { label: 'Navy', description: 'Tutto navy. Per pitch d’impatto e presentazioni a schermo in sala.' }
+}
+
+// Modello "Speaqi" (editorial): fondo crema, navy dove serve il respiro, come il pitch.
+const DARK_KINDS_EDITORIAL = new Set<string>(['cover', 'section', 'statement', 'metrics', 'chart', 'quote', 'closing'])
+/** Navy o crema: lo decide il modello, non la singola slide. Vale per web, PDF e PowerPoint. */
+export function isDarkSlide(kind: string, style: ThemeStyle) {
+  if (style === 'bold') return true
+  if (style === 'institutional') return false
+  return DARK_KINDS_EDITORIAL.has(kind)
 }
 
 export type AgencyTheme = {
