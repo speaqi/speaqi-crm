@@ -31,3 +31,9 @@ Il server usa `OPENAI_API_KEY` oppure `OPENAI_API_KEY_AUDIO`; in assenza usa `OP
 L’AI non può validare la verità di affermazioni qualitative. La verifica dei fatti resta parte della revisione. Il percorso incluso è esplicitamente una proposta da concordare; il portfolio non è inserito perché non sono disponibili lavori verificati. Nessun listino, risultato, tempo di consegna o dato legale viene inventato.
 
 La verifica con risposte AI simulate non certifica autorizzazione, credito o disponibilità del modello sul provider reale. L’attivazione sul CRM online richiede la pubblicazione di questo codice nel suo ambiente di hosting.
+
+## Revisione editoriale e grafica — 21 ottobre 2026
+
+La base Agency usa titoli diretti e impaginazioni editoriali: copertina, testo su due colonne, righe aperte, sequenza di lavoro e chiusura. Anteprima e HTML usano lo stesso renderer dedicato, separato da Tourism. Il prompt richiede esempi del cliente e rimuove slogan, titoli intercambiabili e formule generiche. Criteri: [SPEAQI-AGENCY-DESIGN.md](./SPEAQI-AGENCY-DESIGN.md).
+
+La nuova proposta Paparo è stata ricostruita in PowerPoint e importata in Google Slides con copertine originali. Esempi di catalogo, scheda libro e acquisto sono marcati come proposte di interfaccia. PDF di otto slide renderizzato e ispezionato; nessun segnaposto commerciale e nessun testo oltre la pagina. Il rifacimento del modulo CRM resta da pubblicare.

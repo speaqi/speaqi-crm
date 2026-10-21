@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { apiFetch } from '@/lib/api'
 import { AGENCY_TEMPLATE, agencyBase, agencyHtml, agencyIssues, normalizeAgencyTemplate, type AgencyBrief, type AgencyDocument } from '@/lib/agency-deck'
 import type { DeckSlide } from '@/lib/tourism-deck'
-import DeckPlayer from '@/components/tourism/deck/DeckPlayer'
+import AgencyPlayer from '@/components/agency/AgencyPlayer'
 import SlideFields from '@/components/tourism/deck/SlideFields'
 import s from './page.module.css'
 
@@ -126,7 +126,7 @@ export default function AgencyPage() {
       const [title, body, light, dark] = await Promise.all([
         asset('/deck/bricolage-grotesque-latin-800-normal.woff2'), asset('/deck/inter-latin-400-normal.woff2'), asset('/deck/logo.png'), asset('/deck/logo-on-color.png'),
       ])
-      html = html.replace('</style>', `@font-face{font-family:'Bricolage Grotesque';font-weight:800;src:url('${title}')}@font-face{font-family:Inter;src:url('${body}')}h1,h2,h3{font-weight:800}header img{height:64px;vertical-align:middle}header .on-light{display:none}section:nth-child(even) header .on-light{display:inline}section:nth-child(even) header .on-dark{display:none}</style>`)
+      html = html.replace('</style>', `@font-face{font-family:'Bricolage Grotesque';font-weight:800;src:url('${title}')}@font-face{font-family:Inter;src:url('${body}')}h1,h2,h3{font-weight:800}header img{height:58px;vertical-align:middle}header .on-dark{display:none}.dark header .on-dark{display:inline}.dark header .on-light{display:none}</style>`)
       html = html.replaceAll('<header>speaqi <span>Agency</span></header>', `<header><img class="on-dark" src="${dark}" alt="Speaqi"><img class="on-light" src="${light}" alt="Speaqi"> Agency</header>`)
       download(`speaqi-agency-${final ? 'presentazione' : 'bozza'}.html`, html, 'text/html;charset=utf-8')
       setMessage('Presentazione scaricata. Apri il file HTML e usa Stampa → Salva come PDF (orizzontale, senza intestazioni).')
@@ -169,7 +169,7 @@ export default function AgencyPage() {
       </aside>
       <main className={s.main}>
         <div className={s.toolbar}><strong>{templateMode ? 'Modello grafico Agency' : brief.client || 'Anteprima della base'}</strong><span>{slides.length} slide{dirty ? ' · Modifiche da salvare' : ''}</span></div>
-        <DeckPlayer slides={slides} images={{}} destination={`Speaqi Agency · ${brief.client || 'Modello'}`} index={index} onIndexChange={setIndex} />
+        <AgencyPlayer slides={slides} client={brief.client || 'Modello'} index={index} />
         <div className={s.slideTabs} aria-label="Seleziona slide">{slides.map((slide, i) => <button key={slide.id} aria-pressed={index === i} onClick={() => setIndex(i)}>{i + 1}. {slide.id}</button>)}</div>
         <div className={s.panel}><fieldset disabled={busy} className={s.fieldset}><SlideFields slide={slides[index]} onChange={next => { setSlides(slides.map((slide, i) => i === index ? next : slide)); changed() }} /></fieldset></div>
         {!templateMode && <div className={s.panel}><h2>Revisione prima della consegna</h2>

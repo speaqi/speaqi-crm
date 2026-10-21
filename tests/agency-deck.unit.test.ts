@@ -43,7 +43,7 @@ test('client-facing export escapes markup and includes no private brief or instr
   assert.doesNotMatch(html, /<script>|INTERNAL PRIVATE INSTRUCTION|Negozio di ceramiche/)
   assert.match(html, /&lt;script&gt;/)
   assert.match(html, /A &amp; B/)
-  assert.equal((html.match(/<section>/g) || []).length, 8)
+  assert.equal((html.match(/<section\b/g) || []).length, 8)
 })
 
 test('agent sends only editable slides and treats client text as data', async () => {

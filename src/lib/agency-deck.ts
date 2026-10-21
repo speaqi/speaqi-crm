@@ -9,29 +9,29 @@ const slide = (id: string, kind: DeckSlide['kind'], title: string, body = '', it
 // Only the two confirmed services are named; no SaaS offer, references or price list.
 export const AGENCY_TEMPLATE: DeckSlide[] = [
   slide('cover', 'cover', 'Speaqi Agency', 'Una proposta per {{cliente}}'),
-  slide('brief', 'statement', 'Partiamo dal tuo obiettivo', DECK_TODO),
-  slide('agency', 'cards', 'Il tuo progetto web, con Speaqi Agency', '', [
-    { title: 'Siti internet', text: 'Progetti web per clienti esterni.' },
-    { title: 'E-commerce', text: 'Progetti di vendita online da definire sulle tue esigenze.' },
+  slide('brief', 'statement', 'Il progetto di {{cliente}}', DECK_TODO),
+  slide('agency', 'cards', 'Speaqi Agency', '', [
+    { title: 'Siti internet', text: 'Progettazione di siti per clienti esterni.' },
+    { title: 'E-commerce', text: 'Progetti per la vendita online.' },
   ]),
-  slide('solution', 'cards', 'La proposta nasce dalle tue esigenze', '', [
+  slide('solution', 'cards', 'Proposta di lavoro', '', [
     { title: 'Obiettivo', text: DECK_TODO },
     { title: 'Soluzione proposta', text: DECK_TODO },
     { title: 'Per chi', text: DECK_TODO },
   ]),
-  slide('scope', 'cards', 'Definiamo cosa realizzare', '', [
+  slide('scope', 'cards', 'Attività comprese', '', [
     { title: 'Priorità', text: DECK_TODO },
     { title: 'Contenuti e funzioni', text: DECK_TODO },
     { title: 'Da chiarire insieme', text: DECK_TODO },
   ]),
-  slide('method', 'steps', 'Un percorso da concordare insieme', 'Proposta di percorso, da confermare con te.', [
-    { title: 'Brief', text: 'Concordare obiettivi e perimetro.' },
-    { title: 'Proposta', text: 'Rivedere struttura e direzione grafica.' },
-    { title: 'Realizzazione', text: 'Definire attività, materiali e responsabilità.' },
-    { title: 'Revisione', text: 'Concordare verifiche e pubblicazione.' },
+  slide('method', 'steps', 'Sviluppo e pubblicazione', 'Sequenza proposta; attività e responsabilità saranno definite nel preventivo.', [
+    { title: 'Analisi', text: 'Raccolta dei materiali e definizione delle pagine.' },
+    { title: 'Progetto', text: 'Struttura del sito e direzione grafica.' },
+    { title: 'Realizzazione', text: 'Sviluppo e inserimento dei contenuti.' },
+    { title: 'Verifica', text: 'Controlli e pubblicazione.' },
   ]),
   slide('terms', 'statement', 'Investimento, tempi e condizioni', '{{condizioni}}'),
-  slide('closing', 'closing', 'Concordiamo il prossimo passo', '{{contatto}}'),
+  slide('closing', 'closing', 'Informazioni per il preventivo', '{{contatto}}'),
 ]
 
 export const AGENCY_EDITABLE_IDS = ['cover', 'brief', 'solution', 'scope']
@@ -94,7 +94,14 @@ const esc = (v: string) => v.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt
 
 /** Self-contained export: only client-facing slides, never brief, warnings or agent instructions. */
 export function agencyHtml(client: string, slides: DeckSlide[]) {
+  const total = slides.length
   return `<!doctype html><html lang="it"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Speaqi Agency · ${esc(client)}</title><style>
-@page{size:1920px 1080px;margin:0}*{box-sizing:border-box}body{margin:0;background:#1d2d44;color:#faf7ed;font-family:Inter,Arial,sans-serif}section{width:1920px;height:1080px;padding:100px 130px;display:flex;flex-direction:column;overflow:hidden;break-after:page;position:relative}section:nth-child(even){background:#faf7ed;color:#1d2d44}h1,h2,h3{font-family:'Bricolage Grotesque',Arial,sans-serif;line-height:1.1;margin:0;overflow-wrap:anywhere}h1{font-size:112px;margin-top:auto}h2{font-size:78px}p{font-size:36px;line-height:1.4;white-space:pre-line;overflow-wrap:anywhere;max-width:1500px}header{color:#fc511f;font-size:30px;font-weight:700;margin-bottom:50px}.cards{display:grid;gap:28px;margin-top:45px}.card{border:1px solid #fc511f55;border-radius:24px;padding:32px}h3{font-size:38px}.card p{font-size:28px}.num{font-size:48px;color:#fc511f;margin-bottom:24px}footer{margin-top:auto;padding-top:28px;font-size:22px;display:flex;justify-content:space-between}.note{color:#fc511f;font-size:32px}@media screen{body{overflow-x:auto}section{zoom:.5;margin:24px auto;border:1px solid #ffffff22}}@media print{section{zoom:1;margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}section:last-child{break-after:auto}}
-</style>${slides.map((s, i) => `<section><header>speaqi <span>Agency</span></header><${s.kind === 'cover' ? 'h1' : 'h2'}>${esc(s.title)}</${s.kind === 'cover' ? 'h1' : 'h2'}>${s.body ? `<p>${esc(s.body)}</p>` : ''}${s.items.length ? `<div class="cards" style="grid-template-columns:repeat(${s.items.length},1fr)">${s.items.map((it, j) => `<div class="card"><div class="num">${j + 1}</div><h3>${esc(it.title)}</h3><p>${esc(it.text)}</p></div>`).join('')}</div>` : ''}${s.note ? `<p class="note">${esc(s.note)}</p>` : ''}<footer><span>Speaqi Agency · ${esc(client)}</span><span>${i + 1} / ${slides.length}</span></footer></section>`).join('')}</html>`
+@page{size:1920px 1080px;margin:0}*{box-sizing:border-box}body{margin:0;background:#e0e3e8;color:#1d2d44;font-family:Inter,Arial,sans-serif}section{width:1920px;height:1080px;padding:80px 112px;display:flex;flex-direction:column;overflow:hidden;break-after:page;position:relative;background:#faf7ed}section[data-role="agency"],section[data-role="closing"]{background:#1d2d44;color:#faf7ed}h1,h2,h3{font-family:'Bricolage Grotesque',Arial,sans-serif;line-height:1.08;margin:0;overflow-wrap:anywhere}h1{font-size:150px;max-width:1320px}h2{font-size:90px;max-width:1500px}p{font-size:37px;line-height:1.45;white-space:pre-line;overflow-wrap:anywhere;margin:32px 0 0}header{color:#fc511f;font-size:26px;font-weight:700;margin-bottom:76px}.content{flex:1;min-height:0}.cover .content{display:flex;flex-direction:column;justify-content:center}.cover .client{font-size:29px;color:#fc511f;margin-bottom:38px}.cover p{font-size:44px;max-width:1450px}.split{display:grid;grid-template-columns:.95fr 1.05fr;gap:110px;align-items:start;margin-top:60px}.split h2{font-size:96px}.split p{margin:0;font-size:42px}.rows{margin-top:55px}.row{display:grid;grid-template-columns:70px 470px minmax(0,1fr);gap:26px;padding:28px 0;border-top:1px solid #1d2d4438;align-items:start}.row h3{font-size:39px}.row p{margin:0;font-size:31px}.num{font-size:22px;color:#fc511f;padding-top:7px}.dark .row{border-color:#faf7ed3b}.dark .row p{color:#dadbd6}.steps .row{grid-template-columns:70px 385px minmax(0,1fr);padding:25px 0}footer{margin-top:auto;padding-top:28px;border-top:1px solid #86909c50;font-size:20px;display:flex;justify-content:space-between;gap:24px}.note{color:#fc511f;font-size:29px}.closing .content{display:flex;flex-direction:column;justify-content:center}.closing h2{max-width:1450px}.closing p{max-width:1370px}@media screen{body{overflow-x:auto}section{zoom:.5;margin:24px auto}}@media print{section{zoom:1;margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}section:last-child{break-after:auto}}
+</style>${slides.map((s, i) => {
+    const cover = s.kind === 'cover'
+    const split = !cover && !s.items.length && s.kind !== 'closing'
+    const dark = s.id === 'agency' || s.kind === 'closing'
+    const content = `${cover ? `<div class="client">${esc(client)}</div>` : ''}<${cover ? 'h1' : 'h2'}>${esc(s.title)}</${cover ? 'h1' : 'h2'}>${s.body ? `<p>${esc(s.body)}</p>` : ''}${s.items.length ? `<div class="rows">${s.items.map((it, j) => `<div class="row"><span class="num">${String(j + 1).padStart(2, '0')}</span><h3>${esc(it.title)}</h3><p>${esc(it.text)}</p></div>`).join('')}</div>` : ''}${s.note ? `<p class="note">${esc(s.note)}</p>` : ''}`
+    return `<section data-role="${esc(s.id)}" class="${cover ? 'cover' : s.kind} ${dark ? 'dark' : ''}"><header>speaqi <span>Agency</span></header><div class="content ${split ? 'split' : ''}">${content}</div><footer><span>Speaqi Agency / ${esc(client)}</span><span>${String(i + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}</span></footer></section>`
+  }).join('')}</html>`
 }
