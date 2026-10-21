@@ -272,16 +272,17 @@ export async function loadMaterials(service: Sb, row: DeckRow): Promise<{ materi
  */
 export async function generateIntoDeck(sb: Sb, service: Sb, row: DeckRow, instruction?: string): Promise<DeckRow> {
   const stale = new Date(Date.now() - GENERATING_STALE_MS).toISOString()
-  const claimed = checked(
-    await sb
+  // Due UPDATE condizionali, non un `.or()`: con PostgREST il filtro `or` di un UPDATE vale
+  // anche per la risposta (la riga è già "generating"), e con select('id') la colonna
+  // updated_at mancante faceva fallire la richiesta (42703). Ognuno dei due è atomico.
+  const claim = () =>
+    sb
       .from('tourism_decks')
       .update({ status: 'generating', error: null, approved_at: null, updated_at: new Date().toISOString() })
       .eq('user_id', row.user_id)
       .eq('id', row.id)
-      .or(`status.neq.generating,updated_at.lt.${stale}`)
-      .select('id')
-      .maybeSingle()
-  )
+  let claimed = checked(await claim().neq('status', 'generating').select('id').maybeSingle())
+  if (!claimed.data) claimed = checked(await claim().eq('status', 'generating').lt('updated_at', stale).select('id').maybeSingle())
   if (!claimed.data) throw new Error('Generazione già in corso per questa presentazione (already running)')
   try {
     const { template } = await getTemplate(sb, row.user_id)

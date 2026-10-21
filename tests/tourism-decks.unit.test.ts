@@ -41,6 +41,8 @@ class Q {
   delete() { this.op = 'delete'; return this }
   eq(c: string, v: unknown) { this.filters.push((r) => r[c] === v); return this }
   in(c: string, v: unknown[]) { this.filters.push((r) => v.includes(r[c])); return this }
+  neq(c: string, v: unknown) { this.filters.push((r) => r[c] !== v); return this }
+  lt(c: string, v: string) { this.filters.push((r) => String(r[c]) < v); return this }
   or(expr: string) {
     const parts = expr.split(',').map((p) => p.split('.'))
     this.filters.push((r) => parts.some(([c, op, v]) => (op === 'neq' ? r[c] !== v : op === 'lt' ? String(r[c]) < v : false)))

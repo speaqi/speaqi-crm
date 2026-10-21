@@ -68,7 +68,34 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Contatto non trovato o non assegnato a te' }, { status: 404 })
     }
 
-    const quote = await createQuoteRecord(auth.supabase, auth.workspaceUserId, contact, body)
+    // Arrivando da Speaqi Agency il preventivo si collega all'opportunità: stesso cliente
+    // (o nessuno), stesso workspace. Si controlla prima di creare, per non lasciare mezzi lavori.
+    const agencyProjectId = normalizeText(body.agency_project_id)
+    if (agencyProjectId) {
+      const { data: project, error: projectError } = await auth.supabase
+        .from('agency_projects')
+        .select('id, contact_id')
+        .eq('user_id', auth.workspaceUserId)
+        .eq('id', agencyProjectId)
+        .maybeSingle()
+      if (projectError || !project) {
+        return Response.json({ error: 'Opportunità Agency non trovata' }, { status: 404 })
+      }
+      if (project.contact_id && contact?.id && project.contact_id !== contact.id) {
+        return Response.json({ error: 'Il preventivo è per un cliente diverso da quello dell’opportunità' }, { status: 400 })
+      }
+    }
+
+    let quote = await createQuoteRecord(auth.supabase, auth.workspaceUserId, contact, body)
+    if (agencyProjectId) {
+      const { error: linkError } = await auth.supabase
+        .from('quotes')
+        .update({ agency_project_id: agencyProjectId })
+        .eq('user_id', auth.workspaceUserId)
+        .eq('id', quote.id)
+      if (linkError) throw linkError
+      quote = { ...quote, agency_project_id: agencyProjectId }
+    }
     return Response.json({ quote }, { status: 201 })
   } catch (error) {
     if (error instanceof QuoteInputError) {

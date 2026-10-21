@@ -224,6 +224,9 @@ export default function PreventiviPage() {
   const [listOpen, setListOpen] = useState(false)
   const [signatureView, setSignatureView] = useState<{ quote: Quote; signature: QuoteSignature | null } | null>(null)
   const [signingLinkQuoteId, setSigningLinkQuoteId] = useState<string | null>(null)
+  // Arrivando da Speaqi Agency (?agency_project=…) il preventivo nasce collegato all'opportunità.
+  const [agencyProject, setAgencyProject] = useState<{ id: string; title: string; client_name: string } | null>(null)
+  const urlIntent = useRef<{ edit: string | null; agency: string | null } | null>(null)
 
   useEffect(() => {
     setOrigin(window.location.origin)
@@ -260,6 +263,55 @@ export default function PreventiviPage() {
       mounted = false
     }
   }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    urlIntent.current = { edit: params.get('edit'), agency: params.get('agency_project') }
+    const agencyId = urlIntent.current.agency
+    // Letto subito: l'effetto di ?edit= svuota l'intento appena apre il preventivo.
+    const opensQuote = Boolean(urlIntent.current.edit)
+    if (!agencyId) return
+    let mounted = true
+    apiFetch<{
+      id: string
+      title: string
+      client_name: string
+      contact_id: string | null
+      contact: { id: string; name: string; email?: string | null; company?: string | null } | null
+    }>(`/api/agency/projects/${agencyId}`)
+      .then((project) => {
+        if (!mounted) return
+        setAgencyProject({ id: project.id, title: project.title, client_name: project.client_name })
+        // Con ?edit= il costruttore apre quel preventivo: il precompilato serve solo a uno nuovo.
+        if (opensQuote) return
+        setContactQuery(project.contact ? [project.contact.company, project.contact.name].filter(Boolean).join(' · ') : '')
+        setDraft((previous) => ({
+          ...previous,
+          contact_id: project.contact_id || '',
+          status: 'draft',
+          title: project.title,
+          customer_name: project.contact?.name || project.client_name,
+          customer_email: project.contact?.email || '',
+          customer_company: project.contact?.company || '',
+        }))
+      })
+      .catch((agencyError) => {
+        if (mounted) setError(agencyError instanceof Error ? agencyError.message : 'Opportunità Agency non trovata')
+      })
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  // ?edit=<id> apre quel preventivo nel costruttore (link da Speaqi Agency).
+  useEffect(() => {
+    const editId = urlIntent.current?.edit
+    if (!editId || loading) return
+    const target = quotes.find((quote) => quote.id === editId)
+    urlIntent.current = { edit: null, agency: urlIntent.current?.agency || null }
+    if (target) editQuote(target)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, quotes])
 
   const activeQuotes = useMemo(
     () => quotes.filter((quote) => quote.status !== 'cancelled'),
@@ -553,8 +605,16 @@ export default function PreventiviPage() {
       const response = await apiFetch<{ quote: Quote }>(endpoint, {
         method: editingId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(draft),
+        body: JSON.stringify(
+          !editingId && agencyProject ? { ...draft, agency_project_id: agencyProject.id } : draft
+        ),
       })
+
+      if (!editingId && agencyProject) {
+        showToast('Preventivo creato e collegato all’opportunità Agency')
+        window.location.assign(`/agency/${agencyProject.id}`)
+        return
+      }
 
       // Il preventivo appena creato o aggiornato deve restare subito visibile in cima.
       // Non riordiniamo per data qui: timestamp identici o assenti possono rimetterlo in fondo.
@@ -747,6 +807,15 @@ export default function PreventiviPage() {
           </div>
         </div>
       </div>
+
+      {agencyProject && !editingId && (
+        <div className="quotes-agency-banner" role="status" style={{ margin: '0 0 14px', padding: '10px 14px', borderRadius: 10, background: '#fff1ec', color: '#9a3412', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <strong>Speaqi Agency</strong>
+          <span>Il preventivo nasce collegato a “{agencyProject.title}” ({agencyProject.client_name}): la presentazione mostrerà queste cifre.</span>
+          <a href={`/agency/${agencyProject.id}`} style={{ color: 'inherit', fontWeight: 600 }}>← Torna all’opportunità</a>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setAgencyProject(null)}>Non collegare</button>
+        </div>
+      )}
 
       {error && <div className="inline-error quotes-inline-error">{error}</div>}
 

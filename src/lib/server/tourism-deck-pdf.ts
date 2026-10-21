@@ -44,6 +44,8 @@ async function doRender(url: string): Promise<Buffer> {
     await page.evaluate(async () => {
       await document.fonts.ready
       await Promise.all(Array.from(document.images).map((img) => (img.complete ? null : new Promise((r) => { img.onload = img.onerror = r }))))
+      // Due frame: le slide che si adattano al contenuto (Speaqi Agency) si ricalcolano dopo i font.
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
     })
     const pdf = await page.pdf({ width: '1920px', height: '1080px', printBackground: true, preferCSSPageSize: true })
     return Buffer.from(pdf)
