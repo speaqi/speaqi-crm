@@ -4,11 +4,13 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSPropert
 import {
   AGENCY_TODO,
   AGENCY_TODO_PATTERN,
+  deckFields,
+  fieldIsDark,
   formatMoney,
   inkOn,
-  isDarkSlide,
   numberedMark,
   type AgencySlide,
+  type SlideField,
   type AgencyTheme,
   type QuoteSummary
 } from '@/lib/agency'
@@ -46,6 +48,7 @@ export type DeckContext = {
 const cls = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ')
 const bg = (url?: string | null): CSSProperties | undefined => (url ? { backgroundImage: `url("${url}")` } : undefined)
 const two = (i: number) => String(i + 1).padStart(2, '0')
+
 function Brand({ ctx, dark }: { ctx: DeckContext; dark: boolean }) {
   return (
     <span className={d.brand}>
@@ -56,30 +59,26 @@ function Brand({ ctx, dark }: { ctx: DeckContext; dark: boolean }) {
   )
 }
 
-/**
- * Piede del pitch: a sinistra la fonte della slide (se c'è) o chi parla a chi, a destra
- * il numero della slide.
- */
-function Foot({ ctx, n, total, source }: { ctx: DeckContext; n: number; total: number; source?: string }) {
+/** Testata corrente: il capitolo (il vecchio "kicker") a sinistra, il punto della presentazione a destra. */
+function Run({ ctx, slide, n, total }: { ctx: DeckContext; slide: AgencySlide; n: number; total: number }) {
   return (
-    <footer className={d.foot}>
-      <span className={d.footLeft}>{source ? <Txt value={source} /> : <>{ctx.agencyName} / {ctx.clientName}</>}</span>
-      <span className={d.footRight}>
+    <header className={d.run}>
+      <span className={d.runLeft}>{slide.kicker ? <Txt value={slide.kicker} /> : ctx.clientName}</span>
+      <span className={d.runRight}>
         {ctx.clientLogo && ctx.theme.client_logo && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img className={d.footLogo} src={ctx.clientLogo} alt={ctx.clientName} />
+          <img className={d.runLogo} src={ctx.clientLogo} alt={ctx.clientName} />
         )}
-        <span className={d.pager}>{n} / {total}</span>
+        <span><span className={d.pagerNow}>{two(n - 1)}</span> / {two(total - 1)}</span>
       </span>
-    </footer>
+    </header>
   )
 }
 
-function Head({ slide, center = false }: { slide: AgencySlide; center?: boolean }) {
+function Head({ slide, big = false }: { slide: AgencySlide; big?: boolean }) {
   return (
-    <div className={cls(d.head, center && d.center)}>
-      {slide.kicker && <div className={d.kicker}><Txt value={slide.kicker} /></div>}
-      <h2 className={d.title}><Txt value={slide.title} /></h2>
+    <div className={d.head}>
+      <h2 className={big ? d.display : d.title}><Txt value={slide.title} /></h2>
       {slide.body && <p className={d.lead}><Txt value={slide.body} /></p>}
     </div>
   )
@@ -96,7 +95,7 @@ const numeric = (value: string) => {
   return Number.isFinite(n) ? n : null
 }
 
-function Investment({ slide, ctx }: { slide: AgencySlide; ctx: DeckContext }) {
+function Investment({ ctx }: { ctx: DeckContext }) {
   const q = ctx.quote
   if (!q) {
     return (
@@ -109,8 +108,9 @@ function Investment({ slide, ctx }: { slide: AgencySlide; ctx: DeckContext }) {
   // Le righe a 0 € sono "incluse": si contano in una riga sola, l'elenco intero sta nel preventivo.
   const priced = q.lines.filter((l) => l.total > 0)
   const included = q.lines.length - priced.length
-  const shown = priced.slice(0, 8)
+  const shown = priced.slice(0, 6)
   const hidden = priced.length - shown.length
+  const net = Math.max(0, q.subtotal - q.discount)
   return (
     <div className={d.invest}>
       <div className={d.investLines}>
@@ -120,22 +120,23 @@ function Investment({ slide, ctx }: { slide: AgencySlide; ctx: DeckContext }) {
               <strong>{l.description}</strong>
               {l.details && <span>{l.details}</span>}
             </div>
-            <em>{l.list_total && l.list_total > l.total && <s className={d.investWas}>{formatMoney(l.list_total, q.currency)}</s>}{formatMoney(l.total, q.currency)}</em>
+            <em>
+              {l.list_total && l.list_total > l.total && <s className={d.investWas}>{formatMoney(l.list_total, q.currency)}</s>}
+              {formatMoney(l.total, q.currency)}
+            </em>
           </div>
         ))}
         {hidden > 0 && <div className={d.investMore}>+ altre {hidden} voci nel preventivo</div>}
         {included > 0 && <div className={d.investMore}>Compresi nel prezzo: {included} {included === 1 ? 'voce' : 'voci'}, elencate nel preventivo</div>}
       </div>
       <div className={d.investTotal}>
-        {q.discount > 0 && <div className={d.investRow}><span>Sconto incluso</span><span>− {formatMoney(q.discount, q.currency)}</span></div>}
-        <div className={d.investBig}>
-          <span>Prezzo + IVA {q.tax_rate}%</span>
-          <strong>{formatMoney(Math.max(0, q.subtotal - q.discount), q.currency)}{per}</strong>
-        </div>
+        <div className={d.investLabel}>Il prezzo, IVA {q.tax_rate}% esclusa</div>
+        <div className={d.investBig}>{formatMoney(net, q.currency)}{per && <small>{per}</small>}</div>
+        {q.discount > 0 && <div className={d.investRow}><span>Sconto incluso</span><b>− {formatMoney(q.discount, q.currency)}</b></div>}
         {q.deposit_net !== null && q.balance_net !== null && (
           <div className={d.investPay}>
-            <div className={d.investRow}><span>Alla firma</span><span>{formatMoney(q.deposit_net, q.currency)} + IVA</span></div>
-            <div className={d.investRow}><span>Saldo</span><span>{formatMoney(q.balance_net, q.currency)} + IVA</span></div>
+            <div className={d.investRow}><span>Alla firma</span><b>{formatMoney(q.deposit_net, q.currency)} + IVA</b></div>
+            <div className={d.investRow}><span>Saldo</span><b>{formatMoney(q.balance_net, q.currency)} + IVA</b></div>
             {q.payment_note && <div className={d.investMeta}>{q.payment_note}</div>}
           </div>
         )}
@@ -144,7 +145,6 @@ function Investment({ slide, ctx }: { slide: AgencySlide; ctx: DeckContext }) {
           {q.valid_until && <> · valido fino al {new Date(q.valid_until).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</>}
         </div>
         {q.note && <div className={d.investMeta}>{q.note}</div>}
-        {slide.note && <div className={d.investMeta}><Txt value={slide.note} /></div>}
         {ctx.quoteHref && <a className={d.investLink} href={ctx.quoteHref} target="_blank" rel="noreferrer">Apri il preventivo e accetta →</a>}
       </div>
     </div>
@@ -188,147 +188,143 @@ function Fit({ children, slideKey, className }: { children: ReactNode; slideKey:
   )
 }
 
-export function SlideView({ slide, ctx, n, total, active }: { slide: AgencySlide; ctx: DeckContext; n: number; total: number; active: boolean }) {
+/** Voci in colonne, senza scatole: il numero (se c'è) è la cosa più grande della slide. */
+function Columns({ slide, numbers }: { slide: AgencySlide; numbers: boolean }) {
+  const n = slide.items.length
+  const cols = n <= 4 ? Math.max(2, n) : 3
+  const anyNumbered = slide.items.some((it) => numberedMark(it))
+  const showNum = numbers || anyNumbered
+  return (
+    <div className={cls(d.cols, (n > 3 || cols > 3) && d.dense, !showNum && d.toned)} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+      {slide.items.map((it, i) => (
+        <div className={d.colItem} key={i}>
+          {showNum && <div className={d.num}>{numberedMark(it) || two(i)}</div>}
+          <h3><Txt value={it.title} /></h3>
+          {it.text && <p><Txt value={it.text} /></p>}
+          {it.value && !numberedMark(it) && <div className={d.colValue}><Txt value={it.value} /></div>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function Rows({ slide, numbers }: { slide: AgencySlide; numbers: boolean }) {
+  return (
+    <div className={cls(d.rows, !numbers && d.rowsPlain)}>
+      {slide.items.map((it, i) => (
+        <div className={d.row} key={i}>
+          {numbers && <span className={d.rowNum}>{i + 1}</span>}
+          <h3><Txt value={it.title} /></h3>
+          {it.value && <span className={d.rowValue}><Txt value={it.value} /></span>}
+          {it.text && <p><Txt value={it.text} /></p>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function SlideView({ slide, ctx, n, total, active, field }: { slide: AgencySlide; ctx: DeckContext; n: number; total: number; active: boolean; field?: SlideField }) {
   const image = slide.image_asset_id ? ctx.images[slide.image_asset_id] : null
-  const dark = isDarkSlide(slide.kind, ctx.theme.style)
-  const base = cls(d.slide, dark ? d.dark : d.light, active && d.active, d[`k_${slide.kind}`])
+  const f: SlideField = field || deckFields([slide.kind], ctx.theme.style)[0]
+  const dark = fieldIsDark(f, ctx.theme.accent)
   // Un layout a voci senza voci resta una slide vuota a metà: si mostra come messaggio.
   const ITEM_KINDS = ['agenda', 'problems', 'opportunities', 'benefits', 'services', 'process', 'roadmap', 'deliverables', 'metrics', 'chart', 'comparison', 'next_steps']
   const kind = ITEM_KINDS.includes(slide.kind) && !slide.items.length ? 'statement' : slide.kind
-  // Sulle slide di contenuto la nota è la fonte del dato: va in piccolo nel piede, come nel pitch.
-  const SOURCE_KINDS = ['context', 'solution', 'statement', 'agenda', 'problems', 'opportunities', 'benefits', 'services', 'deliverables', 'metrics', 'chart', 'comparison']
-  const foot = <Foot ctx={ctx} n={n} total={total} source={SOURCE_KINDS.includes(kind) ? slide.note : ''} />
-  const fitKey = JSON.stringify(slide) + (ctx.quote?.updated_at || '') + ctx.theme.style
+  const base = cls(d.slide, d[`f_${f}`], active && d.active, d[`k_${kind}`], image && d.hasImage, slide.layout === 'image_left' && d.reverse)
+  // Sulle slide di contenuto la nota è la fonte del dato: va in piccolo in fondo.
+  const SOURCE_KINDS = ['context', 'solution', 'agenda', 'problems', 'opportunities', 'benefits', 'services', 'deliverables', 'metrics', 'chart']
+  const run = <Run ctx={ctx} slide={slide} n={n} total={total} />
+  const foot = SOURCE_KINDS.includes(kind) && slide.note ? <footer className={d.foot}><Txt value={slide.note} /></footer> : null
+  const fitKey = JSON.stringify(slide) + (ctx.quote?.updated_at || '') + ctx.theme.style + f
   let content: ReactNode
-
+  let box: string | undefined
 
   switch (kind) {
     case 'cover':
       return (
-        <section className={cls(base, image && d.hasImage)} aria-hidden={!active}>
-          {image ? <div className={d.coverImage} style={bg(image)} /> : <div className={d.coverShape} />}
-          <div className={d.coverTop}>
-            <Brand ctx={ctx} dark={dark} />
-            {ctx.clientLogo && ctx.theme.client_logo && (
-              <span className={d.coverClient}>
-                <span>per</span>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={ctx.clientLogo} alt={ctx.clientName} />
-              </span>
-            )}
-          </div>
-          <div className={d.coverBottom}>
-            {slide.kicker && <div className={d.kicker}><Txt value={slide.kicker} /></div>}
-            <h1 className={cls(slide.title.length > 70 && d.coverLong)}><Txt value={slide.title} /></h1>
-            {slide.body && <p className={d.coverSub}><Txt value={slide.body} /></p>}
-            {ctx.agencySignature && <p className={d.coverSign}>{ctx.agencyName} · {ctx.agencySignature}</p>}
+        <section className={cls(base, slide.title.length > 40 && d.coverLong)} aria-hidden={!active}>
+          {image && <div className={d.coverPhoto} style={bg(image)} />}
+          <div className={d.coverField}>
+            <div className={d.coverTop}>
+              <Brand ctx={ctx} dark={dark} />
+              {ctx.clientLogo && ctx.theme.client_logo && (
+                <span className={d.coverClient}>
+                  <span>per</span>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={ctx.clientLogo} alt={ctx.clientName} />
+                </span>
+              )}
+            </div>
+            <div>
+              <h1><Txt value={slide.title} /></h1>
+              {slide.body && <p className={d.coverSub}><Txt value={slide.body} /></p>}
+              {slide.kicker && <p className={d.coverRun}><Txt value={slide.kicker} /></p>}
+              {ctx.agencySignature && <p className={d.coverBy}>{ctx.agencyName} · {ctx.agencySignature}</p>}
+            </div>
           </div>
         </section>
       )
 
     case 'section':
-      return (
-        <section className={base} aria-hidden={!active}>
-          <div className={d.sectionNum}>{String(n).padStart(2, '0')}</div>
-          <Fit slideKey={fitKey} className={d.bottomBox}>
-            <div className={d.sectionBody}>
-              {slide.kicker && <div className={d.kicker}><Txt value={slide.kicker} /></div>}
-              <h2 className={d.giant}><Txt value={slide.title} /></h2>
-              {slide.body && <p className={d.lead}><Txt value={slide.body} /></p>}
-            </div>
-          </Fit>
-          {foot}
-        </section>
-      )
-
-    case 'quote':
-      return (
-        <section className={base} aria-hidden={!active}>
-          <Fit slideKey={fitKey} className={d.centerBox}>
-            <div className={d.quoteMark}>“</div>
-            <blockquote className={d.quoteText}><Txt value={slide.title} /></blockquote>
-            {slide.body && <p className={d.lead}><Txt value={slide.body} /></p>}
-            {slide.note && <div className={d.quoteAuthor}>— <Txt value={slide.note} /></div>}
-          </Fit>
-          {foot}
-        </section>
-      )
-
     case 'closing':
-      return (
-        <section className={base} aria-hidden={!active}>
-          <Fit slideKey={fitKey} className={d.centerBox}>
-            {slide.kicker && <div className={d.kicker}><Txt value={slide.kicker} /></div>}
-            <h2 className={d.giant}><Txt value={slide.title} /></h2>
-            {slide.body && <p className={d.lead}><Txt value={slide.body} /></p>}
-            {slide.note && <p className={d.closingNote}><Txt value={slide.note} /></p>}
-          </Fit>
-          {foot}
-        </section>
-      )
-
-    case 'statement': {
-      const withImage = Boolean(image)
+      box = d.endBox
       content = (
-        <div className={cls(d.split, withImage && d.splitImage, slide.layout === 'image_left' && d.reverse, !withImage && d.centerY)}>
-          <div className={d.col}>
-            {slide.kicker && <div className={d.kicker}><Txt value={slide.kicker} /></div>}
-            <h2 className={cls(d.title, d.statementTitle)}><Txt value={slide.title} /></h2>
-            {slide.body && <p className={d.lead}><Txt value={slide.body} /></p>}
-          </div>
-          {withImage && <div className={d.photo} style={bg(image)} />}
+        <div className={d.poster}>
+          <h2 className={cls(image ? d.title : d.display, slide.title.length > 56 && d.long)}><Txt value={slide.title} /></h2>
+          {slide.body && <p className={d.lead}><Txt value={slide.body} /></p>}
+          {slide.note && <p className={d.note}><Txt value={slide.note} /></p>}
         </div>
       )
       break
-    }
+
+    case 'quote':
+      box = d.endBox
+      content = (
+        <div className={d.poster}>
+          <blockquote className={d.quoteText}><Txt value={slide.title} /></blockquote>
+          {slide.body && <p className={d.lead}><Txt value={slide.body} /></p>}
+          {slide.note && <div className={d.quoteAuthor}>— <Txt value={slide.note} /></div>}
+        </div>
+      )
+      break
+
+    case 'statement':
+      box = d.endBox
+      content = (
+        <div className={d.poster}>
+          <h2 className={cls(image ? d.title : d.display, slide.title.length > 56 && d.long)}><Txt value={slide.title} /></h2>
+          {slide.body && <p className={d.lead}><Txt value={slide.body} /></p>}
+          {slide.note && <p className={d.note}><Txt value={slide.note} /></p>}
+        </div>
+      )
+      break
 
     case 'agenda':
+      box = d.endBox
       content = (
         <div className={d.agenda}>
-          <Head slide={slide} />
-          <ol className={d.agendaList}>
-            {slide.items.map((it, i) => (
-              <li key={i}>
-                <span className={d.agendaNum}>{two(i)}</span>
-                <span><strong><Txt value={it.title} /></strong>{it.text && <em><Txt value={it.text} /></em>}</span>
-              </li>
-            ))}
-          </ol>
+          <Head slide={slide} big />
+          <Rows slide={slide} numbers />
         </div>
       )
       break
 
     case 'context':
     case 'solution':
-      if (!image && !slide.items.length) {
-        content = (
-          <div className={cls(d.split, d.centerY)}>
-            <div className={d.col}>
-              <Head slide={slide} />
-            </div>
-          </div>
-        )
-        break
-      }
-      content = (
-        <div className={cls(d.split, image ? d.splitImage : d.splitText, slide.layout === 'image_left' && d.reverse)}>
-          <div className={d.col}>
+    case 'next_steps':
+      box = d.endBox
+      content = slide.items.length && !image ? (
+        <div className={d.twoCol}>
+          <div>
             <Head slide={slide} />
+            {kind === 'next_steps' && slide.note && <p className={d.note}><Txt value={slide.note} /></p>}
           </div>
-          {image && !slide.items.length ? (
-            <div className={d.photo} style={bg(image)} />
-          ) : (
-            <div className={d.pillars}>
-              {image && <div className={d.photoSmall} style={bg(image)} />}
-              {slide.items.map((it, i) => (
-                <div className={d.pillar} key={i}>
-                  {it.value && <div className={d.pillarValue}><Txt value={it.value} /></div>}
-                  <h3><Txt value={it.title} /></h3>
-                  {it.text && <p><Txt value={it.text} /></p>}
-                </div>
-              ))}
-            </div>
-          )}
+          <Rows slide={slide} numbers={kind === 'next_steps'} />
+        </div>
+      ) : (
+        <div className={d.poster}>
+          <Head slide={slide} />
+          {slide.items.length > 0 && <div className={d.photoRows}><Rows slide={slide} numbers={kind === 'next_steps'} /></div>}
         </div>
       )
       break
@@ -336,43 +332,45 @@ export function SlideView({ slide, ctx, n, total, active }: { slide: AgencySlide
     case 'problems':
     case 'opportunities':
     case 'benefits':
-    case 'services': {
-      const cols = slide.kind === 'services' ? Math.min(3, Math.max(2, Math.ceil(slide.items.length / 2))) : Math.min(4, Math.max(2, slide.items.length))
+    case 'services':
       content = (
         <>
           <Head slide={slide} />
-          <div className={cls(d.cards, slide.items.length > 4 && d.dense)} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-            {slide.items.map((it, i) => (
-              <div className={d.card} key={i}>
-                <div className={`${d.cardMark}${numberedMark(it) ? ` ${d.cardBig}` : ''}`}>
-                  {numberedMark(it) || (slide.kind === 'problems' ? two(i) : slide.kind === 'opportunities' ? '↗' : slide.kind === 'benefits' ? '✦' : two(i))}
-                </div>
-                <h3><Txt value={it.title} /></h3>
-                {it.text && <p><Txt value={it.text} /></p>}
-                {it.value && !numberedMark(it) && <div className={d.cardValue}><Txt value={it.value} /></div>}
-              </div>
-            ))}
-          </div>
+          <Columns slide={slide} numbers={kind === 'problems'} />
         </>
       )
       break
-    }
+
+    case 'deliverables':
+      box = d.endBox
+      content = image ? (
+        <div className={d.poster}>
+          <Head slide={slide} />
+          <div className={d.photoRows}><Rows slide={slide} numbers={false} /></div>
+        </div>
+      ) : (
+        <div className={d.twoCol}>
+          <Head slide={slide} />
+          <Rows slide={slide} numbers={false} />
+        </div>
+      )
+      break
 
     case 'process':
       content = (
         <>
           <Head slide={slide} />
-          <div className={d.steps} style={{ gridTemplateColumns: `repeat(${Math.max(slide.items.length, 1)}, minmax(0, 1fr))` }}>
+          <div className={cls(d.steps, slide.items.length > 4 && d.manySteps)} style={{ gridTemplateColumns: `repeat(${Math.max(slide.items.length, 1)}, minmax(0, 1fr))` }}>
             {slide.items.map((it, i) => (
               <div className={d.step} key={i}>
-                <div className={d.stepDot}>{i + 1}</div>
+                <div className={d.stepNum}>{i + 1}</div>
                 <h3><Txt value={it.title} /></h3>
-                {it.value && <div className={d.stepWhen}><Txt value={it.value} /></div>}
+                {it.value && !/^\d{1,2}$/.test(it.value.trim()) && <div className={d.stepWhen}><Txt value={it.value} /></div>}
                 {it.text && <p><Txt value={it.text} /></p>}
               </div>
             ))}
           </div>
-          {slide.note && <div className={d.pill}><Txt value={slide.note} /></div>}
+          {slide.note && <div className={d.band}><Txt value={slide.note} /></div>}
         </>
       )
       break
@@ -384,13 +382,12 @@ export function SlideView({ slide, ctx, n, total, active }: { slide: AgencySlide
           <Head slide={slide} />
           <div className={d.roadmap}>
             {slide.items.map((it, i) => {
-              const left = (i / count) * 70
-              const width = Math.min(100 - left, 30 + 70 / count)
+              const left = (i / count) * 34
               return (
                 <div className={d.roadRow} key={i}>
                   <div className={d.roadWhen}>{it.value ? <Txt value={it.value} /> : `Fase ${i + 1}`}</div>
                   <div className={d.roadTrack}>
-                    <div className={d.roadBar} style={{ left: `${left}%`, width: `${width}%` }}>
+                    <div className={d.roadBar} style={{ left: `${left}%`, right: 0 }}>
                       <strong><Txt value={it.title} /></strong>
                       {it.text && <span><Txt value={it.text} /></span>}
                     </div>
@@ -399,25 +396,7 @@ export function SlideView({ slide, ctx, n, total, active }: { slide: AgencySlide
               )
             })}
           </div>
-          {slide.note && <div className={d.pill}><Txt value={slide.note} /></div>}
-        </>
-      )
-      break
-    }
-
-    case 'deliverables': {
-      const cols = slide.items.length > 4 ? 3 : 2
-      content = (
-        <>
-          <Head slide={slide} />
-          <ul className={d.checks} style={{ gridTemplateColumns: `repeat(${Math.min(cols, Math.max(slide.items.length, 1))}, minmax(0, 1fr))` }}>
-            {slide.items.map((it, i) => (
-              <li key={i}>
-                <span className={d.check}>✓</span>
-                <span><strong><Txt value={it.title} /></strong>{it.text && <em><Txt value={it.text} /></em>}</span>
-              </li>
-            ))}
-          </ul>
+          {slide.note && <div className={d.band}><Txt value={slide.note} /></div>}
         </>
       )
       break
@@ -427,7 +406,7 @@ export function SlideView({ slide, ctx, n, total, active }: { slide: AgencySlide
       content = (
         <>
           <Head slide={slide} />
-          <div className={d.metrics} style={{ gridTemplateColumns: `repeat(${Math.max(slide.items.length, 1)}, minmax(0, 1fr))` }}>
+          <div className={cls(d.metrics, slide.items.length > 3 && d.many)} style={{ gridTemplateColumns: `repeat(${Math.max(slide.items.length, 1)}, minmax(0, 1fr))` }}>
             {slide.items.map((it, i) => (
               <div className={d.metric} key={i}>
                 <div className={d.metricValue}><Txt value={it.value || AGENCY_TODO} /></div>
@@ -466,21 +445,21 @@ export function SlideView({ slide, ctx, n, total, active }: { slide: AgencySlide
     }
 
     case 'comparison': {
-      const [before, after] = [slide.items[0], slide.items[1]]
+      const [a, b] = [slide.items[0], slide.items[1]]
       content = (
         <>
-          <Head slide={slide} />
-          <div className={d.compare}>
-            {[before, after].map((it, i) =>
+          <div className={d.compareHead}><Head slide={slide} /></div>
+          <div className={d.compareCols}>
+            {[a, b].map((it, i) =>
               it ? (
-                <div className={cls(d.compareCol, i === 1 && d.compareAfter)} key={i}>
+                <div className={d.compareCol} key={i}>
                   <h3><Txt value={it.title} /></h3>
                   <ul>{lines(it.text).map((l, k) => <li key={k}><Txt value={l} /></li>)}</ul>
                 </div>
               ) : null
             )}
-            <div className={d.compareArrow}>→</div>
           </div>
+          {slide.note && <p className={d.foot}><Txt value={slide.note} /></p>}
         </>
       )
       break
@@ -490,31 +469,8 @@ export function SlideView({ slide, ctx, n, total, active }: { slide: AgencySlide
       content = (
         <>
           <Head slide={slide} />
-          <Investment slide={slide} ctx={ctx} />
+          <Investment ctx={ctx} />
         </>
-      )
-      break
-
-    case 'next_steps':
-      content = (
-        <div className={cls(d.split, d.splitText)}>
-          <div className={d.col}>
-            <Head slide={slide} />
-            {slide.note && <div className={d.pill}><Txt value={slide.note} /></div>}
-          </div>
-          <ol className={d.timeline}>
-            {slide.items.map((it, i) => (
-              <li key={i}>
-                <span className={d.timelineDot}>{i + 1}</span>
-                <span>
-                  <strong><Txt value={it.title} /></strong>
-                  {it.value && <b className={d.stepWhen}><Txt value={it.value} /></b>}
-                  {it.text && <em><Txt value={it.text} /></em>}
-                </span>
-              </li>
-            ))}
-          </ol>
-        </div>
       )
       break
 
@@ -522,9 +478,12 @@ export function SlideView({ slide, ctx, n, total, active }: { slide: AgencySlide
       content = <Head slide={slide} />
   }
 
+  const withHalfPhoto = Boolean(image) && ['statement', 'context', 'solution', 'next_steps', 'closing', 'section', 'deliverables'].includes(kind)
   return (
-    <section className={base} aria-hidden={!active}>
-      <Fit slideKey={fitKey}>{content}</Fit>
+    <section className={cls(base, withHalfPhoto && d.withPhoto)} aria-hidden={!active}>
+      {withHalfPhoto && <div className={d.halfPhoto} style={bg(image)} />}
+      {run}
+      <Fit slideKey={fitKey} className={box}>{content}</Fit>
       {foot}
     </section>
   )
@@ -601,6 +560,7 @@ export default function AgencyDeck({
     if (autoPrint) setTimeout(() => window.print(), 700)
   }, [autoPrint])
 
+  const fields = deckFields(slides.map((s) => s.kind), ctx.theme.style)
   const touchX = useRef<number | null>(null)
   return (
     <div
@@ -619,7 +579,7 @@ export default function AgencyDeck({
       <div className={d.bar}><span style={{ width: `${((current + 1) / Math.max(slides.length, 1)) * 100}%` }} /></div>
       <div className={d.stage} style={{ transform: `translate(${fit.x}px, ${fit.y}px) scale(${fit.scale})` }}>
         {slides.map((s, i) => (
-          <SlideView key={s.id} slide={s} ctx={ctx} n={i + 1} total={slides.length} active={i === current} />
+          <SlideView key={s.id} slide={s} ctx={ctx} n={i + 1} total={slides.length} active={i === current} field={fields[i]} />
         ))}
         {draft && <div className={d.draftMark}>Bozza</div>}
       </div>
