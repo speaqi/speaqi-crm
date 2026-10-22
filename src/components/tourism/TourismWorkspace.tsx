@@ -142,6 +142,7 @@ type Graph = {
 }
 type Filters = {
   availability: string
+  outreach: string
   target: string
   q: string
   country: string
@@ -153,6 +154,7 @@ type Filters = {
 }
 const INITIAL: Filters = {
   availability: 'active',
+  outreach: '',
   target: '',
   q: '',
   country: '',
@@ -161,6 +163,11 @@ const INITIAL: Filters = {
   kind: 'organization',
   sort: 'name',
   crm: ''
+}
+const OUTREACH_LABELS: Record<1 | 2 | 3, string> = {
+  1: 'Top · contattare prima',
+  2: '2ª ondata',
+  3: '3ª ondata'
 }
 const DialogFeedback = createContext('')
 const fmt = (v: number) => new Intl.NumberFormat('it-IT').format(v)
@@ -987,6 +994,15 @@ export default function TourismWorkspace() {
                 <option value="all">Attive e disabilitate</option>
               </select>
               <select
+                aria-label="Ordine di contatto"
+                value={filters.outreach || ''}
+                onChange={(e) => setFilter('outreach', e.target.value)}
+              >
+                <option value="">Tutte, in lista o no</option>
+                <option value="top">Top: da contattare prima</option>
+                <option value="listed">Lista destinazioni (1ª–3ª ondata)</option>
+              </select>
+              <select
                 aria-label="Controllo del sito"
                 value={filters.target || ''}
                 onChange={(e) => setFilter('target', e.target.value)}
@@ -1024,6 +1040,7 @@ export default function TourismWorkspace() {
               >
                 <option value="name">Nome A–Z</option>
                 <option value="recent">Aggiunte di recente</option>
+                <option value="outreach">Da contattare prima</option>
               </select>
               <span className={s.muted}>
                 {selected.length} selezionate in questa pagina
@@ -1098,6 +1115,7 @@ export default function TourismWorkspace() {
                     <th>Opportunity score</th>
                     <th>CRM</th>
                     <th>Controllo destinazione</th>
+                    <th>Contatto</th>
                     <th>Disponibilità</th>
                   </tr>
                 </thead>
@@ -1201,6 +1219,45 @@ export default function TourismWorkspace() {
                                   ? 'Sitemap XML non trovata'
                                   : ''}
                           </small>
+                        </td>
+                        <td>
+                          <select
+                            aria-label={`Ordine di contatto di ${r.name}`}
+                            title={r.outreach_note || undefined}
+                            value={r.outreach_priority ?? ''}
+                            disabled={busy}
+                            onChange={(e) =>
+                              act(async () => {
+                                const priority = e.target.value
+                                  ? (Number(e.target.value) as 1 | 2 | 3)
+                                  : null
+                                await post({
+                                  action: 'set_outreach',
+                                  id: r.id,
+                                  version: r.version,
+                                  priority
+                                })
+                                refresh()
+                                notify(
+                                  priority
+                                    ? `${r.name}: ${OUTREACH_LABELS[priority]}.`
+                                    : `${r.name} tolta dalla lista contatti.`
+                                )
+                              })
+                            }
+                          >
+                            <option value="">Fuori lista</option>
+                            {([1, 2, 3] as const).map((p) => (
+                              <option key={p} value={p}>
+                                {OUTREACH_LABELS[p]}
+                              </option>
+                            ))}
+                          </select>
+                          {r.outreach_note && (
+                            <small className={s.scoreSub}>
+                              {r.outreach_note}
+                            </small>
+                          )}
                         </td>
                         <td>
                           <button

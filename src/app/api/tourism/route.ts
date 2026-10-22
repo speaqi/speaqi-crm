@@ -269,6 +269,15 @@ export async function GET(request: NextRequest) {
         throw new TourismInputError('Filtro destinazione non valido')
       query = query.eq('site_qualification->>classification', target)
     }
+    const outreach = params.get('outreach') || ''
+    if (outreach) {
+      if (!['top', 'listed'].includes(outreach))
+        throw new TourismInputError('Filtro contatti non valido')
+      query =
+        outreach === 'top'
+          ? query.eq('outreach_priority', 1)
+          : query.not('outreach_priority', 'is', null)
+    }
     const country = params.get('country')
     if (country) {
       if (!/^[A-Z]{2}$/.test(country))
@@ -289,7 +298,14 @@ export async function GET(request: NextRequest) {
     }
     const search = tourismSearchFilter(params.get('q') || '')
     if (search) query = query.or(search)
-    const sort = params.get('sort') === 'recent' ? 'created_at' : 'name'
+    const sortParam = params.get('sort')
+    // "Da contattare prima": priorità 1, 2, 3, poi il resto, e dentro A–Z.
+    if (sortParam === 'outreach')
+      query = query.order('outreach_priority', {
+        ascending: true,
+        nullsFirst: false
+      })
+    const sort = sortParam === 'recent' ? 'created_at' : 'name'
     const { data, count, error } = await query
       .order(sort, { ascending: sort === 'name' })
       .order('id')
@@ -315,6 +331,22 @@ export async function POST(request: NextRequest) {
         p_entity_id: requireId(body.id),
         p_version: body.version,
         p_disabled: body.disabled
+      })
+      if (result.error) throw result.error
+      return tourismResponse(result.data)
+    }
+    if (body.action === 'set_outreach') {
+      const priority = body.priority
+      if (
+        !Number.isInteger(body.version) ||
+        !(priority === null || [1, 2, 3].includes(priority as number))
+      )
+        throw new TourismInputError('Versione e priorità (1, 2, 3 o nessuna) richieste')
+      const result = await sb.rpc('tourism_set_outreach', {
+        p_entity_id: requireId(body.id),
+        p_version: body.version,
+        p_priority: priority,
+        p_note: typeof body.note === 'string' ? body.note.slice(0, 500) : null
       })
       if (result.error) throw result.error
       return tourismResponse(result.data)

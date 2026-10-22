@@ -104,6 +104,15 @@ before(async () => {
       'utf8'
     )
   )
+  await db.exec(
+    await readFile(
+      new URL(
+        '../supabase/migrations/20261019085842_tourism_outreach_priority.sql',
+        import.meta.url
+      ),
+      'utf8'
+    )
+  )
   await asUser(OWNER)
 })
 after(async () => {
@@ -1454,4 +1463,93 @@ test('qualification persists its reasons without verifying organizations or chan
       ),
       false
     )
+  }))
+
+test('outreach priority is a commercial flag: it never touches verification', () =>
+  researchTransaction(async () => {
+    const e = normalizeRecord({
+      ...records[0],
+      name: 'Outreach priority fixture',
+      website: 'https://outreach.example.org/'
+    })
+    const eid = (await importRecords([e], []))!.ids[0]
+    await verify(eid)
+    const version = await scalar<number>(
+      'select version as v from tourism_entities where id=$1',
+      [eid]
+    )
+    await db.query('select tourism_set_outreach($1,$2,1::smallint,$3)', [
+      eid,
+      version,
+      'Nessuna guida multilingue ufficiale'
+    ])
+    assert.equal(
+      await scalar<number>(
+        'select outreach_priority as v from tourism_entities where id=$1',
+        [eid]
+      ),
+      1
+    )
+    assert.equal(
+      await scalar('select status as v from tourism_entities where id=$1', [
+        eid
+      ]),
+      'VERIFIED'
+    )
+    assert.equal(
+      await scalar(
+        'select status as v from tourism_evidence where entity_id=$1 limit 1',
+        [eid]
+      ),
+      'VERIFIED'
+    )
+    await rejectedStatement(
+      () =>
+        db.query('select tourism_set_outreach($1,$2,2::smallint)', [
+          eid,
+          version
+        ]),
+      /Version conflict/
+    )
+    await rejectedStatement(
+      () =>
+        db.query('select tourism_set_outreach($1,$2,4::smallint)', [
+          eid,
+          version + 1
+        ]),
+      /Priority must be 1, 2 or 3/
+    )
+    // Without a new note the previous one stays; leaving the list clears it.
+    await db.query('select tourism_set_outreach($1,$2,2::smallint)', [
+      eid,
+      version + 1
+    ])
+    assert.equal(
+      await scalar(
+        'select outreach_note as v from tourism_entities where id=$1',
+        [eid]
+      ),
+      'Nessuna guida multilingue ufficiale'
+    )
+    await db.query('select tourism_set_outreach($1,$2,null)', [
+      eid,
+      version + 2
+    ])
+    assert.equal(
+      await scalar(
+        "select outreach_priority is null and outreach_note='' as v from tourism_entities where id=$1",
+        [eid]
+      ),
+      true
+    )
+    await asUser(OTHER)
+    await rejectedStatement(
+      () =>
+        db.query('select tourism_set_outreach($1,$2,1::smallint)', [
+          eid,
+          version + 3
+        ]),
+      /Entity not found/
+    )
+    await asUser(OWNER)
   }))

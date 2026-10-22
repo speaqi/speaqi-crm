@@ -113,6 +113,9 @@ export type EntityDetails = {
 }
 export type TourismEntity = {
   disabled?: boolean
+  /** Ordine di contatto: 1 = top, da contattare per prime; null = fuori lista. */
+  outreach_priority?: 1 | 2 | 3 | null
+  outreach_note?: string
   site_qualification?: {
     classification?: import('./tourism-site-qualification').TargetCheck['classification']
     sitemap_status?: 'found' | 'not_found' | 'unavailable'
