@@ -6,6 +6,8 @@ import {
   createInvoiceDraftFromQuote,
   customerFromQuote,
   formatNumero,
+  markQuoteInvoicedOutside,
+  recordManualArubaFile,
   sendInvoice,
   splitTaxId,
   syncInvoiceStatuses,
@@ -258,5 +260,52 @@ describe('invoices', () => {
     assert.equal(mapArubaStatus('Accettata'), 'accepted')
     assert.equal(mapArubaStatus('Rifiutata'), 'refused')
     assert.equal(mapArubaStatus('Inviata'), 'sent')
+  })
+})
+
+describe('fattura caricata a mano e preventivi fatturati fuori CRM', () => {
+  it('registra il nome del file Aruba e lo stato SDI si legge da lì', async () => {
+    const fake = db()
+    const { invoice } = await createInvoiceDraftFromQuote(fake as any, OWNER, 'q-1')
+    await sendInvoice(fake as any, OWNER, invoice.id, { manual: true })
+    assert.equal(fake.tables.invoices[0].aruba_env, 'manual')
+    assert.equal(fake.tables.invoices[0].aruba_filename, null)
+
+    const saved = await recordManualArubaFile(fake as any, OWNER, invoice.id, '  IT01879020517_abc.xml  ', 'production')
+    assert.equal(saved.ok, true)
+    assert.equal(fake.tables.invoices[0].aruba_filename, 'IT01879020517_abc.xml')
+    assert.equal(fake.tables.invoices[0].aruba_env, 'production')
+    assert.equal(fake.tables.invoices[0].last_synced_at, null)
+  })
+
+  it('rifiuta un nome con spazi o barre, e una fattura non caricata a mano', async () => {
+    const fake = db()
+    const { invoice } = await createInvoiceDraftFromQuote(fake as any, OWNER, 'q-1')
+    await sendInvoice(fake as any, OWNER, invoice.id, { manual: true })
+    const bad = await recordManualArubaFile(fake as any, OWNER, invoice.id, 'nome con spazi.xml', 'production')
+    assert.equal(bad.ok, false)
+    if (!bad.ok) assert.equal(bad.status, 400)
+
+    const fresh = db()
+    const { invoice: draft } = await createInvoiceDraftFromQuote(fresh as any, OWNER, 'q-1')
+    const notSent = await recordManualArubaFile(fresh as any, OWNER, draft.id, 'file.xml', 'production')
+    assert.equal(notSent.ok, false)
+    if (!notSent.ok) assert.equal(notSent.status, 409)
+  })
+
+  it('un preventivo fatturato fuori CRM esce da Da fatturare senza creare fatture', async () => {
+    const fake = db()
+    const result = await markQuoteInvoicedOutside(fake as any, OWNER, 'q-1')
+    assert.equal(result.ok, true)
+    assert.ok(fake.tables.quotes[0].invoiced_outside_at)
+    assert.equal(fake.tables.invoices?.length ?? 0, 0)
+  })
+
+  it('non segna un preventivo che ha già una fattura nel CRM', async () => {
+    const fake = db()
+    await createInvoiceDraftFromQuote(fake as any, OWNER, 'q-1')
+    const result = await markQuoteInvoicedOutside(fake as any, OWNER, 'q-1')
+    assert.equal(result.ok, false)
+    if (!result.ok) assert.equal(result.status, 409)
   })
 })
