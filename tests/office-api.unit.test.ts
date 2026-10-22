@@ -15,11 +15,13 @@ const MEMBER = '22222222-2222-4222-8222-222222222222'
 const originalEnv = { ...process.env }
 let member = false
 let pending = true
+let outputsError: string | null = null
+let pendingCount = 0
 let calls: Array<{ url: string; method: string; body: Record<string, unknown> | null }> = []
 const params = { params: Promise.resolve({ id: 'prova' }) }
 
 beforeEach(() => {
-  member = false; pending = true; calls = []; invalidateRouteUserCaches()
+  member = false; pending = true; outputsError = null; pendingCount = 0; calls = []; invalidateRouteUserCaches()
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://office-test.invalid'
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-finta'
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-finta'
@@ -34,6 +36,12 @@ beforeEach(() => {
     if (url.includes('/team_members')) return Response.json([{ id: 'membro', user_id: OWNER, name: 'Persona', allowed_areas: ['oggi'] }])
     if (url.includes('/office_agents') && method === 'GET') return Response.json([{ ...OFFICE_AGENT_DEFINITIONS.finance, user_id: OWNER }])
     if (url.includes('/rpc/claim_office_agent_run')) return Response.json({ claimed: false, reason: 'disabled', run: { status: 'skipped_disabled' } })
+    if (url.includes('/office_agent_outputs') && method === 'HEAD') {
+      return new Response(null, { headers: { 'content-range': `*/${pendingCount}` } })
+    }
+    if (url.includes('/office_agent_outputs') && method === 'GET' && outputsError) {
+      return Response.json({ code: outputsError, message: 'Intervallo o lettura non disponibile' }, { status: outputsError === 'PGRST103' ? 416 : 500 })
+    }
     if (url.includes('/office_agent_outputs') && method === 'PATCH') {
       if (!pending) return Response.json({ code: 'PGRST116', details: 'The result contains 0 rows', message: 'Cannot coerce the result to a single JSON object' }, { status: 406 })
       pending = false
@@ -81,6 +89,24 @@ test('il titolare installa Finanza spenta e legge totali zero', async () => {
   assert.equal(response.status, 200)
   const data = await response.json()
   assert.equal(data.agents.length, 1); assert.equal(data.agents[0].enabled, false); assert.equal(data.pending_count, 0); assert.equal(data.totals.month_actual, 0)
+})
+
+test('la pagina oltre la coda restituisce il conteggio aggiornato e consente di tornare indietro', async () => {
+  outputsError = 'PGRST103'; pendingCount = 49
+  const response = await GET(request('/api/office?offset=50', undefined, 'GET'))
+  assert.equal(response.status, 200)
+  const data = await response.json()
+  assert.deepEqual(data.outputs, [])
+  assert.equal(data.pending_count, 49)
+  const count = calls.find((call) => call.method === 'HEAD' && call.url.includes('/office_agent_outputs'))
+  assert.ok(count?.url.includes(`user_id=eq.${OWNER}`))
+  assert.ok(count?.url.includes('status=eq.pending'))
+})
+
+test('gli altri errori della coda non vengono trattati come una pagina vuota', async () => {
+  outputsError = 'XX000'
+  assert.equal((await GET(request('/api/office?offset=50', undefined, 'GET'))).status, 500)
+  assert.ok(!calls.some((call) => call.method === 'HEAD'))
 })
 
 test('approvare registra solo la decisione; il secondo clic non cambia una decisione presa', async () => {

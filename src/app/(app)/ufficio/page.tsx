@@ -88,9 +88,9 @@ export default function OfficePage() {
 
   useEffect(() => { if (data && data.outputs.length === 0 && offset > 0) setOffset(Math.max(0, offset - 50)) }, [data, offset])
 
-  async function act(id: string, action: () => Promise<unknown>, message: string) {
+  async function act(id: string, action: () => Promise<unknown>, message?: string) {
     setBusy(id); setError(''); setNotice('')
-    try { await action(); setNotice(message); await load() }
+    try { await action(); if (message) setNotice(message); await load() }
     catch (err) { setError(err instanceof Error ? err.message : 'Operazione non riuscita'); throw err }
     finally { setBusy(null) }
   }
@@ -113,7 +113,7 @@ export default function OfficePage() {
         const result = await apiFetch<{ run: OfficeRun | null; error?: string; skipped?: string }>(`/api/office/agents/${encodeURIComponent(id)}/run-now`, { method: 'POST', headers: { 'Idempotency-Key': key } })
         if (result.error) { await load(); throw new Error(result.error) }
         setNotice(result.skipped ? 'Turno saltato: corsa già presente o agente spento.' : result.run?.summary || 'Corsa conclusa.')
-      }, 'Corsa registrata.')
+      })
     } catch { /* Il messaggio resta visibile nella pagina. */ }
   }
   async function decide(id: string, status: 'approved' | 'rejected') {

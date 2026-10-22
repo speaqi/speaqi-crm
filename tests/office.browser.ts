@@ -16,6 +16,7 @@ let outputs: OfficeOutput[] = []
 let runs: OfficeRun[] = []
 let empty = true
 let fail = false
+let skipRun = false
 const calls: Array<{ method: string; path: string; body: any; key?: string }> = []
 
 function overview(): OfficeOverview {
@@ -45,6 +46,7 @@ async function main() {
       if (url.pathname === '/api/office') return fail ? json({ error: 'Database di prova non disponibile' }, 500) : json(overview())
       if (url.pathname === '/api/office/agents/prova' && method === 'PATCH') { agent = { ...agent, ...body }; return json({ agent }) }
       if (url.pathname === '/api/office/agents/prova/run-now') {
+        if (skipRun) return json({ run: null, skipped: 'already_running' })
         const run: OfficeRun = { id: 'corsa', agent_id: agent.id, user_id: OWNER, started_at: new Date().toISOString(), finished_at: new Date().toISOString(), status: 'done', summary: 'Preparato un report', items_created: 1, cost_cents_actual: 1, cost_cents_reserved: 1, error: null, details: {} }
         runs = [run]; return json({ run })
       }
@@ -80,8 +82,12 @@ async function main() {
     ])
     assert.equal(agent.daily_budget_cents, 150); assert.deepEqual(agent.settings, { lingua: 'it' })
     await page.getByRole('button', { name: 'Fai girare adesso' }).click()
-    await page.getByText('Preparato un report', { exact: true }).first().waitFor()
+    await page.getByRole('status').filter({ hasText: 'Preparato un report' }).waitFor()
     assert.match(calls.find((call) => call.path.endsWith('/run-now'))?.key || '', /^[0-9a-f-]{36}$/)
+    skipRun = true
+    await page.getByRole('button', { name: 'Fai girare adesso' }).click()
+    await page.getByRole('status').filter({ hasText: 'Turno saltato: corsa già presente o agente spento.' }).waitFor()
+    skipRun = false
     await page.screenshot({ path: `${out}/02-desktop.png`, fullPage: true })
     await page.getByRole('button', { name: 'Approva', exact: true }).click()
     await page.getByText('Nessuna uscita da valutare.').waitFor()

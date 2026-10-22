@@ -9,6 +9,9 @@ if [[ -z "${PGBIN:-}" ]]; then
   else PGBIN=/usr/lib/postgresql/16/bin; fi
 fi
 PGDIR=${PGDIR:-${TMPDIR:-/tmp}/speaqi-crm-pg-tests}
+# PostgreSQL normalizza i separatori: TMPDIR su macOS termina spesso con '/'.
+while [[ "$PGDIR" == *//* ]]; do PGDIR=${PGDIR//\/\//\/}; done
+if [[ "$PGDIR" != / ]]; then PGDIR=${PGDIR%/}; fi
 PGPORT=${PGPORT:-55432}
 PGHOST=${PGHOST:-/tmp}
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)

@@ -10,7 +10,7 @@ Napoli non si modifica. Fonti, budget prima della spesa e idempotenza sono obbli
 |---|---|---|---|---|---|
 | 0 | Base comune | PR aperta | `codex/office-base` | #44 | PR preesistente conservata, senza rifare il lavoro né cambiarne il branch. Migration `20261022160000_office_agents.sql`; test unit, DB, TypeScript, build e browser verificati. |
 | 11 | Finanza | PR aperta | `agenti/11-finanza` | #47 | Base `codex/office-base`; migration `20261022170450_office_finance.sql`, non applicata a DB operativi. 432 unit passati, 1 skip preesistente; 30 DB, TypeScript e build verdi. Nessuna nuova env; nessun invio. |
-| 10 | Commerciale | da fare | `agenti/10-commerciale` | — | Parte dal Prompt 11. |
+| 10 | Commerciale | in corso | `agenti/10-commerciale` | — | Parte dal Prompt 11. |
 | 1 | Direttore | da fare | `agenti/01-direttore` | — | Parte dal Prompt 10. |
 | 3 | Lingue e voce | da fare | `agenti/03-lingue-voce` | — | Verificare accesso e regole di StudioMap e Speaqi. |
 | 2 | Costruttore My Maps | da fare | `agenti/02-mymaps` | — | Verificare accesso e regole di StudioMap. |
