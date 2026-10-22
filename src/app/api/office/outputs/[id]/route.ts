@@ -8,12 +8,10 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     if (!body || Object.keys(body).some((key) => key !== 'status') || !['approved', 'rejected'].includes(body.status)) {
       return Response.json({ error: 'Scegli approvata o rifiutata' }, { status: 400 })
     }
-    // Una decisione soltanto: approvare NON esegue alcuna azione esterna.
-    const { data, error } = await admin.from('office_agent_outputs')
-      .update({ status: body.status, decided_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId)
-      .eq('status', 'pending').select('*').maybeSingle()
+    // Decisione e coda interna nella stessa transazione; nessuna azione esterna.
+    const { data, error } = await admin.rpc('decide_office_output', { p_output_id:id,p_user_id:userId,p_status:body.status })
     if (error) throw error
-    if (!data) return Response.json({ error: 'Uscita non trovata o già decisa. Aggiorna la pagina.' }, { status: 409 })
-    return Response.json({ output: data })
+    if (!data?.output) return Response.json({ error: data?.reason==='agent_missing' ? 'Il destinatario non è ancora installato. Installa gli agenti successivi prima di accodare.' : 'Uscita non trovata o già decisa. Aggiorna la pagina.' }, { status: 409 })
+    return Response.json({ output: data.output })
   })
 }

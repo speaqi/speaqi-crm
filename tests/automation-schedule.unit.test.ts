@@ -21,6 +21,11 @@ const ROME = 'Europe/Rome'
 const names = (date: string) => dueJobs(new Date(date), ROME).map((job) => job.name).sort()
 
 describe('orari', () => {
+  test('il Direttore parte il lunedì alle 7 italiane anche dopo il cambio ora', () => {
+    assert.ok(names('2026-10-19T05:00:00Z').includes('office-director'))
+    assert.ok(names('2026-10-26T06:00:00Z').includes('office-director'))
+    assert.ok(!names('2026-10-27T06:00:00Z').includes('office-director'))
+  })
   test('ogni job ha un cron valido, un nome unico e chiama solo endpoint di automazione', () => {
     const seen = new Set<string>()
     for (const job of AUTOMATION_JOBS) {
