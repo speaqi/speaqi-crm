@@ -310,7 +310,7 @@ export default function AgencyWorkspace() {
           </div>
           <div className={s.panel}>
             <header><h2>Presentazioni generate</h2></header>
-            <p className={s.help}>Il PDF e il PowerPoint si scaricano dalla presentazione; una presentazione approvata ha anche il link da condividere.</p>
+            <p className={s.help}>Il PDF si scarica dalla presentazione; una presentazione approvata ha anche il link da condividere, che è la consegna.</p>
             {docs?.presentations?.length ? (
               <table className={s.table}>
                 <tbody>
