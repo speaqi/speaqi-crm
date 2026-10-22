@@ -5,6 +5,7 @@ import { DragEvent, MouseEvent, KeyboardEvent, useMemo, useState } from 'react'
 import { ContactDrawer } from '@/components/crm/ContactDrawer'
 import { ContactModal } from '@/components/crm/ContactModal'
 import { DashboardHero } from '@/components/crm/DashboardHero'
+import { CommandCenter } from '@/components/crm/CommandCenter'
 import { canAccessPath } from '@/lib/areas'
 import { DashboardPriorityQueue, type QueueItem } from '@/components/crm/DashboardPriorityQueue'
 import { QuickDismissMenu } from '@/components/crm/QuickDismissMenu'
@@ -496,6 +497,8 @@ export default function OggiPage() {
         todayCount={todayCount}
         hotCount={hotCount}
       />
+
+      {isAdmin && <CommandCenter />}
 
       {/* Main 2-column layout */}
       <div className="oggi-main-grid">
