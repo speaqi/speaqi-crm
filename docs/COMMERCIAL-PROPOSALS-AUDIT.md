@@ -2,7 +2,7 @@
 
 Analisi del 21 ottobre 2026, sul CRM aggiornato a `67d5fbb` (PR #39).
 
-Aggiornamento del 22 ottobre: integrato `main` a `8f9a4ce`. La consegna Agency è ora la pagina HTML condivisibile (con PDF); l’esportazione PowerPoint è stata rimossa dagli aggiornamenti successivi e non viene reintrodotta da questa PR. Il nuovo workspace Tourism e la base commerciale Maps in `docs/commerciale/speaqi-mappe-b2b.md` sono conservati. Le descrizioni delle PR del 21 ottobre restano una ricostruzione storica.
+Aggiornamento del 22 ottobre: integrato `main` a `78182cb`, comprese fatturazione Aruba, scheda cliente e prima pagina del titolare. La consegna Agency è ora la pagina HTML condivisibile (con PDF); l’esportazione PowerPoint è stata rimossa dagli aggiornamenti successivi e non viene reintrodotta da questa PR. Il nuovo workspace Tourism e la base commerciale Maps in `docs/commerciale/speaqi-mappe-b2b.md` sono conservati. Le descrizioni delle PR del 21 ottobre restano una ricostruzione storica.
 
 ## Esito
 

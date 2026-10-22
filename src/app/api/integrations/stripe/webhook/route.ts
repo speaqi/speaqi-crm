@@ -16,6 +16,7 @@ import {
   subscriptionPeriodEnd,
   verifyStripeSignature,
 } from '@/lib/server/stripe'
+import { createInvoiceDraftFromQuote, type DraftFromQuoteOptions } from '@/lib/server/invoices'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 
 export const dynamic = 'force-dynamic'
@@ -51,6 +52,23 @@ async function logActivity(admin: any, quote: Quote, content: string, metadata: 
   ])
 }
 
+/**
+ * Bozza della fattura elettronica per un incasso. Non la invia: l'invio allo
+ * SDI lo decide sempre una persona da /fatture. Un errore qui non deve far
+ * riconsegnare l'evento a Stripe (il pagamento e' gia' registrato): si scrive
+ * nella timeline e la bozza si prepara a mano.
+ */
+async function prepareInvoiceDraft(admin: any, quote: Pick<Quote, 'id' | 'user_id' | 'contact_id' | 'quote_number'>, options: DraftFromQuoteOptions) {
+  try {
+    const { invoice } = await createInvoiceDraftFromQuote(admin, quote.user_id, quote.id, options)
+    return invoice
+  } catch (error) {
+    console.error('[stripe-webhook] bozza fattura non preparata', quote.id, error)
+    await logActivity(admin, quote as Quote, `Bozza della fattura non preparata (preventivo ${quote.quote_number}): ${errorMessage(error, 'errore')}. Preparala da Fatture.`, {})
+    return null
+  }
+}
+
 async function handleCheckoutCompleted(admin: any, session: any) {
   if (session?.mode !== 'subscription') return null
   const quoteId = session?.metadata?.quote_id
@@ -59,7 +77,7 @@ async function handleCheckoutCompleted(admin: any, session: any) {
 
   const { data: quote } = await admin
     .from('quotes')
-    .select('id, public_token')
+    .select('id, public_token, user_id, contact_id, quote_number')
     .eq('id', quoteId)
     .maybeSingle()
   if (!quote || quote.public_token !== quoteToken) return null
@@ -71,6 +89,7 @@ async function handleCheckoutCompleted(admin: any, session: any) {
     subscriptionId: stripeObjectId(session.subscription),
     sessionId: session.id,
   })
+  await prepareInvoiceDraft(admin, quote, { viaStripe: true })
   return quote.id
 }
 
@@ -107,7 +126,14 @@ async function handleInvoicePaid(admin: any, invoice: any) {
     })
     .eq('id', quote.id)
 
-  // Le ricevute Stripe non sono fatture elettroniche: ogni incasso va fatturato a mano (SDI).
+  // Le ricevute Stripe non sono fatture elettroniche: ogni rinnovo ha la sua fattura, in bozza.
+  const draft = await prepareInvoiceDraft(
+    admin,
+    quote,
+    invoice?.billing_reason === 'subscription_create'
+      ? { viaStripe: true }
+      : { stripeInvoiceId: invoice.id, grossAmount: amount, periodEnd, viaStripe: true }
+  )
   if (quote.contact_id) {
     await createLeadTask(admin, quote.user_id, {
       leadId: quote.contact_id,
@@ -115,7 +141,9 @@ async function handleInvoicePaid(admin: any, invoice: any) {
       type: 'follow-up',
       dueAt: new Date().toISOString(),
       priority: 'medium',
-      note: `Emettere fattura elettronica: abbonamento ${quote.quote_number}, ${formatQuoteEuro(amount, quote.currency)} incassati con carta (Stripe ${invoice.number || invoice.id}).`,
+      note: draft
+        ? `Fattura in bozza da controllare e inviare (Fatture): abbonamento ${quote.quote_number}, ${formatQuoteEuro(amount, quote.currency)} incassati con carta (Stripe ${invoice.number || invoice.id}).`
+        : `Emettere fattura elettronica: abbonamento ${quote.quote_number}, ${formatQuoteEuro(amount, quote.currency)} incassati con carta (Stripe ${invoice.number || invoice.id}).`,
       idempotencyKey: `stripe-invoice:${invoice.id}`,
     })
   }
