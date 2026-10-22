@@ -44,6 +44,8 @@ Copy `.env.local.example` to `.env.local`. Required keys:
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role key (server-only admin ops) |
 | `STRIPE_SECRET_KEY` | Stripe secret key for quote payments |
 | `STRIPE_VIDEO_MAP_PRICE_ID` / `STRIPE_VIDEO_MAP_COUPON_ID` | Prodotto "Video nella mappa" del catalogo Stripe (488 €/anno IVA inclusa = il listino attuale, 400 € + IVA) + coupon permanente (122 €), che serve solo ai preventivi firmati quando il prezzo era 300 € + IVA. Opzionali: senza il prezzo, il checkout scrive l'importo al volo; il coupon da solo non basta |
+| `ARUBA_FE_USERNAME` / `ARUBA_FE_PASSWORD` | Credenziali del pannello Fatturazione Elettronica Aruba, con le API attive sull'account. Senza, `/fatture` prepara bozze e XML ma non invia |
+| `ARUBA_FE_ENV` | `production` per inviare allo SDI vero. Qualunque altro valore (o niente) = **ambiente demo di Aruba**: le fatture non arrivano allo SDI |
 | `STRIPE_WEBHOOK_SECRET` | Segreto di firma dell'endpoint `/api/integrations/stripe/webhook` (abbonamenti annuali). Senza, il webhook risponde 500 e Stripe riprova |
 | `RESEND_API_KEY` | Resend email API key |
 | `GOOGLE_CLIENT_ID` | Gmail OAuth client ID |
@@ -132,6 +134,9 @@ supabase migration up
 | `team_members` | Multi-user team management (with `auth_user_id` linking) |
 | `quotes` | Preventivi/preventivi with Stripe integration (`billing_interval = 'year'` = abbonamento annuale con carta, rinnovato da Stripe) |
 | `quote_signatures` | Firma disegnata di un preventivo (PNG, nome, IP, user-agent, copia di termini e importi). Immutabile, scritta solo dalla RPC `sign_public_quote_contract` |
+| `invoices` | Fatture elettroniche (`/fatture`): cliente e righe (jsonb), stato `draft`→`sending`→`sent`→`delivered`/`not_delivered`/`accepted`/`refused`/`rejected`/`error`, XML inviato, file e stato SDI di Aruba. Numero assegnato all'invio, poi immutabile e non cancellabile (trigger). Una per preventivo (`source = 'quote'`) e una per incasso Stripe (`stripe_invoice_id`) |
+| `invoice_settings` | Dati fiscali di chi emette (cedente): denominazione, P.IVA, CF, regime, sede, IBAN, natura per le righe senza IVA, bollo, formato del numero |
+| `invoice_counters` | Ultimo numero di fattura per anno; si parte dall'ultimo emesso sul pannello Aruba. Lo incrementa solo la RPC `reserve_invoice_number` (service role) |
 | `stripe_webhook_events` | Idempotenza del webhook Stripe: un evento gia' processato non si rifa' |
 | `sales_links` | Link vendita personali (`/vendita/<token>`): solo lo SHA-256 del token, uno attivo per membro del team |
 | `user_settings` | Per-user settings (e.g. email AI configuration) |
@@ -178,6 +183,7 @@ src/
 │   │   ├── commerciale/        # Area Commerciale: tutti i progetti + /commerciale/[id]
 │   │   ├── preventivi/         # Quotes management (CRUD)
 │   │   ├── incassi/            # Da incassare: soldi personali da ricevere, fuori da Speaqi
+│   │   ├── fatture/            # Fatture elettroniche: bozza dal preventivo pagato, invio allo SDI con Aruba
 │   │   ├── navigazione/        # Compagnie di navigazione: chi arriva a Napoli / Civitavecchia
 │   │   └── impostazioni/       # Settings & team admin
 │   │       ├── email-ai/       # Email AI configuration
@@ -190,6 +196,7 @@ src/
 │   │   ├── tasks/              # CRUD + create + pending + standalone + [id]/complete
 │   │   ├── todo/columns/       # Colonne aggiunte a mano alla lavagna (CRUD + riordino)
 │   │   ├── receivables/        # Da incassare (CRUD, solo le righe di chi e' loggato)
+│   │   ├── invoices/           # Fatture: lista + bozza da preventivo, [id] (correzione), [id]/send, [id]/xml, settings
 │   │   ├── shipping-companies/ # Catalogo compagnie di navigazione (lettura + correzione scali)
 │   │   ├── shipping-itineraries/ # Itinerari con tappe (CRUD, salvataggio atomico via RPC)
 │   │   ├── shipping-ports/     # Porti con utilizzo, modifica, unione doppioni
@@ -265,6 +272,7 @@ src/
 │   ├── automation-schedule.ts  # Le automazioni pianificate: orari, endpoint, parametri (ex workflow n8n)
 │   ├── todo.ts                 # Aree, stati di avanzamento e span Gantt per /todo
 │   ├── receivables.ts          # Da incassare: lettura importi "1.250,50", totali in centesimi, ordinamento
+│   ├── fatturapa.ts            # XML FatturaPA 1.2 (FPR12), controlli P.IVA/CF/CAP, totali in centesimi: puro e testato
 │   ├── shipping-companies.ts   # Compagnie di navigazione: validazione catalogo, filtri porto, contatto da creare
 │   ├── shipping-itineraries.ts # Itinerari: lettura del testo incollato, riconoscimento porti, porti di base
 │   ├── shipping-routes.ts      # Mappa rotte: tappe con coordinate, archi, frecce, navi, lettura coordinate
@@ -380,6 +388,13 @@ Each stage has a `system_key` and `color`. Closed statuses: `closed`, `paid`, `l
 - **Configurazione Stripe**: endpoint `https://<APP_BASE_URL>/api/integrations/stripe/webhook` con gli eventi `checkout.session.completed`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`, versione API uguale a `STRIPE_API_VERSION`; il segreto va in `STRIPE_WEBHOOK_SECRET`
 - **Link vendita** (`/vendita/<token>`): ogni membro del team ha un link personale, generato/rigenerato/revocato da Impostazioni → Team (solo admin). Si salva solo lo SHA-256 del token (tabella `sales_links`, non `team_members`, che i collaboratori leggono): il link si vede una volta, poi si rigenera. Il commerciale compila i dati dell'attivita' davanti al cliente; il server (service role) trova o crea il contatto per email (scope crm, stato Quote, `responsible` = il commerciale), crea il preventivo con `createQuoteRecord` (`src/lib/server/quote-create.ts`, lo stesso di `POST /api/quotes`) e reindirizza a `/preventivo?id=…&accept=…`, senza email. Tetto di 10 preventivi l'ora per link; un reinvio entro 10 minuti riusa il preventivo. Pagina `noindex` e `no-referrer`, perche' il token sta nel percorso
 - **Reclutamento commerciali** (pagina su **guides.speaqi.com/diventa-commerciale**, repo speaqi, `apps/web/src/app/diventa-commerciale`; qui `/diventa-commerciale` è un redirect permanente in `next.config.ts`, e `SALES_RECRUIT_URL` è il link che Impostazioni → Team e `/vendita` mostrano): il CRM resta la fonte di provvigioni e candidature. Le provvigioni stanno **solo** in `SALES_PROGRAM` (`src/lib/sales-program.ts`, oggi 20% del primo anno e 10% di ogni rinnovo sul netto, per ogni video); il prezzo viene dal pacchetto `video_map`. La pagina su Guides le legge da `GET /api/programma-commerciali` (pubblico, `publicSalesProgram()`, cache 5 minuti), quindi cambiare listino o percentuali aggiorna la pagina senza toccare il web. La candidatura (`POST /api/candidature-commerciali`, inoltrata dal server di Guides, workspace da `AUTOMATION_WORKSPACE_USER_ID`, mai dal corpo) crea un contatto **personal** — fuori dalla pipeline clienti — con categoria «Candidato commerciale», `source = 'candidatura_commerciale'`, un'attività con le risposte e una chiamata per il giorno dopo; un'email gia' presente riceve solo attivita' e chiamata. Honeypot `website` (risposta 200 finta, nessuna scrittura) e tetto di 30 candidature l'ora. I messaggi d'errore di questa rotta arrivano a schermo così come sono (400/429/503): vanno scritti per il candidato. Chi viene scelto riceve il link vendita da Impostazioni → Team
+- **Fattura elettronica (Aruba)** (`/fatture`, solo il titolare): la ricevuta Stripe non è una fattura. A ogni incasso con carta (primo pagamento e ogni rinnovo) il webhook prepara una **bozza** (`createInvoiceDraftFromQuote`, idempotente); per i bonifici e per un lavoro nato fuori dal CRM si registra il preventivo, lo si segna pagato e lo si fattura da «Da fatturare». **Nessun automatismo invia**: l'invio allo SDI lo conferma sempre una persona (`POST /api/invoices/[id]/send`). Logica in `src/lib/server/invoices.ts`, XML in `src/lib/fatturapa.ts`, client in `src/lib/server/aruba-fe.ts` (accesso, `services/invoice/upload` con l'XML non firmato: firma e consegna le fa Aruba, `getByFilename` per lo stato). Regole:
+  - **Il numero si prende all'invio, dopo i controlli** (`validateFeInput`: P.IVA con cifra di controllo, CF, CAP, codice destinatario o PEC, natura per le righe a 0): una fattura che non partirebbe non brucia un numero. Se Aruba rifiuta, il numero resta a quella fattura e la si reinvia (progressivo di invio nuovo a ogni tentativo). La data non può precedere quella dell'ultima fattura dell'anno
+  - **La serie continua quella di Aruba**: in «Dati fiscali» si scrive l'ultimo numero emesso sul pannello; il formato (`{n}`, `{n}/{yyyy}`…) è un'impostazione
+  - **Esito incerto** (rete, timeout, 5xx): la fattura va in errore con l'invito a controllare sul pannello prima di reinviare; un doppione verrebbe comunque scartato dallo SDI. Un invio rimasto «in invio» per 10 minuti torna in errore
+  - **Stato SDI** ogni ora dalle 7:45 alle 21:45 (job `invoices-sdi` → `/api/automation/invoices-sync`)
+  - **Bozza dal preventivo**: alternative non scelte escluse, sconto come riga negativa, «P.IVA / CF» del preventivo riconosciuto dalla forma, provincia letta da «Sorrento (NA)». Un rinnovo con importo diverso dal preventivo diventa una riga netta dall'incasso. Preventivi con acconto e saldo: la bozza fattura l'intero, e lo dice
+  - Test: `tests/fatturapa.unit.test.ts`, `tests/invoices.unit.test.ts` (giro completo con Aruba finto). **Da provare sull'ambiente demo di Aruba prima di `ARUBA_FE_ENV=production`**: gli endpoint vengono dalla documentazione pubblica e non sono stati chiamati davvero da qui
 - **Firma in presenza dal CRM**: sulla scheda di un abbonamento non firmato, «Firma in presenza» chiede a `send-acceptance-email` il link con `link_only: true` e lo apre senza mandare email. Rigenera il token: un link inviato prima smette di valere
 
 ## Collaborator / Workspace Access

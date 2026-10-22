@@ -74,6 +74,7 @@ const NAV_GROUPS: { label: string; adminOnly?: boolean; items: NavItem[] }[] = [
     items: [
       { href: '/tourism', label: 'Tourism Intelligence', icon: '◎' },
       { href: '/acumbamail', label: 'Acumbamail', icon: '📧' },
+      { href: '/fatture', label: 'Fatture', icon: '🧾' },
       { href: '/incassi', label: 'Da incassare', icon: '💰' },
     ],
   },
