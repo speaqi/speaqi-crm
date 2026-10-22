@@ -1,6 +1,6 @@
-@font-face { font-family: 'DeckTitle'; font-weight: 400; font-display: block; src: url('/deck/bricolage-grotesque-latin-400-normal.woff2') format('woff2'); }
-@font-face { font-family: 'DeckTitle'; font-weight: 700; font-display: block; src: url('/deck/bricolage-grotesque-latin-700-normal.woff2') format('woff2'); }
-@font-face { font-family: 'DeckTitle'; font-weight: 800; font-display: block; src: url('/deck/bricolage-grotesque-latin-800-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DeckTitle'; font-weight: 400; font-display: block; src: url('/deck/heuvel-grotesk-regular.woff2') format('woff2'); }
+@font-face { font-family: 'DeckBody'; font-weight: 500; font-display: block; src: url('/deck/inter-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DeckBody'; font-weight: 700; font-display: block; src: url('/deck/inter-latin-700-normal.woff2') format('woff2'); }
 @font-face { font-family: 'DeckBody'; font-weight: 400; font-display: block; src: url('/deck/inter-latin-400-normal.woff2') format('woff2'); }
 @font-face { font-family: 'DeckBody'; font-weight: 600; font-display: block; src: url('/deck/inter-latin-600-normal.woff2') format('woff2'); }
 
@@ -11,7 +11,7 @@
   --cream: #faf7ed;
   --muted: #55607a;
   --line: rgba(29, 45, 68, 0.16);
-  --title: 'DeckTitle', 'Bricolage Grotesque', Arial, sans-serif;
+  --title: 'DeckTitle', 'Heuvel Grotesk', Arial, sans-serif;
   --body: 'DeckBody', Inter, Arial, sans-serif;
   position: relative;
   width: 100%;
@@ -32,9 +32,9 @@
 .active { opacity: 1; visibility: visible; }
 .light { background: var(--cream); color: var(--navy); }
 .dark { background: var(--navy); color: var(--cream); }
-.slide h1, .slide h2 { font-family: var(--title); font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; margin: 0; }
+.slide h1, .slide h2 { font-family: var(--title); font-weight: 400; font-synthesis: none; letter-spacing: -0.02em; line-height: 1.05; margin: 0; }
 .slide h2 { font-size: 78px; max-width: 1500px; }
-.kicker { font-family: var(--title); font-weight: 700; font-size: 26px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--orange); margin-bottom: 26px; }
+.kicker { font-family: var(--body); font-weight: 700; font-size: 26px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--orange); margin-bottom: 26px; }
 .lead { font-size: 40px; max-width: 1200px; margin: 36px 0 0; }
 .dark .muted { color: rgba(250, 247, 237, 0.72); }
 .foot { margin-top: auto; display: flex; justify-content: space-between; align-items: center; font-size: 22px; opacity: 0.72; }
@@ -47,7 +47,7 @@
 .cover > * { position: relative; }
 .cover .logo { height: 92px; align-self: flex-start; }
 .cover h1 { font-size: 132px; margin-top: auto; max-width: 1500px; }
-.cover .sub { font-family: var(--title); font-size: 52px; font-weight: 700; margin-top: 32px; color: var(--orange); }
+.cover .sub { font-family: var(--title); font-synthesis: none; font-size: 52px; font-weight: 400; margin-top: 32px; color: var(--orange); }
 
 .split { display: grid; grid-template-columns: 1fr; gap: 70px; flex: 1; min-height: 0; }
 .splitImage { grid-template-columns: 1.15fr 0.85fr; }
@@ -56,8 +56,8 @@
 
 .cards { display: grid; gap: 36px; margin-top: 64px; }
 .card { border-radius: 28px; padding: 42px; background: #fff; border: 1px solid var(--line); min-height: 360px; }
-.card .num { font-family: var(--title); font-weight: 800; font-size: 60px; color: var(--orange); line-height: 1; }
-.card h3 { font-family: var(--title); font-weight: 700; font-size: 42px; line-height: 1.1; margin: 20px 0 14px; }
+.card .num { font-family: var(--title); font-synthesis: none; font-weight: 400; font-size: 60px; color: var(--orange); line-height: 1; }
+.card h3 { font-family: var(--body); font-weight: 700; font-size: 42px; line-height: 1.1; margin: 20px 0 14px; }
 .card p { font-size: 30px; line-height: 1.4; margin: 0; }
 .dark .card { background: var(--navy-soft); border-color: transparent; }
 .card { overflow-wrap: break-word; }
@@ -72,7 +72,7 @@
 .compact .card h3 { font-size: 34px; margin: 10px 0 8px; }
 .compact .card p { font-size: 26px; }
 
-.note { margin-top: 36px; align-self: flex-start; background: var(--orange); color: #fff; font-family: var(--title); font-weight: 700; font-size: 40px; padding: 20px 36px; border-radius: 999px; max-width: 1650px; line-height: 1.25; }
+.note { margin-top: 36px; align-self: flex-start; background: var(--orange); color: #fff; font-family: var(--body); font-weight: 700; font-size: 36px; padding: 20px 36px; border-radius: 999px; max-width: 1650px; line-height: 1.25; }
 
 .closing h2 { font-size: 110px; margin-top: auto; }
 .closing .lead { margin-bottom: auto; }

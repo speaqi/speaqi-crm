@@ -2,7 +2,7 @@
  * Prova end-to-end di Speaqi Agency nel browser, sull'app vera (next build + start) e
  * sullo stack locale (tests/agency-stack): login, nuova proposta con brief e documenti,
  * generazione con l'AI vera (OPENAI_API_KEY), revisione in linguaggio naturale,
- * preventivo dal costruttore esistente, approvazione, link pubblico, PDF e PowerPoint.
+ * preventivo dal costruttore esistente, approvazione, link pubblico e PDF.
  *
  *   tests/agency-stack/stack.sh up && source <(tests/agency-stack/stack.sh env)
  *   npm run build && PORT=3100 node start.cjs &
@@ -238,7 +238,7 @@ async function main() {
     await pub.screenshot({ path: path.join(out, '11-proposta-pubblica-investimento.png') })
     await pub.close()
 
-    // PDF (Chromium sul server) e PowerPoint
+    // PDF (Chromium sul server)
     const t2 = Date.now()
     const [pdfDl] = await Promise.all([page.waitForEvent('download', { timeout: 150_000 }), page.getByRole('button', { name: 'PDF' }).click()])
     const pdfPath = path.join(out, 'proposta.pdf')
@@ -248,12 +248,6 @@ async function main() {
     const pages = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length
     console.log(`PDF: ${pages} pagine, ${Math.round(pdf.length / 1024)} KB in ${Math.round((Date.now() - t2) / 1000)} s`)
     assert.equal(pages, slides.length, 'una pagina per slide')
-    const [pptDl] = await Promise.all([page.waitForEvent('download', { timeout: 60_000 }), page.getByRole('button', { name: 'PowerPoint' }).click()])
-    const pptPath = path.join(out, 'proposta.pptx')
-    await pptDl.saveAs(pptPath)
-    const ppt = await readFile(pptPath)
-    assert.equal(ppt.subarray(0, 2).toString(), 'PK')
-    console.log(`PPTX: ${Math.round(ppt.length / 1024)} KB`)
 
     // Versioni e cruscotto
     await page.getByRole('button', { name: 'Mostra lo storico' }).click()

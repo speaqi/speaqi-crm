@@ -75,7 +75,7 @@ export default function TemplateTab({ settings, categories, onChanged }: { setti
 
       <div className={s.panel}>
         <header><h2>Sistemi grafici</h2></header>
-        <p className={s.help}>Tre stili sullo stesso sistema Speaqi Design (Bricolage Grotesque e Inter, navy, crema e arancio). L’accento si sostituisce con il colore del cliente; il suo logo va in copertina e nel piede.</p>
+        <p className={s.help}>Tre stili sullo stesso sistema Speaqi Design (Heuvel Grotesk e Inter, navy, crema e arancio). L’accento si sostituisce con il colore del cliente; il suo logo va in copertina e nel piede.</p>
         <div className={s.styles}>
           {THEME_STYLES.map((st) => (
             <button key={st} type="button" className={`${s.styleCard} ${style === st ? s.styleOn : ''}`} onClick={() => setStyle(st)}>
