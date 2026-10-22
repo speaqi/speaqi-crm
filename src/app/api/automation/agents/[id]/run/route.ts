@@ -1,3 +1,6 @@
+import { ensureOfficeAgents } from '@/lib/server/office-agents/definitions'
+import { createServiceRoleClient } from '@/lib/server/supabase'
+import { errorMessage } from '@/lib/server/http'
 import { NextRequest } from 'next/server'
 import { requireAutomation } from '@/lib/server/automation-auth'
 import { officeRunKey } from '@/lib/server/office-api'
@@ -10,6 +13,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   const { id } = await context.params
   const handler = officeAgentHandler(id)
   if (!handler) return Response.json({ error: 'Agente non installato' }, { status: 404 })
+  try { await ensureOfficeAgents(createServiceRoleClient(), auth.context.workspaceUserId) }
+  catch (error) { return Response.json({ error: errorMessage(error, 'Registro non disponibile') }, { status: 500 }) }
   // I retry del pianificatore nello stesso minuto riusano la corsa.
   const key = officeRunKey(request) || `cron:${new Date().toISOString().slice(0, 16)}`
   const result = await runAgent(id, handler, { userId: auth.context.workspaceUserId, key })

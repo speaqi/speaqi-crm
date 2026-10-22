@@ -9,7 +9,7 @@ Napoli non si modifica. Fonti, budget prima della spesa e idempotenza sono obbli
 | Prompt | Agente | Stato | Branch | PR | Note |
 |---|---|---|---|---|---|
 | 0 | Base comune | PR aperta | `codex/office-base` | #44 | PR preesistente conservata, senza rifare il lavoro né cambiarne il branch. Migration `20261022160000_office_agents.sql`; test unit, DB, TypeScript, build e browser verificati. |
-| 11 | Finanza | da fare | `agenti/11-finanza` | — | Prossimo nell'ordine; parte dal branch del Prompt 0. |
+| 11 | Finanza | in corso | `agenti/11-finanza` | — | Prossimo nell'ordine; parte dal branch del Prompt 0. |
 | 10 | Commerciale | da fare | `agenti/10-commerciale` | — | Parte dal Prompt 11. |
 | 1 | Direttore | da fare | `agenti/01-direttore` | — | Parte dal Prompt 10. |
 | 3 | Lingue e voce | da fare | `agenti/03-lingue-voce` | — | Verificare accesso e regole di StudioMap e Speaqi. |

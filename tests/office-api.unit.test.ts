@@ -1,3 +1,4 @@
+import { OFFICE_AGENT_DEFINITIONS } from '../src/lib/server/office-agents/definitions'
 /** I cancelli HTTP si provano con le rotte vere e Supabase simulato sulla rete. */
 import assert from 'node:assert/strict'
 import { beforeEach, afterEach, test, mock } from 'node:test'
@@ -31,6 +32,8 @@ beforeEach(() => {
     assert.ok(url.startsWith('https://office-test.invalid/'), `Chiamata esterna inattesa: ${url}`)
     if (url.includes('/auth/v1/user')) return Response.json({ id: member ? MEMBER : OWNER, email: 'test@example.it', app_metadata: {}, user_metadata: {} })
     if (url.includes('/team_members')) return Response.json([{ id: 'membro', user_id: OWNER, name: 'Persona', allowed_areas: ['oggi'] }])
+    if (url.includes('/office_agents') && method === 'GET') return Response.json([{ ...OFFICE_AGENT_DEFINITIONS.finance, user_id: OWNER }])
+    if (url.includes('/rpc/claim_office_agent_run')) return Response.json({ claimed: false, reason: 'disabled', run: { status: 'skipped_disabled' } })
     if (url.includes('/office_agent_outputs') && method === 'PATCH') {
       if (!pending) return Response.json({ code: 'PGRST116', details: 'The result contains 0 rows', message: 'Cannot coerce the result to a single JSON object' }, { status: 406 })
       pending = false
@@ -73,11 +76,11 @@ test('un collaboratore riceve 403 su lettura, configurazione, corsa e decisioni'
   assert.ok(!calls.some((call) => call.url.includes('/office_')))
 })
 
-test('il titolare puo leggere l’ufficio vuoto e i totali sono zero', async () => {
+test('il titolare installa Finanza spenta e legge totali zero', async () => {
   const response = await GET(request('/api/office', undefined, 'GET'))
   assert.equal(response.status, 200)
   const data = await response.json()
-  assert.deepEqual(data.agents, []); assert.equal(data.pending_count, 0); assert.equal(data.totals.month_actual, 0)
+  assert.equal(data.agents.length, 1); assert.equal(data.agents[0].enabled, false); assert.equal(data.pending_count, 0); assert.equal(data.totals.month_actual, 0)
 })
 
 test('approvare registra solo la decisione; il secondo clic non cambia una decisione presa', async () => {
@@ -110,4 +113,13 @@ test('automazione: segreto obbligatorio e agente inesistente non eseguito', asyn
   req.headers.set('x-automation-secret', 'segreto-finto')
   assert.equal((await automate(req, params))?.status, 404)
   assert.equal(calls.length, 0)
+})
+
+test('la corsa macchina di Finanza spenta non legge fatture o preventivi', async () => {
+  const req = request('/api/automation/agents/finance/run', undefined, 'POST', false)
+  req.headers.set('x-automation-secret', 'segreto-finto')
+  const response = await automate(req, { params: Promise.resolve({ id: 'finance' }) })
+  assert.equal(response?.status, 200)
+  assert.equal((await response!.json()).run.status, 'skipped_disabled')
+  assert.ok(!calls.some((c) => /\/(invoices|quotes)(\?|$)/.test(c.url)))
 })

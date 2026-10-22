@@ -1,3 +1,4 @@
+import { OFFICE_AGENT_DEFINITIONS } from '../src/lib/server/office-agents/definitions'
 import assert from 'node:assert/strict'
 import { describe, test, mock } from 'node:test'
 import { estimateModelCost, modelCostCents } from '../src/lib/office-pricing'
@@ -167,11 +168,12 @@ describe('accesso e prima pagina', () => {
     assert.equal(canAccessPath('/ufficio?x=1', null, false), false)
     assert.equal(canAccessPath('/ufficio/prova', ['oggi'], true), true)
   })
-  test('nessun agente operativo, nessuna prenotazione automatica di modelli', () => {
-    assert.deepEqual(Object.keys(OFFICE_AGENT_HANDLERS), [])
+  test('solo Finanza installata, con configurazione iniziale spenta', () => {
+    assert.deepEqual(Object.keys(OFFICE_AGENT_HANDLERS), ['finance'])
+    assert.ok(Object.values(OFFICE_AGENT_DEFINITIONS).every((agent) => agent.enabled === false))
     assert.equal(officeAgentHandler('constructor'), null)
     assert.equal(officeAgentHandler('director'), null)
-    assert.ok(!AUTOMATION_JOBS.some((job) => job.steps.some((step) => step.path.includes('/agents/'))))
+    assert.deepEqual(AUTOMATION_JOBS.flatMap((job) => job.steps.filter((step) => step.path.includes('/agents/')).map((step) => step.path)), ['/api/automation/agents/finance/run'])
     assert.ok(dueJobs(new Date('2026-10-22T01:15:00Z'), 'Europe/Rome').some((job) => job.name === 'office-maintenance'))
   })
   test('Aspetta te mostra solo le uscite ancora da decidere', () => {
