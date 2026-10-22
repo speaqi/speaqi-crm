@@ -154,6 +154,23 @@ describe('invoices', () => {
     assert.match(xml, /<ImportoTotaleDocumento>488\.00<\/ImportoTotaleDocumento>/)
   })
 
+  it('invio a mano: numero e XML definitivi, nessuna chiamata ad Aruba, lo stato SDI non la rilegge', async () => {
+    delete process.env.ARUBA_FE_PASSWORD
+    const fake = db()
+    const { invoice } = await createInvoiceDraftFromQuote(fake as any, OWNER, 'q-1')
+    const result = await sendInvoice(fake as any, OWNER, invoice.id, { manual: true })
+    assert.equal(result.ok, true)
+    const prepared = fake.tables.invoices[0]
+    assert.equal(prepared.status, 'sent')
+    assert.equal(prepared.numero, '7/2026')
+    assert.equal(prepared.aruba_env, 'manual')
+    assert.equal(prepared.aruba_filename, null)
+    assert.match(prepared.xml, /<Numero>7\/2026<\/Numero>/)
+    assert.equal(calls.length, 0)
+    const again = await sendInvoice(fake as any, OWNER, invoice.id, { manual: true })
+    assert.equal(again.ok, false)
+  })
+
   it('un secondo invio della stessa fattura viene fermato', async () => {
     const fake = db()
     const { invoice } = await createInvoiceDraftFromQuote(fake as any, OWNER, 'q-1')

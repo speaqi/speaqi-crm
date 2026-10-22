@@ -344,7 +344,7 @@ function InvoiceEditor({ invoice, onChanged }: { invoice: Invoice; onChanged: ()
   const [payment, setPayment] = useState(invoice.payment_method)
   const [causale, setCausale] = useState(invoice.causale || '')
   const [saving, setSaving] = useState(false)
-  const [confirming, setConfirming] = useState(false)
+  const [confirming, setConfirming] = useState<false | 'aruba' | 'manual'>(false)
   const [sending, setSending] = useState(false)
   const [problems, setProblems] = useState<string[]>(invoice.problems)
   const [dirty, setDirty] = useState(false)
@@ -380,15 +380,23 @@ function InvoiceEditor({ invoice, onChanged }: { invoice: Invoice; onChanged: ()
     }
   }
 
-  async function send() {
+  async function send(manual = false) {
     setSending(true)
     try {
       if (dirty && !(await save(true))) return
-      const response = await authedFetch(`/api/invoices/${invoice.id}/send`, { method: 'POST' })
+      const response = await authedFetch(`/api/invoices/${invoice.id}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ manual }),
+      })
       const payload = await response.json().catch(() => null)
       if (!response.ok) {
         if (payload?.problems?.length) setProblems(payload.problems)
         showToast(payload?.error || 'Invio non riuscito')
+      } else if (manual) {
+        // Numerata e pronta: l'XML si scarica subito, da caricare a mano sul pannello Aruba.
+        await downloadXml(payload.invoice, showToast)
+        showToast(`Fattura ${payload.invoice.numero} pronta: carica l’XML sul pannello Aruba`)
       } else {
         showToast(`Fattura ${payload.invoice.numero} inviata ad Aruba`)
       }
@@ -538,10 +546,20 @@ function InvoiceEditor({ invoice, onChanged }: { invoice: Invoice; onChanged: ()
         <button type="button" className="btn btn-ghost btn-sm" disabled={saving || !dirty} onClick={() => save()}>
           {saving ? 'Salvo…' : dirty ? 'Salva' : 'Salvata'}
         </button>
-        {confirming ? (
+        {confirming === 'manual' ? (
+          <span className="fe-confirm">
+            Dare il numero alla fattura da {euro(live.totaleCents / 100)} per {customer.denominazione || 'cliente'} e scaricare l’XML? Non parte niente: lo carichi tu sul pannello Aruba. Dopo non si modifica.
+            <button type="button" className="btn btn-primary btn-sm" disabled={sending} onClick={() => send(true)}>
+              {sending ? 'Preparo…' : 'Sì, numera e scarica'}
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm" disabled={sending} onClick={() => setConfirming(false)}>
+              Annulla
+            </button>
+          </span>
+        ) : confirming ? (
           <span className="fe-confirm">
             Inviare a {customer.denominazione || 'cliente'} la fattura da {euro(live.totaleCents / 100)}? Dopo l’invio non si modifica.
-            <button type="button" className="btn btn-primary btn-sm" disabled={sending} onClick={send}>
+            <button type="button" className="btn btn-primary btn-sm" disabled={sending} onClick={() => send()}>
               {sending ? 'Invio…' : 'Sì, invia allo SDI'}
             </button>
             <button type="button" className="btn btn-ghost btn-sm" disabled={sending} onClick={() => setConfirming(false)}>
@@ -549,9 +567,20 @@ function InvoiceEditor({ invoice, onChanged }: { invoice: Invoice; onChanged: ()
             </button>
           </span>
         ) : (
-          <button type="button" className="btn btn-primary btn-sm" disabled={saving} onClick={() => setConfirming(true)}>
-            {invoice.status === 'draft' ? 'Invia allo SDI' : 'Reinvia allo SDI'}
-          </button>
+          <>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={saving}
+              onClick={() => setConfirming('manual')}
+              title="Assegna il numero e scarica l’XML definitivo, senza inviarlo: lo carichi tu sul pannello Aruba"
+            >
+              Numera e scarica XML
+            </button>
+            <button type="button" className="btn btn-primary btn-sm" disabled={saving} onClick={() => setConfirming('aruba')}>
+              {invoice.status === 'draft' ? 'Invia allo SDI' : 'Reinvia allo SDI'}
+            </button>
+          </>
         )}
       </div>
     </div>

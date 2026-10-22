@@ -325,9 +325,16 @@ export type SendResult =
  * hanno passato i controlli: una fattura che non partirebbe non brucia un
  * numero. Se Aruba rifiuta, il numero resta alla fattura e si reinvia quella.
  */
-export async function sendInvoice(admin: any, userId: string, invoiceId: string): Promise<SendResult> {
-  if (!arubaConfigured()) return { ok: false, status: 503, error: 'Aruba non è collegato: mancano ARUBA_FE_USERNAME e ARUBA_FE_PASSWORD.' }
-  const env = arubaEnv()
+/**
+ * `manual: true` = numera e prepara l'XML senza chiamare Aruba: lo carica a
+ * mano chi emette sul pannello Aruba (la prima fattura, per controllarla).
+ * La fattura resta "inviata" con `aruba_env = 'manual'` e niente nome file,
+ * quindi la lettura dello stato SDI la salta.
+ */
+export async function sendInvoice(admin: any, userId: string, invoiceId: string, options: { manual?: boolean } = {}): Promise<SendResult> {
+  const manual = Boolean(options.manual)
+  if (!manual && !arubaConfigured()) return { ok: false, status: 503, error: 'Aruba non è collegato: mancano ARUBA_FE_USERNAME e ARUBA_FE_PASSWORD.' }
+  const env = manual ? 'manual' : arubaEnv()
   const { settings, saved } = await loadInvoiceSettings(admin, userId)
   if (!saved) return { ok: false, status: 400, error: 'Prima salva i dati fiscali di chi emette le fatture.' }
 
@@ -383,7 +390,17 @@ export async function sendInvoice(admin: any, userId: string, invoiceId: string)
     const totals = totalsFor(invoice.lines, settings)
     await admin.from('invoices').update({ xml, send_attempts: attempt, aruba_env: env, ...totals }).eq('id', invoiceId)
 
-    const { filename } = await arubaUploadInvoice(xml, env)
+    if (manual) {
+      const { data: prepared } = await admin
+        .from('invoices')
+        .update({ status: 'sent', aruba_filename: null, sent_at: new Date().toISOString(), sdi_status: 'XML pronto: da caricare a mano sul pannello Aruba', sdi_detail: null, last_error: null })
+        .eq('id', invoiceId)
+        .select('*')
+        .single()
+      return { ok: true, invoice: prepared as InvoiceRow }
+    }
+
+    const { filename } = await arubaUploadInvoice(xml, env as 'demo' | 'production')
     const { data: sent } = await admin
       .from('invoices')
       .update({ status: 'sent', aruba_filename: filename, sent_at: new Date().toISOString(), sdi_status: 'Inviata ad Aruba', sdi_detail: null, last_error: null })
