@@ -5,6 +5,7 @@
 export const AREAS = [
   { key: 'oggi', label: 'Oggi', paths: ['/dashboard', '/operativo'], alwaysOn: true, defaultOn: true },
   { key: 'todo', label: 'To Do', paths: ['/todo'], alwaysOn: false, defaultOn: false },
+  { key: 'tourism', label: 'Turismo · Il mio lavoro', paths: ['/tourism-lavoro'], alwaysOn: false, defaultOn: false },
   { key: 'pipeline', label: 'Pipeline', paths: ['/kanban'], alwaysOn: false, defaultOn: true },
   {
     key: 'contatti',
