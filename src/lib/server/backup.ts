@@ -51,6 +51,7 @@ export const BACKUP_TABLES = [
   'office_agent_runs',
   'office_agent_outputs',
   'office_budget_ledger',
+  'office_agent_daily_quotas',
   // Tourism Intelligence: l'elenco delle aziende turistiche e cio che si e' trovato.
   'tourism_taxonomy',
   'tourism_entities',

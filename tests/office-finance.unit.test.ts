@@ -96,10 +96,12 @@ describe('Finanza: compito senza invii', () => {
     const db = new FakeSupabase({ office_agents: [] })
     try {
       await ensureOfficeAgents(db, OWNER)
-      db.tables.office_agents[0].enabled = true; db.tables.office_agents[0].daily_budget_cents = 8
+      assert.ok(db.tables.office_agents.every((agent) => !agent.enabled))
+      const finance = db.tables.office_agents.find((agent) => agent.id === 'finance')!
+      finance.enabled = true; finance.daily_budget_cents = 8
       await ensureOfficeAgents(db, OWNER)
-      assert.equal(db.tables.office_agents.length, 1); assert.equal(db.tables.office_agents[0].enabled, true); assert.equal(db.tables.office_agents[0].daily_budget_cents, 8)
-      await ensureOfficeAgents(db, 'altro'); assert.equal(db.tables.office_agents.length, 1)
+      assert.equal(db.tables.office_agents.length, Object.keys(OFFICE_AGENT_DEFINITIONS).length); assert.equal(finance.enabled, true); assert.equal(finance.daily_budget_cents, 8)
+      await ensureOfficeAgents(db, 'altro'); assert.equal(db.tables.office_agents.length, Object.keys(OFFICE_AGENT_DEFINITIONS).length)
     } finally { if (old === undefined) delete process.env.AUTOMATION_WORKSPACE_USER_ID; else process.env.AUTOMATION_WORKSPACE_USER_ID = old }
   })
 })

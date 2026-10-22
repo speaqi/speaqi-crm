@@ -34,7 +34,10 @@ beforeEach(() => {
     assert.ok(url.startsWith('https://office-test.invalid/'), `Chiamata esterna inattesa: ${url}`)
     if (url.includes('/auth/v1/user')) return Response.json({ id: member ? MEMBER : OWNER, email: 'test@example.it', app_metadata: {}, user_metadata: {} })
     if (url.includes('/team_members')) return Response.json([{ id: 'membro', user_id: OWNER, name: 'Persona', allowed_areas: ['oggi'] }])
-    if (url.includes('/office_agents') && method === 'GET') return Response.json([{ ...OFFICE_AGENT_DEFINITIONS.finance, user_id: OWNER }])
+    if (url.includes('/office_agents') && method === 'GET') {
+      const id = new URL(url).searchParams.get('id')?.replace(/^eq\./, '')
+      return Response.json(Object.values(OFFICE_AGENT_DEFINITIONS).filter((d) => !id || d.id === id).map((d) => ({ ...d, user_id: OWNER })))
+    }
     if (url.includes('/rpc/claim_office_agent_run')) return Response.json({ claimed: false, reason: 'disabled', run: { status: 'skipped_disabled' } })
     if (url.includes('/office_agent_outputs') && method === 'HEAD') {
       return new Response(null, { headers: { 'content-range': `*/${pendingCount}` } })
@@ -84,11 +87,11 @@ test('un collaboratore riceve 403 su lettura, configurazione, corsa e decisioni'
   assert.ok(!calls.some((call) => call.url.includes('/office_')))
 })
 
-test('il titolare installa Finanza spenta e legge totali zero', async () => {
+test('il titolare installa gli agenti spenti e legge totali zero', async () => {
   const response = await GET(request('/api/office', undefined, 'GET'))
   assert.equal(response.status, 200)
   const data = await response.json()
-  assert.equal(data.agents.length, 1); assert.equal(data.agents[0].enabled, false); assert.equal(data.pending_count, 0); assert.equal(data.totals.month_actual, 0)
+  assert.equal(data.agents.length, 2); assert.ok(data.agents.every((agent: { enabled: boolean }) => !agent.enabled)); assert.equal(data.pending_count, 0); assert.equal(data.totals.month_actual, 0)
 })
 
 test('la pagina oltre la coda restituisce il conteggio aggiornato e consente di tornare indietro', async () => {
