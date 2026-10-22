@@ -1,4 +1,5 @@
 // Presentazione per destinazione (Tourism Intelligence): modello, segnaposto e guardie.
+import { normalizeQuoteTemplate, type QuoteTemplate } from './commercial-proposal'
 // Puro, senza accesso a rete o database: lo usano l'agente, le API, la pagina e i test.
 
 export const DECK_TODO = '[DA VERIFICARE]'
@@ -30,6 +31,7 @@ export type DeckTemplate = {
   /** Valori di partenza dei segnaposto {{nome}}. */
   vars: Record<string, string>
   slides: DeckSlide[]
+  quote_template?: QuoteTemplate
 }
 
 export const DECK_VAR_NAMES = ['destinazione', 'ente', 'paese', 'prezzo', 'contatto'] as const
@@ -191,6 +193,54 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
   ]
 }
 
+/** Base Tourism per aziende: stessi strumenti, senza impegni di partnership impliciti. */
+export const TOURISM_COMPANY_TEMPLATE: DeckTemplate = {
+  version: 1,
+  vars: { contatto: DECK_TODO, prezzo: 'Importi, durata, eventuali servizi e condizioni sono indicati nel preventivo e nel contratto collegati.' },
+  slides: [
+    slide({ id: 'cover', kind: 'cover', title: '{{ente}}, nella lingua di chi vi sceglie', body: 'Una proposta Speaqi Tourism per {{destinazione}}.', hint: 'Personalizza la promessa sul destinatario e sul suo pubblico. Non promettere risultati numerici.' }),
+    slide({ id: 'contesto', kind: 'statement', title: 'Partiamo dall’esperienza dei vostri ospiti', body: '[DA VERIFICARE] Il bisogno emerso dal brief: informazioni, accoglienza, scoperta del territorio o assistenza ai visitatori.', hint: 'Usa il bisogno specifico del cliente e la sua fonte; evita affermazioni negative non verificate sul sito o sul servizio attuale.' }),
+    slide({ id: 'obiettivo', kind: 'cards', title: 'Le informazioni giuste, prima e durante la visita', items: [
+      { title: 'Prima dell’arrivo', text: 'Presentare l’offerta e aiutare il visitatore a orientarsi.' },
+      { title: 'Durante l’esperienza', text: 'Rendere accessibili contenuti e indicazioni nella sua lingua.' },
+      { title: 'Per il vostro team', text: 'Aggiornare le informazioni da una base condivisa.' }
+    ], hint: 'Adatta i benefici all’attività e al pubblico citati nei materiali. Nessuna previsione economica senza dati.' }),
+    slide({ id: 'soluzione', kind: 'statement', title: 'Una base di conoscenza. Più punti di contatto.', body: 'Le informazioni approvate di {{ente}} alimentano pagine web, QR dinamici, testi, audio multilingua e AI Concierge.', hint: 'Spiega il caso d’uso concreto; non aggiungere integrazioni, prenotazioni o funzionalità non confermate.' }),
+    slide({ id: 'esperienza', kind: 'steps', title: 'Dal primo accesso alle risposte utili', items: [
+      { title: 'Accede', text: 'Da un link o da un QR Code, senza scaricare un’app.' },
+      { title: 'Scopre', text: 'Consulta le informazioni del progetto in più lingue.' },
+      { title: 'Ascolta', text: 'Usa i contenuti audio multilingua.' },
+      { title: 'Chiede', text: 'L’AI Concierge risponde sulla conoscenza approvata.' }
+    ], hint: 'Personalizza i punti di accesso su quelli concordati per il cliente.' }),
+    slide({ id: 'perimetro', kind: 'cards', title: 'Cosa attiviamo per il vostro progetto', items: [
+      { title: 'Contenuti', text: '[DA VERIFICARE] Materiali iniziali, argomenti e responsabilità editoriali.' },
+      { title: 'Lingue e audio', text: '[DA VERIFICARE] Lingue iniziali in base al pubblico e ai materiali.' },
+      { title: 'Distribuzione', text: '[DA VERIFICARE] Link, QR e canali effettivamente concordati.' }
+    ], note: 'Tutta la piattaforma è inclusa nel piano per progetto. La produzione video AI è separata, in minuti.', hint: 'Non inventare quantità, lingue, impegni di accessi o deliverable. Usa solo il perimetro concordato.' }),
+    slide({ id: 'prova', kind: 'cards', title: 'Provate un’esperienza Speaqi reale', body: 'Esempi del prodotto, da esplorare prima di definire il vostro progetto.', items: [
+      { title: 'Napoli', text: 'guides.speaqi.com/napoli' }, { title: 'Roma', text: 'guides.speaqi.com/roma' }
+    ], hint: 'Sono demo del prodotto, non casi studio o risultati commerciali del settore del destinatario.' }),
+    slide({ id: 'metodo', kind: 'steps', title: 'Prepariamo il progetto e lo provate quando è pronto', items: [
+      { title: 'Costruzione', text: 'Raccogliamo e organizziamo i contenuti del progetto.' },
+      { title: 'Validazione', text: 'Speaqi verifica il progetto prima dell’attivazione pubblica.' },
+      { title: 'Prova', text: 'Trial pubblico di 30 giorni, attivato manualmente dopo la validazione.' },
+      { title: 'Attivazione', text: 'Confermiamo l’abbonamento o l’accordo commerciale del progetto.' }
+    ], hint: 'La durata del trial viene dal modello commerciale Speaqi. Non promettere tempi di produzione.' }),
+    slide({ id: 'responsabilita', kind: 'cards', title: 'Un referente e un percorso condiviso', items: [
+      { title: 'Il vostro team', text: 'Fornisce i materiali e approva i contenuti prima della pubblicazione.' },
+      { title: 'Speaqi', text: '[DA VERIFICARE] Servizi operativi, consegne e assistenza compresi nell’offerta.' },
+      { title: 'Verifica', text: '[DA VERIFICARE] Referenti, tempi e criteri di approvazione concordati.' }
+    ], hint: 'Non dedurre assistenza gestita, aggiornamenti editoriali o SLA dal solo abbonamento.' }),
+    slide({ id: 'condizioni', kind: 'statement', title: 'Perimetro e condizioni, definiti prima di partire', body: '{{prezzo}}', note: 'Un progetto ha il proprio accordo e il proprio ciclo di vita.', hint: 'Usa il preventivo per i prezzi. Non applicare automaticamente gratuità, soglie di accessi o condizioni delle partnership destinazioni.' }),
+    slide({ id: 'prossimi-passi', kind: 'steps', title: 'Confermiamo il progetto più utile per voi', items: [
+      { title: 'Allineamento', text: 'Rivediamo obiettivi, perimetro e materiali.' },
+      { title: 'Proposta', text: 'Confermiamo preventivo e contratto del progetto.' },
+      { title: 'Avvio', text: 'Concordiamo il primo passaggio operativo.' }
+    ], hint: 'Aggiungi una demo personalizzata solo se il suo link esiste nei materiali.' }),
+    slide({ id: 'chiusura', kind: 'closing', title: 'Prepariamo il prossimo passo per {{ente}}', body: '{{contatto}}', hint: 'Solo il contatto reale inserito dall’utente.' })
+  ]
+}
+
 const clip = (value: unknown, max: number) => (typeof value === 'string' ? value.replace(/\u0000/g, '').trim().slice(0, max) : '')
 
 const slugId = (value: unknown, fallback: string) => {
@@ -239,7 +289,7 @@ export function normalizeTemplate(raw: unknown): DeckTemplate {
     }
   }
   if (!slides.length) return structuredClone(DEFAULT_DECK_TEMPLATE)
-  return { version: 1, vars, slides }
+  return { version: 1, vars, slides, quote_template: normalizeQuoteTemplate(r.quote_template, 'tourism') }
 }
 
 /** Valori dei segnaposto: input dell'utente, poi i valori di partenza del modello, poi [DA VERIFICARE]. */

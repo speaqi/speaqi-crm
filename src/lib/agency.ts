@@ -8,6 +8,7 @@
 // - Nessuna cifra economica sta nelle slide: la slide "investimento" legge il preventivo.
 
 import { DECK_TODO, DECK_TODO_PATTERN, numbersIn } from './tourism-deck'
+import { normalizeQuoteTemplate, proposalText, type QuoteTemplate } from './commercial-proposal'
 
 export { DECK_TODO as AGENCY_TODO, DECK_TODO_PATTERN as AGENCY_TODO_PATTERN }
 
@@ -673,6 +674,34 @@ export type AgencySettings = {
   about: string
   default_style: ThemeStyle
   default_accent: string
+  proposal_slides?: AgencySlide[]
+  quote_template?: QuoteTemplate
+}
+
+/** Base commerciale: i moduli si possono togliere o estendere per ogni cliente. */
+export const DEFAULT_AGENCY_SLIDES: AgencySlide[] = normalizeSlides([
+  { id: 'cover', kind: 'cover', kicker: 'Speaqi Agency', title: '{{progetto}}', body: 'Proposta per {{cliente}}' },
+  { id: 'context', kind: 'context', kicker: 'Il punto di partenza', title: '{{cliente}}: partiamo dalle vostre priorità', body: '[DA VERIFICARE] Contesto, esigenza emersa e fonte: brief, call o materiali del cliente.' },
+  { id: 'objectives', kind: 'opportunities', kicker: 'Obiettivi', title: 'Definiamo cosa deve cambiare', items: [{ title: 'Obiettivo del progetto', text: '[DA VERIFICARE] Il risultato da perseguire e come verificarlo.' }] },
+  { id: 'solution', kind: 'solution', kicker: 'La proposta', title: 'Una direzione chiara, interventi coordinati', body: '[DA VERIFICARE] La soluzione proposta e il motivo per cui risponde al brief.' },
+  { id: 'scope', kind: 'services', kicker: 'Perimetro', title: 'Cosa realizziamo per voi', items: [{ title: '{{servizi}}', text: '[DA VERIFICARE] Attività incluse, quantità e confini del lavoro.' }] },
+  { id: 'deliverables', kind: 'deliverables', kicker: 'Consegne', title: 'Cosa ricevete a fine progetto', items: [{ title: 'Materiali e strumenti', text: '[DA VERIFICARE] Elenco delle consegne, formati e criteri di approvazione.' }] },
+  { id: 'method', kind: 'process', kicker: 'Metodo', title: 'Dalle priorità alla consegna, insieme', items: [{ title: 'Allineamento', text: 'Confermiamo obiettivi, perimetro e materiali.' }, { title: 'Produzione', text: 'Realizziamo le attività concordate.' }, { title: 'Verifica', text: 'Rivediamo le consegne con il referente del cliente.' }, { title: 'Consegna', text: 'Consegniamo quanto previsto dal preventivo.' }] },
+  { id: 'timing', kind: 'roadmap', kicker: 'Tempi e responsabilità', title: 'Un percorso condiviso, con passaggi chiari', items: [{ title: 'Avvio e consegne', text: '[DA VERIFICARE] Date, dipendenze dai materiali del cliente e responsabili.' }] },
+  { id: 'boundaries', kind: 'context', kicker: 'Condizioni', title: 'Perimetro chiaro anche dopo la consegna', body: '[DA VERIFICARE] Revisioni incluse, esclusioni, costi di terzi e assistenza. Le condizioni concordate vanno riportate anche nel preventivo e nel contratto.' },
+  { id: 'investment', kind: 'investment', kicker: 'Investimento', title: 'Attività e investimento, in un solo preventivo', body: 'Importi e condizioni sono quelli del preventivo collegato.' },
+  { id: 'next', kind: 'next_steps', kicker: 'Prossimi passi', title: 'Confermiamo la proposta e prepariamo l’avvio', items: [{ title: 'Confronto', text: 'Rivediamo insieme perimetro e condizioni.' }, { title: 'Conferma', text: 'Accettate il preventivo e il contratto collegato.' }, { title: 'Avvio', text: 'Concordiamo il primo incontro operativo.' }] },
+  { id: 'closing', kind: 'closing', kicker: 'Speaqi Agency', title: 'Costruiamo il prossimo passo di {{cliente}}', body: '{{contatto}}' }
+])
+
+export function agencyBaseSlides(settings: AgencySettings, vars: Record<string, string>): AgencySlide[] {
+  const template = settings.proposal_slides?.length ? settings.proposal_slides : DEFAULT_AGENCY_SLIDES
+  return ensureFrame(normalizeSlides(template.map(s => ({
+    ...s, image_asset_id: null,
+    kicker: proposalText(s.kicker, vars), title: proposalText(s.title, vars),
+    body: proposalText(s.body, vars), note: proposalText(s.note, vars),
+    items: s.items.map(i => ({ title: proposalText(i.title, vars), text: proposalText(i.text, vars), value: proposalText(i.value, vars) }))
+  }))), vars.progetto || 'Proposta')
 }
 
 export const DEFAULT_AGENCY_SETTINGS: AgencySettings = {
@@ -692,6 +721,8 @@ export function normalizeAgencySettings(raw: unknown): AgencySettings {
     contact: clip(r.contact, 300),
     about: clip(r.about, 2000),
     default_style: THEME_STYLES.includes(r.default_style as ThemeStyle) ? (r.default_style as ThemeStyle) : DEFAULT_AGENCY_SETTINGS.default_style,
-    default_accent: normalizeHex(r.default_accent) || DEFAULT_ACCENT
+    default_accent: normalizeHex(r.default_accent) || DEFAULT_ACCENT,
+    proposal_slides: ensureFrame(normalizeSlides(Array.isArray(r.proposal_slides) && r.proposal_slides.length ? r.proposal_slides : DEFAULT_AGENCY_SLIDES).map(s => ({ ...s, image_asset_id: null })), '{{progetto}}'),
+    quote_template: normalizeQuoteTemplate(r.quote_template, 'agency')
   }
 }

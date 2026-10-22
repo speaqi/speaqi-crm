@@ -125,7 +125,13 @@ test('profili collegati al team, senza privilegi incrociati; abilita anche la na
       `insert into tourism_work_members(member_id,user_id) values($1,$2)`,
       [foreignMember, owner],
     ),
-    /row-level/,
+    // Il trigger può rifiutare il riferimento prima del controllo RLS.
+    /row-level|altro workspace/,
+  )
+  await asUser(owner)
+  assert.equal(
+    await scalar<number>(`select count(*)::int as v from tourism_work_members where member_id=$1`, [foreignMember]),
+    0,
   )
 })
 test('il partner aggiorna stato, scadenza e presa in carico, ma non può riassegnare o alterare il contesto', async () => {

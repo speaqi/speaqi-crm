@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api'
-import { DECK_VAR_NAMES, DEFAULT_DECK_TEMPLATE, type DeckSlide, type DeckTemplate } from '@/lib/tourism-deck'
+import { DECK_VAR_NAMES, DEFAULT_DECK_TEMPLATE, TOURISM_COMPANY_TEMPLATE, type DeckSlide, type DeckTemplate } from '@/lib/tourism-deck'
 import SlideFields from './SlideFields'
+import QuoteTemplateFields from '@/components/agency/QuoteTemplateFields'
+import { normalizeQuoteTemplate } from '@/lib/commercial-proposal'
 import s from '../tourism.module.css'
 import e from './editor.module.css'
 
@@ -88,7 +90,13 @@ export default function TemplateEditor({ onClose }: { onClose: () => void }) {
             Questo è il punto di partenza di ogni presentazione. Nei testi puoi usare i segnaposto{' '}
             {DECK_VAR_NAMES.map((n) => <code key={n}>{`{{${n}}}`} </code>)}: si riempiono con i dati inseriti per ogni destinazione. Le presentazioni già create non cambiano.
           </p>
+          <p className={e.help}>Tourism ha un solo modello salvato. Puoi partire dalla base aziende, senza impegni di distribuzione impliciti, oppure dalla partnership destinazioni. Caricare una base richiede poi “Salva il modello”.</p>
+          <button type="button" className={s.secondary} onClick={() => confirm('Caricare la base Tourism per aziende? Slide, voci e contratto del modello saranno sostituiti. Le presentazioni già create restano invariate.') && edit(structuredClone(TOURISM_COMPANY_TEMPLATE))}>Carica la base Tourism per aziende</button>
           <div className={e.scroll}>
+            <details className={e.fieldset}><summary>Preventivo e contratto Tourism di base</summary>
+              <p className={e.help}>Segnaposto: {'{{cliente}}, {{progetto}}, {{destinazione}}, {{ente}}, {{paese}}, {{contatto}}, {{prezzo}}'}. Le condizioni della mappa gratuita valgono solo per accordi di distribuzione espliciti.</p>
+              <QuoteTemplateFields value={normalizeQuoteTemplate(template.quote_template, 'tourism')} onChange={quote_template => edit({ ...template, quote_template })} />
+            </details>
             <div className={e.fieldset}>
               <header><strong>Valori di partenza</strong></header>
               <div className={e.row2}>

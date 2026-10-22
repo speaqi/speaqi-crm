@@ -298,6 +298,7 @@ export interface Quote {
   deal_id?: string | null
   /** Opportunità Speaqi Agency a cui appartiene il preventivo. */
   agency_project_id?: string | null
+  tourism_deck_id?: string | null
   billing_interval?: QuoteBillingInterval
   stripe_customer_id?: string | null
   stripe_subscription_id?: string | null

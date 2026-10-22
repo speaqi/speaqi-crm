@@ -11,7 +11,7 @@ type Row = Record<string, any>
 
 /** DB e Storage in memoria, solo il pezzo di query builder che il modulo usa. */
 class Db {
-  tables: Record<string, Row[]> = { tourism_decks: [], tourism_deck_templates: [], tourism_entities: [], tourism_site_sources: [] }
+  tables: Record<string, Row[]> = { tourism_decks: [], tourism_deck_templates: [], tourism_entities: [], tourism_site_sources: [], quotes: [] }
   files = new Map<string, Buffer>()
   failUpdates = false
   n = 0
@@ -193,6 +193,13 @@ test('la vista pubblica mostra solo ciò che è approvato, con token valido', as
   await setApproval(db, saved, true)
   const pub = await loadPublicDeck(db, row.public_token)
   assert.equal(pub?.destination, 'Capri')
+  assert.equal(pub?.quote, null)
+  db.tables.quotes.push(
+    { id: 'sent', user_id: USER, tourism_deck_id: row.id, status: 'sent', public_token: 'sent-token' },
+    { id: 'draft', user_id: USER, tourism_deck_id: row.id, status: 'draft', public_token: 'draft-token' },
+    { id: 'other', user_id: 'other-owner', tourism_deck_id: row.id, status: 'sent', public_token: 'other-token' }
+  )
+  assert.equal((await loadPublicDeck(db, row.public_token))?.quote?.public_token, 'sent-token')
   assert.equal((await loadDeck(db, USER, row.id)).status, 'approved')
 })
 

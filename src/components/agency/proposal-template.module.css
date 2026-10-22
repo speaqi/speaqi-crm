@@ -1,0 +1,11 @@
+.fields { display: grid; gap: 14px; font-size: 13px; line-height: 1.5; }
+.fields p { margin: 4px 0; color: #64748b; }
+.fields label { display: grid; gap: 5px; min-width: 0; font-size: 12px; color: #475569; }
+.fields input, .fields textarea, .fields select { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid #d8dee8; border-radius: 7px; padding: 9px 11px; font: inherit; color: #1d2d44; background: #fff; }
+.fields textarea { resize: vertical; }
+.fields fieldset { border: 1px solid #e2e8f0; border-radius: 9px; padding: 12px; }
+.fields legend { padding: 0 5px; font-weight: 600; }
+.fields summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+.fields button { border: 1px solid #d8dee8; border-radius: 7px; background: #f8fafc; color: #1d2d44; padding: 7px 12px; font: inherit; cursor: pointer; }
+.fields button:disabled { opacity: .45; cursor: default; }
+.fields small { color: #64748b; }

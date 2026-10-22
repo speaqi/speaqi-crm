@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { quoteSummary } from '../agency'
 import {
   DEFAULT_DECK_TEMPLATE,
   applyVars,
@@ -393,6 +394,7 @@ export async function setApproval(sb: Sb, row: DeckRow, approve: boolean): Promi
 // ---- Vista -----------------------------------------------------------------
 
 export type DeckView = {
+  quotes?: { id: string; number: string; title: string; status: string; total: number; currency: string }[]
   id: string
   title: string
   destination: string
@@ -432,6 +434,7 @@ export async function toView(sb: Sb, service: Sb, row: DeckRow): Promise<DeckVie
     entityName = (checked(await sb.from('tourism_entities').select('name').eq('user_id', row.user_id).eq('id', row.entity_id).maybeSingle()).data?.name as string) || null
   }
   return {
+    quotes: (await deckQuotes(sb, row)).map((q: any) => ({ id: q.id, number: q.quote_number, title: q.title, status: q.status, total: Number(q.total_amount), currency: q.currency })),
     id: row.id,
     title: row.title,
     destination: row.destination,
@@ -464,5 +467,15 @@ export async function loadPublicDeck(service: Sb, token: string) {
   const row = await loadPublicRow(service, token)
   if (!row) return null
   const urls = await signedAssetUrls(service, row.assets.filter((a) => row.slides.some((s) => s.image_asset_id === a.id)), PUBLIC_URL_TTL_S)
-  return { title: row.title, destination: row.destination, slides: row.slides, images: Object.fromEntries(urls) }
+  const quotes = await deckQuotes(service, row)
+  const quote = quoteSummary(quotes.find((q: any) => ['sent', 'accepted', 'paid'].includes(q.status)))
+  return { title: row.title, destination: row.destination, slides: row.slides, images: Object.fromEntries(urls), quote }
+}
+
+/** Una migration non ancora applicata non deve oscurare le presentazioni esistenti. */
+async function deckQuotes(sb: Sb, row: Pick<DeckRow, 'id' | 'user_id'>): Promise<any[]> {
+  const { data, error } = await sb.from('quotes').select('id,quote_number,title,status,total_amount,currency,public_token,created_at,items,subtotal_amount,discount_amount,tax_rate,tax_amount,deposit_amount,payment_terms_note,public_note,valid_until,billing_interval').eq('user_id', row.user_id).eq('tourism_deck_id', row.id).order('created_at', { ascending: false })
+  if (error && /42703|PGRST204/.test(String(error.code)) && /tourism_deck_id/.test(String(error.message))) return []
+  if (error) throw error
+  return data || []
 }

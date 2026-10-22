@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-22",
+  "base_commit": "78182cbcc8daee75d83380ae8f7b8c6ebb87272c",
+  "runtime": "Node 24.19.0; target del repository Node 20.x",
+  "targeted_test_files": 15,
+  "targeted_tests_passed": true,
+  "typescript_passed": true,
+  "production_build_passed": true,
+  "production_pages_generated": 148,
+  "agency_browser_passed": true,
+  "tourism_browser_passed": true,
+  "browser_mode": "bundle di produzione; API intercettate, dati sintetici",
+  "database_mode": "PGlite; SQL reale, RLS e ruolo authenticated; due workspace",
+  "unauthenticated_context_http_status": 401,
+  "production_database_migrated": false,
+  "real_customer_records_read": false,
+  "real_ai_generation_run": false,
+  "emails_sent": false,
+  "contracts_signed": false
+}
