@@ -2,6 +2,8 @@
 
 Analisi del 21 ottobre 2026, sul CRM aggiornato a `67d5fbb` (PR #39).
 
+Aggiornamento del 22 ottobre: integrato `main` a `8f9a4ce`. La consegna Agency è ora la pagina HTML condivisibile (con PDF); l’esportazione PowerPoint è stata rimossa dagli aggiornamenti successivi e non viene reintrodotta da questa PR. Il nuovo workspace Tourism e la base commerciale Maps in `docs/commerciale/speaqi-mappe-b2b.md` sono conservati. Le descrizioni delle PR del 21 ottobre restano una ricostruzione storica.
+
 ## Esito
 
 La base tecnica esiste già ed è consistente: non serve costruire un altro generatore di slide. Agency e Tourism devono mantenere contenuti e condizioni separati, riutilizzando lo stesso motore preventivi, pagamenti e firma. La velocità arriva da due basi commerciali configurate una volta, ciascuna con presentazione, voci d'offerta e contratto.
@@ -25,7 +27,7 @@ L'analisi copre il codice, le migrazioni, i test e i documenti disponibili su Gi
 - Analisi e generazione AI; distinzione di fatti verificati, ipotesi e informazioni mancanti; revisione mirata senza riscrivere tutte le slide.
 - Venti layout, tre direzioni cromatiche, colore e logo del cliente; una struttura adattabile al progetto.
 - Studio con modifica manuale, riordino, duplicazione, storico, approvazione e link pubblico. Una modifica riporta la proposta in revisione.
-- PDF e PowerPoint; investimento ricavato dal preventivo collegato, comprensivo di sconto, IVA, acconto e saldo.
+- Pagina HTML condivisibile e PDF; investimento ricavato dal preventivo collegato, comprensivo di sconto, IVA, acconto e saldo.
 
 Fonti principali: `src/lib/agency.ts`, `src/lib/server/agency*.ts`, `src/components/agency/`, migration `20261020130000_agency.sql`.
 

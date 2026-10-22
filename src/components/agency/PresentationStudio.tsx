@@ -234,9 +234,6 @@ export default function PresentationStudio({ id }: { id: string }) {
           <button className={s.ghost} onClick={() => run('pdf', () => download(`/api/agency/presentations/${id}/pdf`, 'proposta.pdf'))} disabled={locked || dirty} title={dirty ? 'Salva prima di esportare' : approved ? undefined : 'PDF di bozza: ogni pagina porta “Bozza”'}>
             {busy === 'pdf' ? <><span className={s.spin} /> PDF…</> : 'PDF'}
           </button>
-          <button className={s.ghost} onClick={() => run('pptx', () => download(`/api/agency/presentations/${id}/pptx`, 'proposta.pptx'))} disabled={locked || dirty} title={dirty ? 'Salva prima di esportare' : 'PowerPoint modificabile'}>
-            {busy === 'pptx' ? <><span className={s.spin} /> PPTX…</> : 'PowerPoint'}
-          </button>
           {approved ? (
             <button className={s.ghost} onClick={() => approve(false)} disabled={locked}>Riporta in revisione</button>
           ) : (

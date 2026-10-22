@@ -14,7 +14,7 @@
     "postbuild": "node scripts/prepare-standalone.cjs",
     "start": "node start.cjs",
     "lint": "next lint",
-    "test": "npm run test:unit && npm run test:db && npm run test:tourism",
+    "test": "npm run test:unit && npm run test:db && npm run test:tourism && npm run test:tourism:work",
     "test:tourism": "node --import tsx tests/tourism.unit.test.ts && node --import tsx tests/tourism-research.unit.test.ts && node --import tsx tests/tourism.db.test.ts && node --import tsx tests/tourism-deck.db.test.ts && node --import tsx tests/tourism-hubs.db.test.ts",
     "tourism:inventory": "node --import tsx scripts/tourism/site-inventory.ts",
     "test:tourism:ui": "node --import tsx tests/tourism.browser.ts",
@@ -26,7 +26,8 @@
     "agency:stack": "bash tests/agency-stack/stack.sh up",
     "test:agency:stack": "node --import tsx --test tests/agency.stack.test.ts",
     "test:agency:ui": "node --import tsx tests/agency.browser.ts",
-    "test:proposals:ui": "node --import tsx tests/agency-proposals.browser.ts && node --import tsx tests/tourism-decks.browser.ts"
+    "test:proposals:ui": "node --import tsx tests/agency-proposals.browser.ts && node --import tsx tests/tourism-decks.browser.ts",
+    "test:tourism:work": "node --import tsx tests/tourism-work.unit.test.ts && node --import tsx tests/tourism-work.db.test.ts"
   },
   "engines": {
     "node": "20.x"
@@ -40,7 +41,6 @@
     "headroom-ai": "^0.22.4",
     "leaflet": "^1.9.4",
     "next": "^15.0.0",
-    "pptxgenjs": "^4.0.1",
     "puppeteer-core": "^25.14.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

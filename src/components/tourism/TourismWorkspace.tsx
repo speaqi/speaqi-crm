@@ -545,6 +545,7 @@ export default function TourismWorkspace() {
             </p>
           </div>
           <div className={s.actions}>
+            <Link className={s.secondary} href="/tourism-lavoro">Il mio lavoro · Assegnazioni</Link>
             <button
               className={s.secondary}
               onClick={() => {
@@ -1070,6 +1071,7 @@ export default function TourismWorkspace() {
                 Archivia selezione
               </button>
             </div>
+            {selected.length > 0 && <div className={s.actions}><Link className={s.primary} href={`/tourism-lavoro?entities=${selected.join(',')}`}>Assegna {selected.length} schede al team</Link></div>}
             <div className={s.tableWrap}>
               <table className={s.table}>
                 <thead>
@@ -1595,6 +1597,7 @@ export default function TourismWorkspace() {
                     'Descrizione da completare con una fonte.'}
                 </p>
                 <div className={s.actions}>
+                  <Link className={s.secondary} href={`/tourism-lavoro?entities=${detail.entity.id}`}>Assegna al team</Link>
                   <button
                     className={s.secondary}
                     onClick={() => setModal('edit')}

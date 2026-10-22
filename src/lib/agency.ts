@@ -222,7 +222,7 @@ export const THEME_STYLE_INFO: Record<ThemeStyle, { label: string; description: 
 const DARK_KINDS_EDITORIAL = new Set<string>(['cover', 'section', 'statement', 'metrics', 'chart', 'quote', 'closing'])
 /**
  * Ogni slide è un campo di colore pieno ("colour chapters"): il colore lo sceglie il tipo di
- * slide, poi due slide vicine non hanno mai lo stesso campo. Vale per web, PDF e PowerPoint.
+ * slide, poi due slide vicine non hanno mai lo stesso campo. Vale per la pagina e per il PDF.
  */
 export type SlideField = 'cream' | 'sand' | 'navy' | 'deep' | 'accent'
 export const FIELD_HEX: Record<Exclude<SlideField, 'accent'>, string> = { cream: '#faf7ed', sand: '#efe7d6', navy: '#1d2d44', deep: '#121c2c' }
@@ -248,7 +248,7 @@ export function deckFields(kinds: string[], style: ThemeStyle): SlideField[] {
 }
 export const fieldIsDark = (f: SlideField, accent: string) => f === 'navy' || f === 'deep' || (f === 'accent' && inkOn(accent) === '#ffffff')
 
-/** Navy o crema: lo decide il modello, non la singola slide. Vale per web, PDF e PowerPoint. */
+/** Navy o crema: lo decide il modello, non la singola slide. Vale per la pagina e per il PDF. */
 export function isDarkSlide(kind: string, style: ThemeStyle) {
   if (style === 'bold') return true
   if (style === 'institutional') return false
@@ -648,7 +648,7 @@ export function summaryOf(slides: AgencySlide[], hasQuote: boolean) {
   return { slides: slides.length, todo: countTodo(slides, { hasQuote }) }
 }
 
-/** Nome file leggibile per PDF e PPTX. */
+/** Nome file leggibile per il PDF. */
 export function fileStem(value: string) {
   return (
     value

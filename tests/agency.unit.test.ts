@@ -32,7 +32,6 @@ import {
   type AgencyMaterials
 } from '../src/lib/server/agency-agent'
 import { extractPptxText, fetchWebsiteText, sniffAgencyUpload, websiteTextFromHtml, zipEntries } from '../src/lib/server/agency-assets'
-import { buildPptx } from '../src/lib/server/agency-pptx'
 import { pdfStamp } from '../src/lib/server/agency-pdf'
 import { renderKey, validRenderKey } from '../src/lib/server/agency'
 
@@ -301,25 +300,6 @@ test('sito: redirect seguiti e ricontrollati, indirizzi privati rifiutati', asyn
 })
 
 // ---- Export ----------------------------------------------------------------
-
-test('PowerPoint esportato: un file valido con una slide per slide e testi modificabili', async () => {
-  const slides = normalizeSlides([
-    blankSlide('cover'),
-    { id: 'c', kind: 'chart', title: 'Traffico', items: [{ title: 'Ricerca', value: '48' }, { title: 'Social', value: '15' }] },
-    { id: 'i', kind: 'investment', title: 'Investimento' },
-    { id: 'r', kind: 'roadmap', title: 'Roadmap', items: [{ title: 'A', value: 'Mese 1' }, { title: 'B', value: 'Mese 2' }, { title: 'C', value: 'Mese 3' }] },
-    { id: 'x', kind: 'comparison', title: 'Prima/dopo', items: [{ title: 'Oggi', text: 'lento\nvecchio' }, { title: 'Dopo', text: 'veloce' }] },
-    blankSlide('closing')
-  ])
-  const quote = quoteSummary({ id: 'q', quote_number: 'PREV-9', status: 'sent', items: [{ description: 'Sito web', quantity: 1, unit_price: 9000, line_total: 9000 }], subtotal_amount: 9000, tax_rate: 22, tax_amount: 1980, total_amount: 10980 })
-  const buf = await buildPptx({ title: 'Prova', slides, theme: normalizeTheme({}), clientName: 'Cliente', agencyName: 'Speaqi Agency', agencySignature: 'Firma', quote, images: {}, clientLogo: null })
-  const entries = zipEntries(buf).map((e) => e.name)
-  assert.equal(entries.filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n)).length, slides.length)
-  assert.ok(entries.some((n) => /^ppt\/charts\/chart\d+\.xml$/.test(n)), 'il grafico è nativo, con i dati modificabili')
-  const text = extractPptxText(buf)
-  assert.match(text, /Traffico/)
-  assert.match(text, /9\.000 €/, "l’investimento arriva dal preventivo, al netto di IVA")
-})
 
 test('preventivo: acconto e saldo senza IVA, note del preventivo; mai su un abbonamento', () => {
   const row = {

@@ -162,7 +162,7 @@ async function main() {
     await tpl.getByLabel('Prezzo unitario, IVA esclusa').fill('990')
     await page.screenshot({ path: output + '/template.png' })
     await tpl.getByRole('button', { name: 'Salva il modello' }).click()
-    await tpl.getByText('Modello salvato').waitFor()
+    await tpl.getByRole('status').filter({ hasText: 'Modello salvato' }).waitFor()
     assert.match(JSON.stringify(calls.filter((c) => c.method === 'PUT').at(-1)?.body), /la guida che parla ogni lingua/)
     await tpl.getByRole('button', { name: 'Chiudi finestra' }).click()
 
