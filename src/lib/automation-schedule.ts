@@ -132,6 +132,12 @@ export const AUTOMATION_JOBS: ScheduledJob[] = [
     description: 'Invii holding (solo prova: dry_run)',
     steps: [{ path: '/api/automation/send-batch', body: { limit: 3, min_age_minutes: 60, dry_run: true } }],
   },
+  {
+    name: 'invoices-sdi',
+    cron: '45 7-21 * * *',
+    description: 'Stato SDI delle fatture inviate ad Aruba',
+    steps: [{ path: '/api/automation/invoices-sync', body: { limit: 8 }, timeoutMs: 120_000 }],
+  },
 ]
 
 type CronField = { values: Set<number>; any: boolean }
