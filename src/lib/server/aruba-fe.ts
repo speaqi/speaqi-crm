@@ -31,11 +31,24 @@ export function arubaConfigured(): boolean {
 export class ArubaError extends Error {
   /** true quando non si sa se Aruba ha ricevuto la fattura (rete, timeout, 5xx). */
   uncertain: boolean
-  constructor(message: string, uncertain = false) {
+  /** Quota superata (429): si smette di chiamare, ogni richiesta rifiutata allunga il blocco. */
+  rateLimited: boolean
+  constructor(message: string, uncertain = false, rateLimited = false) {
     super(message)
     this.name = 'ArubaError'
     this.uncertain = uncertain
+    this.rateLimited = rateLimited
   }
+}
+
+/**
+ * Limiti documentati da Aruba: un accesso al minuto per IP, 12 ricerche al
+ * minuto, e quote per account (livello base: 60 richieste l'ora, 10.000
+ * l'anno). Una richiesta rifiutata con 429 fa ripartire da capo l'attesa,
+ * quindi chi la riceve si ferma invece di riprovare.
+ */
+function throwIfRateLimited(response: Response) {
+  if (response.status === 429) throw new ArubaError('Aruba: troppe richieste, quota superata. Si riprova al prossimo giro.', false, true)
 }
 
 let cachedToken: { env: ArubaEnv; token: string; expiresAt: number } | null = null
@@ -59,6 +72,7 @@ async function signIn(env: ArubaEnv): Promise<string> {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', Accept: 'application/json' },
     body: new URLSearchParams({ grant_type: 'password', username, password }).toString(),
   })
+  throwIfRateLimited(response)
   const body = (await response.json().catch(() => null)) as { access_token?: string; expires_in?: number; error_description?: string } | null
   if (!response.ok || !body?.access_token) {
     throw new ArubaError(`Accesso ad Aruba non riuscito (${response.status}): ${body?.error_description || 'controlla utente, password e che le API siano attive sull’account'}.`)
@@ -85,6 +99,7 @@ export async function arubaUploadInvoice(xml: string, env: ArubaEnv = arubaEnv()
     headers: { 'Content-Type': 'application/json;charset=UTF-8' },
     body: JSON.stringify({ dataFile: Buffer.from(xml, 'utf8').toString('base64'), credential: '', domain: '' }),
   })
+  throwIfRateLimited(response)
   const body = (await response.json().catch(() => null)) as { errorCode?: string; errorDescription?: string; uploadFileName?: string } | null
   if (response.status >= 500) throw new ArubaError(`Aruba ha risposto ${response.status} al caricamento.`, true)
   if (!response.ok || !body || (body.errorCode && body.errorCode !== '0000') || !body.uploadFileName) {
@@ -100,6 +115,7 @@ export async function arubaInvoiceStatus(filename: string, env: ArubaEnv = aruba
   const url = `${HOSTS[env].ws}/services/invoice/out/getByFilename?filename=${encodeURIComponent(filename)}&includePdf=false&includeFile=false`
   const response = await authorized(env, url, { method: 'GET' })
   if (response.status === 404) return null
+  throwIfRateLimited(response)
   const body = (await response.json().catch(() => null)) as Record<string, any> | null
   if (!response.ok || !body) throw new ArubaError(`Lettura dello stato non riuscita (${response.status}).`, response.status >= 500)
   const invoice = Array.isArray(body.invoices) ? body.invoices[0] : null
@@ -120,9 +136,10 @@ export function mapArubaStatus(status: string): InvoiceStatus {
   const s = status.toLowerCase()
   if (s.includes('scartata')) return 'rejected'
   if (s.includes('rifiutata')) return 'refused'
-  if (s.includes('non consegnata') || s.includes('impossibilit')) return 'not_delivered'
+  if (s.includes('non consegnata') || s.includes('recapito impossibile') || s.includes('impossibil')) return 'not_delivered'
   if (s.includes('accettata')) return 'accepted'
   if (s.includes('consegnata') || s.includes('decorrenza')) return 'delivered'
   if (s.includes('errore')) return 'error'
+  // "Presa in carico" (Aruba non l'ha ancora trasmessa) e "Inviata" (allo SDI, in attesa di esito).
   return 'sent'
 }

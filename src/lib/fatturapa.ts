@@ -88,6 +88,13 @@ export const NATURE_ESENTI: Array<{ code: string; label: string }> = [
   { code: 'N3.2', label: 'N3.2 Non imponibili, cessioni intracomunitarie' },
 ]
 
+/**
+ * Codice fiscale di Aruba PEC S.p.A., l'intermediario che trasmette allo SDI.
+ * Aruba lo controlla in modo sincrono su <IdTrasmittente>: con un altro codice
+ * (per esempio quello di chi emette) rifiuta il caricamento.
+ */
+export const ARUBA_ID_TRASMITTENTE = '01879020517'
+
 const BOLLO_SOGLIA_CENTS = 7747
 const BOLLO_CENTS = 200
 
@@ -284,7 +291,7 @@ export function buildFatturaXml(input: FeInvoiceInput): string {
   const header =
     '<FatturaElettronicaHeader>' +
     '<DatiTrasmissione>' +
-    '<IdTrasmittente>' + el('IdPaese', 'IT') + el('IdCodice', (s.codiceFiscale || sellerPiva).toUpperCase()) + '</IdTrasmittente>' +
+    '<IdTrasmittente>' + el('IdPaese', 'IT') + el('IdCodice', ARUBA_ID_TRASMITTENTE) + '</IdTrasmittente>' +
     el('ProgressivoInvio', input.progressivoInvio) +
     el('FormatoTrasmissione', 'FPR12') +
     el('CodiceDestinatario', dest.codice) +

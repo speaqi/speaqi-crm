@@ -136,7 +136,7 @@ export const AUTOMATION_JOBS: ScheduledJob[] = [
     name: 'invoices-sdi',
     cron: '45 7-21 * * *',
     description: 'Stato SDI delle fatture inviate ad Aruba',
-    steps: [{ path: '/api/automation/invoices-sync', body: { limit: 50 }, timeoutMs: 120_000 }],
+    steps: [{ path: '/api/automation/invoices-sync', body: { limit: 8 }, timeoutMs: 120_000 }],
   },
 ]
 

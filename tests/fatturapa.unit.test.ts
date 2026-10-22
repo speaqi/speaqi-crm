@@ -102,6 +102,7 @@ describe('fatturapa', () => {
   it('genera un XML FPR12 con i campi obbligatori', () => {
     const out = buildFatturaXml(input())
     assert.match(out, /^<\?xml version="1\.0" encoding="UTF-8"\?><p:FatturaElettronica versione="FPR12"/)
+    assert.match(out, /<IdTrasmittente><IdPaese>IT<\/IdPaese><IdCodice>01879020517<\/IdCodice><\/IdTrasmittente>/)
     assert.match(out, /<CodiceDestinatario>M5UXCR1<\/CodiceDestinatario>/)
     assert.match(out, /<IdFiscaleIVA><IdPaese>IT<\/IdPaese><IdCodice>10831191217<\/IdCodice><\/IdFiscaleIVA><CodiceFiscale>95125440636<\/CodiceFiscale>/)
     assert.match(out, /<RegimeFiscale>RF01<\/RegimeFiscale>/)

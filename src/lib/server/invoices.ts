@@ -402,9 +402,18 @@ export async function sendInvoice(admin: any, userId: string, invoiceId: string)
   }
 }
 
-/** Rilegge da Aruba lo stato SDI delle fatture inviate negli ultimi 60 giorni. */
-export async function syncInvoiceStatuses(admin: any, limit = 50) {
-  const result = { checked: 0, updated: 0, errors: [] as string[] }
+/** Pausa fra due letture di stato: Aruba ne ammette 12 al minuto per IP. */
+const STATUS_CALL_SPACING_MS = 6_000
+/** Una fattura si rilegge al massimo ogni due ore: la quota base e' 10.000 richieste l'anno. */
+const STATUS_RECHECK_MS = 2 * 3600_000
+
+/**
+ * Rilegge da Aruba lo stato SDI delle fatture ancora "inviate" (senza esito)
+ * degli ultimi 20 giorni. Poche per giro, distanziate, e al primo 429 si ferma:
+ * una richiesta rifiutata allunga il blocco della quota.
+ */
+export async function syncInvoiceStatuses(admin: any, limit = 8, spacingMs = STATUS_CALL_SPACING_MS) {
+  const result = { checked: 0, updated: 0, errors: [] as string[], rate_limited: false }
   if (!arubaConfigured()) return { ...result, skipped: 'aruba_not_configured' }
 
   // Un invio rimasto a meta' (processo morto fra la presa in carico e la risposta) torna in errore.
@@ -415,18 +424,21 @@ export async function syncInvoiceStatuses(admin: any, limit = 50) {
     .eq('status', 'sending')
     .lt('updated_at', staleSending)
 
-  const since = new Date(Date.now() - 60 * 86400_000).toISOString()
+  const since = new Date(Date.now() - 20 * 86400_000).toISOString()
+  const recheckBefore = Date.now() - STATUS_RECHECK_MS
   const { data, error } = await admin
     .from('invoices')
-    .select('id, aruba_filename, aruba_env, status, sdi_status')
+    .select('id, aruba_filename, aruba_env, status, sdi_status, last_synced_at')
     .eq('status', 'sent')
     .not('aruba_filename', 'is', null)
     .gte('sent_at', since)
     .order('last_synced_at', { ascending: true, nullsFirst: true })
-    .limit(limit)
+    .limit(limit * 3)
   if (error) throw error
 
-  for (const row of data || []) {
+  const due = (data || []).filter((row: any) => !row.last_synced_at || new Date(row.last_synced_at).getTime() < recheckBefore).slice(0, limit)
+  for (const [index, row] of due.entries()) {
+    if (index > 0 && spacingMs > 0) await new Promise((resolve) => setTimeout(resolve, spacingMs))
     result.checked += 1
     try {
       const env = row.aruba_env === 'production' ? 'production' : 'demo'
@@ -441,6 +453,10 @@ export async function syncInvoiceStatuses(admin: any, limit = 50) {
       if (state && (state.status !== row.sdi_status || patch.status !== row.status)) result.updated += 1
     } catch (error) {
       result.errors.push(`${row.id}: ${error instanceof Error ? error.message : String(error)}`)
+      if (error instanceof ArubaError && error.rateLimited) {
+        result.rate_limited = true
+        break
+      }
     }
   }
   return result

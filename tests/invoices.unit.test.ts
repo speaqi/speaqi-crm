@@ -212,7 +212,28 @@ describe('invoices', () => {
     assert.equal(fake.tables.invoices[0].sdi_status, 'Consegnata')
   })
 
+  it('stato SDI: al primo 429 si ferma, e non rilegge una fattura appena controllata', async () => {
+    const fake = db()
+    for (const id of ['a', 'b', 'c']) {
+      fake.tables.invoices.push({ id, user_id: OWNER, status: 'sent', aruba_filename: `f-${id}`, aruba_env: 'demo', sent_at: new Date().toISOString(), last_synced_at: null })
+    }
+    fake.tables.invoices.push({ id: 'd', user_id: OWNER, status: 'sent', aruba_filename: 'f-d', aruba_env: 'demo', sent_at: new Date().toISOString(), last_synced_at: new Date().toISOString() })
+    let lookups = 0
+    globalThis.fetch = (async (url: string) => {
+      if (String(url).endsWith('/auth/signin')) return Response.json({ access_token: 'tok', expires_in: 1800 })
+      lookups += 1
+      return new Response('', { status: 429 })
+    }) as typeof fetch
+    const result = await syncInvoiceStatuses(fake as any, 8, 0)
+    assert.equal(result.rate_limited, true)
+    assert.equal(lookups, 1)
+    assert.equal(result.checked, 1)
+  })
+
   it('stati Aruba -> stati del CRM', () => {
+    assert.equal(mapArubaStatus('Recapito impossibile'), 'not_delivered')
+    assert.equal(mapArubaStatus('Presa in carico'), 'sent')
+    assert.equal(mapArubaStatus('Errore elaborazione'), 'error')
     assert.equal(mapArubaStatus('Scartata'), 'rejected')
     assert.equal(mapArubaStatus('Consegnata'), 'delivered')
     assert.equal(mapArubaStatus('Non consegnata'), 'not_delivered')

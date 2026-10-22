@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
   if (!validateAutomationSecret(request)) return Response.json({ error: 'Unauthorized' }, { status: 401 })
   try {
     const body = await request.json().catch(() => ({}))
-    const limit = Math.min(200, Math.max(1, Number(body.limit) || 50))
+    const limit = Math.min(15, Math.max(1, Number(body.limit) || 8))
     const result = await syncInvoiceStatuses(createServiceRoleClient(), limit)
     return Response.json(result)
   } catch (error) {
