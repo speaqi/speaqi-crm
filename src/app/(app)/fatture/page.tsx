@@ -126,6 +126,14 @@ export default function FatturePage() {
     if (data && !data.settings_saved) setTab('dati')
   }, [data])
 
+  // Arrivando da «Genera fattura» nel preventivo (?invoice=<id>) la bozza si apre da sola.
+  useEffect(() => {
+    const invoiceId = new URLSearchParams(window.location.search).get('invoice')
+    if (!invoiceId || !data?.invoices.some((invoice) => invoice.id === invoiceId)) return
+    setOpenId(invoiceId)
+    window.history.replaceState(null, '', '/fatture')
+  }, [data])
+
   async function prepare(quote: QuoteToInvoice) {
     setBusy(quote.id)
     try {
