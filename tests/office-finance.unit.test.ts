@@ -112,6 +112,7 @@ test('tutti gli esiti SDI e i solleciti Stripe restano senza chiamate Aruba o in
   try {
     await financeHandler(db, () => new Date('2026-11-02T08:30:00Z'))(ctx)
     const report = db.tables.office_agent_outputs.find((row) => row.kind === 'report')
+    assert.ok(report)
     assert.equal(report.body.esiti_sdi.length, 2)
     assert.match(report.body.esiti_sdi[0].explanation, /CAP non valido/)
     assert.equal(db.tables.email_drafts.length, 1)
