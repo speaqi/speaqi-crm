@@ -1,3 +1,4 @@
+import { officeAgentHandler } from '../src/lib/server/office-agents/registry'
 /**
  * Pianificatore delle automazioni (ex n8n): gli orari devono essere quelli di
  * prima, nel fuso italiano anche dopo il cambio dell'ora, e un job non deve
@@ -27,7 +28,11 @@ describe('orari', () => {
       assert.ok(!seen.has(job.name), `nome doppio: ${job.name}`)
       seen.add(job.name)
       assert.ok(job.steps.length > 0)
-      for (const step of job.steps) assert.match(step.path, /^\/api\/automation\/[a-z-]+$/)
+      for (const step of job.steps) {
+        const agent = /^\/api\/automation\/agents\/([a-z_]+)\/run$/.exec(step.path)
+        if (agent) assert.ok(officeAgentHandler(agent[1]), `Agente pianificato non installato: ${agent[1]}`)
+        else assert.match(step.path, /^\/api\/automation\/[a-z-]+$/)
+      }
     }
   })
 

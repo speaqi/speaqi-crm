@@ -802,8 +802,9 @@ migration `commercial_*`. `tests/db.sh stop` lo spegne.
 - API macchina: `POST /api/automation/agents/[id]/run`, con `AUTOMATION_SECRET`;
   workspace solo da `AUTOMATION_WORKSPACE_USER_ID`, mai dal corpo. Chiave di
   idempotenza dall'header oppure dal minuto UTC del pianificatore.
-- Il registro `src/lib/server/office-agents/registry.ts` e' **vuoto**: nessun agente
-  dei prompt 1–12 viene implementato, creato o acceso in questa fase. Gli agenti
+- Al termine del Prompt 0 il registro `src/lib/server/office-agents/registry.ts`
+  era vuoto. I prompt successivi aggiungono soltanto gli handler documentati nelle
+  sezioni seguenti, senza accenderli. Gli agenti
   futuri nascono `enabled=false`; installarli richiede un handler nel registro,
   una riga di configurazione e una riga in `AUTOMATION_JOBS` col percorso di run.
 - Tenuta corse **90 giorni**: job `office-maintenance` alle 03:15 italiane,
@@ -820,3 +821,35 @@ migration `commercial_*`. `tests/db.sh stop` lo spegne.
 `npm run test:office:ui` verifica la pagina buildata con API simulate (desktop e telefono);
 `OFFICE_TEST_URL`, `OFFICE_TEST_OUTPUT` e `CHROMIUM_PATH` scelgono server, screenshot e browser.
 Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script locale.
+
+### Agente 11 — Finanza
+
+- Handler `office-agents/finance.ts`, regole pure in `lib/office/finance.ts`.
+  Job `office-finance` ogni giorno alle 08:30 nel fuso del pianificatore.
+- Registrazione idempotente da `OFFICE_AGENT_DEFINITIONS`, soltanto per
+  `AUTOMATION_WORKSPACE_USER_ID`, quando il titolare apre `/ufficio` o si chiama
+  una corsa. Nasce **spento**, budget 20 cent/giorno, 140/settimana, 620/mese;
+  leggere il registro non riscrive mai interruttori o budget già salvati.
+- Prepara le fatture dei preventivi pagati con `createInvoiceDraftFromQuote`,
+  elenca problemi con `invoiceProblems`, propone dati fiscali già presenti
+  nel contatto e spiega gli esiti SDI registrati. Non prenota numeri e non chiama
+  upload, autenticazione o sincronizzazione Aruba.
+- Solleciti per `past_due` e bonifici accettati non pagati oltre 15 giorni:
+  solo righe `email_drafts` in attesa. Migration additiva
+  `20261022170450_office_finance.sql`: `office_agent_id`, `office_key`,
+  `office_note` e RPC `create_office_email_draft` riservata al service role.
+  Il lock sul contatto e la chiave persistente evitano doppioni; una bozza già
+  in attesa blocca una seconda bozza. Il vincolo impone `source='office'`,
+  incompatibile con il motore automatico che accetta solo `source='auto'`.
+  La nota del motivo è visibile in `/email` e il sollecito in «Aspetta te».
+- Report giornaliero con fonti e proposte; il primo giorno italiano del mese,
+  report del mese precedente con importi IVA compresa in centesimi, scostamento
+  fra incassato registrato e fatturato e rinnovi previsti nel mese corrente.
+  I rinnovi Stripe usano la data di registrazione della bozza: il limite è
+  dichiarato nel report, insieme agli id delle fonti. Non è una riconciliazione
+  bancaria e non stima ricavi per utente/contatto o MRR da dati incompleti.
+- Nessuna chiamata a un modello è necessaria: il budget resta disponibile.
+  Nessuna nuova env. Le migration si consegnano, non si applicano a DB operativi.
+- Test: `office-finance.unit.test.ts` (mese nel fuso italiano, fonti, esclusioni,
+  bozze/report idempotenti, nessuna rete Aruba), `office-finance.db.test.ts`
+  (migration e RPC su database PGlite usa-e-getta, vincoli e permessi).
