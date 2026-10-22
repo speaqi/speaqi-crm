@@ -338,19 +338,20 @@ export async function requireRouteUser(request: NextRequest) {
     if (fromMeta) memberName = fromMeta
   }
 
-  // Query separata e tollerante: se la colonna non esiste ancora (migrazione non
-  // applicata) il collaboratore ricade sui default, senza 500 e senza diventare admin.
+  // Il JWT del membro può leggere la propria riga dopo la migrazione collaborator_read.
+  // La lettura delle aree non dipende dalla disponibilità della service role.
+  // Se la colonna non esiste ancora, il membro ricade sui default senza diventare admin.
   let allowedAreasRaw: unknown = null
   if (!isAdmin && memberId) {
     try {
-      const { data } = await createServiceRoleClient()
+      const { data } = await userSb
         .from('team_members')
         .select('allowed_areas')
         .eq('id', memberId)
         .maybeSingle()
       allowedAreasRaw = data?.allowed_areas ?? null
     } catch {
-      // No service role key: keep defaults.
+      // Lettura della propria riga non disponibile: conserva i default.
     }
   }
   const allowedAreas = resolveAllowedAreas(allowedAreasRaw, isAdmin)

@@ -47,6 +47,7 @@ const NAV_GROUPS: { label: string; adminOnly?: boolean; items: NavItem[] }[] = [
     items: [
       { href: '/dashboard', label: 'Oggi', icon: '🏠', badgeKey: 'oggi', badgeRed: true },
       { href: '/todo', label: 'To Do', icon: '✅', badgeKey: 'todo', badgeRed: true },
+      { href: '/tourism-lavoro', label: 'Turismo · Il mio lavoro', icon: '◎' },
       { href: '/kanban', label: 'Pipeline', icon: '🔀', badgeKey: 'kanban' },
       { href: '/contacts', label: 'Contatti', icon: '👥', badgeKey: 'contacts' },
       { href: '/calendario', label: 'Follow-up', icon: '📅', badgeKey: 'tasks', badgeRed: true },

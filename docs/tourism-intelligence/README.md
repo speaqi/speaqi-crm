@@ -1,5 +1,7 @@
 # Global Tourism Intelligence — MVP e attivazione
 
+Sviluppo locale del 21 ottobre 2026: [Turismo operativo, assegnazioni e permessi](./WORKSPACE.md). Nuova area `/tourism-lavoro` predisposta per il team; attivazione e verifiche database/browser ancora da completare. Le indicazioni owner-only sotto riguardano il catalogo `/tourism`.
+
 Area applicativa: `/tourism`, visibile al proprietario del workspace nella sidebar del CRM. Il modulo vive nel CRM esistente e non crea una nuova applicazione o un nuovo servizio di produzione.
 
 Aggiornamento 18 ottobre 2026: [ricerca dei siti di destinazione, campione reale, pianificazione e costi](./SITE-RESEARCH.md). Il nuovo registro contiene 652 siti e il campione ha estratto 12 schede geolocalizzate; i conteggi delle acquisizioni precedenti restano snapshot storici.
