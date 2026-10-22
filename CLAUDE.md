@@ -404,6 +404,7 @@ Each stage has a `system_key` and `color`. Closed statuses: `closed`, `paid`, `l
   - **Ambiente demo**: indirizzi `demoauth.`/`demows.fatturazioneelettronica.aruba.it`, ma serve un accreditamento apposito: le credenziali di produzione lì non valgono
   - **Bozza dal preventivo**: alternative non scelte escluse, sconto come riga negativa, «P.IVA / CF» del preventivo riconosciuto dalla forma, provincia letta da «Sorrento (NA)». Un rinnovo con importo diverso dal preventivo diventa una riga netta dall'incasso. Preventivi con acconto e saldo: la bozza fattura l'intero, e lo dice
   - Test: `tests/fatturapa.unit.test.ts`, `tests/invoices.unit.test.ts` (giro completo con Aruba finto). Endpoint, campi e stati controllati sulla documentazione API di Aruba (v1, `apidoc/docs.html`); **non ancora chiamati con credenziali vere**: prima fattura di prova in demo (o, senza accreditamento demo, una fattura reale controllata a mano)
+- **Genera fattura dal preventivo**: sulla scheda di un preventivo pagato o accettato, solo per il titolare, «🧾 Genera fattura» chiama `POST /api/invoices` (idempotente: un preventivo già fatturato ritrova la sua fattura) e apre `/fatture?invoice=<id>` con la bozza aperta. Non invia nulla: l'invio allo SDI si conferma in Fatture
 - **Firma in presenza dal CRM**: sulla scheda di un abbonamento non firmato, «Firma in presenza» chiede a `send-acceptance-email` il link con `link_only: true` e lo apre senza mandare email. Rigenera il token: un link inviato prima smette di valere
 
 ## Collaborator / Workspace Access

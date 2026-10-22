@@ -208,7 +208,7 @@ function contactMatchesSearch(contact: CRMContact, query: string) {
 }
 
 export default function PreventiviPage() {
-  const { contacts, showToast, teamMembers } = useCRMContext()
+  const { contacts, showToast, teamMembers, isAdmin } = useCRMContext()
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [draft, setDraft] = useState<QuoteDraft>(() => blankDraft())
   const [contactMenuOpen, setContactMenuOpen] = useState(false)
@@ -225,6 +225,7 @@ export default function PreventiviPage() {
   const [listOpen, setListOpen] = useState(false)
   const [signatureView, setSignatureView] = useState<{ quote: Quote; signature: QuoteSignature | null } | null>(null)
   const [signingLinkQuoteId, setSigningLinkQuoteId] = useState<string | null>(null)
+  const [invoicingQuoteId, setInvoicingQuoteId] = useState<string | null>(null)
   // Arrivando da Speaqi Agency (?agency_project=…) il preventivo nasce collegato all'opportunità.
   const [agencyProject, setAgencyProject] = useState<{ id: string; title: string; client_name: string } | null>(null)
   const [tourismDeck, setTourismDeck] = useState<{ id: string; title: string; client_name: string } | null>(null)
@@ -723,6 +724,24 @@ export default function PreventiviPage() {
     } catch (signatureError) {
       setSignatureView(null)
       showToast(signatureError instanceof Error ? signatureError.message : 'Firma non disponibile')
+    }
+  }
+
+  // Genera fattura: prepara la bozza (o ritrova quella che c'e' gia') e la apre in Fatture.
+  // L'invio allo SDI resta in Fatture, dopo il controllo: qui non parte niente.
+  async function generateInvoice(quote: Quote) {
+    setInvoicingQuoteId(quote.id)
+    try {
+      const response = await apiFetch<{ invoice: { id: string }; created: boolean }>('/api/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quote_id: quote.id }),
+      })
+      showToast(response.created ? 'Fattura in bozza: controllala e inviala' : 'La fattura di questo preventivo esiste già')
+      window.location.href = `/fatture?invoice=${response.invoice.id}`
+    } catch (invoiceError) {
+      showToast(invoiceError instanceof Error ? invoiceError.message : 'Impossibile preparare la fattura')
+      setInvoicingQuoteId(null)
     }
   }
 
@@ -1448,6 +1467,17 @@ export default function PreventiviPage() {
                         title="Apre la firma su questo dispositivo, senza email: il link inviato prima smette di valere"
                       >
                         {signingLinkQuoteId === quote.id ? 'Apertura…' : 'Firma in presenza'}
+                      </button>
+                    )}
+                    {isAdmin && (quote.status === 'paid' || quote.status === 'accepted' || quote.payment_state === 'paid') && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => generateInvoice(quote)}
+                        disabled={invoicingQuoteId === quote.id}
+                        title="Prepara la fattura elettronica in bozza e la apre in Fatture: l'invio allo SDI si conferma lì"
+                      >
+                        {invoicingQuoteId === quote.id ? 'Preparazione…' : '🧾 Genera fattura'}
                       </button>
                     )}
                     <Link className="btn btn-primary btn-sm" href={url} target="_blank">
