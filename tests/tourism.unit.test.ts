@@ -8,7 +8,8 @@ import {
   opportunityScore,
   exportCsv,
   type Evidence,
-  type TourismEntity
+  type TourismEntity,
+  tourismSearchFilter
 } from '../src/lib/tourism'
 import {
   parseDiscoveryResponse,
@@ -216,4 +217,16 @@ test('provider transport uses web search, source inclusion and a bounded request
     if (previous === undefined) delete process.env.OPENAI_API_KEY
     else process.env.OPENAI_API_KEY = previous
   }
+})
+
+test('la ricerca trova anche un pezzo di parola, senza rompere il filtro', () => {
+  assert.equal(
+    tourismSearchFilter('Cremona'),
+    'name_key.ilike.*cremona*,website.ilike.*cremona*,search_document.wfts(simple).cremona'
+  )
+  assert.equal(
+    tourismSearchFilter('Comune di Cremona, (CR)'),
+    'name_key.ilike.*comune*di*cremona*cr*,website.ilike.*comunedicremonacr*,search_document.wfts(simple).comune di cremona cr'
+  )
+  assert.equal(tourismSearchFilter('  ,() '), null)
 })

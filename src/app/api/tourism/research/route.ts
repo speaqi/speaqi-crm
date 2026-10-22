@@ -13,6 +13,7 @@ import {
 } from '@/lib/tourism'
 import { runSiteResearch, poiGeoJson } from '@/lib/server/tourism-research'
 import { createLeadTask } from '@/lib/server/ai-ready'
+import { tourismResearchEnabled } from '@/lib/server/tourism-research-scheduler'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
         ...checked(await sb.rpc('tourism_research_overview')).data,
         worker_available:
           Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY) &&
-          process.env.TOURISM_RESEARCH_ENABLED !== 'false'
+          tourismResearchEnabled()
       })
     }
     if (p.get('source_id')) {

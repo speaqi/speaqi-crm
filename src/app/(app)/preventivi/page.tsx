@@ -5,6 +5,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 're
 import { Modal } from '@/components/ui/Modal'
 import { apiFetch } from '@/lib/api'
 import { DEFAULT_BANK_TRANSFER_INSTRUCTIONS, DEFAULT_CONTRACT_TERMS } from '@/lib/quote-defaults'
+import { defaultQuoteTemplate, quoteCompletionIssues } from '@/lib/commercial-proposal'
 import {
   SPEAQI_PACKAGES,
   SUBSCRIPTION_PAYMENT_TERMS,
@@ -207,7 +208,7 @@ function contactMatchesSearch(contact: CRMContact, query: string) {
 }
 
 export default function PreventiviPage() {
-  const { contacts, showToast, teamMembers } = useCRMContext()
+  const { contacts, showToast, teamMembers, isAdmin } = useCRMContext()
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [draft, setDraft] = useState<QuoteDraft>(() => blankDraft())
   const [contactMenuOpen, setContactMenuOpen] = useState(false)
@@ -224,6 +225,13 @@ export default function PreventiviPage() {
   const [listOpen, setListOpen] = useState(false)
   const [signatureView, setSignatureView] = useState<{ quote: Quote; signature: QuoteSignature | null } | null>(null)
   const [signingLinkQuoteId, setSigningLinkQuoteId] = useState<string | null>(null)
+  const [invoicingQuoteId, setInvoicingQuoteId] = useState<string | null>(null)
+  // Arrivando da Speaqi Agency (?agency_project=…) il preventivo nasce collegato all'opportunità.
+  const [agencyProject, setAgencyProject] = useState<{ id: string; title: string; client_name: string } | null>(null)
+  const [tourismDeck, setTourismDeck] = useState<{ id: string; title: string; client_name: string } | null>(null)
+  const [contextLoading, setContextLoading] = useState(false)
+  const [contextFailure, setContextFailure] = useState('')
+  const urlIntent = useRef<{ edit: string | null; agency: string | null } | null>(null)
 
   useEffect(() => {
     setOrigin(window.location.origin)
@@ -238,6 +246,7 @@ export default function PreventiviPage() {
 
   const memberNames = useMemo(() => new Map(teamMembers.map((member) => [member.id, member.name])), [teamMembers])
   const isSubscriptionDraft = draft.billing_interval === 'year'
+  const contractLocked = Boolean(editingId && quotes.find(q => q.id === editingId)?.contract_accepted_at)
 
   useEffect(() => {
     let mounted = true
@@ -260,6 +269,57 @@ export default function PreventiviPage() {
       mounted = false
     }
   }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    urlIntent.current = { edit: params.get('edit'), agency: params.get('agency_project') }
+    const agencyId = urlIntent.current.agency
+    const tourismId = params.get('tourism_deck')
+    // Letto subito: l'effetto di ?edit= svuota l'intento appena apre il preventivo.
+    const opensQuote = Boolean(urlIntent.current.edit)
+    if (opensQuote) return
+    if (!agencyId && !tourismId) return
+    const type = agencyId ? 'agency' : 'tourism'
+    const id = agencyId || tourismId
+    let mounted = true
+    setContextLoading(true)
+    apiFetch<{ id: string; title: string; client_name: string; contact_id: string | null; draft: Partial<QuoteDraft> }>(`/api/proposal-quote-context?type=${type}&id=${encodeURIComponent(id || '')}`)
+      .then(async (context) => {
+        if (!mounted) return
+        if (type === 'agency') setAgencyProject(context)
+        else setTourismDeck(context)
+        let contact: CRMContact | null = null
+        if (context.contact_id) {
+          const result = await apiFetch<{ contact: CRMContact }>(`/api/contacts/${context.contact_id}`)
+          contact = result.contact
+        }
+        if (!mounted) return
+        setContactQuery(contact ? contactLabel(contact) : '')
+        setDraft(previous => ({
+          ...previous, ...context.draft,
+          contact_id: context.contact_id || '',
+          customer_name: contact?.name || context.client_name,
+          customer_email: contact?.email || '',
+          customer_company: contact?.company || context.client_name,
+          customer_tax_id: contact?.billing_tax_id || '',
+          customer_pec: contact?.billing_pec || '', customer_sdi: contact?.billing_sdi || '',
+          customer_address: contact?.billing_address || '', customer_zip: contact?.billing_zip || '', customer_city: contact?.billing_city || '',
+        }))
+      })
+      .catch(err => { if (mounted) setContextFailure(err instanceof Error ? err.message : 'Modello non disponibile') })
+      .finally(() => { if (mounted) setContextLoading(false) })
+    return () => { mounted = false }
+  }, [])
+
+  // ?edit=<id> apre quel preventivo nel costruttore (link da Speaqi Agency).
+  useEffect(() => {
+    const editId = urlIntent.current?.edit
+    if (!editId || loading) return
+    const target = quotes.find((quote) => quote.id === editId)
+    urlIntent.current = { edit: null, agency: urlIntent.current?.agency || null }
+    if (target) editQuote(target)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, quotes])
 
   const activeQuotes = useMemo(
     () => quotes.filter((quote) => quote.status !== 'cancelled'),
@@ -541,6 +601,8 @@ export default function PreventiviPage() {
     setContactMenuOpen(false)
     setQrBottleCount(1)
     setDraft(blankDraft())
+    setAgencyProject(null)
+    setTourismDeck(null)
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -553,8 +615,22 @@ export default function PreventiviPage() {
       const response = await apiFetch<{ quote: Quote }>(endpoint, {
         method: editingId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(draft),
+        body: JSON.stringify(
+          { ...draft, ...(!editingId && agencyProject ? { agency_project_id: agencyProject.id } : {}), ...(!editingId && tourismDeck ? { tourism_deck_id: tourismDeck.id } : {}) }
+        ),
       })
+
+      if (!editingId && tourismDeck) {
+        showToast('Preventivo e contratto collegati alla presentazione Tourism')
+        window.location.assign(`/tourism/presentazioni/${tourismDeck.id}`)
+        return
+      }
+
+      if (!editingId && agencyProject) {
+        showToast('Preventivo creato e collegato all’opportunità Agency')
+        window.location.assign(`/agency/${agencyProject.id}`)
+        return
+      }
 
       // Il preventivo appena creato o aggiornato deve restare subito visibile in cima.
       // Non riordiniamo per data qui: timestamp identici o assenti possono rimetterlo in fondo.
@@ -648,6 +724,24 @@ export default function PreventiviPage() {
     } catch (signatureError) {
       setSignatureView(null)
       showToast(signatureError instanceof Error ? signatureError.message : 'Firma non disponibile')
+    }
+  }
+
+  // Genera fattura: prepara la bozza (o ritrova quella che c'e' gia') e la apre in Fatture.
+  // L'invio allo SDI resta in Fatture, dopo il controllo: qui non parte niente.
+  async function generateInvoice(quote: Quote) {
+    setInvoicingQuoteId(quote.id)
+    try {
+      const response = await apiFetch<{ invoice: { id: string }; created: boolean }>('/api/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quote_id: quote.id }),
+      })
+      showToast(response.created ? 'Fattura in bozza: controllala e inviala' : 'La fattura di questo preventivo esiste già')
+      window.location.href = `/fatture?invoice=${response.invoice.id}`
+    } catch (invoiceError) {
+      showToast(invoiceError instanceof Error ? invoiceError.message : 'Impossibile preparare la fattura')
+      setInvoicingQuoteId(null)
     }
   }
 
@@ -748,6 +842,21 @@ export default function PreventiviPage() {
         </div>
       </div>
 
+      {agencyProject && !editingId && (
+        <div className="quotes-agency-banner" role="status" style={{ margin: '0 0 14px', padding: '10px 14px', borderRadius: 10, background: '#fff1ec', color: '#9a3412', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <strong>Speaqi Agency</strong>
+          <span>Il preventivo nasce collegato a “{agencyProject.title}” ({agencyProject.client_name}): la presentazione mostrerà queste cifre.</span>
+          <a href={`/agency/${agencyProject.id}`} style={{ color: 'inherit', fontWeight: 600 }}>← Torna all’opportunità</a>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setAgencyProject(null)}>Non collegare</button>
+        </div>
+      )}
+
+      {tourismDeck && !editingId && <div className="quotes-agency-banner" role="status" style={{ padding: 14 }}>
+        <strong>Speaqi Tourism</strong> · {tourismDeck.title}. Preventivo e contratto verranno collegati a questa presentazione.
+        <Link href={`/tourism/presentazioni/${tourismDeck.id}`}> Torna alla presentazione</Link>
+      </div>}
+      {contextLoading && <p role="status">Preparo il preventivo e il contratto dal modello…</p>}
+      {contextFailure && <p className="inline-error" role="alert">{contextFailure}. Riapri il preventivo dalla proposta per riprovare.</p>}
       {error && <div className="inline-error quotes-inline-error">{error}</div>}
 
       <div className={`quotes-layout${listOpen ? ' is-list-open' : ''}`}>
@@ -764,6 +873,13 @@ export default function PreventiviPage() {
             )}
           </div>
 
+          <details style={{ margin: '12px 0' }}>
+            <summary>Basi contrattuali Agency e Tourism</summary>
+            <p>Il modello si carica automaticamente dalla proposta. Per un preventivo manuale puoi scegliere qui la base e poi completarla.</p>
+            {(['agency', 'tourism'] as const).map(type => <button key={type} type="button" className="btn btn-ghost btn-sm" disabled={contractLocked} onClick={() => {
+              if (confirm('Sostituire il testo contrattuale con la base scelta? Le voci restano quelle attuali.')) patchDraft({ contract_terms: defaultQuoteTemplate(type).contract_terms, status: 'draft' })
+            }}>Base {type === 'agency' ? 'Speaqi Agency' : 'Tourism'}</button>)}
+          </details>
           <div className="quotes-preset-row">
             {PACKAGE_KEYS.map((key) => {
               const p = SPEAQI_PACKAGES[key]
@@ -1206,6 +1322,12 @@ export default function PreventiviPage() {
             />
           </label>
 
+          <label className="fg">
+            <span className="fl">Contratto abbinato al preventivo</span>
+            <textarea className="fi" rows={14} maxLength={30000} value={draft.contract_terms || ''} readOnly={contractLocked} onChange={event => patchDraft({ contract_terms: event.target.value })} />
+            <small>{contractLocked ? 'Contratto già accettato. Duplica il preventivo per proporre nuove condizioni.' : 'Il cliente accetta questo testo insieme al preventivo. Le modifiche valgono solo per questa offerta.'}</small>
+          </label>
+          {quoteCompletionIssues(draft).map(issue => <p key={issue} className="inline-error" role="status">{issue} Puoi salvare in stato Bozza.</p>)}
           <div className="quotes-summary-strip">
             <span>Subtotale {formatMoney(totals.subtotal)}</span>
             <span>IVA {formatMoney(totals.tax)}</span>
@@ -1224,7 +1346,7 @@ export default function PreventiviPage() {
             )}
           </div>
 
-          <button className="btn btn-primary quotes-submit" disabled={saving} type="submit">
+          <button className="btn btn-primary quotes-submit" disabled={saving || contextLoading || Boolean(contextFailure)} type="submit">
             {saving ? 'Salvataggio…' : editingId ? 'Aggiorna preventivo' : 'Genera preventivo'}
           </button>
         </form>
@@ -1345,6 +1467,17 @@ export default function PreventiviPage() {
                         title="Apre la firma su questo dispositivo, senza email: il link inviato prima smette di valere"
                       >
                         {signingLinkQuoteId === quote.id ? 'Apertura…' : 'Firma in presenza'}
+                      </button>
+                    )}
+                    {isAdmin && (quote.status === 'paid' || quote.status === 'accepted' || quote.payment_state === 'paid') && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => generateInvoice(quote)}
+                        disabled={invoicingQuoteId === quote.id}
+                        title="Prepara la fattura elettronica in bozza e la apre in Fatture: l'invio allo SDI si conferma lì"
+                      >
+                        {invoicingQuoteId === quote.id ? 'Preparazione…' : '🧾 Genera fattura'}
                       </button>
                     )}
                     <Link className="btn btn-primary btn-sm" href={url} target="_blank">

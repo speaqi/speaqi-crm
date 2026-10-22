@@ -1,4 +1,5 @@
 import { createActivities } from '@/lib/server/crm'
+import { defaultQuoteTemplate, quoteCompletionIssues } from '@/lib/commercial-proposal'
 import { getOpenDeal } from '@/lib/server/deal-ops'
 import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import {
@@ -188,6 +189,8 @@ export async function fetchQuoteById(supabase: any, userId: string, id: string) 
 
 
 export type CreateQuoteExtra = {
+  agencyProjectId?: string | null
+  tourismDeckId?: string | null
   salesTeamMemberId?: string | null
   acceptanceToken?: string | null
   acceptanceEmail?: string | null
@@ -220,6 +223,9 @@ export async function createQuoteRecord(
     depositManualAmount: normalizeNumber(body.deposit_manual_amount, 0),
   })
   const status = normalizeStatus(body.status, 'sent')
+  const contractTerms = normalizeText(body.contract_terms) || (extra.agencyProjectId ? defaultQuoteTemplate('agency').contract_terms : extra.tourismDeckId ? defaultQuoteTemplate('tourism').contract_terms : DEFAULT_CONTRACT_TERMS)
+  const issues = quoteCompletionIssues({ contract_terms: contractTerms, items: body.items, payment_terms_note: body.payment_terms_note, public_note: body.public_note })
+  if (status !== 'draft' && status !== 'cancelled' && issues.length) throw new QuoteInputError(issues[0])
   const now = new Date().toISOString()
 
   const insertPayload: Record<string, unknown> = {
@@ -247,7 +253,7 @@ export async function createQuoteRecord(
     bank_transfer_instructions:
       normalizeText(body.bank_transfer_instructions) || DEFAULT_BANK_TRANSFER_INSTRUCTIONS,
     contract_auto_accepted: false,
-    contract_terms: normalizeText(body.contract_terms) || DEFAULT_CONTRACT_TERMS,
+    contract_terms: contractTerms,
     contract_accepted_at: null,
     valid_until: normalizeText(body.valid_until),
     public_note: normalizeText(body.public_note),
@@ -260,6 +266,8 @@ export async function createQuoteRecord(
   // Solo quando serve: un preventivo una tantum non deve dipendere dalla
   // migration dell'abbonamento per poter essere creato.
   if (body.billing_interval === 'year') insertPayload.billing_interval = 'year'
+  if (extra.agencyProjectId) insertPayload.agency_project_id = extra.agencyProjectId
+  if (extra.tourismDeckId) insertPayload.tourism_deck_id = extra.tourismDeckId
   if (extra.salesTeamMemberId) insertPayload.sales_team_member_id = extra.salesTeamMemberId
   if (extra.acceptanceToken) {
     insertPayload.quote_acceptance_token = extra.acceptanceToken

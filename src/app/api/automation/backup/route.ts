@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 import { errorMessage } from '@/lib/server/http'
-import { runDatabaseBackup } from '@/lib/server/backup'
+import { backupDegraded, runDatabaseBackup } from '@/lib/server/backup'
 import { validateAutomationSecret } from '@/lib/server/automation-auth'
 
 // Il dump viene costruito in memoria: niente cache, niente prerender.
@@ -23,12 +23,12 @@ export async function POST(request: NextRequest) {
       sendEmail: body.send_email === false ? false : undefined,
     })
 
-    // Storage o email falliti non sono un successo: n8n deve poterlo vedere.
-    const degraded =
-      result.storage !== 'ok' ||
-      !['ok', 'not_configured', 'disabled'].includes(result.email)
+    // Storage, R2 o email falliti, o nessuna copia fuori da Supabase, non sono un successo.
+    const degraded = backupDegraded(result)
 
-    return Response.json({ ok: !degraded, ...result }, { status: degraded ? 500 : 200 })
+    // r2 subito dopo ok: e' la riga che si cerca, e la risposta e lunga (una voce per tabella).
+    const { r2, ...rest } = result
+    return Response.json({ ok: !degraded, r2, ...rest }, { status: degraded ? 500 : 200 })
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Backup non riuscito') }, { status: 500 })
   }

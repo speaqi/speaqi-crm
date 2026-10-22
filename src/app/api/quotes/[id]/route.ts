@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { createActivities } from '@/lib/server/crm'
 import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { errorMessage } from '@/lib/server/http'
+import { defaultQuoteTemplate, quoteCompletionIssues } from '@/lib/commercial-proposal'
 import { applyQuotePaidToContact } from '@/lib/server/quote-payments'
 import {
   DEFAULT_BANK_TRANSFER_INSTRUCTIONS,
@@ -276,6 +277,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     })
 
     const nextStatus = normalizeStatus(body.status, current.status)
+    const contractTerms = body.contract_terms !== undefined
+      ? normalizeText(body.contract_terms) || (current.agency_project_id ? defaultQuoteTemplate('agency').contract_terms : current.tourism_deck_id ? defaultQuoteTemplate('tourism').contract_terms : DEFAULT_CONTRACT_TERMS)
+      : current.contract_terms
+    if (current.contract_accepted_at && contractTerms !== current.contract_terms) {
+      return Response.json({ error: 'Il contratto è già stato accettato. Duplica il preventivo per proporre nuove condizioni.' }, { status: 409 })
+    }
+    const issues = quoteCompletionIssues({ ...current, ...body, contract_terms: contractTerms })
+    if (nextStatus !== 'draft' && nextStatus !== 'cancelled' && issues.length) return Response.json({ error: issues[0] }, { status: 400 })
     const now = new Date().toISOString()
     const updatePayload: Record<string, unknown> = {
       contact_id: nextContactId,
@@ -356,10 +365,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         body.bank_transfer_instructions !== undefined
           ? normalizeText(body.bank_transfer_instructions) || DEFAULT_BANK_TRANSFER_INSTRUCTIONS
           : current.bank_transfer_instructions,
-      contract_terms:
-        body.contract_terms !== undefined
-          ? normalizeText(body.contract_terms) || DEFAULT_CONTRACT_TERMS
-          : current.contract_terms,
+      contract_terms: contractTerms,
       valid_until: body.valid_until !== undefined ? normalizeText(body.valid_until) : current.valid_until,
       public_note: body.public_note !== undefined ? normalizeText(body.public_note) : current.public_note,
       internal_note: body.internal_note !== undefined ? normalizeText(body.internal_note) : current.internal_note,

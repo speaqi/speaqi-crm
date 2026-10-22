@@ -7,6 +7,7 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import {
   AUTOMATION_JOBS,
+  selectAutomationJobs,
   dueJobs,
   localTime,
   parseCron,
@@ -170,5 +171,20 @@ describe('corse', () => {
     assert.deepEqual(second, { skipped: 'running' })
     release()
     await first
+  })
+})
+
+describe('selectAutomationJobs', () => {
+  test('senza lista girano tutti i job', () => {
+    assert.equal(selectAutomationJobs(AUTOMATION_JOBS, undefined).length, AUTOMATION_JOBS.length)
+    assert.equal(selectAutomationJobs(AUTOMATION_JOBS, ' , ').length, AUTOMATION_JOBS.length)
+  })
+  test('con la lista gira solo il backup, senza invii', () => {
+    const jobs = selectAutomationJobs(AUTOMATION_JOBS, 'backup')
+    assert.deepEqual(jobs.map((job) => job.name), ['backup'])
+  })
+  test('un nome che non esiste non attiva altro', () => {
+    assert.equal(selectAutomationJobs(AUTOMATION_JOBS, 'bakup').length, 0)
+    assert.deepEqual(selectAutomationJobs(AUTOMATION_JOBS, 'backup, nonesiste').map((job) => job.name), ['backup'])
   })
 })

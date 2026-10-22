@@ -11,7 +11,8 @@ import {
   normalizeEvidence,
   normalizeRecord,
   parseTourismImport,
-  TourismInputError
+  TourismInputError,
+  tourismSearchFilter
 } from '@/lib/tourism'
 import {
   requireTourismOwner,
@@ -295,12 +296,8 @@ export async function GET(request: NextRequest) {
         throw new TourismInputError('Stato non valido')
       query = query.eq('status', status)
     }
-    const q = (params.get('q') || '').trim().slice(0, 200)
-    if (q)
-      query = query.textSearch('search_document', q, {
-        type: 'websearch',
-        config: 'simple'
-      })
+    const search = tourismSearchFilter(params.get('q') || '')
+    if (search) query = query.or(search)
     const sortParam = params.get('sort')
     // "Da contattare prima": priorità 1, 2, 3, poi il resto, e dentro A–Z.
     if (sortParam === 'outreach')

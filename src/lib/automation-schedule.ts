@@ -94,7 +94,7 @@ export const AUTOMATION_JOBS: ScheduledJob[] = [
     name: 'backup',
     cron: '0 3 * * *',
     description: 'Backup notturno del database',
-    steps: [{ path: '/api/automation/backup', body: { keep: 30 }, timeoutMs: 300_000 }],
+    steps: [{ path: '/api/automation/backup', body: { keep: 7 }, timeoutMs: 300_000 }],
   },
   {
     name: 'score-leads',
@@ -132,9 +132,31 @@ export const AUTOMATION_JOBS: ScheduledJob[] = [
     description: 'Invii holding (solo prova: dry_run)',
     steps: [{ path: '/api/automation/send-batch', body: { limit: 3, min_age_minutes: 60, dry_run: true } }],
   },
+  {
+    name: 'invoices-sdi',
+    cron: '45 7-21 * * *',
+    description: 'Stato SDI delle fatture inviate ad Aruba',
+    steps: [{ path: '/api/automation/invoices-sync', body: { limit: 8 }, timeoutMs: 120_000 }],
+  },
 ]
 
 type CronField = { values: Set<number>; any: boolean }
+/**
+ * Quali job girano. Senza lista vanno tutti; con `AUTOMATION_SCHEDULER_JOBS=backup`
+ * (nomi separati da virgola) gira solo quello, e un nome che non esiste non fa
+ * partire niente di piu'. Serve ad accendere il backup notturno senza accendere
+ * invii, follow-up e sequenze.
+ */
+export function selectAutomationJobs(jobs: ScheduledJob[], raw?: string | null): ScheduledJob[] {
+  const names = new Set(
+    String(raw || '')
+      .split(',')
+      .map((name) => name.trim())
+      .filter(Boolean)
+  )
+  return names.size ? jobs.filter((job) => names.has(job.name)) : jobs
+}
+
 export type ParsedCron = { minute: CronField; hour: CronField; dom: CronField; month: CronField; dow: CronField }
 
 const FIELD_RANGES: Array<[number, number]> = [

@@ -262,3 +262,43 @@ export function normalizePortWorldPatch(body: Record<string, unknown>): { patch:
   }
   return { patch }
 }
+
+/** Stato della superguida di una destinazione, come lo legge Navigazione. */
+export interface DestinationGuide {
+  entity_id: string
+  guide_status: GuideStatus
+  guide_priority: GuidePriority | null
+  guide_notes: string | null
+}
+
+const GUIDE_FIELDS = ['guide_status', 'guide_priority', 'guide_notes'] as const
+
+/**
+ * Dopo il collegamento a una destinazione la superguida vive li': sul porto i
+ * campi sono vuoti. Ogni lettura (pagina, classifica, riquadri, export CSV)
+ * passa da qui, cosi' nessuna mostra i valori vecchi del porto. Un porto
+ * trasferito la cui destinazione non si legge resta "da valutare", mai con la
+ * guida di prima.
+ */
+export function applyDestinationGuides<T extends { destination_id?: string | null; guide_moved_at?: string | null }>(
+  ports: T[],
+  guides: DestinationGuide[]
+): Array<T & { guide_source: 'port' | 'destination' }> {
+  const byId = new Map(guides.map((guide) => [guide.entity_id, guide]))
+  return ports.map((port) => {
+    if (!port.guide_moved_at) return { ...port, guide_source: 'port' as const }
+    const guide = port.destination_id ? byId.get(port.destination_id) : undefined
+    return {
+      ...port,
+      guide_status: guide?.guide_status ?? 'none',
+      guide_priority: guide?.guide_priority ?? null,
+      guide_notes: guide?.guide_notes ?? null,
+      guide_source: 'destination' as const,
+    }
+  })
+}
+
+/** Il PATCH di un porto tocca la superguida? Su un porto trasferito non si puo'. */
+export function patchTouchesGuide(patch: Record<string, unknown>) {
+  return GUIDE_FIELDS.some((field) => field in patch)
+}

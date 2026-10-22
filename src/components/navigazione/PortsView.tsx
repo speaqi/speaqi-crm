@@ -476,8 +476,10 @@ export function PortsView({ ports, companies, reloadPorts, onOpenCompany, showTo
                 <select
                   className={`fi nv-select nv-guide-select is-${guideChoiceOf(port).replace(':', '-')}`}
                   aria-label={`Superguida di ${port.name}`}
+                  // Passata alla destinazione: si legge qui, si cambia da Tourism Intelligence.
+                  title={port.guide_source === 'destination' ? 'Superguida della destinazione: si cambia da Tourism Intelligence' : undefined}
                   value={guideChoiceOf(port)}
-                  disabled={savingGuide === port.id}
+                  disabled={savingGuide === port.id || port.guide_source === 'destination'}
                   onChange={(e) => setGuideChoice(port, e.target.value)}
                 >
                   {GUIDE_CHOICES.map((choice) => (

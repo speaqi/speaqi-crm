@@ -68,7 +68,34 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Contatto non trovato o non assegnato a te' }, { status: 404 })
     }
 
-    const quote = await createQuoteRecord(auth.supabase, auth.workspaceUserId, contact, body)
+    // Arrivando da Speaqi Agency il preventivo si collega all'opportunità: stesso cliente
+    // (o nessuno), stesso workspace. Si controlla prima di creare, per non lasciare mezzi lavori.
+    const agencyProjectId = normalizeText(body.agency_project_id)
+    const tourismDeckId = normalizeText(body.tourism_deck_id)
+    if (agencyProjectId && tourismDeckId) throw new QuoteInputError('Scegli una sola linea commerciale: Agency oppure Tourism')
+    if ((agencyProjectId || tourismDeckId) && (!auth.isAdmin || auth.user.id !== auth.workspaceUserId)) {
+      return Response.json({ error: 'Proposte riservate al proprietario del workspace' }, { status: 403 })
+    }
+    if (agencyProjectId) {
+      const { data: project, error: projectError } = await auth.supabase
+        .from('agency_projects')
+        .select('id, contact_id')
+        .eq('user_id', auth.workspaceUserId)
+        .eq('id', agencyProjectId)
+        .maybeSingle()
+      if (projectError || !project) {
+        return Response.json({ error: 'Opportunità Agency non trovata' }, { status: 404 })
+      }
+      if (project.contact_id && contact?.id && project.contact_id !== contact.id) {
+        return Response.json({ error: 'Il preventivo è per un cliente diverso da quello dell’opportunità' }, { status: 400 })
+      }
+    }
+
+    if (tourismDeckId) {
+      const { data: deck, error } = await auth.supabase.from('tourism_decks').select('id').eq('user_id', auth.workspaceUserId).eq('id', tourismDeckId).maybeSingle()
+      if (error || !deck) return Response.json({ error: 'Presentazione Tourism non trovata' }, { status: 404 })
+    }
+    const quote = await createQuoteRecord(auth.supabase, auth.workspaceUserId, contact, body, { agencyProjectId, tourismDeckId })
     return Response.json({ quote }, { status: 201 })
   } catch (error) {
     if (error instanceof QuoteInputError) {

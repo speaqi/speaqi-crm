@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { applyDestinationGuides, DestinationGuide } from '@/lib/shipping-ports'
 import {
   buildPortIndex,
   CORE_PORTS,
@@ -9,7 +10,7 @@ import {
 } from '@/lib/shipping-itineraries'
 
 export const PORT_COLUMNS =
-  'id, slug, name, country, unlocode, aliases, latitude, longitude, notes, region, subregion, destination, cruise_passengers, passengers_year, cruise_calls, stats_source, is_homeport, guide_status, guide_priority, guide_notes'
+  'id, slug, name, country, unlocode, aliases, latitude, longitude, notes, region, subregion, destination, cruise_passengers, passengers_year, cruise_calls, stats_source, is_homeport, guide_status, guide_priority, guide_notes, destination_id, guide_moved_at'
 
 // I porti di base si scrivono una volta per workspace: dopo la prima riuscita
 // non serve rifare il controllo a ogni richiesta.
@@ -26,11 +27,13 @@ export async function ensureCorePorts(supabase: SupabaseClient, userId: string) 
   const index = buildPortIndex(existing.map((row) => ({ ...row, aliases: row.aliases || [] })))
   const missing = CORE_PORTS
     .filter((port) => !slugs.has(port.slug) && !resolvePort(index, { name: port.name, alt: null }))
-    .map((port) => ({ ...port, user_id: userId }))
+    .map((port) => ({ ...port, user_id: userId, mode: 'sea' }))
   if (missing.length) {
+    // Sulla tabella e non sulla vista shipping_ports: l'upsert vuole il vincolo
+    // unico vero, che dopo l'arrivo di aeroporti e stazioni e' (user_id, mode, slug).
     const inserted = await supabase
-      .from('shipping_ports')
-      .upsert(missing, { onConflict: 'user_id,slug', ignoreDuplicates: true })
+      .from('tourism_hubs')
+      .upsert(missing, { onConflict: 'user_id,mode,slug', ignoreDuplicates: true })
     if (inserted.error) throw inserted.error
   }
   seededWorkspaces.add(userId)
@@ -44,12 +47,31 @@ export async function loadShippingPorts(supabase: SupabaseClient, userId: string
     .eq('user_id', userId)
     .order('name', { ascending: true })
   if (error) throw error
-  return (data || []).map((row: any) => ({
+  const rows = (data || []).map((row: any) => ({
     ...row,
     aliases: row.aliases || [],
     latitude: row.latitude === null ? null : Number(row.latitude),
     longitude: row.longitude === null ? null : Number(row.longitude),
-  }))
+  })) as ShippingPort[]
+  return applyDestinationGuides(rows, await loadDestinationGuides(supabase, userId, rows))
+}
+
+/** Guida delle destinazioni a cui sono passati i porti (solo quelle, non tutte). */
+async function loadDestinationGuides(supabase: SupabaseClient, userId: string, ports: ShippingPort[]) {
+  const ids = [...new Set(ports.filter((port) => port.guide_moved_at && port.destination_id).map((port) => port.destination_id as string))]
+  if (!ids.length) return [] as DestinationGuide[]
+  const guides: DestinationGuide[] = []
+  // A blocchi: un elenco di id troppo lungo non sta in un URL di PostgREST.
+  for (let index = 0; index < ids.length; index += 200) {
+    const { data, error } = await supabase
+      .from('tourism_destinations')
+      .select('entity_id, guide_status, guide_priority, guide_notes')
+      .eq('user_id', userId)
+      .in('entity_id', ids.slice(index, index + 200))
+    if (error) throw error
+    guides.push(...((data || []) as DestinationGuide[]))
+  }
+  return guides
 }
 
 /**

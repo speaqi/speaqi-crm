@@ -20,6 +20,19 @@ export const TOURISM_TYPES = {
   local_office: 'Ufficio turistico',
   network: 'Rete / partnership',
   development_authority: 'Autorità di sviluppo',
+  // Distribuzione: chi vende e chi porta i visitatori.
+  tour_operator: 'Tour operator',
+  wholesaler: 'Wholesaler',
+  travel_agency: 'Rete di agenzie',
+  bedbank: 'Bedbank',
+  experience_marketplace: 'Marketplace esperienze',
+  property_manager: 'Property manager',
+  municipality: 'Comune',
+  cruise_line: 'Compagnia di crociera',
+  ferry_operator: 'Traghetti',
+  airline: 'Compagnia aerea',
+  rail_operator: 'Operatore ferroviario',
+  bus_operator: 'Operatore bus',
   other: 'Da classificare'
 } as const
 export const ENTITY_KINDS = [
@@ -193,6 +206,21 @@ export function nameKey(value: string) {
     )
     .replace(new RegExp('[^\\p{L}\\p{N}]+', 'gu'), ' ')
     .trim()
+}
+// Filtro `or` PostgREST della ricerca: la ricerca a parole del tsvector non
+// trova un pezzo di parola ("cremona" dentro "InCremona"), quindi si cerca
+// anche dentro il nome normalizzato e il sito. Il testo passa da nameKey, che
+// lascia solo lettere, cifre e spazi: niente virgole o parentesi che
+// romperebbero la sintassi del filtro.
+export function tourismSearchFilter(q: string): string | null {
+  const key = nameKey(q.slice(0, 200))
+  if (!key) return null
+  const like = `*${key.split(' ').join('*')}*`
+  return [
+    `name_key.ilike.${like}`,
+    `website.ilike.*${key.split(' ').join('')}*`,
+    `search_document.wfts(simple).${key}`
+  ].join(',')
 }
 export function isUuid(value: unknown): value is string {
   return (
