@@ -152,6 +152,24 @@ export default function FatturePage() {
     }
   }
 
+  async function markOutside(quote: QuoteToInvoice) {
+    if (!window.confirm(`Segnare «${quote.quote_number}» come già fatturata fuori dal CRM? Esce da questa lista, senza creare una fattura.`)) return
+    setBusy(quote.id)
+    try {
+      await apiFetch('/api/invoices/outside', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quote_id: quote.id }),
+      })
+      await load()
+      showToast('Preventivo segnato come già fatturato')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Impossibile segnare il preventivo')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const invoices = data?.invoices || []
   const totals = useMemo(() => {
     const year = new Date().getFullYear()
@@ -232,6 +250,15 @@ export default function FatturePage() {
                       <button type="button" className="btn btn-primary btn-sm" disabled={busy === quote.id} onClick={() => prepare(quote)}>
                         {busy === quote.id ? 'Preparo…' : 'Prepara fattura'}
                       </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        disabled={busy === quote.id}
+                        onClick={() => markOutside(quote)}
+                        title="Il lavoro è già stato fatturato fuori dal CRM: esce da questa lista, senza creare una fattura"
+                      >
+                        Già fatturata
+                      </button>
                     </div>
                   </li>
                 ))}
@@ -264,7 +291,10 @@ export default function FatturePage() {
 }
 
 function InvoiceRow({ invoice, open, onToggle, onChanged }: { invoice: Invoice; open: boolean; onToggle: () => void; onChanged: () => Promise<void> }) {
-  const status = STATUS_LABEL[invoice.status] || { label: invoice.status, tone: 'is-draft' }
+  const awaitingManualUpload = invoice.status === 'sent' && invoice.aruba_env === 'manual' && !invoice.aruba_filename
+  const status = awaitingManualUpload
+    ? { label: 'Da caricare su Aruba', tone: 'is-wait' }
+    : STATUS_LABEL[invoice.status] || { label: invoice.status, tone: 'is-draft' }
   return (
     <li className={`fe-item${open ? ' is-open' : ''}`}>
       <button type="button" className="fe-head" onClick={onToggle} aria-expanded={open}>
@@ -280,7 +310,7 @@ function InvoiceRow({ invoice, open, onToggle, onChanged }: { invoice: Invoice; 
         <span className={`fe-chip ${status.tone}`}>{status.label}</span>
         <span className="fe-total">{euro(invoice.totale)}</span>
       </button>
-      {open ? EDITABLE.includes(invoice.status) ? <InvoiceEditor invoice={invoice} onChanged={onChanged} /> : <InvoiceDetail invoice={invoice} /> : null}
+      {open ? EDITABLE.includes(invoice.status) ? <InvoiceEditor invoice={invoice} onChanged={onChanged} /> : <InvoiceDetail invoice={invoice} onChanged={onChanged} /> : null}
     </li>
   )
 }
@@ -301,10 +331,57 @@ async function downloadXml(invoice: Invoice, showToast: (text: string) => void) 
   setTimeout(() => URL.revokeObjectURL(url), 2000)
 }
 
-function InvoiceDetail({ invoice }: { invoice: Invoice }) {
+/**
+ * Fattura numerata e caricata a mano: senza il nome del file che Aruba le ha
+ * dato lo stato SDI non si legge. Il nome sta nel pannello, sotto la fattura.
+ */
+function ArubaFileForm({ invoice, onChanged }: { invoice: Invoice; onChanged: () => Promise<void> }) {
   const { showToast } = useCRMContext()
+  const [filename, setFilename] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    setSaving(true)
+    try {
+      await apiFetch(`/api/invoices/${invoice.id}/aruba-file`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename }),
+      })
+      showToast('Nome del file salvato: lo stato SDI si aggiorna da solo')
+      await onChanged()
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Impossibile salvare il nome del file')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fe-aruba-file">
+      <p>Caricata sul pannello Aruba? Scrivi il nome del file come compare lì: da quel momento lo stato SDI si legge da solo.</p>
+      <div className="fe-actions">
+        <input
+          className="fi"
+          value={filename}
+          onChange={(event) => setFilename(event.target.value)}
+          placeholder="nome-file-aruba"
+          aria-label="Nome del file su Aruba"
+        />
+        <button type="button" className="btn btn-primary btn-sm" disabled={saving || !filename.trim()} onClick={save}>
+          {saving ? 'Salvo…' : 'Segna come caricata'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function InvoiceDetail({ invoice, onChanged }: { invoice: Invoice; onChanged: () => Promise<void> }) {
+  const { showToast } = useCRMContext()
+  const awaitingManualUpload = invoice.status === 'sent' && invoice.aruba_env === 'manual' && !invoice.aruba_filename
   return (
     <div className="fe-body">
+      {awaitingManualUpload ? <ArubaFileForm invoice={invoice} onChanged={onChanged} /> : null}
       <dl className="fe-kv">
         <dt>Stato SDI</dt>
         <dd>{invoice.sdi_status || '—'}{invoice.sdi_detail ? ` · ${invoice.sdi_detail}` : ''}</dd>

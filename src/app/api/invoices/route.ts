@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
         .select('id, quote_number, title, customer_name, customer_company, total_amount, status, payment_state, paid_at, accepted_at, billing_interval')
         .eq('user_id', userId)
         .or('status.eq.paid,payment_state.eq.paid,status.eq.accepted')
+        .is('invoiced_outside_at', null)
         .order('paid_at', { ascending: false, nullsFirst: false })
         .limit(200),
     ])

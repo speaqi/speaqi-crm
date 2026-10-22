@@ -478,3 +478,61 @@ export async function syncInvoiceStatuses(admin: any, limit = 8, spacingMs = STA
   }
   return result
 }
+
+/**
+ * Fattura numerata e caricata a mano sul pannello Aruba (`manual`): il CRM non
+ * ha il nome del file che Aruba le ha assegnato, quindi lo stato SDI non si
+ * legge mai. Qui si registra quel nome: da quel momento il giro dello stato la
+ * rilegge come le altre. `env` e' quello del pannello su cui si e' caricata.
+ */
+export async function recordManualArubaFile(admin: any, userId: string, invoiceId: string, filename: unknown, env: unknown) {
+  const name = String(filename ?? '').trim()
+  if (!name || name.length > 120 || /[\s/\\]/.test(name)) {
+    return { ok: false as const, status: 400, error: 'Scrivi il nome del file come compare sul pannello Aruba (senza spazi né barre).' }
+  }
+  const target = env === 'demo' || env === 'production' ? env : arubaEnv()
+
+  const { data: current, error: loadError } = await admin.from('invoices').select('id, status, aruba_env').eq('id', invoiceId).eq('user_id', userId).maybeSingle()
+  if (loadError) throw loadError
+  if (!current) return { ok: false as const, status: 404, error: 'Fattura non trovata' }
+  if (current.status !== 'sent' || current.aruba_env !== 'manual') {
+    return { ok: false as const, status: 409, error: 'Solo una fattura numerata e scaricata a mano può ricevere il nome del file Aruba.' }
+  }
+
+  const { data: updated, error: updateError } = await admin
+    .from('invoices')
+    .update({ aruba_env: target, aruba_filename: name, sdi_status: 'Caricata a mano su Aruba: in attesa dello stato', sdi_detail: null, last_synced_at: null, last_error: null })
+    .eq('id', invoiceId)
+    .eq('user_id', userId)
+    .eq('status', 'sent')
+    .eq('aruba_env', 'manual')
+    .select('*')
+    .maybeSingle()
+  if (updateError) throw updateError
+  if (!updated) return { ok: false as const, status: 409, error: 'La fattura è cambiata nel frattempo: ricarica la pagina.' }
+  return { ok: true as const, invoice: updated as InvoiceRow }
+}
+
+/**
+ * Un lavoro fatturato fuori dal CRM (prima che esistesse la fatturazione qui):
+ * il preventivo esce da «Da fatturare» senza creare nessuna fattura. Non tocca
+ * il numero di fattura, che resta quello di Aruba.
+ */
+export async function markQuoteInvoicedOutside(admin: any, userId: string, quoteId: string) {
+  const { data: quote, error: quoteError } = await admin.from('quotes').select('id').eq('id', quoteId).eq('user_id', userId).maybeSingle()
+  if (quoteError) throw quoteError
+  if (!quote) return { ok: false as const, status: 404, error: 'Preventivo non trovato' }
+
+  const { data: linked, error: linkedError } = await admin.from('invoices').select('id').eq('quote_id', quoteId).eq('user_id', userId).limit(1).maybeSingle()
+  if (linkedError) throw linkedError
+  if (linked) return { ok: false as const, status: 409, error: 'Questo preventivo ha già una fattura nel CRM.' }
+
+  const { error: updateError } = await admin
+    .from('quotes')
+    .update({ invoiced_outside_at: new Date().toISOString() })
+    .eq('id', quoteId)
+    .eq('user_id', userId)
+    .is('invoiced_outside_at', null)
+  if (updateError) throw updateError
+  return { ok: true as const }
+}
