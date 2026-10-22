@@ -45,10 +45,10 @@ beforeEach(() => {
     if (url.includes('/office_agent_outputs') && method === 'GET' && outputsError) {
       return Response.json({ code: outputsError, message: 'Intervallo o lettura non disponibile' }, { status: outputsError === 'PGRST103' ? 416 : 500 })
     }
-    if (url.includes('/office_agent_outputs') && method === 'PATCH') {
-      if (!pending) return Response.json({ code: 'PGRST116', details: 'The result contains 0 rows', message: 'Cannot coerce the result to a single JSON object' }, { status: 406 })
+    if (url.includes('/rpc/decide_office_output') && method === 'POST') {
+      if (!pending) return Response.json({ output:null,reason:'already_decided' })
       pending = false
-      return Response.json({ id: 'prova', ...body })
+      return Response.json({ output: { id:'prova',status:body.p_status } })
     }
     return Response.json([], { headers: { 'content-range': '*/0' } })
   })
@@ -91,7 +91,7 @@ test('il titolare installa gli agenti spenti e legge totali zero', async () => {
   const response = await GET(request('/api/office', undefined, 'GET'))
   assert.equal(response.status, 200)
   const data = await response.json()
-  assert.equal(data.agents.length, 2); assert.ok(data.agents.every((agent: { enabled: boolean }) => !agent.enabled)); assert.equal(data.pending_count, 0); assert.equal(data.totals.month_actual, 0)
+  assert.deepEqual(data.agents.map((agent: { id: string }) => agent.id).sort(), ['director','finance','sales_followup']); assert.ok(data.agents.every((agent: { enabled: boolean }) => !agent.enabled)); assert.equal(data.pending_count, 0); assert.equal(data.totals.month_actual, 0)
 })
 
 test('la pagina oltre la coda restituisce il conteggio aggiornato e consente di tornare indietro', async () => {
@@ -112,13 +112,12 @@ test('gli altri errori della coda non vengono trattati come una pagina vuota', a
   assert.ok(!calls.some((call) => call.method === 'HEAD'))
 })
 
-test('approvare registra solo la decisione; il secondo clic non cambia una decisione presa', async () => {
+test('approvare usa la sola RPC transazionale autorizzata; il secondo clic non cambia una decisione presa', async () => {
   const response = await decide(request('/api/office/outputs/prova', { status: 'approved' }), params)
   assert.equal(response.status, 200)
-  const writes = calls.filter((call) => call.method === 'PATCH')
-  assert.equal(writes.length, 1); assert.ok(writes[0].url.includes('/office_agent_outputs'))
-  assert.ok(writes[0].url.includes('user_id=eq.')); assert.ok(writes[0].url.includes('status=eq.pending'))
-  assert.deepEqual(Object.keys(writes[0].body!).sort(), ['decided_at', 'status'])
+  const writes = calls.filter((call) => call.method !== 'GET')
+  assert.equal(writes.length, 1); assert.ok(writes[0].url.includes('/rpc/decide_office_output'))
+  assert.deepEqual(writes[0].body, {p_output_id:'prova',p_user_id:OWNER,p_status:'approved'})
   assert.equal((await decide(request('/api/office/outputs/prova', { status: 'rejected' }), params)).status, 409)
 })
 
@@ -126,7 +125,7 @@ test('non si possono chiedere esecuzioni esterne o cambiare proprietario dal cor
   assert.equal((await decide(request('/api/office/outputs/prova', { status: 'done' }), params)).status, 400)
   assert.equal((await decide(request('/api/office/outputs/prova', { status: 'approved', send: true }), params)).status, 400)
   assert.equal((await patchAgent(request('/api/office/agents/prova', { user_id: MEMBER }), params)).status, 400)
-  assert.ok(!calls.some((call) => call.method === 'PATCH'))
+  assert.ok(!calls.some((call) => call.method === 'PATCH' || call.url.includes('/rpc/decide_office_output')))
 })
 
 test('corsa manuale senza chiave rifiutata e registro vuoto non eseguibile', async () => {

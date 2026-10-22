@@ -789,8 +789,10 @@ migration `commercial_*`. `tests/db.sh stop` lo spegne.
 - Il contesto del compito espone solo `reserve`, `settle`, `addOutput`, `log` e
   metadati: nessun invio email, social, fattura o pubblicazione di mappe.
   `addOutput` scrive solo nella coda `pending`, con chiave unica per corsa.
-  Approvare/rifiutare aggiorna solo la decisione e la data. Non pubblica, non
-  invia e non modifica il record indicato da `target_table`/`target_id`.
+  La decisione non pubblica e non invia. Per gli output ordinari aggiorna solo
+  decisione/data; gli agenti successivi aggiungono effetti interni espliciti
+  (per il Direttore, la coda del destinatario). Nessuna esecuzione generica del
+  record indicato da `target_table`/`target_id`.
 - API titolare: `GET /api/office` (spesa reale e riservata, ultima corsa per agente,
   ultime 30 corse, coda paginata con `offset`, 50 uscite per pagina),
   `PATCH /api/office/agents/[id]` (interruttore, budget, settings),
@@ -883,3 +885,39 @@ Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script 
   del modello e pipeline esistente in `office-sales.unit.test.ts`; quota e
   idempotenza concorrenti, risposte e permessi su Postgres vero in
   `office-sales.db.test.ts`. Nessun consumo OpenAI reale, Gmail o invio esterno.
+
+### Agente 01 — Direttore
+
+- `director`, reparto Direzione, lunedì alle 07:00 Europe/Rome (`office-director`),
+  nasce spento. Budget 100/100/500 centesimi giorno/settimana/mese; modello
+  configurabile in `settings.model`, altrimenti quello del registro.
+- Priorità deterministiche in `src/lib/office/director.ts`: destinazioni previste
+  con priorità uno e volumi misurati (anno e fonte obbligatori, stime escluse),
+  assenti da un catalogo effettivamente letto; poi mappe pronte non su Speaqi;
+  poi guide online con copertura testi inferiore al 90%. Napoli/Naples/napolimap
+  escluse anche per alias e slug. Senza cataloghi non si deduce un'assenza.
+- `directorHandler` legge destinazioni, porti (`tourism_hubs mode=sea`), finanza
+  tramite `summarizeMoney`, trattative aperte e corse degli ultimi sette giorni
+  con query paginate e fonti allegate. Passeggeri e arrivi non si sommano.
+  `SPEAQI_API_KEY` è la nuova env facoltativa del CRM: chiave del proprietario
+  Speaqi per il solo GET `/maps/:id/studiomap/translations`, sul base URL esistente
+  `SPEAQI_PUBLIC_API_URL`. Senza chiave o conteggi completi, copertura dichiarata
+  non verificata e nessuna proposta lingue da dati mancanti. Nessun fill/sync.
+- `callModel` scrive soltanto tre-cinque righe per punto. Ordine, target e azioni
+  restano nel codice; numeri senza riscontro e link nel testo fanno usare una
+  descrizione deterministica senza numeri. Un report per settimana, proposte
+  pendenti non duplicate e rifiuti soppressi per 28 giorni dalla decisione.
+- Migration `20261022183327_office_director.sql` prima del codice, dopo le
+  migration precedenti. `decide_office_output` è una RPC service role: decisione
+  e coda interna sono atomiche, con lock e chiavi stabili; il destinatario resta
+  spento e non viene avviato dal clic. Rifiutare registra data/stato senza coda.
+  Target e destinatari sono un elenco chiuso; nessun SQL dinamico o azione esterna.
+- «Costruire» accoda a `mymaps_builder`, «Completare le lingue» a `languages_voice`.
+  «Pubblicare» accoda `publication_review` a `maps_quality`: il roster non ha un
+  agente che pubblichi, quindi la pubblicazione resta manuale. Prima di installare
+  i prompt successivi, approvare una proposta con destinatario mancante risponde
+  409 e la lascia pending. La coda conserva id sorgente, città, azione e target.
+- Test unit su priorità, fonti, Napoli, soglia lingue, numeri, rifiuti e pipeline
+  senza spesa ripetuta; HTTP sulla RPC autorizzata; Postgres vero per decisioni
+  concorrenti, coda, workspace, permessi, Napoli e assenza di effetti sui target.
+  Le prove non generano mappe né pubblicano e non chiamano modelli a pagamento.

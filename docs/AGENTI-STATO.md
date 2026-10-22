@@ -11,7 +11,7 @@ Napoli non si modifica. Fonti, budget prima della spesa e idempotenza sono obbli
 | 0 | Base comune | PR aperta | `codex/office-base` | #44 | PR preesistente conservata, senza rifare il lavoro né cambiarne il branch. Migration `20261022160000_office_agents.sql`; test unit, DB, TypeScript, build e browser verificati. |
 | 11 | Finanza | PR aperta | `agenti/11-finanza` | #47 | Base `codex/office-base`; migration `20261022170450_office_finance.sql`, non applicata a DB operativi. 432 unit passati, 1 skip preesistente; 30 DB, TypeScript e build verdi. Nessuna nuova env; nessun invio. |
 | 10 | Commerciale | PR aperta | `agenti/10-commerciale` | #48 | Base `agenti/11-finanza`; migration `20261022175856_office_sales_followup.sql`, non applicata a DB operativi. 442 unit passati, 1 skip preesistente; 34 DB, TypeScript e build verdi. Nessuna nuova env; nessun invio. |
-| 1 | Direttore | da fare | `agenti/01-direttore` | — | Parte dal Prompt 10. |
+| 1 | Direttore | PR aperta | `agenti/01-direttore` | #49 | Base `agenti/10-commerciale`; migration `20261022183327_office_director.sql`, non applicata a DB operativi. 449 unit passati, 1 skip; 40 DB, TypeScript e build verdi. Nuova env facoltativa `SPEAQI_API_KEY`. «Pubblicare» accoda la verifica alla Qualità, pubblicazione manuale. |
 | 3 | Lingue e voce | da fare | `agenti/03-lingue-voce` | — | Verificare accesso e regole di StudioMap e Speaqi. |
 | 2 | Costruttore My Maps | da fare | `agenti/02-mymaps` | — | Verificare accesso e regole di StudioMap. |
 | 4 | Qualità mappe | da fare | `agenti/04-qualita-mappe` | — | Verificare accesso e regole di StudioMap. |
