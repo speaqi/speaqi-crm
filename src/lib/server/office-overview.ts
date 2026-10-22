@@ -24,7 +24,16 @@ export async function loadOfficeOverview(admin: SupabaseClient, userId: string, 
       return (result.data?.[0] as OfficeRun | undefined) || null
     })),
   ])
-  for (const result of [spendRes, runsRes, outputsRes]) if (result.error) throw result.error
+  for (const result of [spendRes, runsRes]) if (result.error) throw result.error
+  let outputs = outputsRes
+  if (outputs.error?.code === 'PGRST103') {
+    // La pagina può svuotarsi dopo una decisione: il conteggio permette alla UI
+    // di tornare indietro anche quando PostgREST rifiuta l'intervallo ormai vuoto.
+    const count = await admin.from('office_agent_outputs').select('*', { count: 'exact', head: true })
+      .eq('user_id', userId).eq('status', 'pending')
+    if (count.error) throw count.error
+    outputs = { ...outputs, data: [], error: null, count: count.count }
+  } else if (outputs.error) throw outputs.error
   const spending = new Map((spendRes.data as OfficeSpend[]).map((spend) => [spend.agent_id, spend]))
   const totals = { day_actual: 0, day_reserved: 0, week_actual: 0, week_reserved: 0, month_actual: 0, month_reserved: 0 }
   const rows = agents.map((agent, index) => {
@@ -32,6 +41,6 @@ export async function loadOfficeOverview(admin: SupabaseClient, userId: string, 
     for (const key of Object.keys(totals) as Array<keyof typeof totals>) totals[key] += Number(spend[key])
     return { ...agent, spend, last_run: lastRuns[index] }
   })
-  return { agents: rows, runs: runsRes.data as OfficeRun[], outputs: outputsRes.data as OfficeOutput[],
-    pending_count: outputsRes.count || 0, totals, active_agents: agents.filter((agent) => agent.enabled).length }
+  return { agents: rows, runs: runsRes.data as OfficeRun[], outputs: outputs.data as OfficeOutput[],
+    pending_count: outputs.count || 0, totals, active_agents: agents.filter((agent) => agent.enabled).length }
 }

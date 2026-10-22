@@ -796,6 +796,9 @@ migration `commercial_*`. `tests/db.sh stop` lo spegne.
   `PATCH /api/office/agents/[id]` (interruttore, budget, settings),
   `POST /api/office/agents/[id]/run-now` (header `Idempotency-Key`, una chiave per
   clic), `PATCH /api/office/outputs/[id]` (`approved`/`rejected`, solo da `pending`).
+  Se una pagina della coda si svuota dopo le decisioni, il GET restituisce una
+  lista vuota e il conteggio aggiornato; la pagina torna indietro. Il messaggio
+  della corsa conserva il riepilogo reale oppure segnala il turno saltato.
 - API macchina: `POST /api/automation/agents/[id]/run`, con `AUTOMATION_SECRET`;
   workspace solo da `AUTOMATION_WORKSPACE_USER_ID`, mai dal corpo. Chiave di
   idempotenza dall'header oppure dal minuto UTC del pianificatore.
