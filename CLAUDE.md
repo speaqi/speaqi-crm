@@ -853,3 +853,33 @@ Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script 
 - Test: `office-finance.unit.test.ts` (mese nel fuso italiano, fonti, esclusioni,
   bozze/report idempotenti, nessuna rete Aruba), `office-finance.db.test.ts`
   (migration e RPC su database PGlite usa-e-getta, vincoli e permessi).
+
+### Agente 10 — Commerciale
+
+- `sales_followup`, reparto Commerciale, feriali alle 08:00 Europe/Rome
+  (`office-sales-followup`), nasce spento. Budget iniziali 100/700/3100 centesimi
+  giorno/settimana/mese; nessuna nuova env. Usa il modello configurato nel registro.
+- `src/lib/office/sales-followup.ts` sceglie i contatti CRM: follow-up di oggi o
+  scaduti (task/prossimo passo/SLA), preventivi inviati da oltre 5 giorni senza
+  firma, firme vere da `quote_signatures` da oltre 3 giorni senza pagamento,
+  rinnovi annuali nei prossimi 30 giorni e trattative aperte ferme da oltre 14.
+  Rinnovi inclusi anche per clienti Paid. Ordine per valore, massimo 15 al giorno.
+  Holding, nascosti, disiscritti, email mancanti, risposte successive all'ultima
+  uscita e bozze pendenti sono esclusi; email normalizzate per le schede duplicate.
+- Il server riusa `createEmailDraftRecord` e i suoi controlli esistenti. I dati
+  arrivano dal solo set CRM con query per id e pagine. La chiamata al modello
+  passa da `callModel` (prenota prima e salda dai token); la ricerca pubblica
+  opzionale del generatore viene saltata per evitare chiamate fuori budget.
+  Numeri e link senza riscontro vengono rifiutati; HTML ricostruito dal testo
+  escapato. La nota spiega il motivo e le fonti; la bozza compare in `/email` e
+  come uscita in Aspetta te. Solo `source=office`, stato `pending`, nessun invio.
+- Migration `20261022175856_office_sales_followup.sql`, dopo Finanza, da applicare
+  prima del codice. `office_agent_daily_quotas` conserva la quota anche dopo
+  invio/eliminazione di una bozza. La RPC delle bozze serializza per agente e
+  indirizzo, controlla di nuovo risposte Gmail, scope, proprietario e bozza già
+  pendente prima di creare. Il contatore cresce solo su una nuova bozza.
+  RLS di lettura del proprietario, scritture service role; tabella nei backup.
+- Test: selezione, esclusioni, finestre, valore, duplicati, numeri, budget prima
+  del modello e pipeline esistente in `office-sales.unit.test.ts`; quota e
+  idempotenza concorrenti, risposte e permessi su Postgres vero in
+  `office-sales.db.test.ts`. Nessun consumo OpenAI reale, Gmail o invio esterno.
