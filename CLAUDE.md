@@ -749,3 +749,71 @@ npm test            # entrambi
 
 `tests/db.sh` crea il cluster (`initdb`), applica `tests/sql/fixture.sql` e le
 migration `commercial_*`. `tests/db.sh stop` lo spegne.
+
+## Ufficio Speaqi — base comune (Prompt 0)
+
+- `/ufficio` e le API `/api/office/*` sono solo del titolare (`SUPER_ADMIN_PATHS`,
+  `requireWorkspaceOwner`). Sidebar **Solo admin**, riepilogo **Ufficio** in prima
+  pagina; le uscite `pending` entrano anche in **Aspetta te** (`buildWaiting`).
+- Migration **`20261022160000_office_agents.sql`**, da applicare **prima del codice**.
+  Tabelle: `office_agents` (registro, impostazioni e tre budget in centesimi EUR),
+  `office_agent_runs` (corse, esiti, log e costi), `office_agent_outputs` (bozze e
+  proposte da decidere), `office_budget_ledger` (riserve e consumi). RLS di lettura
+  per `auth.uid() = user_id`; scritture tramite le API autorizzate/service role.
+  Gli slug degli agenti sono identificatori unici del registro; ogni riga ha
+  comunque un proprietario, verificato anche sui legami fra tabelle.
+- `runAgent` (`src/lib/server/office-agents.ts`) prende un lock sull'agente tramite
+  `claim_office_agent_run`: una sola corsa, deduplica sulla chiave di idempotenza.
+  Dopo 30 minuti una corsa si considera interrotta; il vecchio processo non puo'
+  prenotare o aggiungere uscite. Le sue riserve non vengono liberate alla cieca.
+  Errori del compito -> `failed`; budget finito -> `skipped_budget`, oppure
+  `partial` se ha gia' preparato uscite. Senza database ci si ferma.
+- `reserve_agent_budget` controlla **speso + ancora prenotato** contro **tutti** i
+  tetti (giorno, settimana da lunedi', mese, fuso fisso `Europe/Rome`). Zero blocca
+  la spesa. Lock e inserimento sono nella stessa transazione; gli aggregati non
+  passano da una lista REST soggetta al limite di 1000 righe. La RPC richiede anche
+  `p_run_id` per attribuire la riserva a una corsa attiva dello stesso agente.
+  `settle_agent_budget` sostituisce la riserva col costo reale; ripetere lo stesso
+  saldo e' innocuo, cambiarlo dopo il saldo e' rifiutato. RPC solo `service_role`,
+  `search_path` fisso e nessun privilegio per `anon`/`authenticated`.
+- `callModel` usa la stessa API OpenAI Responses e `OPENAI_API_KEY` gia' presenti,
+  solo testo e senza strumenti esterni. Prenota il massimo stimato prima della
+  chiamata e salda con i token restituiti. Il listino puro `office-pricing.ts`
+  comprende `gpt-5-mini` (USD 0,25 ingresso / 2 uscita per milione di token,
+  verificato sul sito OpenAI il 22/10/2026). Modello sconosciuto -> stop.
+  `OFFICE_USD_TO_EUR` converte in EUR (default prudente 1, non cambio live, fino a sei decimali), ogni
+  chiamata arrotondata al centesimo superiore; cache prenotata al prezzo pieno e saldata a USD 0,025 per milione di token. Timeout,
+  errore HTTP o usage assente lasciano la riserva impegnata e la corsa in errore:
+  il fornitore potrebbe avere gia' fatturato. Da riconciliare manualmente prima
+  di liberarla; nessun ritentativo automatico di chiamate dall'esito incerto.
+- Il contesto del compito espone solo `reserve`, `settle`, `addOutput`, `log` e
+  metadati: nessun invio email, social, fattura o pubblicazione di mappe.
+  `addOutput` scrive solo nella coda `pending`, con chiave unica per corsa.
+  Approvare/rifiutare aggiorna solo la decisione e la data. Non pubblica, non
+  invia e non modifica il record indicato da `target_table`/`target_id`.
+- API titolare: `GET /api/office` (spesa reale e riservata, ultima corsa per agente,
+  ultime 30 corse, coda paginata con `offset`, 50 uscite per pagina),
+  `PATCH /api/office/agents/[id]` (interruttore, budget, settings),
+  `POST /api/office/agents/[id]/run-now` (header `Idempotency-Key`, una chiave per
+  clic), `PATCH /api/office/outputs/[id]` (`approved`/`rejected`, solo da `pending`).
+- API macchina: `POST /api/automation/agents/[id]/run`, con `AUTOMATION_SECRET`;
+  workspace solo da `AUTOMATION_WORKSPACE_USER_ID`, mai dal corpo. Chiave di
+  idempotenza dall'header oppure dal minuto UTC del pianificatore.
+- Il registro `src/lib/server/office-agents/registry.ts` e' **vuoto**: nessun agente
+  dei prompt 1–12 viene implementato, creato o acceso in questa fase. Gli agenti
+  futuri nascono `enabled=false`; installarli richiede un handler nel registro,
+  una riga di configurazione e una riga in `AUTOMATION_JOBS` col percorso di run.
+- Tenuta corse **90 giorni**: job `office-maintenance` alle 03:15 italiane,
+  `POST /api/automation/office-maintenance`. Uscite ancora da decidere e ledger
+  si conservano, col legame alla corsa eliminata messo a null. Come gli altri job
+  parte solo col pianificatore acceso; se `AUTOMATION_SCHEDULER_JOBS` e' una lista,
+  aggiungervi anche questo job. Nessuna chiamata alle mappe di Napoli.
+- Test: `tests/office.unit.test.ts` in `test:unit`; `tests/office.db.test.ts` in
+  `test:db`, Postgres vero con `tests/db.sh`, database separato `office_test`.
+  Le suite DB sono seriali per non far partire due cluster insieme. Il runner
+  supporta Linux e Postgres.app su Mac, propaga gli errori SQL e non cancella
+  directory. `PGDIR`, `PGPORT`, `PGHOST`, `PGBIN` sono configurabili.
+
+`npm run test:office:ui` verifica la pagina buildata con API simulate (desktop e telefono);
+`OFFICE_TEST_URL`, `OFFICE_TEST_OUTPUT` e `CHROMIUM_PATH` scelgono server, screenshot e browser.
+Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script locale.

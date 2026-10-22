@@ -46,6 +46,11 @@ export const BACKUP_TABLES = [
   'business_goals',
   // Soldi da ricevere (/incassi): pochi, ma sono soldi.
   'receivables',
+  // Registro, bozze e spesa dell'ufficio.
+  'office_agents',
+  'office_agent_runs',
+  'office_agent_outputs',
+  'office_budget_ledger',
   // Tourism Intelligence: l'elenco delle aziende turistiche e cio che si e' trovato.
   'tourism_taxonomy',
   'tourism_entities',

@@ -13,6 +13,7 @@ import { formatEuroPlain, MAP_STAGE_LABEL, type MapStage, type MapStatusRow, typ
  */
 
 type Overview = {
+  office: { active_agents?: number; pending_count?: number; totals?: { day_actual: number; day_reserved: number }; error: string | null }
   waiting: WaitingItem[]
   money: {
     paid_month: number
@@ -168,6 +169,17 @@ export function CommandCenter() {
                 {data.waiting.length > 8 && <li className="cc-muted">e altre {data.waiting.length - 8}</li>}
               </ul>
             )}
+          </div>
+
+          <div className="cc-card">
+            <h3>Ufficio</h3>
+            {data.office.error ? <p className="cc-muted">{data.office.error}</p> : <>
+              <div className="cc-kpi"><span className="cc-kpi-value">{data.office.active_agents}</span><span className="cc-muted">agenti attivi</span></div>
+              <dl className="cc-dl"><dt>Spesa oggi</dt><dd>{formatEuroPlain((data.office.totals?.day_actual || 0) / 100)}</dd>
+                <dt>Prenotato</dt><dd>{formatEuroPlain((data.office.totals?.day_reserved || 0) / 100)}</dd>
+                <dt>Aspetta te</dt><dd>{data.office.pending_count}</dd></dl>
+            </>}
+            <Link href="/ufficio" className="btn btn-ghost btn-sm">Apri l’ufficio →</Link>
           </div>
 
           <div className="cc-card">

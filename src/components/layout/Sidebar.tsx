@@ -73,6 +73,7 @@ const NAV_GROUPS: { label: string; adminOnly?: boolean; items: NavItem[] }[] = [
     label: 'Solo admin',
     adminOnly: true,
     items: [
+      { href: '/ufficio', label: 'Ufficio', icon: '▤' },
       { href: '/tourism', label: 'Tourism Intelligence', icon: '◎' },
       { href: '/acumbamail', label: 'Acumbamail', icon: '📧' },
       { href: '/fatture', label: 'Fatture', icon: '🧾' },
