@@ -1024,3 +1024,43 @@ Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script 
   registra la decisione nel CRM, l'applicazione della correzione resta manuale.
 - Nessuna nuova migration o env rispetto al 02. Test puri e con modello
   simulato, snapshot dei dati immutati su fs e pg isolati. Nessun deploy.
+
+
+## Ufficio — Pulizia database (Agente 05)
+
+- `db_cleaner`, reparto Operazioni, la domenica alle 04:30 Europe/Rome (`office-db-cleaner`),
+  nasce spento. Nessun modello: costo zero, budget 10/50/200 centesimi solo come tetto.
+- **L'agente non modifica niente.** Trova e propone; l'unione parte solo quando il titolare
+  approva, dentro `decide_office_output` (stessa transazione della decisione, come la coda
+  del Direttore). **Nessun DELETE**: il doppione resta, `hidden = true`, con la nota
+  «[Unito in <id> il …]», e sul contatto tenuto si scrive un'attività `note` con cosa è stato spostato.
+- Chiavi calcolate dal database (`office_email_key`, `office_phone_key` con +39/0039 e numeri
+  ripetuti scartati, `office_company_key` = azienda + città), gruppi da 2 a 20 schede visibili
+  (`office_cleaner_duplicate_keys`), pesi per scegliere chi tenere (`office_cleaner_contacts`):
+  i 60 mila contatti non passano dalla memoria del server. Logica pura in `src/lib/office/db-cleaner.ts`:
+  union-find sulle chiavi, si tiene chi ha più storia (trattative, preventivi, email, attività,
+  pipeline), a parità il più vecchio.
+- **Proposte**: i gruppi *sicuri* (stessa email o telefono, fuori pipeline, senza trattative né
+  preventivi) in lotti da 20 (`data_fix`, `action: merge_contacts`); gli altri uno per uno, da
+  guardare (in pipeline, con trattative/preventivi, o solo stessa azienda e città). **Bloccati**
+  e solo nel resoconto: chi è in una sequenza in corso (`commercial_enrollments` pending/active,
+  eventi Wine scheduled/queued/processing) e i gruppi con più di una trattativa aperta.
+  Un gruppo già in attesa o rifiutato negli ultimi 90 giorni non si ripropone.
+- **Unione** (`office_merge_contacts`): lock in ordine di id, stesso proprietario e schede ancora
+  visibili, al massimo una trattativa aperta in tutto. Sposta attività, task, trattative,
+  preventivi, fatture, bozze (una automatica per contatto e orario: quella in conflitto resta),
+  Gmail, transizioni, log AI, progetti Agency, espositori, compagnie, notifiche, legami Tourism
+  (solo verso enti verificati, come vuole il trigger) e mappe collegate (senza doppioni). Restano
+  sulla scheda vecchia sequenze, iscrizioni, memoria AI, abbinamenti Tourism e tentativi di invio.
+  Sul tenuto si riempiono **solo i campi vuoti**; le email diverse vanno in `alternative_emails`,
+  la disiscrizione passa sempre. Un gruppo che fallisce si salta col motivo (`body.result.skipped`);
+  se non se ne unisce nessuno la proposta resta in attesa e la pagina mostra il perché.
+- Altri controlli (`office_cleaner_scan`, sola lettura): email scritte male, noreply, PEC,
+  pipeline ferma da 90 giorni senza prossimo passo, preventivi in bozza da 60 giorni, trattative
+  aperte su contatti chiusi, enti Tourism con nomi quasi uguali. Diventano elenchi da rivedere
+  (`action: review_list`): approvarli segna solo che sono stati visti.
+- Migration `20261023090000_office_db_cleaner.sql`, dopo quella del Direttore (ridefinisce
+  `decide_office_output` tenendo identico il suo ramo). RPC solo `service_role`.
+- Test: `office-db-cleaner.unit.test.ts` (regole, handler che non unisce e non duplica),
+  `office-db-cleaner.db.test.ts` (Postgres vero: unione completa, vincoli di produzione,
+  trattative aperte, gruppo estraneo saltato, otto clic concorrenti, permessi, scan senza effetti).
