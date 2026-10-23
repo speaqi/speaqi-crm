@@ -143,12 +143,14 @@ describe('permessi e vincoli', () => {
     await reserve(run.id, 10)
     await scalar(`select public.add_office_agent_output('${run.id}', 'x', 'report', 'Da leggere', '{}')`)
     for (const table of ['office_agents', 'office_agent_runs', 'office_agent_outputs', 'office_budget_ledger']) {
-      const rows = await sql(`begin; set local role authenticated; select set_config('request.jwt.claim.sub','${OTHER}',true); select count(*) from public.${table} where user_id='${USER}'; rollback;`)
-      assert.equal(rows.at(-2)?.[0], '0', `${table}: dati di un altro workspace`)
+      // Il SELECT resta l'ultimo comando anche con psql 14, che mostra solo
+      // l'ultimo risultato. La connessione chiusa annulla la transazione.
+      const rows = await sql(`begin; set local role authenticated; select set_config('request.jwt.claim.sub','${OTHER}',true); select count(*) from public.${table} where user_id='${USER}';`)
+      assert.equal(rows.at(-1)?.[0], '0', `${table}: dati di un altro workspace`)
     }
     assert.match((await expectError(`begin; set local role authenticated; select set_config('request.jwt.claim.sub','${USER}',true); update public.office_agents set enabled=false; rollback;`))!, /permission denied/)
-    const own = await sql(`begin; set local role authenticated; select set_config('request.jwt.claim.sub','${USER}',true); select name from public.office_agents; rollback;`)
-    assert.equal(own.at(-2)?.[0], 'Prova')
+    const own = await sql(`begin; set local role authenticated; select set_config('request.jwt.claim.sub','${USER}',true); select name from public.office_agents;`)
+    assert.equal(own.at(-1)?.[0], 'Prova')
   })
   test('tutte le RPC privilegiate sono revocate ad anon e authenticated', async () => {
     const names = ['claim_office_agent_run','reserve_agent_budget','settle_agent_budget','add_office_agent_output','finish_office_agent_run','office_budget_summary','prune_office_agent_runs']
