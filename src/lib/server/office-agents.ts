@@ -114,7 +114,8 @@ export async function runAgent(agentId: string, handler: AgentHandler, options: 
 }
 
 /** Stessa API Responses e chiave gia' usate da ai-ready.ts, senza strumenti esterni. */
-export async function callModel(ctx: AgentContext, options: { model: string; input: string; maxOutputTokens: number }) {
+export async function callModel(ctx: AgentContext, options: { model: string; input: string; maxOutputTokens: number;
+  jsonSchema?: { name: string; schema: Record<string, unknown> } }) {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error('OPENAI_API_KEY non configurata')
   const usdToEur = Number(process.env.OFFICE_USD_TO_EUR || '1')
@@ -125,7 +126,8 @@ export async function callModel(ctx: AgentContext, options: { model: string; inp
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST', signal: AbortSignal.timeout(120_000),
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: options.model, input: options.input, max_output_tokens: options.maxOutputTokens, store: false }),
+    body: JSON.stringify({ model: options.model, input: options.input, max_output_tokens: options.maxOutputTokens, store: false,
+      ...(options.jsonSchema ? { text: { format: { type:'json_schema',name:options.jsonSchema.name,strict:true,schema:options.jsonSchema.schema } } } : {}) }),
   })
   if (!response.ok) throw new Error(`OpenAI non disponibile (HTTP ${response.status}); riserva mantenuta`)
   const payload = await response.json()
