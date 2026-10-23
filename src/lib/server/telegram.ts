@@ -153,6 +153,22 @@ export function extractAudio(message: Record<string, any>): TelegramAudio | null
   return null
 }
 
+export type TelegramPhoto = { fileId: string; size: number }
+
+/** La foto del messaggio (la versione più grande) o un'immagine mandata come file. */
+export function extractPhoto(message: Record<string, any>): TelegramPhoto | null {
+  const sizes = Array.isArray(message?.photo) ? message.photo.filter((item: any) => item?.file_id) : []
+  if (sizes.length) {
+    const largest = sizes.reduce((best: any, item: any) => (Number(item.file_size || item.width || 0) > Number(best.file_size || best.width || 0) ? item : best))
+    return { fileId: String(largest.file_id), size: Number(largest.file_size || 0) }
+  }
+  const document = message?.document
+  if (document?.file_id && /^image\/(jpeg|png|webp)$/.test(String(document.mime_type || ''))) {
+    return { fileId: String(document.file_id), size: Number(document.file_size || 0) }
+  }
+  return null
+}
+
 export async function downloadTelegramFile(config: TelegramConfig, fileId: string): Promise<Blob> {
   const file = await telegramFetch(config, 'getFile', { file_id: fileId })
   const path = String(file?.file_path || '')

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { officeOwnerRoute } from '@/lib/server/office-api'
+import { approveDirectorContact } from '@/lib/server/office-director-orders'
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   return officeOwnerRoute(request, async ({ admin, userId }) => {
@@ -7,6 +8,12 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     const body = await request.json().catch(() => null)
     if (!body || Object.keys(body).some((key) => key !== 'status') || !['approved', 'rejected'].includes(body.status)) {
       return Response.json({ error: 'Scegli approvata o rifiutata' }, { status: 400 })
+    }
+    if (body.status === 'approved') {
+      // Nuovo contatto dal Direttore: lo inserisce il codice del CRM, con le sue regole.
+      const contact = await approveDirectorContact(admin, userId, id)
+      if (contact && 'error' in contact) return Response.json({ error: contact.error }, { status: contact.status })
+      if (contact) return Response.json({ output: contact.output, notice: contact.notice, contact_id: contact.contact_id })
     }
     // Decisione e coda interna nella stessa transazione; nessuna azione esterna.
     const { data, error } = await admin.rpc('decide_office_output', { p_output_id:id,p_user_id:userId,p_status:body.status })

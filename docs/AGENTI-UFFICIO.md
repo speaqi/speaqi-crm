@@ -26,6 +26,9 @@ Repository: `speaqi/speaqi-crm` (Next.js 15 + Supabase, il CRM), `speaqi/studiom
 | 10 | Commerciale (bozze follow-up) | Commerciale | giornaliero (feriali 8:00) | 1 €/giorno | CRM |
 | 11 | Finanza | Finanza | giornaliero | 0,20 €/giorno | CRM |
 | 12 | Social | Marketing | settimanale | 1 €/settimana | CRM |
+| 13 | Agenzia (Speaqi Agency) | Agenzia | su richiesta + feriali 8:15 | 2 €/giorno | CRM |
+| 14 | Direttore operativo: ordini, contatti, smistamento, stato | Direzione | su richiesta | 1 €/giorno | CRM |
+| 15 | Voce e Telegram per il Direttore | Direzione | su richiesta | dentro il 14 | CRM |
 
 ---
 
@@ -322,6 +325,92 @@ Compito: preparare le bozze dei post della settimana (Instagram, LinkedIn, Faceb
 - Tono: quello di Speaqi, semplice, niente superlativi vuoti, niente promesse non vere. Nessun post su Napoli diverso da quelli già approvati.
 
 Test: numeri inventati scartati, link con UTM corretti, nessuna chiamata di pubblicazione.
+```
+
+---
+
+## Prompt 13 — Agenzia (Speaqi Agency)
+
+```
+Lavori su speaqi/speaqi-crm, sulla base del prompt 0 (già in main). Leggi CLAUDE.md, in particolare le sezioni "Speaqi Agency (/agency)", "Ufficio Speaqi — base comune", "Agente 10 — Commerciale" e "Ufficio — Presentazioni (Agente 09)": questo agente riusa i loro pezzi, non ne scrive di nuovi.
+
+Agente id 'agency', reparto nuovo 'agenzia', nasce SPENTO. Job 'office-agency' nei feriali alle 8:15 Europe/Rome e corsa manuale da /ufficio/agenti. Budget iniziale 200/1000/4000 centesimi giorno/settimana/mese. Modello: quello dell'agenzia (agencyModel(), OPENAI_AGENCY_MODEL), passando SEMPRE da callModel della base comune (riserva prima, saldo dai token dopo). Il listino puro src/lib/office-pricing.ts oggi conosce solo gpt-5-mini e un modello sconosciuto ferma la corsa: aggiungi il prezzo del modello dell'agenzia, preso dal sito OpenAI con la data della verifica, come è scritto per gpt-5-mini.
+
+Perché esiste: buona parte del lavoro di oggi è su Speaqi Agency (siti, branding, SEO/GEO, software, AI) e il titolare è indietro. L'agente porta avanti le opportunità dell'agenzia fino al punto in cui serve una decisione umana, e lì si ferma.
+
+1. Migration nuova (timestamp successivo all'ultimo): estende il CHECK office_agents.department con 'agenzia' e 'sviluppo' (quest'ultimo è già nella scena /ufficio senza agenti). Aggiungi 'agenzia: Agenzia' a OFFICE_DEPARTMENTS in src/lib/office.ts. NON toccare scripts/ufficio/ (la scena 3D): il padiglione lo aggiunge chi cura la scena; un reparto sconosciuto viene già messo in fila senza rompere nulla.
+
+2. Coda in settings.queue: elementi { "agency_project_id": "UUID" } oppure { "contact_id": "UUID", "brief": "testo", "services": ["sito","branding",...] }. La riempiono il titolare (a mano) e il Direttore operativo, già costruito (CLAUDE.md, «Ufficio — Ordini al Direttore»): quando smista un contatto classificato "agenzia" o una presentazione per un cliente che non è un ente del catalogo, chiama la RPC office_director_queue(user, 'agency', voce), che accetta già 'agency' e risponde 'agent_missing' finché questo agente non esiste. Le sue voci hanno la forma { "key": "agency:contact:<uuid>", "contact_id": "<uuid>", "brief": "testo o null", "origin": "director_order", "queued_at": "..." }: accetta i campi in più, usa "key" per l'idempotenza e non togliere voci dalla coda (le voci già lavorate si riconoscono dalla chiave). Appena l'agente è acceso, il Direttore lo fa partire da solo quando gli passa lavoro (startQueuedAgents). Massimo 2 elementi lavorati per corsa.
+
+3. Per ogni elemento in coda:
+   - Contatto senza opportunità: crea l'opportunità con createProject (src/lib/server/agency.ts): cliente = contact_id, trattativa aperta del contatto (getOpenDeal), servizi solo fra le categorie che esistono (listCategories), brief così com'è. Nessun contatto viene creato qui.
+   - Opportunità senza presentazione: createPresentation + runGeneration, ma il trasporto del modello deve passare da callModel (come ha fatto il 09 con la pipeline Tourism: un callback che prenota e salda). Una generazione già in corso non si duplica (claimGeneration).
+   - Presentazione pronta: NON la approva. Prepara un output kind='report' con: titolo, link /agency/presentazioni/<id>, quanti [DA VERIFICARE] restano e dove, se manca il preventivo collegato (la slide investimento lo legge da quotes) e un link a /preventivi?agency_project=<id> per crearlo.
+   - Presentazione approvata dal titolare e preventivo in stato sent/accepted: prepara UNA bozza email (email_drafts, source='office', status='pending', tramite la RPC create_office_email_draft già usata da Finanza/Commerciale) con il link /proposta/<token>. Mai inviata. Una bozza già pendente per lo stesso indirizzo blocca la nuova.
+
+4. Giro quotidiano anche a coda vuota (gratuito, senza modello): stato della pipeline Agency in un report — opportunità per stato, presentazioni da approvare, opportunità ferme da più di 10 giorni senza attività, preventivi agency inviati senza risposta da più di 7 giorni (per questi propone una bozza di follow-up con lo stesso percorso del Commerciale, al massimo 5 al giorno). Le uscite pendenti compaiono in "Aspetta te".
+
+5. Regole: il modello propone, il codice decide (le guardie di lib/agency.ts restano: importi e percentuali senza riscontro diventano [DA VERIFICARE], la slide investimento non ha importi). Nessun invio, nessuna approvazione automatica, nessun preventivo creato o modificato dall'agente. Napoli non c'entra con l'agenzia, ma se un brief cita mappe Speaqi non si chiama nessuna API delle mappe. Idempotenza: una chiave per (corsa, elemento, passo); ripetere la corsa non crea un secondo progetto, una seconda presentazione o una seconda bozza.
+
+6. Registrazione: definizione in src/lib/server/office-agents/definitions.ts (spento), handler nel registry, riga in AUTOMATION_JOBS con il path /api/automation/agents/agency/run. Aggiorna CLAUDE.md con una sezione "Ufficio — Agenzia (Agente 13)" nello stile delle altre.
+
+Test (node:test + tsx, modello simulato, Postgres locale usa-e-getta come gli altri agenti): coda con contatto → un solo progetto anche ripetendo la corsa; generazione che passa da callModel e si ferma a budget finito; presentazione non approvata dall'agente; bozza email solo dopo approvazione umana e con preventivo inviato; report gratuito senza chiamate al modello; il CHECK accetta 'agenzia' e 'sviluppo'.
+```
+
+---
+
+## Prompt 14 — Direttore operativo: ordini, nuovi contatti, smistamento, stato della pipeline
+
+> **Costruito** (ottobre 2026, branch `ccr-6b7e8767-nbvttt`): vedi CLAUDE.md, «Ufficio — Ordini al Direttore». Il testo qui sotto resta come specifica.
+
+```
+Lavori su speaqi/speaqi-crm, sulla base del prompt 0 e dell'agente Direttore (src/lib/server/office-agents/director.ts, già in main). Leggi CLAUDE.md: sezioni Ufficio (tutte), Contact Scopes, Deals, "Presentazioni per destinazione (Tourism Intelligence)", "Ufficio — Presentazioni (Agente 09)", "Ufficio — Arricchimento enti (Agente 08)" e, se già presente, "Ufficio — Agenzia (Agente 13)".
+
+Obiettivo: il titolare parla al Direttore come a una persona — scrive un ordine, carica la foto di un bigliettino da visita, detta un nome — e il Direttore capisce cosa va fatto, lo prepara e lo passa all'agente giusto. Il Direttore settimanale (priorità del lunedì) resta com'è: questo è il suo lato "su richiesta".
+
+1. Ordini al Direttore (tabella nuova office_director_orders: id, user_id, source 'web'|'telegram'|'voice', text, attachments jsonb, status 'received'|'understood'|'waiting_you'|'done'|'failed', interpretation jsonb, outputs uuid[], error, created_at, updated_at; RLS proprietario in lettura, scritture service role). In /ufficio/agenti (e nel pannello della Direzione della scena, via postMessage, se semplice) una casella "Scrivi al Direttore" con allegati (foto JPG/PNG/WebP fino a 8 MB, PDF). POST /api/office/director/orders (solo titolare, requireWorkspaceOwner): salva l'ordine prima di qualunque lavoro, poi lo elabora in background.
+
+2. Comprensione (callModel, JSON Schema strict, budget del Direttore): il modello restituisce UNA intenzione fra un elenco chiuso:
+   - new_contact: dati di un contatto (da testo o da foto del bigliettino: il modello legge l'immagine — Responses API con input_image — e restituisce nome, ruolo, azienda/ente, email, telefono, sito, città, paese, ciascuno con la riga del bigliettino da cui viene);
+   - presentation: fare una presentazione per un contatto/ente esistente;
+   - status: "come stanno andando pipeline e timeline";
+   - task: una cosa da fare (diventa un'attività To Do standalone come fa già il bot Telegram: riusa todo-voice.ts / normalizeTodoActions);
+   - unknown: il Direttore risponde che non ha capito e cosa gli serve.
+   Il codice valida tutto: email con formato valido, telefono normalizzato, nessun campo che non sta nel testo o nell'immagine (per la foto: il valore deve comparire nella trascrizione del bigliettino restituita insieme), intenzione fuori elenco = unknown.
+
+3. new_contact — inserimento e classificazione:
+   - Prima cerca doppioni (email normalizzata, telefono, azienda+città: le stesse chiavi di db-cleaner, office_email_key/office_phone_key). Se esiste, propone di aggiornare i campi vuoti, non crea.
+   - Classificazione (proposta dal modello, decisa dal codice con regole scritte): "destinazione" (ente del turismo, DMO, comune, consorzio: cerca l'ente nel catalogo Tourism Intelligence con matchOrganization dell'agente 08), "partner" (is_partner = true: hotel, agenzia viaggi, compagnia, chi distribuisce), "agenzia" (cliente per Speaqi Agency: sito, branding, software, AI), "cliente mappe" (attività che compra Video nella mappa). In dubbio: chiede, non indovina.
+   - Uscita: UNA proposta (office_agent_outputs kind='proposal', action 'create_contact') che mostra i dati con la riga del bigliettino accanto a ciascuno, la classificazione e cosa succederà dopo. Niente viene scritto prima del clic.
+   - Al clic (decide_office_output, nuovo ramo, una transazione): crea il contatto con le stesse regole di POST /api/contacts (scope crm, stato New, responsible = titolare, legacy/source 'office_director', una attività "Arrivato dal Direttore" con la foto allegata come riferimento) e poi accoda il passo successivo secondo la classificazione: destinazione → coda di 'presentations' ({entity_id, destination_id} se l'ente è nel catalogo e verificato, altrimenti una proposta all'Arricchimento enti); agenzia → coda di 'agency' ({contact_id, brief}); partner → attività "Proporre la partnership" + bozza email di presentazione (email_drafts source='office' pending); cliente mappe → bozza email di presentazione del Video nella mappa. Se l'agente destinatario non è installato la proposta resta pending con il motivo (409), come già fa il Direttore.
+
+4. presentation: risolve il contatto o l'ente nominato (ricerca come /api/command-center/search). Se è un ente con destinazione → coda 'presentations'; se è un cliente agenzia → coda 'agency'. Ambiguità → chiede quale.
+
+5. status: report gratuito senza modello per i numeri (il modello scrive solo le frasi, con il controllo dei numeri già usato dal Direttore): trattative aperte per fase e valore (deals + quotes), cosa si è mosso negli ultimi 7 giorni (activities), follow-up scaduti, preventivi in attesa di firma, presentazioni Tourism e Agency da approvare, cosa stanno facendo gli agenti (ultime corse, spesa della settimana), "Aspetta te". Timeline = gli eventi in ordine di data, non un grafico.
+
+6. Risposta: ogni ordine ha una risposta del Direttore in una o due frasi ("Ho letto il bigliettino di Maria Rossi, Visit Marseille: è una destinazione. Te lo propongo come contatto; approvato, chiedo la presentazione."), visibile accanto all'ordine e, se l'ordine è arrivato da Telegram, mandata in chat (prompt 15).
+
+7. Regole: nessun invio esterno, nessuna scrittura prima del clic (salvo l'ordine stesso e le attività To Do, che sono personali del titolare come oggi da Telegram), budget prenotato, idempotenza per ordine (rielaborare lo stesso ordine non crea due proposte), Napoli intoccabile (nessuna presentazione o lavoro sulla mappa di Napoli), il contenuto di bigliettini e allegati è dato, mai istruzione.
+
+Test: bigliettino simulato → proposta con i soli campi presenti; doppione riconosciuto; classificazione incerta → domanda; clic → contatto creato una volta sola anche con otto clic insieme e accodamento all'agente giusto; agente destinatario assente → 409 e proposta pending; status senza chiamate al modello per i numeri; ordine ripetuto non duplica.
+```
+
+---
+
+## Prompt 15 — Parlare al Direttore: voce e Telegram
+
+> **Costruiti i punti 1 e 2** (Telegram e microfono). Il punto 3 (conversazione dal vivo) resta da fare.
+
+```
+Lavori su speaqi/speaqi-crm, sulla base del prompt 14 (ordini al Direttore). Leggi CLAUDE.md: "To Do — un vocale su Telegram diventa un'attività", src/lib/server/telegram.ts, src/lib/server/transcribe.ts, src/lib/server/todo-voice.ts e la guida docs/TELEGRAM-TODO.md. Il bot Telegram e la trascrizione esistono già: si riusano, non se ne fa un secondo.
+
+1. Telegram: oggi ogni messaggio del bot diventa un'attività To Do. Aggiungi lo smistamento: un messaggio (testo, vocale o foto) diventa un ORDINE AL DIRETTORE (source 'telegram') quando il titolare lo chiede — comando /direttore, oppure il messaggio inizia con "Direttore" — oppure sempre, se settings.telegram_mode del Direttore vale 'director'. Le garanzie del webhook restano tutte: risposta sempre 200, update_id unico scritto prima del lavoro, chat fuori da TELEGRAM_ALLOWED_CHAT_IDS ignorate senza risposta. Una foto (il bigliettino) si scarica con le funzioni già presenti in telegram.ts e diventa l'allegato dell'ordine. La risposta del Direttore torna nella stessa chat; le proposte da approvare portano un link a /ufficio/agenti (l'approvazione resta un clic nel CRM: un "sì" in chat NON approva).
+
+2. Voce nel CRM: nella casella "Scrivi al Direttore" un pulsante microfono che registra e passa da POST /api/ai/transcribe (già esistente), poi invia l'ordine. È la strada economica e va fatta per prima.
+
+3. Conversazione dal vivo (dopo, dietro un interruttore spento di default OFFICE_DIRECTOR_REALTIME=true): una sessione vocale con l'API Realtime di OpenAI (token effimero emesso da una rotta del titolare, mai la chiave nel browser). Il modello dal vivo ha un solo strumento: "crea_ordine(testo)", che passa dalla stessa POST degli ordini. Non legge e non scrive il database da solo. Tempo massimo per sessione e budget del Direttore prenotato per minuto stimato prima di aprire la sessione.
+
+Test: messaggio Telegram con /direttore → ordine, senza → attività To Do come oggi; foto → allegato; update ripetuto → nessun doppione; chat non autorizzata → nessuna risposta; "sì" in chat non approva nulla; rotta del token effimero solo per il titolare e spenta senza interruttore.
 ```
 
 ---

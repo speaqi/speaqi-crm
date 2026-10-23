@@ -50,6 +50,10 @@ export function officeApprovalEffect(output: Pick<OfficeOutput, 'agent_id' | 'ki
     return { label: 'Approva e importa nel CRM', description: 'Aggiorna l’ente, lo porta nel CRM e lo accoda alle Presentazioni nella stessa operazione.',
       notice: 'Ente aggiornato e portato nel CRM; lavoro accodato alle Presentazioni.' }
   }
+  if (output.agent_id === 'director' && output.kind === 'proposal' && output.body.action === 'create_contact') {
+    return { label: 'Inserisci il contatto', description: 'Crea il contatto nel CRM con il primo follow-up e passa il lavoro all’agente indicato in «Dopo il clic». Controlla i dati e i possibili doppioni prima di approvare. Nessuna email parte.',
+      notice: 'Contatto inserito nel CRM.' }
+  }
   if (output.agent_id === 'director' && output.kind === 'proposal') {
     return { label: 'Approva e accoda', description: 'Aggiunge il lavoro alla coda dell’agente destinatario. L’esecuzione segue il suo interruttore, orario e budget.',
       notice: 'Lavoro approvato e accodato all’agente destinatario.' }

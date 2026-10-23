@@ -6,16 +6,21 @@ import { apiFetch } from '@/lib/api'
 import { formatEuroPlain } from '@/lib/command-center'
 import { OFFICE_DEPARTMENTS, OFFICE_RUN_LABELS, officeApprovalEffect, type OfficeAgent, type OfficeOverview, type OfficeRun } from '@/lib/office'
 import styles from './office.module.css'
+import { DirectorOrders } from './DirectorOrders'
 
 const euro = (cents: number) => formatEuroPlain(cents / 100)
 const date = (value: string) => new Date(value).toLocaleString('it-IT', { timeZone: 'Europe/Rome', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
-const BODY_LABELS: Record<string, string> = { testo: 'Testo', text: 'Testo', subject: 'Oggetto', body: 'Contenuto', summary: 'Riepilogo', points: 'Punti', sources: 'Fonti', evidence: 'Fonti', proposal: 'Proposta' }
+const BODY_LABELS: Record<string, string> = { testo: 'Testo', text: 'Testo', subject: 'Oggetto', body: 'Contenuto', summary: 'Riepilogo', points: 'Punti', sources: 'Fonti', evidence: 'Fonti', proposal: 'Proposta',
+  contact: 'Contatto', name: 'Nome', role: 'Ruolo', company: 'Azienda / ente', email: 'Email', phone: 'Telefono', website: 'Sito', city: 'Città', country: 'Paese',
+  perche: 'Perché', card_text: 'Bigliettino', scartati: 'Dati lasciati fuori', ente_nel_catalogo: 'Ente nel catalogo', possibili_doppioni: 'Possibili doppioni', dopo_il_clic: 'Dopo il clic', brief: 'Richiesta' }
+/** Campi tecnici del nuovo contatto: servono al server, non a chi decide. */
+const CONTACT_HIDDEN_KEYS = new Set(['action', 'order_id', 'category', 'entity_id', 'duplicate_ids', 'claimed_at'])
 
-function OutputBody({ value }: { value: unknown }) {
+function OutputBody({ value, hide }: { value: unknown; hide?: Set<string> }) {
   if (value === null || value === undefined) return <span>—</span>
-  if (Array.isArray(value)) return <ul>{value.map((item, index) => <li key={index}><OutputBody value={item} /></li>)}</ul>
-  if (typeof value === 'object') return <dl>{Object.entries(value).map(([key, item]) => <div key={key}><dt>{BODY_LABELS[key] || key.replace(/_/g, ' ')}</dt><dd><OutputBody value={item} /></dd></div>)}</dl>
+  if (Array.isArray(value)) return <ul>{value.map((item, index) => <li key={index}><OutputBody value={item} hide={hide} /></li>)}</ul>
+  if (typeof value === 'object') return <dl>{Object.entries(value).filter(([key, item]) => !hide || (!hide.has(key) && item !== null && !(Array.isArray(item) && !item.length))).map(([key, item]) => <div key={key}><dt>{BODY_LABELS[key] || key.replace(/_/g, ' ')}</dt><dd><OutputBody value={item} hide={hide} /></dd></div>)}</dl>
   return <p>{typeof value === 'boolean' ? value ? 'Sì' : 'No' : String(value)}</p>
 }
 
@@ -86,6 +91,7 @@ export default function OfficePage() {
     setError('')
   }, [offset])
   useEffect(() => { void load().catch((err) => setError(err instanceof Error ? err.message : 'Ufficio non disponibile')) }, [load])
+  const refresh = useCallback(() => { void load().catch(() => {}) }, [load])
 
   useEffect(() => { if (data && data.outputs.length === 0 && offset > 0) setOffset(Math.max(0, offset - 50)) }, [data, offset])
 
@@ -119,7 +125,10 @@ export default function OfficePage() {
   }
   async function decide(id: string, status: 'approved' | 'rejected') {
     const output = data?.outputs.find((item) => item.id === id)
-    try { await act(id, () => apiFetch(`/api/office/outputs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }), status === 'approved' && output ? officeApprovalEffect(output).notice : 'Uscita rifiutata.') }
+    try { await act(id, async () => {
+      const result = await apiFetch<{ notice?: string }>(`/api/office/outputs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+      setNotice(result?.notice || (status === 'approved' && output ? officeApprovalEffect(output).notice : 'Uscita rifiutata.'))
+    }) }
     catch { /* Il messaggio resta visibile nella pagina. */ }
   }
   async function telegram(id: string) {
@@ -143,6 +152,8 @@ export default function OfficePage() {
         <div><span>Questa settimana</span><strong>{euro(data.totals.week_actual)}</strong><small>{euro(data.totals.week_reserved)} prenotati</small></div>
         <div><span>Questo mese</span><strong>{euro(data.totals.month_actual)}</strong><small>{euro(data.totals.month_reserved)} prenotati</small></div>
       </div>
+      <DirectorOrders directorEnabled={!!data.agents.find((agent) => agent.id === 'director')?.enabled}
+        onEnable={() => change('director', { enabled: true }).catch(() => {})} onChanged={refresh} />
       {data.agents.length === 0 && <section className={styles.empty}><h2>L’ufficio è pronto, i compiti arrivano dopo.</h2><p>Non ci sono ancora agenti installati. Ogni nuovo agente nascerà spento, con il suo budget da controllare.</p></section>}
       {(Object.entries(OFFICE_DEPARTMENTS) as Array<[keyof typeof OFFICE_DEPARTMENTS, string]>).map(([department, label]) => {
         const agents = data.agents.filter((agent) => agent.department === department)
@@ -152,7 +163,7 @@ export default function OfficePage() {
         {data.pending_count === 0 && <p className={styles.emptyQueue}>Nessuna uscita da valutare.</p>}
         {data.outputs.map((output) => <article className={styles.output} id={`uscita-${output.id}`} key={output.id}>
           <small>{data.agents.find((agent) => agent.id === output.agent_id)?.name || output.agent_id} · {date(output.created_at)}</small><h3>{output.title}</h3>
-          <div className={styles.outputBody}><OutputBody value={output.body} /></div>
+          <div className={styles.outputBody}><OutputBody value={output.body} hide={output.body.action === 'create_contact' ? CONTACT_HIDDEN_KEYS : undefined} /></div>
           <p>{officeApprovalEffect(output).description}</p>
           <div className={styles.actions}><button className="btn btn-primary btn-sm" disabled={!!busy} onClick={() => { void decide(output.id, 'approved') }}>{officeApprovalEffect(output).label}</button>
             {output.agent_id === 'news_watch' && output.body.telegram_available === true && <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => { void telegram(output.id) }}>Approva e invia su Telegram</button>}

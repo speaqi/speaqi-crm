@@ -90,7 +90,11 @@ function initialTaskAction(body: any, contact: any) {
     (contact.phone ? 'call' : contact.email ? 'send_email' : 'wait')
 }
 
-export async function createLeadFromInput(supabase: any, userId: string, body: any) {
+/** extra: chi crea il lead da dentro il CRM (il Direttore) fissa legacy_id per
+ * l'idempotenza, il flag partner e il testo dell'attività iniziale. */
+export async function createLeadFromInput(supabase: any, userId: string, body: any, extra: {
+  legacyId?: string; isPartner?: boolean; activity?: { content: string; metadata: Record<string, unknown> }
+} = {}) {
   const name = String(body.name || '').trim()
   if (!name) {
     throw new Error('Il nome del lead è obbligatorio')
@@ -130,6 +134,8 @@ export async function createLeadFromInput(supabase: any, userId: string, body: a
     next_followup_at: nextFollowupAt,
     last_activity_summary: normalizeText(body.note),
     stage_entered_at: new Date().toISOString(),
+    ...(extra.legacyId ? { legacy_id: extra.legacyId } : {}),
+    ...(extra.isPartner ? { is_partner: true } : {}),
   }
 
   const { data: inserted, error } = await supabase
@@ -164,7 +170,7 @@ export async function createLeadFromInput(supabase: any, userId: string, body: a
   }
 
   const activityContent = [
-    'Lead creato via API AI-ready.',
+    extra.activity?.content || 'Lead creato via API AI-ready.',
     `Stato iniziale: ${inserted.status}.`,
     nextActionAt ? `Next action: ${formatActivityDate(nextActionAt)}.` : null,
     task ? 'Task iniziale creato automaticamente.' : null,
@@ -178,7 +184,7 @@ export async function createLeadFromInput(supabase: any, userId: string, body: a
       contact_id: inserted.id,
       type: 'system',
       content: activityContent,
-      metadata: {
+      metadata: extra.activity?.metadata || {
         event: 'lead_created',
         source: 'api_leads',
       },

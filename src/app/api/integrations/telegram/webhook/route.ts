@@ -4,6 +4,7 @@ import { createServiceRoleClient } from '@/lib/server/supabase'
 import {
   downloadTelegramFile,
   extractAudio,
+  extractPhoto,
   isAllowedChat,
   matchesWebhookSecret,
   sendTelegramMessage,
@@ -18,6 +19,9 @@ import {
   type TodoVoiceCandidate,
 } from '@/lib/server/todo-voice'
 import { resolveProgress } from '@/lib/todo'
+import { telegramDirectorReply, telegramDirectorRoute } from '@/lib/office/director-orders'
+import { createDirectorOrder, processDirectorOrder } from '@/lib/server/office-director-orders'
+import { ensureOfficeAgents } from '@/lib/server/office-agents/definitions'
 import type { Task } from '@/types'
 
 /**
@@ -81,6 +85,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = createServiceRoleClient()
   const audio = extractAudio(message)
+  const photo = extractPhoto(message)
   const text = String(message.text || message.caption || '').trim()
 
   // Il fermo all'idempotenza: se questo update è già passato, qui si esce.
@@ -91,7 +96,7 @@ export async function POST(request: NextRequest) {
       update_id: Number(update.update_id),
       chat_id: String(chatId),
       message_id: Number(message.message_id) || null,
-      kind: audio ? 'voice' : 'text',
+      kind: audio ? 'voice' : photo ? 'photo' : 'text',
       transcript: audio ? null : text || null,
     })
     .select('id')
@@ -110,7 +115,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    if (!audio && !text) {
+    if (!audio && !text && !photo) {
       await finish({ status: 'ignored' })
       return ok({ skipped: 'empty_message' })
     }
@@ -124,6 +129,31 @@ export async function POST(request: NextRequest) {
           'Nota vocale di lavoro in italiano: attività da fare, avanzamenti, nomi di clienti e aziende, scadenze.',
       })
       await finish({ transcript })
+    }
+
+    // Al Direttore: /direttore, «Direttore …», una foto, o il Direttore impostato per ricevere tutto.
+    const { data: director } = await supabase.from('office_agents').select('settings')
+      .eq('id', 'director').eq('user_id', userId).maybeSingle()
+    const route = telegramDirectorRoute(transcript, { photo: !!photo, mode: (director?.settings as any)?.telegram_mode })
+    if (route.director) {
+      const files = []
+      if (photo) {
+        const blob = await downloadTelegramFile(config, photo.fileId)
+        files.push({ name: 'foto-telegram.jpg', buffer: Buffer.from(await blob.arrayBuffer()) })
+      }
+      await ensureOfficeAgents(supabase, userId)
+      const order = await createDirectorOrder(supabase, userId, { source: 'telegram', text: route.text, files, telegramChatId: String(chatId) })
+      await finish({ transcript, status: 'director', intent: { director_order_id: order.id } })
+      await sendTelegramMessage(config, chatId, 'Ricevuto, ci lavoro.')
+      // Si risponde 200 subito: Telegram riconsegnerebbe un update lento.
+      const baseUrl = process.env.APP_BASE_URL || 'https://crm.speaqi.com'
+      void processDirectorOrder(supabase, userId, order.id)
+        .then((done) => sendTelegramMessage(config, chatId, telegramDirectorReply(done, baseUrl)))
+        .catch(async (error) => {
+          console.error('[telegram] ordine al Direttore non elaborato:', error)
+          await sendTelegramMessage(config, chatId, `⚠️ Il Direttore non è riuscito a lavorare l’ordine: ${errorMessage(error, 'errore')}.`)
+        })
+      return ok({ director_order: order.id })
     }
 
     const now = new Date()
