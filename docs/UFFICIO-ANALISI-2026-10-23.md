@@ -16,13 +16,14 @@ La base operativa esiste e supera i controlli locali: 12 agenti, budget atomici,
 | Punto forte | Visione della struttura aziendale; lettura dei reparti anche in una finestra stretta | Confronto immediato delle squadre e sensazione di collaborazione |
 | Limite | I piani in basso restano parzialmente coperti nella vista generale, risolto entrando nel reparto | Su telefono la vista generale è più piccola, affiancata dal pannello testuale |
 
-La **Torre**, scelta come vista iniziale, sfrutta meglio lo spazio verticale e rende chiara la divisione dei settori. Lo **Studio** è disponibile nella stessa pagina, senza duplicare dati o funzioni. La torre è stata resa più alta aumentando l’interpiano da 4,8 a 5,6 unità, con il logo originale Speaqi sul coronamento e nella testata. Il logo è incluso nella build. Entrambe offrono giorno/sera, rotazione, zoom, ritorno alla vista completa, selezione da tastiera e pannello accessibile.
+La **Torre**, scelta come vista iniziale, sfrutta meglio lo spazio verticale e rende chiara la divisione dei settori. Lo **Studio** è disponibile nella stessa pagina, senza duplicare dati o funzioni. La torre è stata resa più alta aumentando l’interpiano da 4,8 a 5,6 unità, con il logo originale Speaqi sul coronamento e nella testata. Il logo è incluso nella build. Gli interni includono piante alte, fioriere e vasi sulle credenze; pavimenti e pannelli acustici riprendono il colore del reparto: lilla per Direzione, verde per Mappe, azzurro per Ricerca, terracotta per Commerciale, ocra per Finanza, rosa per Marketing e blu ardesia per Operazioni. Entrambe offrono giorno/sera, rotazione, zoom, ritorno alla vista completa, selezione da tastiera e pannello accessibile.
 
 Anteprime con **dati simulati**, non dati del workspace remoto:
 
 - [Torre](ufficio/torre.png)
 - [Studio open space](ufficio/studio.png)
 - [Telefono](ufficio/mobile.png)
+- [Interno di un reparto con piante e pannelli colorati](ufficio/reparto.png)
 
 ## Problemi trovati e corretti
 

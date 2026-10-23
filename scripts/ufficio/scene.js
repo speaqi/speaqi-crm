@@ -116,15 +116,16 @@ function cylinder(group, top, bottom, h, x, y, z, color, count = 16) {
   const mesh = new THREE.Mesh(new THREE.CylinderGeometry(top, bottom, h, count), material(color))
   mesh.position.set(x, y, z); mesh.castShadow = true; group.add(mesh); return mesh
 }
-function plant(group, x, y, z, scale = 1) {
+function plant(group, x, y, z, scale = 1, potColor = '#d6d0c1') {
   const p = new THREE.Group(); p.position.set(x, y, z); p.scale.setScalar(scale); group.add(p)
-  cylinder(p, 0.25, 0.2, 0.5, 0, 0.25, 0, '#d6d0c1')
-  cylinder(p, 0.035, 0.035, 0.7, 0, 0.8, 0, '#5e7260')
-  for (let i = 0; i < 5; i++) {
-    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), material(i % 2 ? '#6c9277' : '#456d58'))
+  cylinder(p, 0.28, 0.21, 0.5, 0, 0.25, 0, potColor)
+  cylinder(p, 0.035, 0.035, 0.85, 0, 0.85, 0, '#5e7260')
+  for (let i = 0; i < 7; i++) {
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), material(i % 2 ? '#73a77c' : '#386e51'))
     const angle = i * 2.4
-    leaf.position.set(Math.cos(angle) * 0.22, 0.9 + i * 0.09, Math.sin(angle) * 0.22)
-    leaf.scale.set(1, 0.45, 0.7); leaf.rotation.z = i * 0.5; p.add(leaf)
+    leaf.position.set(Math.cos(angle) * 0.27, 1.03 + (i % 3) * 0.18, Math.sin(angle) * 0.27)
+    leaf.scale.set(0.72, 1.35, 0.36)
+    leaf.rotation.set(0, -angle, -0.48 + (i % 2) * 0.9); p.add(leaf)
   }
 }
 function chair(group, x, z, rotation = 0) {
@@ -201,7 +202,8 @@ function buildOffice() {
     // Un solo solaio per piano. Nessuna superficie coplanare o piano trasparente.
     for (let floor = 0; floor < 4; floor++) {
       const y = floor * FLOOR_HEIGHT
-      box(root, 25.6, 0.32, 10.8, 0, y - 0.16, 0, '#b1bdb9')
+      const slab = box(root, 25.6, 0.32, 10.8, 0, y - 0.16, 0, '#b1bdb9')
+      Object.assign(slab.userData, { floorLevel: floor, slabWidth: 25.6, slabDepth: 10.8 })
       box(root, 25.65, 0.08, 0.12, 0, y - 0.14, 5.48, '#d8e9ad', { emissive: '#d8e9ad', emissiveIntensity: 0.15 })
       box(root, 25.6, 2.9, 0.16, 0, y + 1.45, -5.1, '#8d9fa4')
       // Le finestre sono pannelli opachi incassati; niente ordinamento di vetri sovrapposti.
@@ -223,7 +225,8 @@ function buildOffice() {
     meeting(root, 6.3, 1)
     plant(root, 10.6, 0.02, -3.7, 1.7)
   } else {
-    box(root, 46, 0.32, 34, 0, -0.16, 0, '#aab8b5')
+    const slab = box(root, 46, 0.32, 34, 0, -0.16, 0, '#aab8b5')
+    Object.assign(slab.userData, { floorLevel: 0, slabWidth: 46, slabDepth: 34 })
     box(root, 46, 2.6, 0.2, 0, 1.3, -16.7, '#9aadb0')
     for (let x = -21; x < 22; x += 3.3) box(root, 2.95, 1.8, 0.05, x, 1.5, -16.55, '#acc6d0')
     meeting(root, 0, 11.5)
@@ -238,12 +241,22 @@ function buildOffice() {
     const z = tower ? 0 : Math.floor(index / 3) * 10.8 - 11
     const g = new THREE.Group(); g.position.set(x, y, z); root.add(g)
     // Rivestimento rialzato di 3 cm sopra il solaio: profondità distinte.
-    const tint = new THREE.Color(sector.color).lerp(new THREE.Color('#c3c9c0'), 0.7)
-    box(g, 10.8, 0.05, 7.5, 0, 0.055, 0, tint)
-    box(g, 0.12, 1.1, 7.5, -5.35, 0.63, 0, '#b9c3be')
+    const tint = new THREE.Color(sector.color).lerp(new THREE.Color('#e4dfd1'), 0.24)
+    const partitionTint = new THREE.Color(sector.color).lerp(new THREE.Color('#ede8dc'), 0.42)
+    box(g, 10.8, 0.05, 7.5, 0, 0.055, 0, tint, { roughness: 0.94 })
+    box(g, 0.12, 1.1, 7.5, -5.35, 0.63, 0, partitionTint)
+    // Parete acustica e divisorio riprendono il colore del reparto.
+    box(g, 10.1, 0.95, 0.14, 0, 1.8, -3.6, partitionTint)
+    for (let slat = 0; slat < 9; slat++) box(g, 0.045, 0.78, 0.05, -4.55 + slat * 0.2, 1.8, -3.5, '#dcc5a0')
     box(g, 10.8, 0.12, 0.15, 0, 0.13, 3.7, sector.color)
-    box(g, 2.5, 0.9, 0.55, 3.7, 0.52, -3.15, '#9eaaa4')
-    plant(g, 4.5, 0.98, -3.15, 0.65)
+    box(g, 2.5, 0.9, 0.55, 3.7, 0.52, -3.15, '#bdac90')
+    plant(g, 4.35, 0.98, -3.15, 0.55, '#c88366')
+    plant(g, 3.15, 0.98, -3.15, 0.45)
+    // Verde all'interno: piante alte laterali e fioriera dietro alle scrivanie.
+    plant(g, -4.75, 0.085, 2.55, 1.35, '#c88366')
+    plant(g, 4.8, 0.085, 1.15, 1.15)
+    box(g, 2.8, 0.48, 0.64, -2.9, 0.325, -3.05, '#bda887')
+    for (const px of [-3.8, -2.9, -2.0]) plant(g, px, 0.565, -3.05, 0.6, '#bda887')
     const roster = sector.agents.slice(0, 12)
     if (!roster.length) {
       desk(g, -1.3, 0, sector.color, null)
@@ -271,12 +284,17 @@ function updateVisibility() {
     slot.tag.visible = !focused || focused === slot.id
     slot.group.visible = !focused || slot.id === focused
   }
-  // I solai superiori e il nucleo vengono nascosti durante l'ispezione di un reparto.
+  // Nell'ispezione resta il solo basamento del reparto: niente nucleo o piani che invadono la vista.
+  const selectedSlot = slots.find((slot) => slot.id === focused)
   if (root) for (const child of root.children) {
     if (child.userData.roofSign) child.visible = !focused
-    if (child.isMesh) child.visible = !focused || (layout === 'tower'
-      ? child.position.y <= (slots.find((s) => s.id === focused)?.center.y ?? 0)
-      : child.position.y < 0.2)
+    if (!child.isMesh) continue
+    if (child.userData.floorLevel !== undefined) {
+      child.visible = !selectedSlot || child.userData.floorLevel === (layout === 'tower' ? selectedSlot.level : 0)
+      child.scale.set(selectedSlot ? 10.95 / child.userData.slabWidth : 1, 1, selectedSlot ? 7.7 / child.userData.slabDepth : 1)
+      child.position.x = selectedSlot?.center.x ?? 0
+      child.position.z = selectedSlot?.center.z ?? 0
+    } else child.visible = !focused
   }
   dirty = true
 }
