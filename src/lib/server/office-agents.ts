@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createServiceRoleClient } from './supabase'
 import { errorMessage } from './http'
-import { estimateModelCost, modelCostCents, nonNegativeInteger } from '../office-pricing'
+import { estimateModelCost, modelCostCents, nonNegativeInteger, OFFICE_IMAGE_RESERVE_TOKENS } from '../office-pricing'
 import type { OfficeAgent, OfficeOutputKind, OfficeRun, OfficeRunStatus } from '../office'
 
 export class BudgetExceeded extends Error {
@@ -115,18 +115,24 @@ export async function runAgent(agentId: string, handler: AgentHandler, options: 
 
 /** Stessa API Responses e chiave gia' usate da ai-ready.ts, senza strumenti esterni. */
 export async function callModel(ctx: AgentContext, options: { model: string; input: string; maxOutputTokens: number;
-  jsonSchema?: { name: string; schema: Record<string, unknown> } }) {
+  jsonSchema?: { name: string; schema: Record<string, unknown> }
+  /** Immagini come data URL (JPEG/PNG/WebP), gia' ridotte da chi chiama. */
+  images?: string[] }) {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error('OPENAI_API_KEY non configurata')
   const usdToEur = Number(process.env.OFFICE_USD_TO_EUR || '1')
-  const estimate = estimateModelCost(options.model, options.input, options.maxOutputTokens, usdToEur)
+  const images = options.images || []
+  if (images.length > 4 || images.some((url) => !/^data:image\/(jpeg|png|webp);base64,/.test(url))) throw new Error('Immagini non valide per il modello')
+  const estimate = estimateModelCost(options.model, options.input, options.maxOutputTokens, usdToEur, images.length * OFFICE_IMAGE_RESERVE_TOKENS)
   const ledgerId = await ctx.reserve(estimate.cents)
   // Su timeout, errore HTTP o token assenti, la riserva resta impegnata:
   // una risposta persa potrebbe essere gia' stata fatturata dal fornitore.
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST', signal: AbortSignal.timeout(120_000),
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: options.model, input: options.input, max_output_tokens: options.maxOutputTokens, store: false,
+    body: JSON.stringify({ model: options.model, max_output_tokens: options.maxOutputTokens, store: false,
+      input: images.length ? [{ role: 'user', content: [{ type: 'input_text', text: options.input },
+        ...images.map((url) => ({ type: 'input_image', image_url: url, detail: 'high' }))] }] : options.input,
       ...(options.jsonSchema ? { text: { format: { type:'json_schema',name:options.jsonSchema.name,strict:true,schema:options.jsonSchema.schema } } } : {}) }),
   })
   if (!response.ok) throw new Error(`OpenAI non disponibile (HTTP ${response.status}); riserva mantenuta`)

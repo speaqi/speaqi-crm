@@ -49,6 +49,7 @@ export const BACKUP_TABLES = [
   // Registro, bozze e spesa dell'ufficio.
   'office_agents',
   'office_events',
+  'office_director_orders',
   'office_event_batches',
   'office_news_batches',
   'office_news_seen',

@@ -340,7 +340,7 @@ Perché esiste: buona parte del lavoro di oggi è su Speaqi Agency (siti, brandi
 
 1. Migration nuova (timestamp successivo all'ultimo): estende il CHECK office_agents.department con 'agenzia' e 'sviluppo' (quest'ultimo è già nella scena /ufficio senza agenti). Aggiungi 'agenzia: Agenzia' a OFFICE_DEPARTMENTS in src/lib/office.ts. NON toccare scripts/ufficio/ (la scena 3D): il padiglione lo aggiunge chi cura la scena; un reparto sconosciuto viene già messo in fila senza rompere nulla.
 
-2. Coda in settings.queue: elementi { "agency_project_id": "UUID" } oppure { "contact_id": "UUID", "brief": "testo", "services": ["sito","branding",...] }. La riempiono il titolare (a mano) e il Direttore operativo (prompt 14) quando smista un contatto classificato "agenzia". Massimo 2 elementi lavorati per corsa.
+2. Coda in settings.queue: elementi { "agency_project_id": "UUID" } oppure { "contact_id": "UUID", "brief": "testo", "services": ["sito","branding",...] }. La riempiono il titolare (a mano) e il Direttore operativo, già costruito (CLAUDE.md, «Ufficio — Ordini al Direttore»): quando smista un contatto classificato "agenzia" o una presentazione per un cliente che non è un ente del catalogo, chiama la RPC office_director_queue(user, 'agency', voce), che accetta già 'agency' e risponde 'agent_missing' finché questo agente non esiste. Le sue voci hanno la forma { "key": "agency:contact:<uuid>", "contact_id": "<uuid>", "brief": "testo o null", "origin": "director_order", "queued_at": "..." }: accetta i campi in più, usa "key" per l'idempotenza e non togliere voci dalla coda (le voci già lavorate si riconoscono dalla chiave). Appena l'agente è acceso, il Direttore lo fa partire da solo quando gli passa lavoro (startQueuedAgents). Massimo 2 elementi lavorati per corsa.
 
 3. Per ogni elemento in coda:
    - Contatto senza opportunità: crea l'opportunità con createProject (src/lib/server/agency.ts): cliente = contact_id, trattativa aperta del contatto (getOpenDeal), servizi solo fra le categorie che esistono (listCategories), brief così com'è. Nessun contatto viene creato qui.
@@ -360,6 +360,8 @@ Test (node:test + tsx, modello simulato, Postgres locale usa-e-getta come gli al
 ---
 
 ## Prompt 14 — Direttore operativo: ordini, nuovi contatti, smistamento, stato della pipeline
+
+> **Costruito** (ottobre 2026, branch `ccr-6b7e8767-nbvttt`): vedi CLAUDE.md, «Ufficio — Ordini al Direttore». Il testo qui sotto resta come specifica.
 
 ```
 Lavori su speaqi/speaqi-crm, sulla base del prompt 0 e dell'agente Direttore (src/lib/server/office-agents/director.ts, già in main). Leggi CLAUDE.md: sezioni Ufficio (tutte), Contact Scopes, Deals, "Presentazioni per destinazione (Tourism Intelligence)", "Ufficio — Presentazioni (Agente 09)", "Ufficio — Arricchimento enti (Agente 08)" e, se già presente, "Ufficio — Agenzia (Agente 13)".
@@ -396,6 +398,8 @@ Test: bigliettino simulato → proposta con i soli campi presenti; doppione rico
 ---
 
 ## Prompt 15 — Parlare al Direttore: voce e Telegram
+
+> **Costruiti i punti 1 e 2** (Telegram e microfono). Il punto 3 (conversazione dal vivo) resta da fare.
 
 ```
 Lavori su speaqi/speaqi-crm, sulla base del prompt 14 (ordini al Direttore). Leggi CLAUDE.md: "To Do — un vocale su Telegram diventa un'attività", src/lib/server/telegram.ts, src/lib/server/transcribe.ts, src/lib/server/todo-voice.ts e la guida docs/TELEGRAM-TODO.md. Il bot Telegram e la trascrizione esistono già: si riusano, non se ne fa un secondo.
