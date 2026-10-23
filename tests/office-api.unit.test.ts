@@ -18,11 +18,12 @@ let member = false
 let pending = true
 let outputsError: string | null = null
 let pendingCount = 0
+let decideReason: string | null = null
 let calls: Array<{ url: string; method: string; body: Record<string, unknown> | null }> = []
 const params = { params: Promise.resolve({ id: 'prova' }) }
 
 beforeEach(() => {
-  member = false; pending = true; outputsError = null; pendingCount = 0; calls = []; invalidateRouteUserCaches()
+  member = false; pending = true; decideReason = null; outputsError = null; pendingCount = 0; calls = []; invalidateRouteUserCaches()
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://office-test.invalid'
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-finta'
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-finta'
@@ -50,6 +51,7 @@ beforeEach(() => {
       return Response.json({ code: outputsError, message: 'Intervallo o lettura non disponibile' }, { status: outputsError === 'PGRST103' ? 416 : 500 })
     }
     if (url.includes('/rpc/decide_office_output') && method === 'POST') {
+      if (decideReason) return Response.json({ output:null,reason:decideReason })
       if (!pending) return Response.json({ output:null,reason:'already_decided' })
       pending = false
       return Response.json({ output: { id:'prova',status:body.p_status } })
@@ -123,6 +125,13 @@ test('approvare usa la sola RPC transazionale autorizzata; il secondo clic non c
   assert.equal(writes.length, 1); assert.ok(writes[0].url.includes('/rpc/decide_office_output'))
   assert.deepEqual(writes[0].body, {p_output_id:'prova',p_user_id:OWNER,p_status:'approved'})
   assert.equal((await decide(request('/api/office/outputs/prova', { status: 'rejected' }), params)).status, 409)
+})
+
+test('una scadenza evento già passata dice il motivo vero, non «già decisa»', async () => {
+  decideReason = 'deadline_passed'
+  const response = await decide(request('/api/office/outputs/prova', { status: 'approved' }), params)
+  assert.equal(response.status, 409)
+  assert.match((await response.json()).error, /scadenza di questo evento è già passata.*Rifiuta/)
 })
 
 test('non si possono chiedere esecuzioni esterne o cambiare proprietario dal corpo', async () => {

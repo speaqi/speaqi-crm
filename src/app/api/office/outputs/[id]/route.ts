@@ -21,6 +21,10 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         // Nessuna scrittura: verifiche, CRM e coda tornano indietro insieme, la proposta resta da decidere.
         return Response.json({ error: `Ente non portato nel CRM: ${data.error || 'errore'}. La proposta resta in attesa.` }, { status: 409 })
       }
+      if (data?.reason === 'deadline_passed') {
+        // La scadenza dell'evento è passata fra la proposta e il clic: approvarla non serve più.
+        return Response.json({ error: 'La scadenza di questo evento è già passata: non c’è più niente da decidere. Rifiuta la proposta per toglierla dalla coda.' }, { status: 409 })
+      }
       return Response.json({ error: data?.reason==='agent_missing' ? 'Il destinatario non è ancora installato. Installa gli agenti successivi prima di accodare.' : 'Uscita non trovata o già decisa. Aggiorna la pagina.' }, { status: 409 })
     }
     return Response.json({ output: data.output })
