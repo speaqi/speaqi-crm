@@ -83,9 +83,9 @@ test('eventi: job spento, budget e giorni alterni a 06:30 Roma attraverso mese e
   const definition=OFFICE_AGENT_DEFINITIONS.events_scout;assert.equal(definition.enabled,false)
   assert.deepEqual([definition.daily_budget_cents,definition.weekly_budget_cents,definition.monthly_budget_cents],[100,350,1500])
   const job=AUTOMATION_JOBS.find((job)=>job.name==='office-events-scout')!;assert.equal(job.everyDays,2)
-  const states=Array.from({length:10},(_,i)=>{const day=new Date(Date.UTC(2026,9,27+i));const localDay=day.toISOString().slice(0,10)
-    // Dopo il 25 ottobre Roma è UTC+1.
-    return dueJobs(new Date(`${localDay}T05:30:00Z`),'UTC',[job]).length})
+  const states=Array.from({length:15},(_,i)=>{const day=new Date(Date.UTC(2026,9,22+i));const localDay=day.toISOString().slice(0,10)
+    const hour=localDay<'2026-10-25'?'04':'05' // 06:30 Roma, prima e dopo il cambio dell'ora.
+    return dueJobs(new Date(`${localDay}T${hour}:30:00Z`),'UTC',[job]).length})
   for(let i=1;i<states.length;i++)assert.notEqual(states[i],states[i-1])
   assert.equal(dueJobs(new Date('2026-10-24T05:30:00Z'),'UTC',[job]).length,0)
 })

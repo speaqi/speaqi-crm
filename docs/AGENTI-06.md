@@ -30,8 +30,8 @@ struttura si usa `callModel` con JSON Schema strict e budget prenotato. Il model
 legge al massimo 20.000 caratteri e 100 link per pagina; le prove congelate
 contengono fino a 60.000 caratteri, 500 link e 1.000 date. Massimo 100 candidati
 strutturati per pagina, 20 dal modello e 200 nuovi eventi per corsa. L'analisi
-del modello si ferma dopo 12 minuti più l'ultima richiesta; i limiti e gli
-errori sono dichiarati nel resoconto, senza retry automatici.
+del modello si ferma dopo 12 minuti più l'ultima richiesta. I limiti sono
+documentati qui e gli errori dichiarati nel resoconto, senza retry automatici.
 
 Nome, città e organizzatore devono apparire nella fonte. Ogni data e link deve
 avere riscontro nella pagina; nessuna città, email o paese viene indovinato.
