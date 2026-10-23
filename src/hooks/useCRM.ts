@@ -323,13 +323,25 @@ export function useCRM(_pathname = '') {
       // (team → stage+contatti → task → to-do) e il tempo di apertura era la
       // loro somma. Nessuna di queste richieste dipende dalle altre: il
       // filtro per assegnatario lo applica già il server sul token.
+      // Badge, cartelle e storico To Do non devono tenere la schermata di
+      // apertura visibile quando contatti e attività sono già pronti.
+      const ancillaryResults = Promise.allSettled([
+        apiFetch<{ counts: ContactCounts; folders?: ContactFolderCount[] }>('/api/contacts/summary')
+          .then((response) => {
+            setContactCounts({ ...EMPTY_COUNTS, ...(response.counts || {}) })
+            setHoldingFolders(response.folders || [])
+            return response
+          }),
+        apiFetch<{ tasks: Task[] }>('/api/tasks/standalone?status=pending')
+          .then((response) => setStandaloneTasks(response.tasks || [])),
+        apiFetch<{ tasks: Task[] }>('/api/tasks/standalone?status=done')
+          .then((response) => setCompletedStandaloneTasks(response.tasks || [])),
+      ])
       const [
         teamResult,
         stagesResult,
         contactsResult,
-        countsResult,
         tasksResult,
-        standaloneResult,
       ] = await Promise.allSettled([
         apiFetch<{
           members: TeamMember[]
@@ -341,12 +353,7 @@ export function useCRM(_pathname = '') {
         ),
         apiFetch<{ stages: PipelineStage[] }>('/api/pipeline-stages'),
         apiFetch<{ contacts: CRMContact[] }>(WORKING_SET_QUERY),
-        apiFetch<{ counts: ContactCounts; folders?: ContactFolderCount[] }>('/api/contacts/summary'),
         apiFetch<{ tasks: TaskWithContact[] }>('/api/tasks?status=pending'),
-        Promise.all([
-          apiFetch<{ tasks: Task[] }>('/api/tasks/standalone?status=pending'),
-          apiFetch<{ tasks: Task[] }>('/api/tasks/standalone?status=done'),
-        ]),
       ])
 
       if (teamResult.status === 'fulfilled') {
@@ -376,11 +383,6 @@ export function useCRM(_pathname = '') {
         warnings.push(`Contatti: ${extractMessage(contactsResult.reason, 'Errore caricando i contatti')}`)
       }
 
-      if (countsResult.status === 'fulfilled') {
-        setContactCounts({ ...EMPTY_COUNTS, ...(countsResult.value.counts || {}) })
-        setHoldingFolders(countsResult.value.folders || [])
-      }
-
       let nextTasks: TaskWithContact[] | null = null
       if (tasksResult.status === 'fulfilled') {
         nextTasks = tasksResult.value.tasks || []
@@ -388,11 +390,18 @@ export function useCRM(_pathname = '') {
         warnings.push(`Task: ${extractMessage(tasksResult.reason, 'Errore caricando i task')}`)
       }
 
-      if (standaloneResult.status === 'fulfilled') {
-        const [pendingRes, doneRes] = standaloneResult.value
-        setStandaloneTasks(pendingRes.tasks || [])
-        setCompletedStandaloneTasks(doneRes.tasks || [])
-      }
+      setState((previous) => ({
+        stages: nextStages ?? previous.stages,
+        contacts: nextContacts ?? previous.contacts,
+        tasks: nextTasks ?? previous.tasks,
+      }))
+      setVNotes(readVoiceNotes())
+      setError(warnings.length ? warnings.join(' | ') : null)
+      hasLoadedRef.current = true
+      // Un set vuoto aspetta il controllo legacy prima di consentire nuove scritture.
+      if (shouldBlockUI && (!nextContacts || nextContacts.length > 0)) setLoading(false)
+
+      const [countsResult] = await ancillaryResults
 
       // Il workspace vuoto è l'unico caso che giustifica l'import legacy:
       // controllarlo sul conteggio evita di scambiare un errore di rete per
@@ -409,19 +418,12 @@ export function useCRM(_pathname = '') {
             method: 'POST',
           })
           const reloaded = await apiFetch<{ contacts: CRMContact[] }>(WORKING_SET_QUERY)
-          nextContacts = reloaded.contacts || []
+          setState((previous) => ({ ...previous, contacts: reloaded.contacts || [] }))
         } catch (legacyError) {
-          warnings.push(`Import legacy: ${extractMessage(legacyError, 'Errore importando i dati legacy')}`)
+          const warning = `Import legacy: ${extractMessage(legacyError, 'Errore importando i dati legacy')}`
+          setError((current) => current ? `${current} | ${warning}` : warning)
         }
       }
-
-      setState((previous) => ({
-        stages: nextStages ?? previous.stages,
-        contacts: nextContacts ?? previous.contacts,
-        tasks: nextTasks ?? previous.tasks,
-      }))
-      setVNotes(readVoiceNotes())
-      setError(warnings.length ? warnings.join(' | ') : null)
     } catch (loadError) {
       setError(extractMessage(loadError, 'Impossibile caricare il CRM'))
     } finally {
