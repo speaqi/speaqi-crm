@@ -1,6 +1,6 @@
 # Social — consegna
 
-Branch `codex/office-12-social` da main aggiornato `2ab93a5`, PR indipendente verso main.
+Branch `codex/office-12-social` da main aggiornato `7f57b7b`, PR indipendente verso main.
 Non dipende dal 07 o dai branch 02/04. La scena `/ufficio` resta intatta.
 
 Migration nuova: `20261023060654_office_social_drafts.sql`, da applicare a cura
@@ -24,9 +24,9 @@ Non provati dal vivo: credenziali e fatturazione OpenAI, catalogo/payload/foto
 Speaqi e Railway/PostgREST di produzione. I test usano risposte simulate e
 nessun dato operativo; nessun deploy.
 
-Verifiche sul branch aggiornato con main `2ab93a5`:
+Verifiche sul branch aggiornato con main `7f57b7b`:
 - `npx tsc --noEmit`: superato.
-- `npm run test:unit`: 470 passati, 0 falliti, 1 skip preesistente
+- `npm run test:unit`: 480 passati, 0 falliti, 1 skip preesistente
   (pagina di dettaglio del sito TTG).
 - `npm run test:db`: 52 passati, 0 falliti, 0 skip su PostgreSQL 16 locale.
 - `npx next build`: superato con configurazione Supabase fittizia, nessun deploy.
