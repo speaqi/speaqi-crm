@@ -28,6 +28,8 @@ type EmailDraft = {
   source: string
   created_at: string
   sent_at: string | null
+  office_note?: string | null
+  office_agent_id?: string | null
   note?: string | null
   contact?: {
     id: string
@@ -551,6 +553,7 @@ export default function EmailPage() {
                               {urgency.label}
                             </span>
                           )}
+                          {draft.office_note && <span title={draft.office_note}>Ufficio · {draft.office_note}</span>}
                           {draft.source === 'auto' && (
                             <span style={{ fontSize: 11, color: 'var(--text3)', background: 'var(--surface2)', padding: '1px 6px', borderRadius: 4 }}>auto</span>
                           )}

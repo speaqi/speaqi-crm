@@ -471,6 +471,7 @@ export default function OggiPage() {
     return (
       <div className="oggi-page oggi-v2">
         <DashboardHero overdueCount={0} todayCount={0} hotCount={0} canImport={canImport} />
+        {isAdmin && <CommandCenter />}
         <section className="oggi-onboarding">
           <div className="oggi-onboarding-icon">👋</div>
           <h2>Benvenuto in Speaqi!</h2>

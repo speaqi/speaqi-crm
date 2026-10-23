@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 
@@ -38,7 +39,10 @@ export default function UfficioPage() {
 
   if (error) return <div className="inline-error" style={{ margin: 16 }}>{error}</div>
   return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', background: '#0a0f24' }}>
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', background: '#0a0f24', position: 'relative' }}>
+      <Link href="/ufficio/agenti" className="btn btn-primary btn-sm" style={{ position: 'absolute', right: 16, bottom: 16, zIndex: 2 }}>
+        Agenti, budget e bozze →
+      </Link>
       {html ? (
         <iframe title="Ufficio Speaqi" srcDoc={html} style={{ flex: 1, border: 0, width: '100%', height: '100%' }} allow="fullscreen" />
       ) : (

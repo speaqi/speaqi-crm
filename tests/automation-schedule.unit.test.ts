@@ -1,3 +1,4 @@
+import { officeAgentHandler } from '../src/lib/server/office-agents/registry'
 /**
  * Pianificatore delle automazioni (ex n8n): gli orari devono essere quelli di
  * prima, nel fuso italiano anche dopo il cambio dell'ora, e un job non deve
@@ -20,6 +21,11 @@ const ROME = 'Europe/Rome'
 const names = (date: string) => dueJobs(new Date(date), ROME).map((job) => job.name).sort()
 
 describe('orari', () => {
+  test('il Direttore parte il lunedì alle 7 italiane anche dopo il cambio ora', () => {
+    assert.ok(names('2026-10-19T05:00:00Z').includes('office-director'))
+    assert.ok(names('2026-10-26T06:00:00Z').includes('office-director'))
+    assert.ok(!names('2026-10-27T06:00:00Z').includes('office-director'))
+  })
   test('ogni job ha un cron valido, un nome unico e chiama solo endpoint di automazione', () => {
     const seen = new Set<string>()
     for (const job of AUTOMATION_JOBS) {
@@ -27,7 +33,11 @@ describe('orari', () => {
       assert.ok(!seen.has(job.name), `nome doppio: ${job.name}`)
       seen.add(job.name)
       assert.ok(job.steps.length > 0)
-      for (const step of job.steps) assert.match(step.path, /^\/api\/automation\/[a-z-]+$/)
+      for (const step of job.steps) {
+        const agent = /^\/api\/automation\/agents\/([a-z_]+)\/run$/.exec(step.path)
+        if (agent) assert.ok(officeAgentHandler(agent[1]), `Agente pianificato non installato: ${agent[1]}`)
+        else assert.match(step.path, /^\/api\/automation\/[a-z-]+$/)
+      }
     }
   })
 
@@ -36,6 +46,7 @@ describe('orari', () => {
       'commercial-outreach',
       'db-maintenance',
       'followups',
+      'office-sales-followup',
       'orchestrator',
       'replies',
       'wine-project',

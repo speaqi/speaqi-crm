@@ -23,7 +23,7 @@ import {
 } from '@/lib/email-ai-framework'
 import type { CRMContact, GmailMessage } from '@/types'
 
-type GeneratedEmail = {
+export type GeneratedEmail = {
   subject: string
   body_text: string
   body_html: string
@@ -143,6 +143,8 @@ async function loadRecentActivityContext(supabase: any, userId: string, contactI
     .join('\n')
 }
 
+export type DraftModelCall = (input: { system: string; user: string; maxOutputTokens: number }) => Promise<string>
+
 async function generateEmail(input: {
   contact: CRMContact
   company?: string | null
@@ -157,9 +159,10 @@ async function generateEmail(input: {
   followupMode?: boolean
   publicResearch?: string | null
   wineTemplateId?: string | null
+  modelCall?: DraftModelCall
 }): Promise<GeneratedEmail | null> {
   const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) return null
+  if (!apiKey && !input.modelCall) return null
 
   const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
   const segmentGuidance = buildEmailSegmentGuidance(input.contact, input.settings, {
@@ -233,6 +236,10 @@ async function generateEmail(input: {
   let bestEffort: GeneratedEmail | null = null
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
+      let text: string | undefined
+      if (input.modelCall) {
+        text = await input.modelCall({ system, user: correction ? `${user}\n\n## Correzioni obbligatorie\n${correction}` : user, maxOutputTokens: 1400 })
+      } else {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -253,7 +260,8 @@ async function generateEmail(input: {
 
       if (!response.ok) return null
       const payload = await response.json()
-      const text = payload?.choices?.[0]?.message?.content
+      text = payload?.choices?.[0]?.message?.content
+      }
       if (!text) return null
 
       const generated = ensureDraftRequiredAssets(
@@ -264,7 +272,8 @@ async function generateEmail(input: {
       if (!issues.all.length) return generated
       if (!issues.blocking.length) bestEffort = generated
       correction = issues.all.map((issue) => `- ${issue}`).join('\n')
-    } catch {
+    } catch (error) {
+      if (input.modelCall) throw error
       return null
     }
   }
@@ -383,6 +392,10 @@ export async function createEmailDraftRecord(
     forceFollowup?: boolean
     source?: string
     wineTemplateId?: string | null
+    modelCall?: DraftModelCall
+    skipPublicResearch?: boolean
+    messages?: GmailMessage[]
+    persist?: (generated: GeneratedEmail) => Promise<{ draftId: string | null; created: boolean }>
   }
 ) {
   if (!contact.email) {
@@ -394,9 +407,9 @@ export async function createEmailDraftRecord(
       ? Promise.resolve(shared.settings)
       : loadUserSettings(supabase, userId).catch(() => EMPTY_USER_SETTINGS),
     loadLeadMemory(supabase, userId, contact.id).catch(() => null),
-    loadContactMessages(supabase, userId, contact.id).catch(() => []),
+    shared?.messages ? Promise.resolve(shared.messages) : loadContactMessages(supabase, userId, contact.id).catch(() => []),
     loadRecentActivityContext(supabase, userId, contact.id).catch(() => ''),
-    researchPublicOrganization(contact).catch(() => null),
+    shared?.skipPublicResearch ? Promise.resolve(null) : researchPublicOrganization(contact).catch(() => null),
   ])
 
   const threadContext = buildDraftContext(messages)
@@ -421,10 +434,16 @@ export async function createEmailDraftRecord(
     followupMode,
     publicResearch: formatPublicOrganizationResearch(publicResearch),
     wineTemplateId,
+    modelCall: shared?.modelCall,
   })
 
   if (!generated) {
     return { error: 'Generazione AI fallita' as const }
+  }
+
+  if (shared?.persist) {
+    const result = await shared.persist(generated)
+    return { ...result, generated, context: threadContext }
   }
 
   const { data: draft, error: insertError } = await supabase

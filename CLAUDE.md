@@ -315,7 +315,7 @@ Il workspace contiene decine di migliaia di contatti (quasi tutti `holding`, imp
 - Sidebar a gruppi (`NAV_GROUPS` in `Sidebar.tsx`): **Lavoro** (Oggi, To Do, Pipeline, Contatti, Follow-up), **Vendite** (Preventivi, Commerciale, Analytics), **Strumenti** (Navigazione, Fiere, Importa), **Solo admin** (Tourism Intelligence, Acumbamail, Da incassare: il gruppo non si disegna senza `isAdmin`), Impostazioni in fondo. Speaqi Agency non sta in un gruppo: è il pulsante in testa, solo per l'admin. Ogni voce passa comunque da `canAccessPath`; le altre pagine restano raggiungibili via URL
 - **Prima pagina del titolare** (`CommandCenter` in testa a `/dashboard`, solo `isAdmin`, `GET /api/command-center`): una ricerca su tutto il workspace (`GET /api/command-center/search`: contatti di ogni lista, holding compresa, enti di Tourism Intelligence, mappe) e quattro riquadri — **Aspetta te** (pagamenti falliti, fatture scartate o in errore, bozze da inviare, preventivi pagati senza fattura, proposte Agency e presentazioni Tourism da approvare), **Soldi** (incassato e fatturato del mese nel fuso italiano, da fatturare, rinnovi dei prossimi 30 giorni), **Vendite** (trattative aperte per fase, preventivi in attesa di firma), **Mappe** (in lavorazione / pronte / su Speaqi / online). La logica sta in `src/lib/command-center.ts` (puro, `tests/command-center.unit.test.ts`); lo stato delle mappe in `src/lib/server/maps-status.ts`, che unisce il catalogo di StudioMap e le guide pubbliche di Speaqi **per id della mappa Speaqi**, in memoria un minuto e fail-soft (una fonte giù lascia l'altra e la pagina lo dice)
 - **Scheda completa** (`/scheda/[id]`, `GET /api/contacts/[id]/overview`, in `SUPER_ADMIN_PATHS`): tutto su un cliente in una pagina — stato in una frase, trattative, preventivi con firma, abbonamento, fatture con stato SDI e XML, mappe, proposte Agency, enti e presentazioni Tourism, attività da fare, ultime email e attività. Le mappe arrivano da due strade: collegate a mano (`contact_map_links`, `POST|DELETE /api/contacts/[id]/maps`) e, per gli enti, da Tourism Intelligence (`tourism_crm_links` → ente luogo o luoghi che COVERS/MANAGES/PROMOTES → `tourism_destinations.speaqi_map_slug`). Una sezione che non si legge resta vuota invece di far cadere la scheda. Si apre dalla ricerca in prima pagina e dal pulsante «Scheda completa» del contatto
-- **Ufficio** (`/ufficio`, voce nel gruppo Solo admin, in `SUPER_ADMIN_PATHS`): gli agenti Speaqi in 3D, un villaggio sulla scogliera con un reparto per casa. La scena è una pagina HTML a sé con three.js da jsDelivr: il sorgente è `scripts/ufficio/scena.html`, `node scripts/ufficio/build.mjs` lo impacchetta in `src/lib/server/ufficio-scene.ts` (generato, non si tocca a mano), `GET /api/ufficio/scena` lo serve solo al titolare e la pagina lo monta in un iframe `srcDoc`, così CSS e WebGL restano separati dal CRM. Oggi i dati degli agenti sono di esempio, scritti nella scena; quando ci saranno le tabelle degli agenti (`docs/AGENTI-UFFICIO.md`, prompt 0) li leggerà da `/api/office`
+- **Ufficio** (`/ufficio`, voce nel gruppo Solo admin, in `SUPER_ADMIN_PATHS`): gli agenti Speaqi in 3D, un villaggio sulla scogliera con un reparto per casa. La scena è una pagina HTML a sé con three.js da jsDelivr: il sorgente è `scripts/ufficio/scena.html`, `node scripts/ufficio/build.mjs` lo impacchetta in `src/lib/server/ufficio-scene.ts` (generato, non si tocca a mano), `GET /api/ufficio/scena` lo serve solo al titolare e la pagina lo monta in un iframe `srcDoc`, così CSS e WebGL restano separati dal CRM. Oggi i dati degli agenti sono di esempio, scritti nella scena; quando ci saranno le tabelle degli agenti (`docs/AGENTI-UFFICIO.md`, prompt 0) li leggerà da `/api/office`. La gestione vera (accendere, budget, approvare le bozze) sta in `/ufficio/agenti`, raggiungibile dal pulsante in basso a destra della scena e dal riquadro Ufficio in prima pagina
 - **Da incassare** (`/incassi`, `GET|POST|PATCH|DELETE /api/receivables`): soldi personali da ricevere, che con Speaqi non c'entrano — solo nome, cifra e se è già incassato. Non tocca contatti, preventivi o finanza. Ogni riga è di chi l'ha scritta (`user_id = auth.uid()`, anche in RLS), non del workspace: un collaboratore non vede quelle del proprietario e viceversa. L'importo si scrive come viene (`parseReceivableAmount`: "1.250,50", "300 €", "12.5") e i totali si sommano in centesimi
 - **Fiere** (`/fiere`, area `fiere`, off di default, `GET|POST|PATCH|DELETE /api/trade-fair-exhibitors`): gli espositori di una fiera da valutare e riprendere dopo l'evento. L'elenco si importa incollando una tabella CSV/TSV (`parseExhibitorsText` in `src/lib/trade-fair.ts`, puro e coperto da test); un reimport aggiorna i dati e il punteggio ma **non** tocca stato, priorità manuale, note e follow-up. Il punteggio (`scoreExhibitor`) misura quanto un espositore somiglia a un cliente di Speaqi Maps (enti del turismo, crociere, musei, esperienze, ospitalità) ed è solo un ordinamento: la priorità scelta a mano vince. L'ordine in pagina porta prima i follow-up scaduti. Per cambiare fiera si cambia `FAIR` in `fiere/page.tsx`
 - **Compagnie di navigazione** (`/navigazione`, voce in fondo alla sidebar, `GET|PATCH /api/shipping-companies`): crociere, expedition, fluviali e traghetti di tutto il mondo, per vendere Speaqi Maps alle compagnie le cui navi arrivano a Napoli o a Civitavecchia (Roma). Il catalogo sta in `scripts/data/shipping-companies.json` (ricerca web di settembre 2026, allargata con la [lista delle compagnie di crociera](https://en.wikipedia.org/wiki/List_of_cruise_lines) e la categoria delle compagnie di navigazione italiane di Wikipedia: telefono ed email solo se visti in una fonte, altrimenti null; ogni voce porta le sue `sources`) e lo scrive `npm run shipping:import`, prova a secco di default (`--csv` per un file Excel, `--apply` per scrivere). Uno scalo `null` vuol dire **da verificare**, non "no": la pagina lo mostra tratteggiato e il filtro «Da verificare» lo ritrova. Lo script crea per ogni compagnia un contatto `holding` nella cartella «Compagnie di navigazione» (`legacy_id = shipping-<slug>`, `marketing_eligibility = review`: nessuna campagna automatica deve scrivere all'ufficio stampa di una compagnia di crociera), con il telefono dell'ufficio italiano quando c'è e priorità 2/1/0 secondo quanti dei due porti tocca. Un rilancio riempie sul contatto solo i campi vuoti e non tocca gli scali corretti a mano dalla pagina (`ports_manual`)
@@ -753,3 +753,175 @@ npm test            # entrambi
 
 `tests/db.sh` crea il cluster (`initdb`), applica `tests/sql/fixture.sql` e le
 migration `commercial_*`. `tests/db.sh stop` lo spegne.
+
+## Ufficio Speaqi — base comune (Prompt 0)
+
+- `/ufficio` (la scena 3D) e `/ufficio/agenti` (registro, budget, corse e coda delle uscite da decidere) e le API `/api/office/*` sono solo del titolare (`SUPER_ADMIN_PATHS`,
+  `requireWorkspaceOwner`). Sidebar **Solo admin**, riepilogo **Ufficio** in prima
+  pagina; le uscite `pending` entrano anche in **Aspetta te** (`buildWaiting`).
+- Migration **`20261022160000_office_agents.sql`**, da applicare **prima del codice**.
+  Tabelle: `office_agents` (registro, impostazioni e tre budget in centesimi EUR),
+  `office_agent_runs` (corse, esiti, log e costi), `office_agent_outputs` (bozze e
+  proposte da decidere), `office_budget_ledger` (riserve e consumi). RLS di lettura
+  per `auth.uid() = user_id`; scritture tramite le API autorizzate/service role.
+  Gli slug degli agenti sono identificatori unici del registro; ogni riga ha
+  comunque un proprietario, verificato anche sui legami fra tabelle.
+- `runAgent` (`src/lib/server/office-agents.ts`) prende un lock sull'agente tramite
+  `claim_office_agent_run`: una sola corsa, deduplica sulla chiave di idempotenza.
+  Dopo 30 minuti una corsa si considera interrotta; il vecchio processo non puo'
+  prenotare o aggiungere uscite. Le sue riserve non vengono liberate alla cieca.
+  Errori del compito -> `failed`; budget finito -> `skipped_budget`, oppure
+  `partial` se ha gia' preparato uscite. Senza database ci si ferma.
+- `reserve_agent_budget` controlla **speso + ancora prenotato** contro **tutti** i
+  tetti (giorno, settimana da lunedi', mese, fuso fisso `Europe/Rome`). Zero blocca
+  la spesa. Lock e inserimento sono nella stessa transazione; gli aggregati non
+  passano da una lista REST soggetta al limite di 1000 righe. La RPC richiede anche
+  `p_run_id` per attribuire la riserva a una corsa attiva dello stesso agente.
+  `settle_agent_budget` sostituisce la riserva col costo reale; ripetere lo stesso
+  saldo e' innocuo, cambiarlo dopo il saldo e' rifiutato. RPC solo `service_role`,
+  `search_path` fisso e nessun privilegio per `anon`/`authenticated`.
+- `callModel` usa la stessa API OpenAI Responses e `OPENAI_API_KEY` gia' presenti,
+  solo testo e senza strumenti esterni. Prenota il massimo stimato prima della
+  chiamata e salda con i token restituiti. Il listino puro `office-pricing.ts`
+  comprende `gpt-5-mini` (USD 0,25 ingresso / 2 uscita per milione di token,
+  verificato sul sito OpenAI il 22/10/2026). Modello sconosciuto -> stop.
+  `OFFICE_USD_TO_EUR` converte in EUR (default prudente 1, non cambio live, fino a sei decimali), ogni
+  chiamata arrotondata al centesimo superiore; cache prenotata al prezzo pieno e saldata a USD 0,025 per milione di token. Timeout,
+  errore HTTP o usage assente lasciano la riserva impegnata e la corsa in errore:
+  il fornitore potrebbe avere gia' fatturato. Da riconciliare manualmente prima
+  di liberarla; nessun ritentativo automatico di chiamate dall'esito incerto.
+- Il contesto del compito espone solo `reserve`, `settle`, `addOutput`, `log` e
+  metadati: nessun invio email, social, fattura o pubblicazione di mappe.
+  `addOutput` scrive solo nella coda `pending`, con chiave unica per corsa.
+  La decisione non pubblica e non invia. Per gli output ordinari aggiorna solo
+  decisione/data; gli agenti successivi aggiungono effetti interni espliciti
+  (per il Direttore, la coda del destinatario). Nessuna esecuzione generica del
+  record indicato da `target_table`/`target_id`.
+- API titolare: `GET /api/office` (spesa reale e riservata, ultima corsa per agente,
+  ultime 30 corse, coda paginata con `offset`, 50 uscite per pagina),
+  `PATCH /api/office/agents/[id]` (interruttore, budget, settings),
+  `POST /api/office/agents/[id]/run-now` (header `Idempotency-Key`, una chiave per
+  clic), `PATCH /api/office/outputs/[id]` (`approved`/`rejected`, solo da `pending`).
+  Se una pagina della coda si svuota dopo le decisioni, il GET restituisce una
+  lista vuota e il conteggio aggiornato; la pagina torna indietro. Il messaggio
+  della corsa conserva il riepilogo reale oppure segnala il turno saltato.
+- API macchina: `POST /api/automation/agents/[id]/run`, con `AUTOMATION_SECRET`;
+  workspace solo da `AUTOMATION_WORKSPACE_USER_ID`, mai dal corpo. Chiave di
+  idempotenza dall'header oppure dal minuto UTC del pianificatore.
+- Al termine del Prompt 0 il registro `src/lib/server/office-agents/registry.ts`
+  era vuoto. I prompt successivi aggiungono soltanto gli handler documentati nelle
+  sezioni seguenti, senza accenderli. Gli agenti
+  futuri nascono `enabled=false`; installarli richiede un handler nel registro,
+  una riga di configurazione e una riga in `AUTOMATION_JOBS` col percorso di run.
+- Tenuta corse **90 giorni**: job `office-maintenance` alle 03:15 italiane,
+  `POST /api/automation/office-maintenance`. Uscite ancora da decidere e ledger
+  si conservano, col legame alla corsa eliminata messo a null. Come gli altri job
+  parte solo col pianificatore acceso; se `AUTOMATION_SCHEDULER_JOBS` e' una lista,
+  aggiungervi anche questo job. Nessuna chiamata alle mappe di Napoli.
+- Test: `tests/office.unit.test.ts` in `test:unit`; `tests/office.db.test.ts` in
+  `test:db`, Postgres vero con `tests/db.sh`, database separato `office_test`.
+  Le suite DB sono seriali per non far partire due cluster insieme. Il runner
+  supporta Linux e Postgres.app su Mac, propaga gli errori SQL e non cancella
+  directory. `PGDIR`, `PGPORT`, `PGHOST`, `PGBIN` sono configurabili.
+
+`npm run test:office:ui` verifica la pagina buildata con API simulate (desktop e telefono);
+`OFFICE_TEST_URL`, `OFFICE_TEST_OUTPUT` e `CHROMIUM_PATH` scelgono server, screenshot e browser.
+Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script locale.
+
+### Agente 11 — Finanza
+
+- Handler `office-agents/finance.ts`, regole pure in `lib/office/finance.ts`.
+  Job `office-finance` ogni giorno alle 08:30 nel fuso del pianificatore.
+- Registrazione idempotente da `OFFICE_AGENT_DEFINITIONS`, soltanto per
+  `AUTOMATION_WORKSPACE_USER_ID`, quando il titolare apre `/ufficio/agenti` o si chiama
+  una corsa. Nasce **spento**, budget 20 cent/giorno, 140/settimana, 620/mese;
+  leggere il registro non riscrive mai interruttori o budget già salvati.
+- Prepara le fatture dei preventivi pagati con `createInvoiceDraftFromQuote`,
+  elenca problemi con `invoiceProblems`, propone dati fiscali già presenti
+  nel contatto e spiega gli esiti SDI registrati. Non prenota numeri e non chiama
+  upload, autenticazione o sincronizzazione Aruba.
+- Solleciti per `past_due` e bonifici accettati non pagati oltre 15 giorni:
+  solo righe `email_drafts` in attesa. Migration additiva
+  `20261022170450_office_finance.sql`: `office_agent_id`, `office_key`,
+  `office_note` e RPC `create_office_email_draft` riservata al service role.
+  Il lock sul contatto e la chiave persistente evitano doppioni; una bozza già
+  in attesa blocca una seconda bozza. Il vincolo impone `source='office'`,
+  incompatibile con il motore automatico che accetta solo `source='auto'`.
+  La nota del motivo è visibile in `/email` e il sollecito in «Aspetta te».
+- Report giornaliero con fonti e proposte; il primo giorno italiano del mese,
+  report del mese precedente con importi IVA compresa in centesimi, scostamento
+  fra incassato registrato e fatturato e rinnovi previsti nel mese corrente.
+  I rinnovi Stripe usano la data di registrazione della bozza: il limite è
+  dichiarato nel report, insieme agli id delle fonti. Non è una riconciliazione
+  bancaria e non stima ricavi per utente/contatto o MRR da dati incompleti.
+- Nessuna chiamata a un modello è necessaria: il budget resta disponibile.
+  Nessuna nuova env. Le migration si consegnano, non si applicano a DB operativi.
+- Test: `office-finance.unit.test.ts` (mese nel fuso italiano, fonti, esclusioni,
+  bozze/report idempotenti, nessuna rete Aruba), `office-finance.db.test.ts`
+  (migration e RPC su database PGlite usa-e-getta, vincoli e permessi).
+
+### Agente 10 — Commerciale
+
+- `sales_followup`, reparto Commerciale, feriali alle 08:00 Europe/Rome
+  (`office-sales-followup`), nasce spento. Budget iniziali 100/700/3100 centesimi
+  giorno/settimana/mese; nessuna nuova env. Usa il modello configurato nel registro.
+- `src/lib/office/sales-followup.ts` sceglie i contatti CRM: follow-up di oggi o
+  scaduti (task/prossimo passo/SLA), preventivi inviati da oltre 5 giorni senza
+  firma, firme vere da `quote_signatures` da oltre 3 giorni senza pagamento,
+  rinnovi annuali nei prossimi 30 giorni e trattative aperte ferme da oltre 14.
+  Rinnovi inclusi anche per clienti Paid. Ordine per valore, massimo 15 al giorno.
+  Holding, nascosti, disiscritti, email mancanti, risposte successive all'ultima
+  uscita e bozze pendenti sono esclusi; email normalizzate per le schede duplicate.
+- Il server riusa `createEmailDraftRecord` e i suoi controlli esistenti. I dati
+  arrivano dal solo set CRM con query per id e pagine. La chiamata al modello
+  passa da `callModel` (prenota prima e salda dai token); la ricerca pubblica
+  opzionale del generatore viene saltata per evitare chiamate fuori budget.
+  Numeri e link senza riscontro vengono rifiutati; HTML ricostruito dal testo
+  escapato. La nota spiega il motivo e le fonti; la bozza compare in `/email` e
+  come uscita in Aspetta te. Solo `source=office`, stato `pending`, nessun invio.
+- Migration `20261022175856_office_sales_followup.sql`, dopo Finanza, da applicare
+  prima del codice. `office_agent_daily_quotas` conserva la quota anche dopo
+  invio/eliminazione di una bozza. La RPC delle bozze serializza per agente e
+  indirizzo, controlla di nuovo risposte Gmail, scope, proprietario e bozza già
+  pendente prima di creare. Il contatore cresce solo su una nuova bozza.
+  RLS di lettura del proprietario, scritture service role; tabella nei backup.
+- Test: selezione, esclusioni, finestre, valore, duplicati, numeri, budget prima
+  del modello e pipeline esistente in `office-sales.unit.test.ts`; quota e
+  idempotenza concorrenti, risposte e permessi su Postgres vero in
+  `office-sales.db.test.ts`. Nessun consumo OpenAI reale, Gmail o invio esterno.
+
+### Agente 01 — Direttore
+
+- `director`, reparto Direzione, lunedì alle 07:00 Europe/Rome (`office-director`),
+  nasce spento. Budget 100/100/500 centesimi giorno/settimana/mese; modello
+  configurabile in `settings.model`, altrimenti quello del registro.
+- Priorità deterministiche in `src/lib/office/director.ts`: destinazioni previste
+  con priorità uno e volumi misurati (anno e fonte obbligatori, stime escluse),
+  assenti da un catalogo effettivamente letto; poi mappe pronte non su Speaqi;
+  poi guide online con copertura testi inferiore al 90%. Napoli/Naples/napolimap
+  escluse anche per alias e slug. Senza cataloghi non si deduce un'assenza.
+- `directorHandler` legge destinazioni, porti (`tourism_hubs mode=sea`), finanza
+  tramite `summarizeMoney`, trattative aperte e corse degli ultimi sette giorni
+  con query paginate e fonti allegate. Passeggeri e arrivi non si sommano.
+  `SPEAQI_API_KEY` è la nuova env facoltativa del CRM: chiave del proprietario
+  Speaqi per il solo GET `/maps/:id/studiomap/translations`, sul base URL esistente
+  `SPEAQI_PUBLIC_API_URL`. Senza chiave o conteggi completi, copertura dichiarata
+  non verificata e nessuna proposta lingue da dati mancanti. Nessun fill/sync.
+- `callModel` scrive soltanto tre-cinque righe per punto. Ordine, target e azioni
+  restano nel codice; numeri senza riscontro e link nel testo fanno usare una
+  descrizione deterministica senza numeri. Un report per settimana, proposte
+  pendenti non duplicate e rifiuti soppressi per 28 giorni dalla decisione.
+- Migration `20261022183327_office_director.sql` prima del codice, dopo le
+  migration precedenti. `decide_office_output` è una RPC service role: decisione
+  e coda interna sono atomiche, con lock e chiavi stabili; il destinatario resta
+  spento e non viene avviato dal clic. Rifiutare registra data/stato senza coda.
+  Target e destinatari sono un elenco chiuso; nessun SQL dinamico o azione esterna.
+- «Costruire» accoda a `mymaps_builder`, «Completare le lingue» a `languages_voice`.
+  «Pubblicare» accoda `publication_review` a `maps_quality`: il roster non ha un
+  agente che pubblichi, quindi la pubblicazione resta manuale. Prima di installare
+  i prompt successivi, approvare una proposta con destinatario mancante risponde
+  409 e la lascia pending. La coda conserva id sorgente, città, azione e target.
+- Test unit su priorità, fonti, Napoli, soglia lingue, numeri, rifiuti e pipeline
+  senza spesa ripetuta; HTTP sulla RPC autorizzata; Postgres vero per decisioni
+  concorrenti, coda, workspace, permessi, Napoli e assenza di effetti sui target.
+  Le prove non generano mappe né pubblicano e non chiamano modelli a pagamento.
