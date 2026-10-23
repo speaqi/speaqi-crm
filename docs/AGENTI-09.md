@@ -1,6 +1,6 @@
 # Presentazioni — consegna
 
-Branch `codex/office-09-presentations` da main aggiornato `2ab93a5`.
+Branch `codex/office-09-presentations` da main aggiornato `7f57b7b`.
 PR indipendente verso main; non richiede i branch 07 o 12. Il 03 e il 05 restano
 al lavoro di Claude; Napoli e la scena `/ufficio` non sono modificati.
 
@@ -59,3 +59,14 @@ Non provati dal vivo: credenziali e fatturazione OpenAI, database/PostgREST e
 Railway di produzione, invio manuale email, PDF con Chromium reale. Le prove
 simulano OpenAI e non eseguono generazioni a pagamento. Nessuna ricerca esterna
 di nuovi fatti: si usano soltanto le evidenze già verificate in Tourism.
+
+Verifiche con main `7f57b7b`:
+- `npx tsc --noEmit`: superato.
+- `npm run test:unit`: 480 passati, 0 falliti, 1 skip preesistente
+  (pagina di dettaglio del sito TTG).
+- `npm run test:db`: 54 passati, 0 falliti, 0 skip su PostgreSQL 16 locale.
+- `npx next build`: superato con configurazione Supabase fittizia.
+
+Le prime build simultanee si sono fermate per disco locale pieno (ENOSPC).
+Ripuliti esclusivamente gli artefatti `.next` dei checkout temporanei di questi
+agent, poi build ripetute in sequenza. Nessun file del checkout utente rimosso.

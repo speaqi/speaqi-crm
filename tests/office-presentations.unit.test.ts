@@ -25,6 +25,7 @@ test('presentazioni: un segnaposto ha proposta solo con campo attestato, valore 
     assert.equal(presentationFixes(slides,[entity],[{...source,...patch}]).length,0)
   }
   assert.equal(presentationFixes(slides,[entity],[]).length,0)
+  assert.equal(presentationFixes(slides,[{...entity,details:{place_count:'28'}}],[{...source,excerpt:'Sono 128 luoghi.'}]).length,0)
   assert.equal(JSON.stringify(slides),before);assert.ok(deckPlaceholders(slides).length>=3)
 })
 test('presentazioni: fonti discordanti lasciano il segnaposto segnalato',()=>{

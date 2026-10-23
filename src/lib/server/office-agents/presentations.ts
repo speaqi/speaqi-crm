@@ -3,6 +3,7 @@ import { officeIsNaples } from '@/lib/office/director'
 import { deckPlaceholders, presentationFixes, presentationQueue, type PresentationEvidence, type PresentationQueueItem } from '@/lib/office/presentations'
 import { callModel, type AgentHandler } from '../office-agents'
 import { createServiceRoleClient } from '../supabase'
+import { officeRows } from '../office-read'
 import { createDeck, generateIntoDeck, type DeckRow } from '../tourism-decks'
 import { buildAgentRequest, validateDeckAgentResult } from '../tourism-deck-agent'
 import { addOfficeOutputOnce } from './shared'
@@ -36,7 +37,7 @@ export function presentationsHandler(admin: any, options: {
     if (!publicBase || new URL(publicBase).protocol !== 'https:' || new URL(publicBase).pathname !== '/' || new URL(publicBase).search || new URL(publicBase).hash) throw new Error('APP_BASE_URL deve essere una origine HTTPS pubblica')
     const queue = presentationQueue(ctx.agent.settings.queue || [])
     // Recupera soltanto bozze già approvate. Non genera deck né chiama modelli.
-    const approved = checked(await admin.from('office_presentation_tasks').select('id').eq('user_id', userId).is('email_prepared_at', null).eq('state', 'ready').order('created_at').limit(100)) || []
+    const approved = await officeRows<{ id: string }>(admin, userId, 'office_presentation_tasks', 'id', (q) => q.is('email_prepared_at', null).eq('state', 'ready'))
     for (const task of approved) {
       const email = checked(await admin.rpc('prepare_office_presentation_email', { p_deck_id: task.id, p_user_id: userId }))
       if (['verified_email_missing', 'crm_contact_missing', 'pending_draft'].includes(email?.reason)) await addOfficeOutputOnce(admin, ctx, `presentation:email:${task.id}:${email.reason}`, {

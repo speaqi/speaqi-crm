@@ -37,7 +37,8 @@ export function presentationFixes(slides: DeckSlide[], entities: Array<{ id: str
       if (/\[DA VERIFICARE|[\r\n]|https?:\/\//.test(replacement)) return []
       return evidence.filter((e) => e.entity_id === entity.id && e.status === 'VERIFIED' && safePublicUrl(e.source_url)
         && e.fields.some((f) => f === key || f === `details.${key}`)
-        && (typeof raw === 'number' ? new RegExp(`(?<![\\d.,])${raw}(?![\\d.,])`).test(e.excerpt) : e.excerpt.includes(replacement)))
+        && (typeof raw === 'number' || /^\d+$/.test(replacement)
+          ? new RegExp(`(?<![\\d.,])${replacement}(?![\\d.,])`).test(e.excerpt) : e.excerpt.includes(replacement)))
         .map((source) => ({ ...placeholder, replacement, proposed_text: placeholder.text.replace(placeholder.marker, replacement),
           evidence_id: source.id, source_url: source.source_url, excerpt: source.excerpt, entity_id: entity.id }))
     })
