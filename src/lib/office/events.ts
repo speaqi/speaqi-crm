@@ -11,7 +11,7 @@ export type EventPage = { source_url: string; text: string; links: string[]; dat
 
 export function eventSlug(name: string) {
   return name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/ß/g, 'ss').replace(/ł/g, 'l')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 180).replace(/-$/, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 export function eventDate(value: unknown): string | null {
   if (typeof value !== 'string') return null

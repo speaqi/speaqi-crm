@@ -1183,9 +1183,9 @@ Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script 
   area speaqi, data locale della scadenza e chiave `office-event:<id evento>`.
   Rifiutare non crea attività; una scadenza ormai trascorsa non si approva.
 - Migration **`20261023120100_office_events.sql`**, dopo
-  `20261023090000_office_db_cleaner.sql` e i prerequisiti To Do già presenti.
-  La funzione `decide_office_output` copia il testo della migration 05, aggiungendo
-  solo il ramo del 06; Direttore e merge_contacts restano identici. RLS proprietario
+  `20261023120000_office_entity_enricher.sql`, `20261023090000_office_db_cleaner.sql`
+  e i prerequisiti To Do già presenti. La funzione `decide_office_output` conserva
+  il testo dei rami Direttore/05/08, aggiungendo solo il ramo del 06. RLS proprietario
   di sola lettura, scritture solo via RPC service role con search_path fisso;
   eventi e batch inclusi in entrambi i backup. Nessuna applicazione a DB operativi.
 - Nessun invio, iscrizione o modifica a trade_fair_exhibitors. Nessuna chiamata

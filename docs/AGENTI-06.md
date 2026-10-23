@@ -58,22 +58,23 @@ Solo approvando la proposta si crea un To Do standalone con chiave
 type todo e area speaqi. Otto clic concorrenti o due proposte dello stesso
 evento non duplicano l'attività; rifiutare non crea niente. Una scadenza
 trascorsa lascia la proposta pending, da rifiutare. La funzione di decisione
-copia quella del 05: gli altri due rami sono verificati anche testualmente.
+conserva quella del 05 e l’estensione 08: gli altri rami sono verificati anche testualmente.
 
 Migration nuova, da applicare a cura del titolare dopo revisione:
 `20261023120100_office_events.sql`. Generata con Supabase CLI e riordinata dopo
-`20261023090100`. Prerequisiti già in main: schema Ufficio 00, Finanza 11,
+`20261023120000_office_entity_enricher.sql`, arrivata in main durante il lavoro.
+Prerequisiti già in main: schema Ufficio 00, Finanza 11,
 Commerciale 10, Direttore 01 e `20261023090000_office_db_cleaner.sql`; per le
 attività le migration `20260330094500_ai_ready_crm.sql`,
 `20260603100000_standalone_tasks.sql`, `20260722100000_task_planning_trace.sql`
-e `20260903100000_todo_board.sql`. Poi applicare la migration del 06.
+e `20260903100000_todo_board.sql`. Dopo il 05 e l’08 applicare la migration del 06.
 Non dipende dalle nuove tabelle 07/09/12. Tabelle eventi e batch nei due backup.
 
 Verifiche finali:
 
 - `npx tsc --noEmit`: superato.
-- `npm run test:unit`: 506 passati, 0 falliti, 1 skip preesistente (dettaglio TTG).
-- `npm run test:db`: 73 passati, 0 falliti, 0 skip, PostgreSQL 16 locale isolato.
+- `npm run test:unit`: 517 passati, 0 falliti, 1 skip preesistente (dettaglio TTG).
+- `npm run test:db`: 79 passati, 0 falliti, 0 skip, PostgreSQL 16 locale isolato.
 - `npx next build`: superato con configurazione Supabase fittizia.
 
 Le nuove prove DB usano `tests/office-schema.ts` e le migration vere elencate

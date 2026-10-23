@@ -32,6 +32,7 @@ test('eventi: date passate, oltre sei mesi, date inesistenti, link e dati assent
 test('eventi: slug normalizzato e stessa data deduplicano; ordine per scadenza e punteggio nel codice',()=>{
   const event=validateEvent(proposed,readEventPage(plain,SOURCE_URL),NOW)!
   assert.equal(eventSlug('Fiera   Turìsmo!'),'fiera-turismo');assert.equal(selectEvents([event,{...event}]).length,1)
+  assert.notEqual(eventSlug('Turismo '+ 'a'.repeat(180)+' Marsiglia'),eventSlug('Turismo '+ 'a'.repeat(180)+' Barcellona'))
   assert.equal(selectEvents([event],[{slug:event.slug,start_date:event.start_date}]).length,0)
   assert.equal(selectEvents([event,{...event,start_date:'2026-12-18'}]).length,2)
   assert.equal(scoreEvent({name:'Turismo',organizer:null,kind:'fair'}),40)
@@ -94,5 +95,7 @@ test('eventi: il Direttore e il merge del 05 restano identici nella funzione di 
   const current=extract(read('20261023090000_office_db_cleaner.sql'))
   const added=extract(read('20261023120100_office_events.sql')).replace(/  -- BEGIN EVENTS_SCOUT[\s\S]*?  -- END EVENTS_SCOUT\n/,'')
     .replace('\n  event_row public.office_events; event_deadline date; todo_id uuid;','')
-  assert.equal(added,current)
+  assert.equal(added,extract(read('20261023120000_office_entity_enricher.sql')))
+  const original=added.replace(/  if o.agent_id='entity_enricher'[\s\S]*?\n  end if;\n(?=  update public.office_agent_outputs set status=p_status)/,'')
+  assert.equal(original,current)
 })

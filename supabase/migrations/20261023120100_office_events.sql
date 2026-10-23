@@ -17,7 +17,7 @@ end $$;
 create table public.office_events (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  slug text not null check(length(slug) between 1 and 180 and slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+  slug text not null check(length(slug) between 1 and 1000 and slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
   name text not null check(length(trim(name)) between 1 and 240),
   start_date date not null,
   end_date date,
@@ -139,7 +139,7 @@ revoke all on function public.office_event_deadlines_valid(jsonb),public.office_
 -- La funzione immutabile serve al CHECK anche per gli inserimenti delle RPC.
 grant execute on function public.claim_office_event_batch(uuid,jsonb),public.finish_office_event_batch(uuid,uuid,jsonb,jsonb) to service_role;
 
--- Copia integrale della decisione 05, con un solo ramo aggiunto per il 06.
+-- Copia della decisione corrente (05 e ramo 08), con un solo ramo aggiunto per il 06.
 create or replace function public.decide_office_output(p_output_id uuid,p_user_id uuid,p_status text)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare o public.office_agent_outputs; recipient public.office_agents; expected text; entry jsonb;
@@ -205,7 +205,7 @@ begin
     end;
     update public.office_agent_outputs set body = body || jsonb_build_object('result', result || jsonb_build_object('decided_at', now())) where id=o.id;
   end if;
-  -- BEGIN EVENTS_SCOUT: gli altri rami restano identici alla migration 05.
+  -- BEGIN EVENTS_SCOUT: Direttore, 05 e 08 restano invariati.
   if o.agent_id='events_scout' and o.kind='task' and p_status='approved' then
     if o.target_table is distinct from 'office_events' or o.target_id is distinct from o.body->>'event_id'
       or o.body->>'action' is distinct from 'decide_event_participation' then raise exception 'Decisione eventi non valida'; end if;

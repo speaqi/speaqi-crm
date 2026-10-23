@@ -23,6 +23,7 @@ export const EVENTS_SCHEMA_MIGRATIONS = [
   '20260926090000_shipping_companies.sql',
   '20261011090000_trade_fair_exhibitors.sql',
   '20261017205455_tourism_intelligence.sql',
+  '20261017214525_tourism_acquisition_matching.sql',
   '20261018185155_tourism_site_research.sql',
   '20261019051155_tourism_sitemap_targeting.sql',
   '20261020130000_agency.sql',
