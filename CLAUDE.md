@@ -949,3 +949,40 @@ Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script 
 - Nessuna nuova migration: usa le tabelle della base e i documenti StudioMap.
   Prerequisiti CRM: migration Prompt 0, 11, 10 e 1 già presenti nel branch base.
   Nessuna migration operativa o deploy viene eseguito dalle prove.
+
+
+## Ufficio — Controllo qualità mappe (Prompt 04)
+
+- `maps_quality` nasce spento, job `office-maps-quality` alle 04:00 italiane,
+  budget 200/1400/6200 centesimi al giorno/settimana/mese. Coda vuota: tutte le
+  mappe StudioMap; `settings.queue` può limitare a slug o proposte approvate
+  del Direttore. Il 04 parte dal 02 e non dipende dal 03 assegnato a Claude.
+- Bridge `POST /api/office/quality/read` su StudioMap, stesso segreto forte
+  del 02. Solo letture di metadata e luoghi: niente audit mutante, cache,
+  snapshot, aggiornamento lingue, richieste di generazione o pubblicazione.
+- Controlli puri StudioMap: foto mancanti/ripetute, coordinate impossibili/0,0
+  e distanza dal centro, testi vuoti/sotto 300 caratteri/identici, telefoni e
+  orari impossibili, chiusura dal dato Google salvato, alfabeti e lunghezze
+  delle traduzioni salvate. Nessuna chiamata Google a pagamento.
+- Il raggio città predefinito è 50 km (euristica dichiarata, non confine
+  amministrativo); può essere esplicitato con `settings.radius_km_by_map`.
+  Senza centro o per regioni senza raggio, la verifica viene dichiarata assente.
+- StudioMap non conserva normalmente i testi tradotti e l'API attuale espone
+  conteggi: i controlli delle traduzioni usano solo testi realmente salvati
+  nelle fonti (`extracted_data.translations`, array language/text). Il rapporto
+  dichiara quanti luoghi sono coperti; nessuna copertura viene inventata.
+- Campione globale di massimo 20 luoghi per corsa, a rotazione giornaliera,
+  su mappe/luoghi ordinati. Il modello riceve testo e fonti salvate in lotti di
+  quattro, con JSON Schema strict. Il codice scarta citazioni assenti dal
+  testo, riferimenti estranei, altri luoghi e doppioni; non inventa spiegazioni.
+- Tutti i rapporti gratuiti e i `data_fix` sono scritti prima delle chiamate
+  al modello. La riserva precede ogni chiamata tramite `callModel` esistente.
+  Il rapporto persistente per mappa/giorno impedisce una seconda spesa dopo
+  errori o timeout. Stato e campione incompleto restano visibili; gli esiti
+  incerti richiedono riconciliazione, mai un retry automatico a pagamento.
+- Napoli può comparire solo in un rapporto di lettura, senza `data_fix`.
+  Altrove coordinate sospette generano una richiesta di verifica con valore
+  null: nessuna posizione corretta viene inventata. Approvazione/rifiuto
+  registra la decisione nel CRM, l'applicazione della correzione resta manuale.
+- Nessuna nuova migration o env rispetto al 02. Test puri e con modello
+  simulato, snapshot dei dati immutati su fs e pg isolati. Nessun deploy.

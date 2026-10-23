@@ -169,7 +169,7 @@ describe('accesso e prima pagina', () => {
     assert.equal(canAccessPath('/ufficio/prova', ['oggi'], true), true)
   })
   test('Direttore, Finanza e Commerciale installati con configurazione iniziale spenta', () => {
-    assert.deepEqual(Object.keys(OFFICE_AGENT_HANDLERS).sort(), ['director', 'finance', 'mymaps_builder', 'sales_followup'])
+    assert.deepEqual(Object.keys(OFFICE_AGENT_HANDLERS).sort(), ['director', 'finance', 'maps_quality', 'mymaps_builder', 'sales_followup'])
     assert.ok(Object.values(OFFICE_AGENT_DEFINITIONS).every((agent) => agent.enabled === false))
     assert.equal(officeAgentHandler('constructor'), null)
     assert.equal(officeAgentHandler('non_installato'), null)
