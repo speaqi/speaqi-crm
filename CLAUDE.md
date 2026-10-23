@@ -1065,6 +1065,48 @@ Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script 
   simulato, snapshot dei dati immutati su fs e pg isolati. Nessun deploy.
 
 
+## Ufficio — Presentazioni (Agente 09)
+
+- `presentations`, Commerciale, nasce spento; job `office-presentations` lunedì
+  alle 10:00 Europe/Rome e corsa manuale in `/ufficio/agenti`. Budget iniziali
+  300/300/1500 centesimi giorno/settimana/mese, massimo due generazioni per corsa.
+  La scena `/ufficio` non è modificata.
+- `settings.queue`: `[{"entity_id":"UUID ente","destination_id":"UUID luogo"}]`.
+  Ammesso anche il solo UUID ente: la destinazione si risolve soltanto da una
+  singola relazione `COVERS` con evidenza verificata. Identità verificate nel
+  workspace, enti/luoghi disabilitati e Napoli esclusi. Nessun ente indovinato.
+- Riusa `createDeck`, `generateIntoDeck`, modello salvato, JSON Schema e guardie
+  di `tourism-deck-agent.ts`. Il callback del modello passa da `callModel` con
+  riserva prima del costo e saldo dai token; nessuna seconda pipeline o retry
+  automatico. L'ufficio usa solo testo e nessun file multimediale.
+- `office_presentation_tasks` prenota una volta per ente/destinazione prima
+  della creazione e della spesa. Il suo UUID è l'id del deck: un crash non
+  crea un altro deck. Un tentativo incerto va riconciliato manualmente prima
+  di riprovare; il cron non rigenera da solo. Rapporti deduplicati fra corse
+  per deck/versione, pronti anche nel riquadro Tourism di «Aspetta te».
+- Segnaposto elencati per slide/campo. Le proposte `data_fix` richiedono un
+  valore in `details`, campo attestato, evidenza `VERIFIED`, fonte pubblica e
+  valore presente nell'estratto. Valori discordanti restano da verificare.
+  Per i tre conteggi del territorio: `place_count`, `route_count`, `service_count`.
+  I segnaposto espliciti `[DA VERIFICARE: campo]` usano quel campo. Nessuna
+  correzione automatica: si copia la proposta nell'editor e si approva lì.
+- Il trigger di approvazione prepara una sola email per deck, **solo dopo il
+  clic in Tourism**, con `source='office'`, stato `pending`, link pubblico del
+  deck e nessun invio. `APP_BASE_URL` deve essere una origine HTTPS pubblica
+  (default `https://crm.speaqi.com`). L'approvazione del rapporto Ufficio non
+  approva il deck. Servono email verificata e contatto CRM collegato allo stesso
+  ente/email, visibile e non disiscritto; una bozza già pendente blocca la nuova.
+  Il cron riprova solo questa preparazione gratuita dopo il completamento dei
+  dati e segnala i blocchi, senza ripagare la generazione.
+- Migration **`20261023090100_office_presentations.sql`**, dopo le migration
+  Tourism Intelligence/ricerca/deck e Ufficio 00/11/10/01 già presenti in main.
+  Il timestamp segue il 05, che non viene modificato. Nessuna dipendenza da 07/12.
+  Tabella privata con RLS e RPC riservate al service role; inclusa nei backup.
+  Nessuna applicazione a database operativi durante lo sviluppo.
+- Test nuovi con DDL originali Tourism/Ufficio/email_drafts e CHECK reali,
+  PostgreSQL locale, concorrenza, retry fra corse, fonte obbligatoria, Napoli,
+  mancata approvazione automatica, approvazione umana e bozze mai inviate.
+
 ## Ufficio — Pulizia database (Agente 05)
 
 - `db_cleaner`, reparto Operazioni, la domenica alle 04:30 Europe/Rome (`office-db-cleaner`),

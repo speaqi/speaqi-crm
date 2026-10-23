@@ -42,6 +42,7 @@ export const DEFAULT_STEP_TIMEOUT_MS = 180_000
 export const AUTOMATION_JOBS: ScheduledJob[] = [
   {name:'office-news-watch',cron:'0 7 * * *',description:'Osservatorio: novità con fonti, nessun invio automatico',steps:[{path:'/api/automation/agents/news_watch/run'}]},
   {name:'office-social',cron:'0 9 * * 1',description:'Social: prepara bozze settimanali, mai pubblicazioni',steps:[{path:'/api/automation/agents/social/run'}]},
+  {name:'office-presentations',cron:'0 10 * * 1',description:'Presentazioni Tourism: bozze da approvare, nessun invio',steps:[{path:'/api/automation/agents/presentations/run'}]},
   {name:'office-maps-quality',cron:'0 4 * * *',description:'Qualità mappe: segnalazioni e correzioni da decidere',steps:[{path:'/api/automation/agents/maps_quality/run'}]},
   {name:'office-mymaps',cron:'30 1 * * *',description:'My Maps: turno ogni due giorni, massimo 150 candidati',steps:[{path:'/api/automation/agents/mymaps_builder/run'}]},
   { name:'office-director',cron:'0 7 * * 1',description:'Direttore: priorità e proposte da decidere',steps:[{path:'/api/automation/agents/director/run'}] },

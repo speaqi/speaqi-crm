@@ -41,6 +41,7 @@ const DEFAULT_TABLES = [
   'office_news_deliveries',
   'office_social_batches',
   'office_social_snapshots',
+  'office_presentation_tasks',
   'office_agent_runs',
   'office_agent_outputs',
   'office_budget_ledger',
