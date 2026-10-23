@@ -1,9 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import Link from 'next/link'
 import { apiFetch } from '@/lib/api'
 import { formatEuroPlain } from '@/lib/command-center'
-import { OFFICE_DEPARTMENTS, OFFICE_RUN_LABELS, type OfficeAgent, type OfficeOverview, type OfficeRun } from '@/lib/office'
+import { OFFICE_DEPARTMENTS, OFFICE_RUN_LABELS, officeApprovalEffect, type OfficeAgent, type OfficeOverview, type OfficeRun } from '@/lib/office'
 import styles from './office.module.css'
 
 const euro = (cents: number) => formatEuroPlain(cents / 100)
@@ -42,7 +43,7 @@ function AgentRow({ agent, busy, change, run }: {
     } catch (err) { setError(err instanceof Error ? err.message : 'Impostazioni non valide') }
   }
 
-  return <article className={styles.agent} aria-label={agent.name}>
+  return <article className={styles.agent} aria-label={agent.name} id={`agente-${agent.id}`} style={{ scrollMarginTop: 24 }}>
     <div className={styles.agentTop}>
       <div><h3>{agent.name}</h3><p>{agent.description}</p><small>{agent.model}{agent.schedule_job ? ` · ${agent.schedule_job}` : ' · Nessun orario assegnato'}</small></div>
       <label className={styles.toggle}><input type="checkbox" role="switch" checked={agent.enabled} disabled={busy}
@@ -117,7 +118,8 @@ export default function OfficePage() {
     } catch { /* Il messaggio resta visibile nella pagina. */ }
   }
   async function decide(id: string, status: 'approved' | 'rejected') {
-    try { await act(id, () => apiFetch(`/api/office/outputs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }), status === 'approved' ? 'Approvata. La decisione è registrata; nessun invio eseguito.' : 'Uscita rifiutata.') }
+    const output = data?.outputs.find((item) => item.id === id)
+    try { await act(id, () => apiFetch(`/api/office/outputs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }), status === 'approved' && output ? officeApprovalEffect(output).notice : 'Uscita rifiutata.') }
     catch { /* Il messaggio resta visibile nella pagina. */ }
   }
   async function telegram(id: string) {
@@ -130,7 +132,7 @@ export default function OfficePage() {
 
   return <div className={styles.page}>
     <header className={styles.header}><div><p className={styles.eyebrow}>Solo titolare</p><h1>Ufficio</h1><p>Compiti, corse e cose che aspettano una tua decisione.</p></div>
-      <button className="btn btn-ghost btn-sm" onClick={() => { void load().catch((err) => setError(String(err))) }} disabled={!!busy}>Aggiorna</button></header>
+      <div className={styles.actions}><Link href="/ufficio" className="btn btn-ghost btn-sm">Ufficio 3D →</Link><button className="btn btn-ghost btn-sm" onClick={() => { void load().catch((err) => setError(String(err))) }} disabled={!!busy}>Aggiorna</button></div></header>
     {error && <p role="alert" className={styles.error}>{error}</p>}
     <p role="status" className={styles.notice}>{notice}</p>
     {!data && !error && <p>Carico l’ufficio…</p>}
@@ -146,12 +148,13 @@ export default function OfficePage() {
         const agents = data.agents.filter((agent) => agent.department === department)
         return agents.length > 0 && <section key={department} className={styles.department}><h2>{label}</h2>{agents.map((agent) => <AgentRow key={agent.id} agent={agent} busy={!!busy} change={change} run={run} />)}</section>
       })}
-      <section className={styles.queue}><h2>Aspetta te <span>{data.pending_count}</span></h2><p>Approva o rifiuta la proposta. L’approvazione registra la decisione: non invia email, fatture o pubblicazioni.</p>
+      <section className={styles.queue}><h2>Aspetta te <span>{data.pending_count}</span></h2><p>Leggi l’effetto indicato su ogni proposta prima di decidere: alcune approvazioni aggiornano il CRM o accodano nuovi lavori.</p>
         {data.pending_count === 0 && <p className={styles.emptyQueue}>Nessuna uscita da valutare.</p>}
         {data.outputs.map((output) => <article className={styles.output} id={`uscita-${output.id}`} key={output.id}>
           <small>{data.agents.find((agent) => agent.id === output.agent_id)?.name || output.agent_id} · {date(output.created_at)}</small><h3>{output.title}</h3>
           <div className={styles.outputBody}><OutputBody value={output.body} /></div>
-          <div className={styles.actions}><button className="btn btn-primary btn-sm" disabled={!!busy} onClick={() => { void decide(output.id, 'approved') }}>Approva</button>
+          <p>{officeApprovalEffect(output).description}</p>
+          <div className={styles.actions}><button className="btn btn-primary btn-sm" disabled={!!busy} onClick={() => { void decide(output.id, 'approved') }}>{officeApprovalEffect(output).label}</button>
             {output.agent_id === 'news_watch' && output.body.telegram_available === true && <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => { void telegram(output.id) }}>Approva e invia su Telegram</button>}
             <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => { void decide(output.id, 'rejected') }}>Rifiuta</button></div>
         </article>)}

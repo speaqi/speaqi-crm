@@ -7324,7 +7324,10 @@ textarea.form-input::placeholder { color: var(--text3); }
 @media (max-width: 900px) { .sc-grid { grid-template-columns: 1fr; } .sc-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* Ufficio sul telefono: il menu resta su una riga, il lavoro si vede subito. */
+.office-scene-layout { height: 100dvh; min-height: 0; }
+.office-scene-layout .app-main { min-height: 0; }
 @media (max-width: 860px) {
+  .app-layout.office-scene-layout { height: 100dvh; min-height: 0; }
   .office-layout .sidebar { height: auto; }
   .office-layout .sidebar-logo, .office-layout .sidebar-cta,
   .office-layout .nav-section, .office-layout .sidebar-settings { display: none; }
