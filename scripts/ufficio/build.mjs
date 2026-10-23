@@ -1,11 +1,14 @@
-// La scena dell'ufficio (/ufficio) nasce come pagina HTML a sé, con three.js da CDN.
-// Questo script la impacchetta come stringa in un modulo TS, così la rotta la serve
-// solo al titolare senza dipendere da file letti a runtime nello standalone.
+// La scena dell'ufficio (/ufficio) è isolata in un iframe sandbox.
+// Three.js e i controlli sono inclusi nel bundle, senza CDN o font remoti.
+// La rotta serve il documento al titolare senza leggere file a runtime.
 // Uso: node scripts/ufficio/build.mjs  (dopo aver modificato scripts/ufficio/scena.html)
 import { readFileSync, writeFileSync } from 'node:fs'
+import { build } from 'esbuild'
 
-const body = readFileSync(new URL('./scena.html', import.meta.url), 'utf8')
-const html = `<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><style>html,body{margin:0}[hidden]{display:none!important}</style></head><body>${body}</body></html>`
+const result = await build({ entryPoints: [new URL('./scene.js', import.meta.url).pathname], bundle: true,
+  write: false, minify: true, format: 'iife', target: 'es2020', legalComments: 'inline', loader: { '.png': 'dataurl' } })
+const script = result.outputFiles[0].text.replace(/<\/script/gi, '<\\/script')
+const html = readFileSync(new URL('./scena.html', import.meta.url), 'utf8').replace('<!-- SCENE_SCRIPT -->', () => `<script>${script}</script>`)
 writeFileSync(
   new URL('../../src/lib/server/ufficio-scene.ts', import.meta.url),
   `// Generato da scripts/ufficio/build.mjs: non modificare a mano.\nexport const UFFICIO_SCENE_HTML = ${JSON.stringify(html)}\n`

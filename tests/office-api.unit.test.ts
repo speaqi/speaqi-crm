@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { beforeEach, afterEach, test, mock } from 'node:test'
 import { NextRequest } from 'next/server'
 import { GET } from '../src/app/api/office/route'
+import { GET as officeScene } from '../src/app/api/ufficio/scena/route'
 import { PATCH as patchAgent } from '../src/app/api/office/agents/[id]/route'
 import { POST as runNow } from '../src/app/api/office/agents/[id]/run-now/route'
 import { PATCH as decide } from '../src/app/api/office/outputs/[id]/route'
@@ -73,6 +74,7 @@ function request(path: string, body?: unknown, method = 'PATCH', token = true) {
 test('tutte le API titolare rifiutano richieste senza sessione prima di accedere ai dati', async () => {
   const requests = [
     () => GET(request('/api/office', undefined, 'GET', false)),
+    () => officeScene(request('/api/ufficio/scena', undefined, 'GET', false)),
     () => patchAgent(request('/api/office/agents/prova', {}, 'PATCH', false), params),
     () => runNow(request('/api/office/agents/prova/run-now', undefined, 'POST', false), params),
     () => decide(request('/api/office/outputs/prova', {}, 'PATCH', false), params),
@@ -85,6 +87,7 @@ test('un collaboratore riceve 403 su lettura, configurazione, corsa e decisioni'
   member = true
   const requests = [
     () => GET(request('/api/office', undefined, 'GET')),
+    () => officeScene(request('/api/ufficio/scena', undefined, 'GET')),
     () => patchAgent(request('/api/office/agents/prova', { enabled: true }), params),
     () => runNow(request('/api/office/agents/prova/run-now', undefined, 'POST'), params),
     () => decide(request('/api/office/outputs/prova', { status: 'approved' }), params),

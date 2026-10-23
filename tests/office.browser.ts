@@ -5,6 +5,8 @@ import assert from 'node:assert/strict'
 import { mkdir } from 'node:fs/promises'
 import { chromium } from 'playwright'
 import type { OfficeAgent, OfficeOverview, OfficeOutput, OfficeRun } from '../src/lib/office'
+import { UFFICIO_SCENE_HTML } from '../src/lib/server/ufficio-scene'
+import { OFFICE_AGENT_DEFINITIONS } from '../src/lib/server/office-agents/definitions'
 
 const base = process.env.OFFICE_TEST_URL || 'http://127.0.0.1:3215'
 const out = process.env.OFFICE_TEST_OUTPUT || '/tmp/speaqi-office-ui'
@@ -17,6 +19,7 @@ let runs: OfficeRun[] = []
 let empty = true
 let fail = false
 let skipRun = false
+let sceneOverview: OfficeOverview | null = null
 const calls: Array<{ method: string; path: string; body: any; key?: string }> = []
 
 function overview(): OfficeOverview {
@@ -30,8 +33,9 @@ async function main() {
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium', headless: true })
   const errors: string[] = []
   try {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' })
     await context.addInitScript(({ owner }) => {
+      if (window.top !== window) return
       const token = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' })) + '.' + btoa(JSON.stringify({ sub: owner, exp: Math.floor(Date.now() / 1000) + 3600 })) + '.prova'
       localStorage.setItem('speaqi-crm-auth', JSON.stringify({ access_token: token, refresh_token: 'prova', expires_in: 3600,
         expires_at: Math.floor(Date.now() / 1000) + 3600, token_type: 'bearer', user: { id: owner, email: 'owner@example.it', aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: '2026-01-01T00:00:00Z' } }))
@@ -43,7 +47,8 @@ async function main() {
       const method = req.method(); const body = method === 'GET' ? null : req.postDataJSON()
       calls.push({ method, path: url.pathname, body, key: req.headers()['idempotency-key'] })
       const json = (value: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) })
-      if (url.pathname === '/api/office') return fail ? json({ error: 'Database di prova non disponibile' }, 500) : json(overview())
+      if (url.pathname === '/api/ufficio/scena') return route.fulfill({ contentType: 'text/html', body: UFFICIO_SCENE_HTML })
+      if (url.pathname === '/api/office') return fail ? json({ error: 'Database di prova non disponibile' }, 500) : json(sceneOverview || overview())
       if (url.pathname === '/api/office/agents/prova' && method === 'PATCH') { agent = { ...agent, ...body }; return json({ agent }) }
       if (url.pathname === '/api/office/agents/prova/run-now') {
         if (skipRun) return json({ run: null, skipped: 'already_running' })
@@ -60,7 +65,7 @@ async function main() {
       return json({})
     })
     const page = await context.newPage()
-    page.on('pageerror', (error) => errors.push(error.message))
+    page.on('pageerror', (error) => { errors.push(error.message); console.error('Browser:', error.message) })
     await page.goto(`${base}/ufficio/agenti`)
     await page.getByRole('heading', { name: 'L’ufficio è pronto, i compiti arrivano dopo.' }).waitFor()
     assert.ok(await page.locator('aside a[href="/ufficio"]').count())
@@ -117,8 +122,71 @@ async function main() {
     await page.locator('.cc-card').getByRole('heading', { name: 'Ufficio', exact: true }).waitFor()
     assert.ok(await page.getByRole('link', { name: 'Agenti e bozze →' }).count())
     assert.ok(await page.locator('.cc-list').getByRole('link', { name: /Report da controllare/ }).count())
+
+    // Il 3D riceve la stessa API: agenti reali installabili, stati simulati.
+    const definitions = Object.values(OFFICE_AGENT_DEFINITIONS).sort((a, b) =>
+      a.id === 'entity_enricher' ? -1 : b.id === 'entity_enricher' ? 1 : a.id.localeCompare(b.id))
+    const sceneRuns: OfficeRun[] = definitions.slice(0, 4).map((definition, i) => ({ id: `run-${i}`, agent_id: definition.id, user_id: OWNER,
+      started_at: '2026-10-23T08:00:00Z', finished_at: i === 0 ? null : '2026-10-23T08:01:00Z',
+      status: i === 0 ? 'running' : i === 1 ? 'failed' : 'done', summary: ['Ricerca fonti in corso', 'Una fonte richiede una verifica', 'Report preparato', 'Rassegna pronta'][i],
+      items_created: 1, cost_cents_actual: 4, cost_cents_reserved: 0, error: null, details: {} }))
+    sceneOverview = { agents: definitions.map((definition, i) => ({ ...definition, user_id: OWNER, enabled: i < 5,
+      spend: { ...spend, agent_id: definition.id }, last_run: sceneRuns.find((r) => r.agent_id === definition.id) || null })),
+      runs: sceneRuns, outputs: [{ ...output('scena-uscita'), agent_id: definitions[0].id, title: 'Ente con recapiti da verificare' }],
+      pending_count: 1, totals: { day_actual: 132, day_reserved: 55, week_actual: 264, week_reserved: 55, month_actual: 440, month_reserved: 55 }, active_agents: 5 }
+    await page.goto(`${base}/ufficio`)
+    const office = page.frameLocator('iframe[title="Ufficio Speaqi"]')
+    await office.getByRole('heading', { name: 'Il lavoro, a colpo d’occhio.' }).waitFor()
+    await office.locator('#stage canvas').waitFor()
+    await office.getByRole('button', { name: 'Apri reparto Direzione', exact: true }).waitFor()
+    assert.equal(await office.locator('#fallback').isHidden(), true)
+    assert.equal(await office.locator('.tag').count(), 7)
+    await page.screenshot({ path: `${out}/04-torre.png`, fullPage: true })
+    await office.getByRole('button', { name: /Ricerca P2/ }).click()
+    await office.getByRole('heading', { name: 'Ricerca', exact: true }).waitFor()
+    await office.getByRole('button', { name: /Arricchimento enti In corso/ }).click()
+    await office.getByRole('button', { name: 'Apri impostazioni e storico ↗' }).waitFor()
+    await page.screenshot({ path: `${out}/05-reparto.png`, fullPage: true })
+    await office.getByRole('button', { name: '↺ Vista completa' }).click()
+    await office.getByRole('button', { name: '02 · Studio open space' }).click()
+    await office.getByRole('heading', { name: 'Spazio alle connessioni.' }).waitFor()
+    assert.equal(await office.getByRole('button', { name: '02 · Studio open space' }).getAttribute('aria-pressed'), 'true')
+    await page.screenshot({ path: `${out}/06-open-space.png`, fullPage: true })
+    await office.getByRole('button', { name: 'Sera', exact: true }).click()
+    await page.screenshot({ path: `${out}/07-sera.png`, fullPage: true })
+    fail = true
+    await office.getByRole('button', { name: 'Aggiorna dati' }).click()
+    await page.getByRole('alert').filter({ hasText: 'Database di prova non disponibile' }).waitFor()
+    await office.getByRole('alert').waitFor()
+    await office.getByRole('heading', { name: 'Il lavoro, a colpo d’occhio.' }).waitFor()
+    fail = false
+    await page.getByRole('button', { name: 'Riprova', exact: true }).click()
+    await office.getByRole('alert').waitFor({ state: 'detached' })
+    await page.setViewportSize({ width: 390, height: 844 })
+    const frameBox = await page.locator('iframe').boundingBox()
+    assert.ok(frameBox && frameBox.y < 230 && frameBox.height > 550, 'il 3D e i reparti occupano la prima schermata sul telefono')
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+    assert.ok(await office.locator('body').evaluate((body) => body.scrollWidth <= innerWidth))
+    await page.screenshot({ path: `${out}/08-3d-mobile.png`, fullPage: true })
+    await office.getByRole('button', { name: /Ente con recapiti da verificare/ }).click()
+    await page.waitForURL('**/ufficio/agenti#uscita-scena-uscita')
+
+    const fallbackPage = await context.newPage()
+    await fallbackPage.route('**/api/ufficio/scena', (route) => route.fulfill({ contentType: 'text/html',
+      body: UFFICIO_SCENE_HTML.replace('<head>', '<head><script>HTMLCanvasElement.prototype.getContext = () => null;</script>') }))
+    await fallbackPage.goto(`${base}/ufficio`)
+    const fallbackOffice = fallbackPage.frameLocator('iframe')
+    await fallbackOffice.getByRole('heading', { name: 'Il lavoro, a colpo d’occhio.' }).waitFor()
+    await fallbackOffice.locator('#fallback').waitFor({ state: 'visible' })
+    await fallbackOffice.getByRole('button', { name: /Ricerca P2/ }).click()
+    await fallbackOffice.getByRole('heading', { name: 'Ricerca', exact: true }).waitFor()
+    await fallbackOffice.getByRole('button', { name: /Arricchimento enti In corso/ }).click()
+    await fallbackOffice.getByRole('button', { name: 'Apri impostazioni e storico ↗' }).click()
+    await fallbackPage.waitForURL('**/ufficio/agenti#agente-entity_enricher')
+    await fallbackPage.close()
+
     assert.deepEqual(errors, [])
-    console.log('Ufficio: vuoto, sidebar, interruttore, budget, impostazioni, corsa, approva/rifiuta, desktop e telefono verificati. Screenshot: ' + out)
+    console.log('Ufficio: gestione agenti, budget e decisioni; torre/open space, stati reali, reparti, luce, errore/recupero, link alle bozze, telefono e fallback senza WebGL verificati. Screenshot: ' + out)
   } finally { await browser.close() }
 }
 main().catch((error) => { console.error(error); process.exitCode = 1 })

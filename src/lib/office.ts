@@ -36,6 +36,32 @@ export type OfficeOverview = {
   totals: Omit<OfficeSpend, 'agent_id'>; active_agents: number
 }
 
+/** Effetto concreto della decisione, coerente con decide_office_output. */
+export function officeApprovalEffect(output: Pick<OfficeOutput, 'agent_id' | 'kind' | 'body'>) {
+  if (output.agent_id === 'events_scout' && output.kind === 'task' && output.body.action === 'decide_event_participation') {
+    return { label: 'Approva e crea To Do', description: 'Crea un’attività To Do per decidere se partecipare all’evento, con la scadenza verificata. Non iscrive all’evento.',
+      notice: 'Attività To Do creata con la scadenza dell’evento. Nessuna iscrizione eseguita.' }
+  }
+  if (output.agent_id === 'db_cleaner' && output.kind === 'data_fix' && output.body.action === 'merge_contacts') {
+    return { label: 'Approva e unisci', description: 'Unisce i gruppi di contatti compatibili nel CRM e conserva i doppioni nascosti. Controlla i gruppi prima di approvare.',
+      notice: 'Unione elaborata. I gruppi compatibili sono stati uniti; eventuali gruppi saltati sono registrati nel risultato della proposta.' }
+  }
+  if (output.agent_id === 'entity_enricher' && output.kind === 'proposal' && output.body.action === 'enrich_entity') {
+    return { label: 'Approva e importa nel CRM', description: 'Aggiorna l’ente, lo porta nel CRM e lo accoda alle Presentazioni nella stessa operazione.',
+      notice: 'Ente aggiornato e portato nel CRM; lavoro accodato alle Presentazioni.' }
+  }
+  if (output.agent_id === 'director' && output.kind === 'proposal') {
+    return { label: 'Approva e accoda', description: 'Aggiunge il lavoro alla coda dell’agente destinatario. L’esecuzione segue il suo interruttore, orario e budget.',
+      notice: 'Lavoro approvato e accodato all’agente destinatario.' }
+  }
+  if (output.agent_id === 'languages_voice' && output.kind === 'proposal' && output.body.action === 'refresh_outdated') {
+    return { label: 'Approva aggiornamento', description: 'Autorizza il rifacimento delle traduzioni indicate alla prossima corsa, entro il budget dell’agente.',
+      notice: 'Aggiornamento autorizzato per la prossima corsa, entro il budget.' }
+  }
+  return { label: 'Approva', description: 'Registra l’approvazione. Non invia email, fatture o pubblicazioni.',
+    notice: 'Approvata. La decisione è registrata; nessun invio eseguito.' }
+}
+
 /** Solo campi modificabili dal titolare; gli id e il proprietario vengono dal server. */
 export function officeAgentPatch(raw: unknown) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Impostazioni non valide')
