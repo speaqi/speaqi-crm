@@ -231,7 +231,7 @@ export function formatPublicOrganizationResearch(research?: PublicOrganizationRe
   ].filter(Boolean).join('\n')
 }
 
-const RAI3_FOOTER_TEXT =
+export const RAI3_FOOTER_TEXT =
   `Speaqi è stato raccontato anche da Rai 3 (Mezzogiorno Italia):\n${SPEAQI_RAI3_URL}`
 
 const RAI3_FOOTER_HTML =
