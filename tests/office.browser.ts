@@ -140,7 +140,7 @@ async function main() {
     await office.locator('#stage canvas').waitFor()
     await office.getByRole('button', { name: 'Apri reparto Direzione', exact: true }).waitFor()
     assert.equal(await office.locator('#fallback').isHidden(), true)
-    assert.equal(await office.locator('.tag:not(.kiosk)').count(), 7)
+    assert.equal(await office.locator('.tag:not(.kiosk)').count(), 8)
     await office.getByRole('button', { name: 'Aspetta te: 1 proposta da decidere' }).waitFor()
     await page.screenshot({ path: `${out}/04-campus.png`, fullPage: true })
     await office.getByRole('button', { name: /Ricerca 03/ }).click()
@@ -149,7 +149,7 @@ async function main() {
     await office.getByRole('button', { name: 'Apri impostazioni e storico ↗' }).waitFor()
     await page.screenshot({ path: `${out}/05-reparto.png`, fullPage: true })
     // Entrare in un reparto non nasconde gli altri: le etichette dei sette padiglioni restano.
-    assert.equal(await office.locator('.tag:not(.kiosk)').count(), 7)
+    assert.equal(await office.locator('.tag:not(.kiosk)').count(), 8)
     const shown = await office.locator('.tag:not(.kiosk)').evaluateAll((tags) => tags.filter((t) => (t as HTMLElement).style.display !== 'none').length)
     assert.ok(shown >= 2, `con un reparto aperto restano a schermo anche gli altri padiglioni (${shown})`)
     await office.getByRole('button', { name: '↺ Vista completa' }).click()

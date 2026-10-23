@@ -1,7 +1,7 @@
 import { OFFICE_DEPARTMENTS, OFFICE_RUN_LABELS, type OfficeOverview } from './office'
 
 export const OFFICE_SECTORS = Object.entries(OFFICE_DEPARTMENTS).map(([id, name], index) => ({
-  id, name, color: ['#9b83d9', '#48bba6', '#62a9da', '#e48d67', '#d9b552', '#d77fa7', '#829ca8'][index],
+  id, name, color: ['#9b83d9', '#48bba6', '#62a9da', '#e48d67', '#d9b552', '#d77fa7', '#829ca8', '#a4c639'][index],
 }))
 
 /** Proiezione per l'iframe: nessuna credenziale, impostazione o corpo delle bozze. */

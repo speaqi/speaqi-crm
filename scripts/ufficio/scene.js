@@ -22,7 +22,8 @@ const lum = (hex) => { const c = new THREE.Color(hex); return 0.2126 * c.r + 0.7
 
 const BRAND = { navy: '#16192e', blue: '#4f6ef7', orange: '#ff5a1f', cream: '#f4efe4' }
 const H = 2.9, TERRACE = 1.5, GAP = 2.6, PLAZA = 5.4, FRONT_Z = 3.4, BACK_Z = -6.4, WALL_Z = -2.6
-const BACK_ROW = ['mappe', 'direzione', 'ricerca']
+// La Direzione non è un padiglione: è l'ultimo piano della sede (buildHQ).
+const BACK_LEFT = ['mappe', 'sviluppo'], BACK_RIGHT = ['ricerca']
 const FRONT_LEFT = ['commerciale', 'finanza'], FRONT_RIGHT = ['marketing', 'operazioni']
 const SHIRTS = ['#16192e', '#ffffff', '#4f6ef7', '#ff5a1f', '#1f2a4d', '#eef1f8']
 const SKIN = ['#f1c7a5', '#e0ac85', '#c98e66', '#a8714d', '#7c5236', '#f5d4b8']
@@ -32,7 +33,7 @@ let snapshot = null, focused = null, selected = null, light = romeHour() >= 7 &&
 let renderer, labels, scene, camera, controls, root, sun, hemi, resizeObserver, signature = ''
 let tween = null, stageWidth = 1, stageHeight = 1, lastFrame = 0, lastInteraction = 0, clockStart = performance.now()
 let webglFailed = false, down = null, dirty = true, hovered = null
-let pickables = [], pavilions = [], persons = [], spinners = [], trees = [], flags = [], lamps = [], screens = [], roomLights = [], hqWindows = [], hq = null
+let ceoTag = null, pickables = [], pavilions = [], persons = [], spinners = [], trees = [], flags = [], lamps = [], screens = [], roomLights = [], hqWindows = [], hq = null
 let packets = [], kiosk = null, fountain = null, clouds = [], gulls = [], stars = null, bounds = { center: new THREE.Vector3(), radius: 30 }
 const tex = {}
 $('brand-logo').src = LOGO_WHITE
@@ -105,6 +106,10 @@ function bubbleTexture(kind) {
       ctx.fillStyle = BRAND.orange; roundRect(ctx, 10, 28, 108, 72, 12); ctx.fill()
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 7; ctx.lineJoin = 'round'
       ctx.beginPath(); ctx.moveTo(20, 40); ctx.lineTo(64, 72); ctx.lineTo(108, 40); ctx.stroke()
+    } else if (kind === 'talk') {
+      ctx.fillStyle = '#ffffff'; roundRect(ctx, 8, 14, 112, 76, 22); ctx.fill()
+      ctx.beginPath(); ctx.moveTo(30, 88); ctx.lineTo(22, 118); ctx.lineTo(52, 88); ctx.fill()
+      ctx.fillStyle = BRAND.navy; for (const x of [38, 64, 90]) { ctx.beginPath(); ctx.arc(x, 52, 9, 0, Math.PI * 2); ctx.fill() }
     } else if (kind === 'glow') {
       const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64)
       g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.25, 'rgba(255,255,255,.85)'); g.addColorStop(1, 'rgba(255,255,255,0)')
@@ -138,7 +143,7 @@ const G = {
   seat: new THREE.BoxGeometry(0.46, 0.06, 0.44),
   chairBack: new THREE.BoxGeometry(0.46, 0.5, 0.05),
   chairPole: new THREE.CylinderGeometry(0.03, 0.03, 0.42, 8),
-  orb: new THREE.OctahedronGeometry(0.07, 0),
+  orb: new THREE.OctahedronGeometry(0.11, 0),
   packet: new THREE.SphereGeometry(0.09, 12, 8),
 }
 const logoMats = new Map()
@@ -320,21 +325,7 @@ function buildPavilion(sector, index, place) {
   if (!roster.length) desk(g, 0, deskZ(0), null)
   roster.forEach((agent, i) => {
     const col = i % cols, row = Math.floor(i / cols)
-    const px = (col - (cols - 1) / 2) * 1.75, pz = deskZ(row)
-    const station = desk(g, px, pz, agent)
-    const { group: person, parts } = makePerson(agent, i)
-    g.add(person)
-    const orb = mesh(G.orb, new THREE.MeshBasicMaterial({ color: STATE_COLOR[agent.status], toneMapped: false }), person, 0, 2.0, 0, false)
-    orb.visible = agent.status === 'running' || agent.status === 'ready'
-    const rec = { agent, person, parts, station, orb, sector, pavilion: g, phase: (hashId(agent.id) % 1000) / 160,
-      seat: new THREE.Vector3(px, 0, pz + 0.62), coffee: new THREE.Vector3(w / 2 - 1.05, 0, d / 2 - 0.7 - (i % 3) * 0.5),
-      mode: 'seated', until: 0, path: [], bubble: null, zs: [] }
-    setupPerson(rec)
-    const el = document.createElement('div'); el.className = 'person-tag'
-    el.innerHTML = `<i style="--c:${STATE_COLOR[agent.status]}"></i>${esc(agent.name)}`
-    rec.tag = new CSS2DObject(el); rec.tag.position.set(0, 2.62, 0); rec.tag.visible = false; person.add(rec.tag)
-    person.traverse((o) => { if (o.isMesh) { o.userData.agentId = agent.id; o.userData.deptId = sector.id; pickables.push(o) } })
-    people.push(rec); persons.push(rec)
+    people.push(placeAgent(g, sector, agent, i, (col - (cols - 1) / 2) * 1.75, deskZ(row), new THREE.Vector3(w / 2 - 1.05, 0, d / 2 - 0.7 - (i % 3) * 0.5)))
   })
   // Oggetti di reparto sul tetto: si muovono sempre, sono il segno del mestiere.
   roofProp(sector.id, g, w, d)
@@ -349,6 +340,23 @@ function buildPavilion(sector, index, place) {
   const tag = new CSS2DObject(el); tag.position.set(0, H + 1.6, d / 2); g.add(tag)
   pavilions.push({ id: sector.id, sector, group: g, ring, tag, w, d, center: new THREE.Vector3(), yaw: place.yaw, people })
 }
+// Un agente alla sua scrivania: persona, stato, comportamento, cartellino.
+function placeAgent(parent, sector, agent, i, px, pz, coffee) {
+  const station = desk(parent, px, pz, agent)
+  const { group: person, parts } = makePerson(agent, i)
+  parent.add(person)
+  // Il pallino sopra la testa c'è sempre: dalla vista d'insieme si contano le persone e il loro stato.
+  const orb = mesh(G.orb, new THREE.MeshBasicMaterial({ color: STATE_COLOR[agent.status], toneMapped: false }), person, 0, 2.0, 0, false)
+  const rec = { agent, person, parts, station, orb, sector, pavilion: parent, phase: (hashId(agent.id) % 1000) / 160,
+    seat: new THREE.Vector3(px, 0, pz + 0.62), coffee, mode: 'seated', until: 0, path: [], bubble: null, zs: [] }
+  setupPerson(rec)
+  const el = document.createElement('div'); el.className = 'person-tag'
+  el.innerHTML = `<i style="--c:${STATE_COLOR[agent.status]}"></i>${esc(agent.name)}`
+  rec.tag = new CSS2DObject(el); rec.tag.position.set(0, 2.62, 0); rec.tag.visible = false; person.add(rec.tag)
+  person.traverse((o) => { if (o.isMesh) { o.userData.agentId = agent.id; o.userData.deptId = sector.id; pickables.push(o) } })
+  persons.push(rec)
+  return rec
+}
 // Una bandiera Speaqi che sventola (Commerciale e ingresso della sede).
 function flagPole(parent, x, y, z, color, tone, height = 2.2) {
   cyl(parent, 0.04, 0.04, height, x, y + height / 2, z, '#d5d9e0', 8)
@@ -362,7 +370,16 @@ function flagPole(parent, x, y, z, color, tone, height = 2.2) {
 }
 function roofProp(id, g, w, d) {
   const top = H + 0.2
-  if (id === 'direzione') {
+  if (id === 'sviluppo') {
+    // Un cubo che gira con il segno del codice.
+    const codeTex = canvasTexture(256, 256, (ctx) => {
+      ctx.fillStyle = BRAND.navy; ctx.fillRect(0, 0, 256, 256)
+      ctx.fillStyle = '#c8e05a'; ctx.font = '800 112px ui-monospace, Menlo, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('</>', 128, 132)
+    })
+    const cube = mesh(new THREE.BoxGeometry(0.9, 0.9, 0.9), new THREE.MeshStandardMaterial({ map: codeTex, emissive: '#ffffff', emissiveMap: codeTex, emissiveIntensity: 0.35, roughness: 0.4 }), g, w / 2 - 1.2, top + 1.2, -d / 2 + 1.2)
+    cyl(g, 0.05, 0.22, 0.45, w / 2 - 1.2, top + 0.22, -d / 2 + 1.2, '#8b97a8', 12)
+    spinners.push({ o: cube, kind: 'spinY', speed: 0.6, bob: 0.06 })
+  } else if (id === 'direzione') {
     // Terrazza della Direzione: ombrellone arancione e due sdraio. L'insegna Speaqi sta sulla sede, dietro.
     cyl(g, 0.04, 0.04, 1.8, w / 2 - 1.6, top + 0.9, -0.2, '#f2f2ee', 8)
     const shade = mesh(new THREE.ConeGeometry(1.15, 0.42, 18), std(BRAND.orange, { roughness: 0.6 }), g, w / 2 - 1.6, top + 1.8, -0.2)
@@ -461,7 +478,7 @@ function facadeTextures(cols, floors, seed) {
   })
   return { map: draw(false), emissive: draw(true) }
 }
-function buildHQ(x, y, z) {
+function buildHQ(x, y, z, direzione) {
   const g = new THREE.Group(); g.position.set(x, y, z); root.add(g)
   const { w, d, floors, floorH } = HQ, bodyH = floors * floorH
   // Piazzale in pietra con le bandiere.
@@ -473,16 +490,18 @@ function buildHQ(x, y, z) {
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) cyl(g, 0.16, 0.16, floorH, sx * (w / 2 - 0.4), floorH / 2, sz * (d / 2 - 0.4), '#f2f2ee', 12)
   // Il corpo: vetro su quattro lati, solai bianchi a ogni piano.
   const cols = Math.round(w / 1.1), side = Math.round(d / 1.1)
-  const front = facadeTextures(cols, floors - 1, 3), flank = facadeTextures(side, floors - 1, 9)
+  const front = facadeTextures(cols, floors - 2, 3), flank = facadeTextures(side, floors - 2, 9)
   const glass = (t) => new THREE.MeshStandardMaterial({ map: t.map, emissiveMap: t.emissive, emissive: '#ffffff', emissiveIntensity: 0, roughness: 0.22, metalness: 0.35 })
   const fm = glass(front), sm = glass(flank)
   hqWindows.push(fm, sm)
   const roofMat = std('#dfe3e8')
-  const body = new THREE.Mesh(new THREE.BoxGeometry(w, bodyH - floorH, d), [sm, sm, roofMat, roofMat, fm, fm])
-  body.position.y = floorH + (bodyH - floorH) / 2; body.castShadow = true; body.receiveShadow = true; g.add(body)
+  const officeH = bodyH - 2 * floorH
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, officeH, d), [sm, sm, roofMat, roofMat, fm, fm])
+  body.position.y = floorH + officeH / 2; body.castShadow = true; body.receiveShadow = true; g.add(body)
   for (let f = 1; f <= floors; f++) box(g, w + 0.5, 0.18, d + 0.5, 0, f * floorH, 0, '#f4f4f0')
   // Lame verticali sulla facciata: il ritmo dell'edificio.
-  for (let k = 0; k <= 6; k++) box(g, 0.14, bodyH - floorH, 0.3, -w / 2 + k * w / 6, floorH + (bodyH - floorH) / 2, d / 2 + 0.12, '#f4f4f0')
+  for (let k = 0; k <= 6; k++) box(g, 0.14, officeH, 0.3, -w / 2 + k * w / 6, floorH + officeH / 2, d / 2 + 0.12, '#f4f4f0')
+  buildDirectionFloor(g, x, y + bodyH - floorH, z, direzione)
   // Ascensore di vetro sul fianco, che sale e scende.
   const shaftX = w / 2 + 0.75
   box(g, 1.2, bodyH + 0.6, 1.4, shaftX, (bodyH + 0.6) / 2, 0.8, std('#cfe9f5', { transparent: true, opacity: 0.25, roughness: 0.05, depthWrite: false })).castShadow = false
@@ -509,6 +528,87 @@ function buildHQ(x, y, z) {
   const label = new CSS2DObject(tag); label.position.set(0, topY + 2.6 + signH, d / 2 - 0.6); g.add(label)
   hq = { group: g, top: topY + 2.2 + signH, x, z }
   return hq
+}
+// Ultimo piano della sede: open space vetrato della Direzione, con il CEO e il Direttore.
+function buildDirectionFloor(hqGroup, wx, wy, wz, entry) {
+  const { w, d, floorH } = HQ
+  const sector = entry?.sector || { id: 'direzione', name: 'Direzione', color: '#9b83d9', agents: [] }
+  const g = new THREE.Group(); g.position.set(wx, wy + 0.09, wz); root.add(g)
+  const tint = (amount, base = BRAND.cream) => new THREE.Color(sector.color).lerp(new THREE.Color(base), amount)
+  const h = floorH - 0.09
+  box(g, w - 0.2, 0.04, d - 0.2, 0, 0.02, 0, std('#efe7da', { roughness: 0.6 }))
+  box(g, w - 2.4, 0.02, d - 2.6, 0, 0.05, -0.2, std(tint(0.55, '#ffffff'), { roughness: 0.95 }))
+  // Parete di fondo con il logo, vetrate su tre lati quasi invisibili: da fuori si vede dentro.
+  box(g, w - 0.2, h, 0.16, 0, h / 2, -d / 2 + 0.1, std(tint(0.62)))
+  const wallLogo = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 4.6 * 470 / 2000), logoMat('full', 'navy'))
+  wallLogo.position.set(0, 1.75, -d / 2 + 0.19); g.add(wallLogo)
+  const glass = std('#d9eef8', { transparent: true, opacity: 0.12, roughness: 0.05, metalness: 0.2, depthWrite: false })
+  const front = box(g, w - 0.2, h, 0.04, 0, h / 2, d / 2 - 0.1, glass); front.castShadow = false
+  for (const sx of [-1, 1]) { const p = box(g, 0.04, h, d - 0.2, sx * (w / 2 - 0.1), h / 2, 0, glass); p.castShadow = false }
+  for (let k = 0; k <= 6; k++) box(g, 0.08, h, 0.08, -w / 2 + 0.1 + k * (w - 0.2) / 6, h / 2, d / 2 - 0.1, '#2b3446')
+  // La scrivania del CEO, verso la vetrata: il Direttore siede davanti per gli ordini.
+  const ceoDesk = new THREE.Group(); ceoDesk.position.set(-1.6, 0, -0.9); g.add(ceoDesk)
+  box(ceoDesk, 2.4, 0.08, 1.0, 0, 0.76, 0, '#6e4a33'); box(ceoDesk, 2.3, 0.7, 0.08, 0, 0.38, -0.42, '#5a3b28')
+  for (const sx of [-1.1, 1.1]) box(ceoDesk, 0.08, 0.72, 0.9, sx, 0.36, 0, '#5a3b28')
+  box(ceoDesk, 0.7, 0.03, 0.46, 0.3, 0.81, 0.05, '#1d2433')
+  const laptop = box(ceoDesk, 0.66, 0.42, 0.03, 0.3, 1.02, -0.17, '#1d2433'); laptop.rotation.x = -0.25
+  const lscreen = mesh(new THREE.PlaneGeometry(0.58, 0.34), new THREE.MeshBasicMaterial({ color: '#7fb0ff', toneMapped: false }), ceoDesk, 0.3, 1.02, -0.15, false); lscreen.rotation.set(-0.25, Math.PI, 0)
+  cyl(ceoDesk, 0.05, 0.04, 0.1, -0.6, 0.85, 0.15, '#ffffff', 10)
+  // La sedia del CEO è dietro la scrivania, il CEO guarda verso la vetrata.
+  const ceoChair = new THREE.Group(); ceoChair.position.set(-1.6, 0, -1.8); g.add(ceoChair)
+  box(ceoChair, 0.62, 0.08, 0.58, 0, 0.47, 0, '#1b1f2e'); box(ceoChair, 0.62, 0.8, 0.08, 0, 0.9, -0.3, '#1b1f2e'); cyl(ceoChair, 0.03, 0.03, 0.42, 0, 0.22, 0, '#5a6170', 8)
+  const ceo = makeCeo(); ceo.group.position.set(-1.6, 0, -1.75); g.add(ceo.group)
+  // Il Direttore: l'agente vero, alla sua postazione davanti al CEO.
+  const people = []
+  sector.agents.slice(0, 3).forEach((agent, i) => {
+    const sub = new THREE.Group(); sub.position.set(-1.6 + (i - (Math.min(sector.agents.length, 3) - 1) / 2) * 1.5, 0, 0.35); g.add(sub)
+    people.push(placeAgent(sub, sector, agent, i, 0, 0, new THREE.Vector3(-2.4 - i * 0.5, 0, 0.9)))
+  })
+  // Tavolo riunioni, divano e verde.
+  cyl(g, 0.85, 0.85, 0.06, 3.4, 0.74, -0.6, '#f2ede3', 28); cyl(g, 0.12, 0.3, 0.72, 3.4, 0.36, -0.6, '#5a6170', 12)
+  for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + 0.4; const c = box(g, 0.42, 0.06, 0.42, 3.4 + Math.cos(a) * 1.15, 0.45, -0.6 + Math.sin(a) * 1.15, '#2c3142'); c.rotation.y = -a }
+  box(g, 2.2, 0.42, 0.8, 3.5, 0.21, 2.0, '#c9b49a'); box(g, 2.2, 0.5, 0.18, 3.5, 0.6, 2.32, '#c9b49a')
+  plant(g, -w / 2 + 0.7, 0, d / 2 - 0.8, 1.4); plant(g, w / 2 - 0.7, 0, -d / 2 + 0.8, 1.3, '#e7e1d4'); plant(g, 1.3, 0, -d / 2 + 0.7, 1.1)
+  // Lo schermo grande con l'andamento: barre che si muovono.
+  const board = new THREE.Group(); board.position.set(3.4, 1.65, -d / 2 + 0.22); g.add(board)
+  box(board, 2.2, 1.2, 0.06, 0, 0, 0, '#1d2433')
+  for (let k = 0; k < 6; k++) {
+    const bar = box(board, 0.22, 0.8, 0.02, -0.8 + k * 0.32, -0.45, 0.04, new THREE.MeshBasicMaterial({ color: k % 2 ? '#8fc1ff' : '#5fe39a', toneMapped: false }))
+    bar.castShadow = false; bar.geometry = new THREE.BoxGeometry(0.22, 0.8, 0.02); bar.geometry.translate(0, 0.4, 0)
+    spinners.push({ o: bar, kind: 'bar', phase: k * 0.9 })
+  }
+  const lampMat = new THREE.MeshStandardMaterial({ color: '#fff3d6', emissive: '#ffd79a', emissiveIntensity: 0 }); lamps.push(lampMat)
+  for (const lx of [-3, -0.6, 2.4]) cyl(g, 0.3, 0.3, 0.04, lx, h - 0.06, 0, lampMat, 20).castShadow = false
+  const room = new THREE.PointLight('#ffd9a6', 0, 14, 1.4); room.position.set(0, h - 0.5, 0.5); g.add(room); roomLights.push(room)
+  const ring = outline(w - 0.4, d - 0.4, sector.color); ring.position.y = 0.07; g.add(ring)
+  g.traverse((o) => { if (o.isMesh && !o.userData.deptId && o !== ring) { o.userData.deptId = sector.id; pickables.push(o) } })
+  const el = document.createElement('button'); el.type = 'button'; el.className = 'tag'
+  el.style.setProperty('--c', sector.color)
+  el.setAttribute('aria-label', `Apri reparto ${sector.name}`)
+  el.innerHTML = `<i></i>${esc(sector.name)}<b>CEO e ${sector.agents.length === 1 ? 'Direttore' : `${sector.agents.length} agenti`}</b>`
+  el.onclick = () => focusDepartment(focused === sector.id ? null : sector.id)
+  const tag = new CSS2DObject(el); tag.position.set(-w / 2 + 2.2, h + 0.3, d / 2 + 0.3); g.add(tag)
+  pavilions.push({ id: sector.id, sector, group: g, ring, tag, w, d, center: new THREE.Vector3(), yaw: 0, people, top: true })
+}
+// Il CEO: il titolare, l'unica persona che non è un agente. Giacca scura sulla maglia Speaqi.
+function makeCeo() {
+  const fake = { id: 'ceo' }
+  const { group, parts } = makePerson(fake, 0)
+  group.traverse((o) => {
+    if (!o.isMesh) return
+    if (o.geometry === G.torso || o.geometry === G.arm) o.material = std('#2a2f45')
+    if (o.geometry === G.backLogo) o.material = logoMat('full', 'white')
+    if (o.geometry === G.chestLogo) o.material = logoMat('icon', 'white')
+  })
+  mesh(new THREE.PlaneGeometry(0.1, 0.3), std('#ffffff'), parts.torso, -0.05, 0.08, 0.196, false)
+  poseSeated(parts)
+  group.rotation.y = 0
+  const el = document.createElement('div'); el.className = 'person-tag ceo'; el.innerHTML = '<i style="--c:#ffd27a"></i>Tu · CEO'
+  const tag = new CSS2DObject(el); tag.position.set(0, 2.0, 0); tag.visible = false; group.add(tag); ceoTag = tag
+  const talk = bubble('talk'); talk.scale.setScalar(0.4); talk.position.set(0.35, 1.85, 0.1); group.add(talk)
+  spinners.push({ o: group, kind: 'ceo', parts, talk })
+  group.traverse((o) => { if (o.isMesh) { o.userData.deptId = 'direzione'; pickables.push(o) } })
+  return { group, parts }
 }
 
 /* ---------- comportamento ---------- */
@@ -609,24 +709,18 @@ let glowMat
 function layoutCampus() {
   const byId = Object.fromEntries(snapshot.departments.map((s, i) => [s.id, { sector: s, index: i, size: pavilionSize(s) }]))
   const places = {}
-  const back = BACK_ROW.filter((id) => byId[id])
-  const center = byId.direzione
-  if (center) places.direzione = { x: 0, y: TERRACE, z: BACK_Z, yaw: 0 }
-  let left = -(center ? center.size.w / 2 : 0) - GAP, right = (center ? center.size.w / 2 : 0) + GAP
-  for (const id of back) if (id !== 'direzione') {
-    const s = byId[id].size
-    if (id === 'mappe') { places[id] = { x: left - s.w / 2, y: TERRACE, z: BACK_Z + 0.4, yaw: 0.14 }; left -= s.w + GAP }
-    else { places[id] = { x: right + s.w / 2, y: TERRACE, z: BACK_Z + 0.4, yaw: -0.14 }; right += s.w + GAP }
-  }
+  // In alto ai lati della sede; davanti ai lati della piazza.
+  let left = -HQ.w / 2 - 1.6, right = HQ.w / 2 + 1.6
+  BACK_LEFT.filter((id) => byId[id]).forEach((id, k) => { const s = byId[id].size; places[id] = { x: left - s.w / 2, y: TERRACE, z: BACK_Z + 0.4 + k * 0.6, yaw: 0.14 + k * 0.06 }; left -= s.w + GAP })
+  BACK_RIGHT.filter((id) => byId[id]).forEach((id, k) => { const s = byId[id].size; places[id] = { x: right + s.w / 2, y: TERRACE, z: BACK_Z + 0.4 + k * 0.6, yaw: -0.14 - k * 0.06 }; right += s.w + GAP })
   let fl = -PLAZA, fr = PLAZA
   FRONT_LEFT.filter((id) => byId[id]).forEach((id, k) => { const s = byId[id].size; places[id] = { x: fl - s.w / 2, y: 0, z: FRONT_Z - k * 1.1, yaw: 0.16 + k * 0.06 }; fl -= s.w + GAP })
   FRONT_RIGHT.filter((id) => byId[id]).forEach((id, k) => { const s = byId[id].size; places[id] = { x: fr + s.w / 2, y: 0, z: FRONT_Z - k * 1.1, yaw: -0.16 - k * 0.06 }; fr += s.w + GAP })
-  // Reparti futuri non previsti: in fila dietro, senza sparire.
-  let extra = right
-  for (const s of snapshot.departments) if (!places[s.id]) { const size = byId[s.id].size; places[s.id] = { x: extra + size.w / 2, y: TERRACE, z: BACK_Z, yaw: 0 }; extra += size.w + GAP }
+  // Reparti futuri non previsti: in fila in alto a destra, senza sparire.
+  for (const s of snapshot.departments) if (!places[s.id] && s.id !== 'direzione') { const size = byId[s.id].size; places[s.id] = { x: right + size.w / 2, y: TERRACE, z: BACK_Z, yaw: 0 }; right += size.w + GAP }
   for (const id of Object.keys(places)) Object.assign(places[id], { size: byId[id].size })
   const xs = Object.values(places).flatMap((p) => [p.x - p.size.w / 2, p.x + p.size.w / 2])
-  return { places, byId, minX: Math.min(-PLAZA - 2, ...xs) - 3.2, maxX: Math.max(PLAZA + 2, ...xs) + 3.2 }
+  return { places, byId, minX: Math.min(-PLAZA - 2, -HQ.w / 2 - 3, ...xs) - 3.2, maxX: Math.max(PLAZA + 2, HQ.w / 2 + 3, ...xs) + 3.2 }
 }
 function tree(parent, x, y, z, kind, r) {
   const t = new THREE.Group(); t.position.set(x, y, z); parent.add(t)
@@ -667,8 +761,8 @@ function path(parent, from, to, y, width = 1.1) {
 function buildCampus() {
   const L = layoutCampus()
   const W = L.maxX - L.minX, cx = (L.minX + L.maxX) / 2
-  const dirD = L.places.direzione ? L.places.direzione.size.d : 5
-  const hqZ = BACK_Z - dirD / 2 - 4.6 - HQ.d / 2
+  // La sede sta in cima alla scalinata, dietro il suo piazzale.
+  const hqZ = WALL_Z - 1.6 - 4.6 - HQ.d / 2
   const zFront = 13.5, zBack = hqZ - HQ.d / 2 - 4.2, D = zFront - zBack
   // Isola: prato, bordo in pietra, fianchi di terra.
   slab(root, W, D, 2.4, 3.2, cx, 0, (zFront + zBack) / 2, '#a3c98f', '#7b6650')
@@ -685,13 +779,8 @@ function buildCampus() {
     hedge.scale.set(1.1, 0.75, 0.9)
   }
   // La sede Speaqi dietro la Direzione, con i viali che la collegano alla terrazza.
-  buildHQ(0, TERRACE, hqZ)
-  for (const sx of [-1, 1]) {
-    const ex = sx * ((L.places.direzione ? L.places.direzione.size.w / 2 : 3) + 1.2)
-    path(root, new THREE.Vector3(ex, 0, WALL_Z - 1.6), new THREE.Vector3(ex, 0, hqZ + HQ.d / 2 + 1.2), TERRACE, 1.1)
-    path(root, new THREE.Vector3(ex, 0, hqZ + HQ.d / 2 + 1.2), new THREE.Vector3(sx * 3.4, 0, hqZ + HQ.d / 2 + 2.6), TERRACE, 1.1)
-    lamp(root, sx * (HQ.w / 2 + 3.4), TERRACE, hqZ + HQ.d / 2 + 2.2)
-  }
+  buildHQ(0, TERRACE, hqZ, L.byId.direzione)
+  for (const sx of [-1, 1]) lamp(root, sx * (HQ.w / 2 + 2.6), TERRACE, hqZ + HQ.d / 2 + 2.2)
   // Piazza con fontana e "Aspetta te".
   const plazaZ = 6.6
   mesh(new THREE.CylinderGeometry(PLAZA - 0.2, PLAZA - 0.2, 0.06, 56), std('#efe8d9'), root, 0, 0.03, plazaZ).castShadow = false
@@ -715,7 +804,7 @@ function buildCampus() {
     if (Math.hypot(x, z - plazaZ) < PLAZA + 0.8) return true
     if (z > WALL_Z - 1.8 && z < WALL_Z + 0.8) return true
     if (y > 0 && z > WALL_Z - 2.2) return true
-    if (Math.abs(x) < HQ.w / 2 + 4.2 && z > hqZ - HQ.d / 2 - 1.5 && z < hqZ + HQ.d / 2 + 5) return true
+    if (Math.abs(x) < HQ.w / 2 + 3.2 && z > hqZ - HQ.d / 2 - 1.5 && z < WALL_Z) return true
     for (const p of Object.values(L.places)) {
       const dx = x - p.x, dz = z - p.z, c = Math.cos(-p.yaw), s = Math.sin(-p.yaw)
       const lx = dx * c - dz * s, lz = dx * s + dz * c
@@ -842,7 +931,7 @@ function init3D() {
     controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = true; controls.dampingFactor = 0.08
     controls.minDistance = 4; controls.maxDistance = 160
-    controls.minPolarAngle = 0.25; controls.maxPolarAngle = 1.38
+    controls.minPolarAngle = 0.25; controls.maxPolarAngle = 1.5
     controls.minAzimuthAngle = -1.25; controls.maxAzimuthAngle = 1.25
     controls.screenSpacePanning = true
     controls.addEventListener('start', () => { tween = null; lastInteraction = performance.now() })
@@ -896,7 +985,7 @@ function buildOffice() {
   const key = structureKey()
   if (key === signature && root) { updateKiosk(); updateFocus(); return }
   signature = key
-  disposeRoot(); pickables = []; pavilions = []; persons = []; spinners = []; trees = []; flags = []; screens = []; roomLights = []; hqWindows = []; hq = null
+  disposeRoot(); ceoTag = null; pickables = []; pavilions = []; persons = []; spinners = []; trees = []; flags = []; screens = []; roomLights = []; hqWindows = []; hq = null
   lamps = []
   root = new THREE.Group(); scene.add(root)
   buildCampus()
@@ -913,6 +1002,7 @@ function updateFocus() {
     p.tag.element.classList.toggle('dim', Boolean(focused) && focused !== p.id)
     for (const rec of p.people) rec.tag.visible = focused === p.id
   }
+  if (ceoTag) ceoTag.visible = focused === 'direzione'
   for (const rec of persons) rec.tag.element.classList.toggle('sel', rec.agent.id === selected)
   dirty = true
 }
@@ -946,11 +1036,13 @@ function moveCamera(instant = false) {
   let target, dir, points, scale = 1
   if (pav) {
     const base = pav.group.position
-    target = pav.center.clone()
+    target = pav.top ? base.clone().add(new THREE.Vector3(-0.4, 1.1, 0)) : pav.center.clone()
     // I padiglioni in alto si guardano passando sopra la piazza, non attraverso quelli davanti.
     const side = Math.abs(base.x) < 1 ? 0.2 : -Math.sign(base.x) * (base.y > 0 ? 0.75 : 0.28)
-    dir = new THREE.Vector3(Math.sin(pav.yaw) + side, base.y > 0 ? 0.42 : 0.34, Math.cos(pav.yaw)).normalize()
-    points = corners(base.x, base.z, pav.w, pav.d, base.y, base.y + H + 0.6, pav.yaw)
+    // L'ultimo piano si guarda quasi in piano, attraverso la vetrata: dall'alto il soffitto coprirebbe tutto.
+    dir = new THREE.Vector3(Math.sin(pav.yaw) + side, pav.top ? 0.07 : base.y > 0 ? 0.42 : 0.34, Math.cos(pav.yaw)).normalize()
+    points = pav.top ? corners(base.x - 0.4, base.z + pav.d / 2, pav.w * 0.62, 0.2, base.y + 0.3, base.y + HQ.floorH - 0.5)
+      : corners(base.x, base.z, pav.w, pav.d, base.y, base.y + H + 0.6, pav.yaw)
     // Con un agente scelto la camera si avvicina a lui restando fuori dal padiglione, dalla stessa parte.
     if (rec) { target.lerp(rec.person.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 1, 0)), 0.7); scale = 0.7 }
   } else {
@@ -1039,6 +1131,15 @@ function step(t, dt) {
     else if (s.kind === 'spinZ') s.o.rotation.z = t * s.speed
     else if (s.kind === 'sweep') s.o.rotation.y = Math.sin(t * s.speed) * (s.range || 1.1)
     else if (s.kind === 'blink') s.o.visible = Math.sin(t * 4) > -0.2
+    else if (s.kind === 'bar') s.o.scale.y = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 0.8 + s.phase))
+    else if (s.kind === 'ceo') {
+      // Il CEO parla con il Direttore: ogni tanto indica e compare il fumetto.
+      const talking = Math.sin(t * 0.45) > 0.35
+      s.talk.visible = talking
+      s.talk.position.y = 1.85 + Math.sin(t * 2) * 0.03
+      s.parts.shR.rotation.set(talking ? -1.5 + Math.sin(t * 3) * 0.15 : -1.15, 0, talking ? 0.2 : -0.12)
+      s.parts.head.rotation.y = Math.sin(t * 0.6) * 0.25
+    }
     else if (s.kind === 'lift') { const f = (Math.sin(t * 0.35) + 1) / 2; s.o.position.y = s.low + (s.high - s.low) * (f * f * (3 - 2 * f)) }
     else if (s.kind === 'rise') {
       const f = (t * 0.28 + s.phase) % 1
@@ -1113,7 +1214,7 @@ function renderPanel() {
   const sector = snapshot.departments.find((d) => d.id === focused)
   const roster = sector ? sector.agents : agents
   const queue = snapshot.outputs.filter((o) => !sector || roster.some((a) => a.id === o.agentId))
-  let html = sector ? `<button type="button" class="back" data-back>← Tutto il campus</button><p class="eyebrow">Padiglione ${String(snapshot.departments.indexOf(sector) + 1).padStart(2, '0')}</p><h2>${esc(sector.name)}</h2><p>${roster.length} ${roster.length === 1 ? 'agente installato' : 'agenti installati'} · ${roster.filter((a) => a.enabled).length} ${roster.filter((a) => a.enabled).length === 1 ? 'acceso' : 'accesi'}</p>`
+  let html = sector ? `<button type="button" class="back" data-back>← Tutto il campus</button><p class="eyebrow">${sector.id === 'direzione' ? 'Sede Speaqi · ultimo piano' : `Padiglione ${String(snapshot.departments.indexOf(sector) + 1).padStart(2, '0')}`}</p><h2>${esc(sector.name)}</h2><p>${roster.length} ${roster.length === 1 ? 'agente installato' : 'agenti installati'} · ${roster.filter((a) => a.enabled).length} ${roster.filter((a) => a.enabled).length === 1 ? 'acceso' : 'accesi'}</p>`
     : `<p class="eyebrow">Il tuo workspace</p><h2>Il lavoro, a colpo d’occhio.</h2><p>Tocca un padiglione per avvicinarti: il resto del campus resta lì.</p><div class="metrics"><div class="metric"><span>Agenti accesi</span><strong>${agents.filter((a) => a.enabled).length}<small>su ${agents.length} installati</small></strong></div><div class="metric"><span>Da decidere</span><strong>${snapshot.pendingCount}</strong><small>proposte in attesa</small></div></div>`
   if (dataError) html += `<div class="notice" role="alert">${esc(dataError)}<br>I dati mostrati sono dell’ultimo aggiornamento riuscito.</div>`
   html += budgetHTML(roster)

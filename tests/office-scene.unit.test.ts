@@ -39,9 +39,10 @@ test('stati 3D: corso dal registro, problemi visibili e interruttore spento risp
   assert.equal(withRun('done').status, 'ready')
 })
 
-test('workspace vuoto: nessuna persona inventata e sette reparti navigabili', () => {
+test('workspace vuoto: nessuna persona inventata e otto reparti navigabili, Sviluppo compreso', () => {
   const result = officeSceneSnapshot({ ...overview, agents: [], outputs: [], pending_count: 0 })
-  assert.equal(result.departments.length, 7)
+  assert.equal(result.departments.length, 8)
+  assert.ok(result.departments.some((d) => d.id === 'sviluppo'))
   assert.ok(result.departments.every((d) => d.agents.length === 0))
 })
 
