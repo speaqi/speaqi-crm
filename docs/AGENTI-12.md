@@ -1,6 +1,6 @@
 # Social — consegna
 
-Branch `codex/office-12-social` da main aggiornato `8f11d8b`, PR indipendente verso main.
+Branch `codex/office-12-social` da main aggiornato `2ab93a5`, PR indipendente verso main.
 Non dipende dal 07 o dai branch 02/04. La scena `/ufficio` resta intatta.
 
 Migration nuova: `20261023060654_office_social_drafts.sql`, da applicare a cura
@@ -24,13 +24,13 @@ Non provati dal vivo: credenziali e fatturazione OpenAI, catalogo/payload/foto
 Speaqi e Railway/PostgREST di produzione. I test usano risposte simulate e
 nessun dato operativo; nessun deploy.
 
-Verifiche sul branch aggiornato con main `8f11d8b`:
+Verifiche sul branch aggiornato con main `2ab93a5`:
 - `npx tsc --noEmit`: superato.
-- `npm run test:unit`: 463 passati, 0 falliti, 1 skip preesistente
+- `npm run test:unit`: 470 passati, 0 falliti, 1 skip preesistente
   (pagina di dettaglio del sito TTG).
-- `npm run test:db`: 45 passati, 0 falliti, 0 skip su PostgreSQL 16 locale.
+- `npm run test:db`: 52 passati, 0 falliti, 0 skip su PostgreSQL 16 locale.
 - `npx next build`: superato con configurazione Supabase fittizia, nessun deploy.
 
-Tutte le suite DB dell'ufficio (base, Finanza, Commerciale, Direttore e questo
-agente) caricano DDL dalle migration reali. Anche le modifiche alle fixture
+Le suite DB Base, Finanza, Commerciale, Direttore e questo agente caricano
+DDL dalle migration reali. La suite 05 ereditata da main resta invariata. Anche le modifiche alle fixture
 sono indipendenti e identiche nelle due PR: nessuna PR richiede l'altra.
