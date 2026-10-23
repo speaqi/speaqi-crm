@@ -88,6 +88,10 @@ async function syncDefaultStage(
       if (!match.system_key) updatePayload.system_key = stage.system_key
       if ((match.color || null) !== (stage.color || null)) updatePayload.color = stage.color
 
+      // Lo stato è già aggiornato: la lettura iniziale basta. Rileggerlo qui
+      // aggiungeva nove round-trip in sequenza a ogni apertura del CRM.
+      if (!Object.keys(updatePayload).length) return currentStages
+
       if (Object.keys(updatePayload).length) {
         const { error } = await supabase
           .from('pipeline_stages')

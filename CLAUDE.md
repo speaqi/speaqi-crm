@@ -295,9 +295,10 @@ Path alias: `@/*` → `./src/*`
 Il workspace contiene decine di migliaia di contatti (quasi tutti `holding`, import evento). Regole per non rifare l'errore di caricarli tutti:
 
 - **Set di lavoro**: `useCRM` carica in memoria solo `scope=crm,personal` (`WORKING_SET_QUERY`). Le righe `holding` **non** entrano mai in `state.contacts`.
+- **Cursore operativo**: la query su `scope=crm,personal` usa l'indice parziale `(user_id, id)` `contacts_working_set_cursor_idx`, incluse le righe legacy con scope null.
 - **Liste separate on demand**: `loadHoldingContacts({ search, list, limit })` interroga `/api/contacts?scope=holding&...` con ricerca lato database; la pagina `/contacts` la chiama (debounce 300 ms) solo quando la tab attiva è `holding` o `all`. `loadMoreHoldingContacts()` allarga la finestra di `HOLDING_PAGE_SIZE` (1000).
-- **Conteggi**: badge sidebar, contatori tab e chip cartella arrivano da `GET /api/contacts/summary` (`count: 'exact', head: true` + RPC `contact_scope_folder_counts`). Non contare mai gli scope filtrando array in memoria.
-- **Un solo caricamento**: `loadAll` parte una volta per sessione e a ogni mutazione, con tutte le richieste in parallelo. Non è più legato al `pathname` — cambiare pagina non ricarica nulla (`workspace=all` non cambia il payload: il server ignora già il filtro assegnatario per l'admin).
+- **Conteggi**: badge sidebar, contatori tab e chip cartella arrivano da `GET /api/contacts/summary` (RPC `contact_workspace_summary`, un solo scan con RLS). Non contare mai gli scope filtrando array in memoria.
+- **Un solo caricamento**: `loadAll` parte una volta per sessione e a ogni mutazione, con tutte le richieste in parallelo. L'apertura aspetta team, stage, contatti e task; badge, cartelle e To Do arrivano senza bloccarla. Il set vuoto aspetta anche la verifica dell'import legacy. Non è più legato al `pathname` — cambiare pagina non ricarica nulla (`workspace=all` non cambia il payload: il server ignora già il filtro assegnatario per l'admin).
 - **Render a finestra**: `/contacts` monta `CONTACTS_PAGE_SIZE` righe per volta (IntersectionObserver + "Mostra altri"); `/kanban` monta `COLUMN_PAGE_SIZE` card per colonna. Filtri, selezione e azioni di massa lavorano sull'insieme filtrato completo, non su quello montato.
 - **Identità in cache**: `requireRouteUser` mette in cache `auth.getUser` (30 s) e la risoluzione del membro team (60 s) per token; `invalidateRouteUserCaches()` le svuota.
 - Su liste grandi usa sempre `Set`/`Map` per le appartenenze: `Array.includes` dentro un `filter` diventa quadratico.
