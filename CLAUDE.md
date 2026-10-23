@@ -925,3 +925,39 @@ Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script 
   senza spesa ripetuta; HTTP sulla RPC autorizzata; Postgres vero per decisioni
   concorrenti, coda, workspace, permessi, Napoli e assenza di effetti sui target.
   Le prove non generano mappe né pubblicano e non chiamano modelli a pagamento.
+
+
+### Agente 07 — Osservatorio novità
+
+- `news_watch`, Ricerca, ogni giorno alle 07:00 (`office-news-watch`), nasce
+  spento; budget iniziali 30/210/930 centesimi giorno/settimana/mese.
+  Gestione in `/ufficio/agenti`. La scena `/ufficio` non è modificata.
+- `settings.feeds` è una lista di massimo 20 URL pubblici (RSS, Atom o pagine
+  con data esplicita); nasce vuota, da configurare dal titolare. I concorrenti
+  predefiniti sono STQRY, Cuseum, SmartGuide, VoiceMap, Locatify e si possono
+  cambiare in `settings.competitors`. Nessun nuovo segreto o feed inventato.
+- Il fetch riusa `fetchResearchPage` con controllo degli indirizzi privati,
+  DNS fissato alla connessione, limiti di tempo/dimensione e senza redirect.
+  Solo pubblicazioni delle ultime 48 ore, mai una data dedotta da `updated`.
+  Link canonici, titoli normalizzati/simili e `office_news_seen` evitano doppioni.
+- `office_news_batches` prenota un solo tentativo per giorno e workspace prima
+  del modello; un timeout non ripaga e non marca gli articoli come visti.
+  `callModel` prenota budget prima della richiesta e salda dai token restituiti.
+  Il codice conserva massimo otto notizie, con link letto e cifre nelle fonti.
+  Report e inserimento dei visti sono atomici, con vincoli e lock PostgreSQL.
+- Telegram non parte dal job: la regola comune del clic umano prevale sul
+  testo del Prompt 7. `settings.telegram=true` abilita **Approva e invia su
+  Telegram** nella coda di `/ufficio/agenti`. Solo il titolare autenticato
+  può chiamare `POST /api/office/outputs/[id]/telegram`; workspace/destinatario
+  non sono accettati nel corpo. Riusa il bot/configurazione esistenti e impone
+  il canale Telegram, senza ripiego su WhatsApp. Una prenotazione persistente
+  precede l'invio: esiti incerti o doppio clic non vengono ritentati.
+- Migration nuova **20261023055356_office_news_watch.sql**, dopo le migration
+  00/11/10/01 già in main; non dipende dal 12. Tabelle nuove: batches, seen,
+  deliveries; RLS di lettura del proprietario, scritture e RPC solo service role,
+  tutte incluse nei backup. Nessuna applicazione al database operativo.
+- Test nuovi e Finanza/Commerciale caricano DDL reali da `supabase/migrations`
+  tramite `tests/office-schema.ts`, non copie di email_drafts/gmail_messages.
+  L'unico confine simulato è Supabase Auth; CHECK, NOT NULL, FK e RLS restano.
+  Il runner `reset-office` crea solo un DB locale usa-e-getta; non contatta
+  Supabase. Le prove includono concorrenza, rollback, fonti, RLS e invio simulato.

@@ -40,6 +40,7 @@ export type ScheduledJob = {
 export const DEFAULT_STEP_TIMEOUT_MS = 180_000
 
 export const AUTOMATION_JOBS: ScheduledJob[] = [
+  {name:'office-news-watch',cron:'0 7 * * *',description:'Osservatorio: novità con fonti, nessun invio automatico',steps:[{path:'/api/automation/agents/news_watch/run'}]},
   { name:'office-director',cron:'0 7 * * 1',description:'Direttore: priorità e proposte da decidere',steps:[{path:'/api/automation/agents/director/run'}] },
   { name:'office-sales-followup',cron:'0 8 * * 1-5',description:'Commerciale: prepara fino a 15 bozze, nessun invio',steps:[{path:'/api/automation/agents/sales_followup/run'}] },
   { name: 'office-finance', cron: '30 8 * * *', description: 'Finanza: bozze e segnalazioni, nessun invio', steps: [{ path: '/api/automation/agents/finance/run' }] },
