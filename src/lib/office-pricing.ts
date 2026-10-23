@@ -5,6 +5,10 @@
  */
 export const OFFICE_MODEL_PRICES: Readonly<Record<string, { input: number; cachedInput: number; output: number }>> = Object.freeze({
   'gpt-5-mini': Object.freeze({ input: 0.25, cachedInput: 0.025, output: 2 }),
+  // Verificato il 23 ottobre 2026: https://developers.openai.com/api/docs/models/gpt-5.1
+  // Prezzi standard testo USD / 1M token, inclusa la snapshot elencata nella stessa pagina.
+  'gpt-5.1': Object.freeze({ input: 1.25, cachedInput: 0.125, output: 10 }),
+  'gpt-5.1-2025-11-13': Object.freeze({ input: 1.25, cachedInput: 0.125, output: 10 }),
 })
 
 export function nonNegativeInteger(value: unknown): value is number {

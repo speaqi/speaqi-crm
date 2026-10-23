@@ -196,7 +196,8 @@ async function validServices(sb: Sb, userId: string, raw: unknown) {
   return [...new Set(wanted.filter((s) => known.has(s)))].slice(0, 20)
 }
 
-export async function createProject(sb: Sb, userId: string, raw: Record<string, unknown>): Promise<ProjectRow> {
+export async function createProject(sb: Sb, userId: string, raw: Record<string, unknown>, reservedId?: string): Promise<ProjectRow> {
+  if (reservedId && !isUuid(reservedId)) throw new AgencyInputError('ID riservato non valido')
   if (!isUuid(raw.contact_id)) throw new AgencyInputError('Seleziona o crea il cliente')
   const contact = await readContact(sb, userId, raw.contact_id)
   const clientName = text(contact.company, 200) || text(contact.name, 200) || 'Cliente'
@@ -213,6 +214,7 @@ export async function createProject(sb: Sb, userId: string, raw: Record<string, 
     await sb
       .from('agency_projects')
       .insert({
+        ...(reservedId ? { id: reservedId } : {}),
         user_id: userId,
         contact_id: contact.id,
         client_name: clientName,
@@ -436,11 +438,15 @@ export async function removeProjectAsset(sb: Sb, service: Sb, row: ProjectRow, a
 
 const MAX_PDF_TOTAL_BYTES = 24 * 1024 * 1024
 
-export async function loadMaterials(service: Sb, row: ProjectRow): Promise<{ materials: AgencyMaterials; skipped: string[] }> {
+export async function loadMaterials(service: Sb, row: ProjectRow, textOnly = false): Promise<{ materials: AgencyMaterials; skipped: string[] }> {
   const materials: AgencyMaterials = { documents: [], photos: [], logos: [] }
   const skipped: string[] = []
   let pdfBytes = 0
   for (const asset of row.assets) {
+    if (textOnly && (asset.kind === 'photo' || asset.kind === 'logo' || asset.mime === 'application/pdf')) {
+      skipped.push(`${asset.name}: materiale multimediale da verificare a mano; l’ufficio usa soltanto testo`)
+      continue
+    }
     const file = await service.storage.from(AGENCY_BUCKET).download(asset.path)
     if (file.error || !file.data) {
       skipped.push(`${asset.name}: non scaricabile`)
@@ -573,7 +579,8 @@ export function starterSlides(project: Pick<ProjectRow, 'title' | 'client_name'>
   return agencyBaseSlides(settings, { cliente: project.client_name, progetto: project.title, contatto: settings.contact, servizi: '[DA VERIFICARE] Servizi del progetto' })
 }
 
-export async function createPresentation(sb: Sb, project: ProjectRow, raw: Record<string, unknown> = {}): Promise<PresentationRow> {
+export async function createPresentation(sb: Sb, project: ProjectRow, raw: Record<string, unknown> = {}, reservedId?: string): Promise<PresentationRow> {
+  if (reservedId && !isUuid(reservedId)) throw new AgencyInputError('ID riservato non valido')
   const settings = await getSettings(sb, project.user_id)
   const brand = normalizeClientBrand(project.client_brand)
   const theme = normalizeTheme(raw.theme, {
@@ -595,6 +602,7 @@ export async function createPresentation(sb: Sb, project: ProjectRow, raw: Recor
     await sb
       .from('agency_presentations')
       .insert({
+        ...(reservedId ? { id: reservedId } : {}),
         user_id: project.user_id,
         project_id: project.id,
         title: text(raw.title, 200) || project.title,
@@ -619,13 +627,17 @@ export async function createPresentation(sb: Sb, project: ProjectRow, raw: Recor
  * si applica anche alla risposta, cioè alla riga già aggiornata (status = generating), e
  * la presa in carico riuscita tornava vuota. Ognuno dei due è atomico.
  */
-export async function claimGeneration(sb: Sb, row: PresentationRow) {
+export async function claimGeneration(sb: Sb, row: PresentationRow, initialOnly = false) {
+  if (initialOnly && !['draft', 'failed'].includes(row.status)) throw new Error('Presentazione già lavorata (already running)')
   const stale = new Date(Date.now() - GENERATING_STALE_MS).toISOString()
   const patch = { status: 'generating', error: null, approved_at: null, updated_at: now() }
-  const base = () => sb.from('agency_presentations').update(patch).eq('user_id', row.user_id).eq('id', row.id)
+  const base = () => {
+    const query = sb.from('agency_presentations').update(patch).eq('user_id', row.user_id).eq('id', row.id)
+    return initialOnly ? query.eq('version', row.version).eq('status', row.status).is('generated_at', null) : query
+  }
   let claimed = checked(await base().neq('status', 'generating').select('*').maybeSingle()).data
   // Un giro fermo da troppo tempo (processo riavviato) si riprende.
-  if (!claimed) claimed = checked(await base().eq('status', 'generating').lt('updated_at', stale).select('*').maybeSingle()).data
+  if (!claimed && !initialOnly) claimed = checked(await base().eq('status', 'generating').lt('updated_at', stale).select('*').maybeSingle()).data
   if (!claimed) throw new Error('Generazione già in corso per questa presentazione (already running)')
   return claimed as PresentationRow
 }
@@ -705,12 +717,13 @@ async function failWith(sb: Sb, row: PresentationRow, error: unknown) {
 }
 
 /** Fase A-E: acquisizione dei materiali, analisi, strategia, struttura e slide. */
-export async function runGeneration(sb: Sb, service: Sb, row: PresentationRow, instruction?: string): Promise<PresentationRow> {
+export async function runGeneration(sb: Sb, service: Sb, row: PresentationRow, instruction?: string,
+  options: { generate?: typeof runGenerate; textOnly?: boolean } = {}): Promise<PresentationRow> {
   try {
     const project = await loadProject(sb, row.user_id, row.project_id)
-    const { materials, skipped } = await loadMaterials(service, project)
+    const { materials, skipped } = await loadMaterials(service, project, options.textOnly)
     const brief = await buildBrief(sb, project, row)
-    const result = await runGenerate({ brief, materials, instruction: text(instruction, 2000) || undefined })
+    const result = await (options.generate || runGenerate)({ brief, materials, instruction: text(instruction, 2000) || undefined })
     const theme = normalizeTheme({ ...normalizeTheme(row.theme), style: result.style || normalizeTheme(row.theme).style })
     checked(await sb.from('agency_projects').update({ analysis: result.analysis, updated_at: now() }).eq('user_id', row.user_id).eq('id', project.id))
     return await finishWith(

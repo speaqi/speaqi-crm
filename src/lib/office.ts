@@ -2,7 +2,7 @@ import { nonNegativeInteger } from './office-pricing'
 
 export const OFFICE_DEPARTMENTS = {
   direzione: 'Direzione', mappe: 'Mappe', ricerca: 'Ricerca', commerciale: 'Commerciale',
-  finanza: 'Finanza', marketing: 'Marketing', operazioni: 'Operazioni', sviluppo: 'Sviluppo',
+  finanza: 'Finanza', marketing: 'Marketing', operazioni: 'Operazioni', sviluppo: 'Sviluppo', agenzia: 'Agenzia',
 } as const
 export type OfficeRunStatus = 'running' | 'done' | 'partial' | 'failed' | 'skipped_budget' | 'skipped_disabled'
 export const OFFICE_RUN_LABELS: Record<OfficeRunStatus, string> = {
