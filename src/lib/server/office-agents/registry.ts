@@ -5,13 +5,14 @@ import { runSalesFollowup } from './sales-followup'
 import { runDirector } from './director'
 import { runFinance } from './finance'
 import { runDbCleaner } from './db-cleaner'
+import { runLanguagesVoice } from './languages-voice'
 import type { AgentHandler } from '../office-agents'
 
 /** Registro dei compiti installati. Ogni nuovo prompt aggiunge qui il suo handler
  * e una riga in AUTOMATION_JOBS, con il percorso /api/automation/agents/<id>/run.
  * Il contesto consente di preparare uscite, mai di inviarle o pubblicarle.
  */
-export const OFFICE_AGENT_HANDLERS: Readonly<Record<string, AgentHandler>> = Object.freeze({ db_cleaner:runDbCleaner, news_watch:runNewsWatch, maps_quality:runMapsQuality, mymaps_builder:runMyMaps, finance: runFinance, sales_followup: runSalesFollowup, director: runDirector })
+export const OFFICE_AGENT_HANDLERS: Readonly<Record<string, AgentHandler>> = Object.freeze({ news_watch:runNewsWatch, maps_quality:runMapsQuality, mymaps_builder:runMyMaps, finance: runFinance, sales_followup: runSalesFollowup, director: runDirector, db_cleaner: runDbCleaner, languages_voice: runLanguagesVoice })
 
 export function officeAgentHandler(id: string): AgentHandler | null {
   return Object.hasOwn(OFFICE_AGENT_HANDLERS, id) ? OFFICE_AGENT_HANDLERS[id] : null
