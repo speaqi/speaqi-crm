@@ -17,6 +17,10 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         const first = (data.skipped as Array<{ error?: string }> | undefined)?.[0]?.error
         return Response.json({ error: `Nessun gruppo unito${first ? `: ${first}` : ''}. La proposta resta in attesa.`, skipped: data.skipped }, { status: 409 })
       }
+      if (data?.reason === 'enrich_failed') {
+        // Nessuna scrittura: verifiche, CRM e coda tornano indietro insieme, la proposta resta da decidere.
+        return Response.json({ error: `Ente non portato nel CRM: ${data.error || 'errore'}. La proposta resta in attesa.` }, { status: 409 })
+      }
       return Response.json({ error: data?.reason==='agent_missing' ? 'Il destinatario non è ancora installato. Installa gli agenti successivi prima di accodare.' : 'Uscita non trovata o già decisa. Aggiorna la pagina.' }, { status: 409 })
     }
     return Response.json({ output: data.output })
