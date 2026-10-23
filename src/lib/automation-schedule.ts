@@ -30,6 +30,9 @@ export type ScheduledStep = {
 
 export type ScheduledJob = {
   name: string
+  /** Cadenza su giorni di calendario, continua anche tra due mesi. */
+  everyDays?: number
+  timeZone?: string
   /** Cron a cinque campi: minuto ora giorno-del-mese mese giorno-della-settimana. */
   cron: string
   description: string
@@ -40,6 +43,7 @@ export type ScheduledJob = {
 export const DEFAULT_STEP_TIMEOUT_MS = 180_000
 
 export const AUTOMATION_JOBS: ScheduledJob[] = [
+  {name:'office-events-scout',cron:'30 6 * * *',everyDays:2,timeZone:'Europe/Rome',description:'Eventi e bandi: a giorni alterni, solo proposte da decidere',steps:[{path:'/api/automation/agents/events_scout/run',timeoutMs:900_000}]},
   {name:'office-news-watch',cron:'0 7 * * *',description:'Osservatorio: novità con fonti, nessun invio automatico',steps:[{path:'/api/automation/agents/news_watch/run'}]},
   {name:'office-social',cron:'0 9 * * 1',description:'Social: prepara bozze settimanali, mai pubblicazioni',steps:[{path:'/api/automation/agents/social/run'}]},
   {name:'office-presentations',cron:'0 10 * * 1',description:'Presentazioni Tourism: bozze da approvare, nessun invio',steps:[{path:'/api/automation/agents/presentations/run'}]},
@@ -258,8 +262,14 @@ export function cronMatches(cron: ParsedCron, time: LocalTime) {
 
 /** I job da far partire nel minuto che contiene `date`. */
 export function dueJobs(date: Date, timeZone: string, jobs: ScheduledJob[] = AUTOMATION_JOBS) {
-  const time = localTime(date, timeZone)
-  return jobs.filter((job) => cronMatches(parseCron(job.cron), time))
+  return jobs.filter((job) => {
+    const zone = job.timeZone || timeZone
+    if (!cronMatches(parseCron(job.cron), localTime(date, zone))) return false
+    if (job.everyDays === undefined) return true
+    if (!Number.isInteger(job.everyDays) || job.everyDays < 1) return false
+    const day = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
+    return Math.floor(Date.parse(`${day}T00:00:00Z`) / 86400_000) % job.everyDays === 0
+  })
 }
 
 /** Il minuto UTC, senza secondi: la chiave con cui una replica prenota la corsa. */
