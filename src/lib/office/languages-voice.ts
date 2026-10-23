@@ -42,7 +42,8 @@ export function languagesQueue(raw: unknown): { entries: LanguagesQueueEntry[]; 
 
 export function usdToCents(usd: number, usdToEur: number) {
   if (!Number.isFinite(usd) || usd <= 0) return 0
-  return Math.ceil(usd * usdToEur * 100)
+  // Arrotonda prima il rumore della virgola mobile (0,11 × 10 = 1,1000000000000001).
+  return Math.ceil(Math.round(usd * usdToEur * 100 * 1e6) / 1e6)
 }
 
 /**
@@ -68,8 +69,9 @@ export function percentDone(c: CoverageCounts) {
   return total ? Math.round(1000 * c.done / total) / 10 : 0
 }
 
-const number = (n: number) => n.toLocaleString('it-IT')
-export const euro = (cents: number) => `${(cents / 100).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+/** Separatore delle migliaia scritto a mano: Node non raggruppa 1240 in it-IT. */
+const number = (n: number) => String(Math.trunc(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+export const euro = (cents: number) => `${number(Math.floor(cents / 100))},${String(Math.abs(cents) % 100).padStart(2, '0')} €`
 
 /** «Capri: 11 lingue, testi 1.240/1.260, audio 980/1.260, speso 9,40 € (stima)». */
 export function summaryLine(name: string, summary: TranslationsSummary, spentCents: number, launched: string) {
