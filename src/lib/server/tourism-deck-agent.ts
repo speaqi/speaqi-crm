@@ -169,6 +169,11 @@ export async function runDeckAgent(args: DeckAgentArgs, fetcher: typeof fetch = 
   }
   if (!payload) throw new Error('Agente non disponibile')
 
+  return validateDeckAgentResult(args, payload, model)
+}
+
+/** Stesse guardie per la generazione manuale e per l'ufficio con budget prenotato. */
+export function validateDeckAgentResult(args: DeckAgentArgs, payload: ProviderPayload, model: string): DeckAgentResult {
   const { generated, missing } = parseAgentResponse(payload)
   const base = applyVars(args.template, args.input)
   const merged = mergeGenerated(base, generated)
