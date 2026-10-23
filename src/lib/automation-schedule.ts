@@ -45,6 +45,7 @@ export const AUTOMATION_JOBS: ScheduledJob[] = [
   {name:'office-mymaps',cron:'30 1 * * *',description:'My Maps: turno ogni due giorni, massimo 150 candidati',steps:[{path:'/api/automation/agents/mymaps_builder/run'}]},
   { name:'office-director',cron:'0 7 * * 1',description:'Direttore: priorità e proposte da decidere',steps:[{path:'/api/automation/agents/director/run'}] },
   { name:'office-sales-followup',cron:'0 8 * * 1-5',description:'Commerciale: prepara fino a 15 bozze, nessun invio',steps:[{path:'/api/automation/agents/sales_followup/run'}] },
+  { name: 'office-db-cleaner', cron: '30 4 * * 0', description: 'Pulizia database: doppioni e dati sporchi, unioni solo approvate', steps: [{ path: '/api/automation/agents/db_cleaner/run' }] },
   { name: 'office-finance', cron: '30 8 * * *', description: 'Finanza: bozze e segnalazioni, nessun invio', steps: [{ path: '/api/automation/agents/finance/run' }] },
   {
     name: 'office-maintenance',
