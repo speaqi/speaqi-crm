@@ -1,6 +1,6 @@
 # Agente 06 — Ricercatore eventi
 
-Branch `codex/office-06-events`, base `main` aggiornato a `48a740b`.
+Branch `codex/office-06-events`, base `main` aggiornato a `0033118`.
 Gestione in `/ufficio/agenti`; nessuna modifica alla scena `/ufficio`.
 
 Nasce spento con budget 100/350/1500 centesimi giorno/settimana/mese e:
@@ -61,7 +61,7 @@ trascorsa lascia la proposta pending, da rifiutare. La funzione di decisione
 copia quella del 05: gli altri due rami sono verificati anche testualmente.
 
 Migration nuova, da applicare a cura del titolare dopo revisione:
-`20261023090200_office_events.sql`. Generata con Supabase CLI e riordinata dopo
+`20261023120100_office_events.sql`. Generata con Supabase CLI e riordinata dopo
 `20261023090100`. Prerequisiti già in main: schema Ufficio 00, Finanza 11,
 Commerciale 10, Direttore 01 e `20261023090000_office_db_cleaner.sql`; per le
 attività le migration `20260330094500_ai_ready_crm.sql`,

@@ -1,4 +1,4 @@
--- Creata con Supabase CLI e riordinata dopo 20261023090100 già in main.
+-- Creata con Supabase CLI e riordinata dopo la migration del 08 già in main.
 -- Solo database locale nei test. La migration operativa la applica il titolare.
 create function public.office_event_deadlines_valid(value jsonb) returns boolean
 language plpgsql immutable set search_path='' as $$
@@ -195,6 +195,15 @@ begin
     end if;
     update public.office_agent_outputs set body = body || jsonb_build_object('result', jsonb_build_object(
       'merged', merged, 'skipped', skipped, 'decided_at', now())) where id=o.id;
+  end if;
+  if o.agent_id='entity_enricher' and o.kind='proposal' and o.body->>'action'='enrich_entity' and p_status='approved' then
+    begin
+      result := public.office_enrich_entity(p_user_id, o.id);
+    exception when others then
+      -- Niente di fatto: la proposta resta da decidere, con il motivo.
+      return jsonb_build_object('output',null,'reason','enrich_failed','error',sqlerrm);
+    end;
+    update public.office_agent_outputs set body = body || jsonb_build_object('result', result || jsonb_build_object('decided_at', now())) where id=o.id;
   end if;
   -- BEGIN EVENTS_SCOUT: gli altri rami restano identici alla migration 05.
   if o.agent_id='events_scout' and o.kind='task' and p_status='approved' then

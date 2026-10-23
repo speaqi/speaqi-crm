@@ -29,5 +29,6 @@ export const EVENTS_SCHEMA_MIGRATIONS = [
   '20261022120000_invoices.sql',
   '20261022150000_contact_map_links.sql',
   '20261023090000_office_db_cleaner.sql',
-  '20261023090200_office_events.sql',
+  '20261023120000_office_entity_enricher.sql',
+  '20261023120100_office_events.sql',
 ]

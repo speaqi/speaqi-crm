@@ -1182,7 +1182,7 @@ Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script 
   approvazione crea **una sola** attività standalone: contact_id null, type todo,
   area speaqi, data locale della scadenza e chiave `office-event:<id evento>`.
   Rifiutare non crea attività; una scadenza ormai trascorsa non si approva.
-- Migration **`20261023090200_office_events.sql`**, dopo
+- Migration **`20261023120100_office_events.sql`**, dopo
   `20261023090000_office_db_cleaner.sql` e i prerequisiti To Do già presenti.
   La funzione `decide_office_output` copia il testo della migration 05, aggiungendo
   solo il ramo del 06; Direttore e merge_contacts restano identici. RLS proprietario
@@ -1192,6 +1192,42 @@ Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script 
   alle mappe e nessuna prova su dati di produzione. Test su due pagine salvate,
   modello simulato e PostgreSQL locale con DDL originali, compresi i prerequisiti
   del vero merge 05. Le decisioni si provano anche con otto clic concorrenti.
+## Ufficio — Arricchimento enti (Agente 08)
+
+- `entity_enricher`, reparto Ricerca, ogni mattina alle 06:00 Europe/Rome (`office-entity-enricher`), nasce spento.
+  Budget 200/1000/4000 centesimi giorno/settimana/mese, modello del registro via `callModel`. Nessuna nuova env.
+- **Da dove parte**: le città con la superguida da fare e priorità 1-2. Oggi la priorità sta sui porti
+  (`tourism_hubs`, ~325 righe, nessuna ancora collegata a una destinazione), più le `tourism_destinations` quando
+  ci saranno. Città = `destination` del porto, altrimenti il nome o quello fra parentesi («Pireo (Atene)» → Atene),
+  con i nomi locali di `EXONYMS` (Marsiglia → Marseille) e gli alias del luogo nel catalogo. Napoli esclusa ovunque.
+- **L'ente lo cerca solo nel catalogo** Tourism Intelligence (`matchOrganization`): stesso paese, tipo dmo/cvb/
+  local_office/rto/municipality, la città come parola intera nel nome o negli alias («Valenciana» non è «Valencia»),
+  un sito, non disabilitato. Una città senza ente finisce nel resoconto («va aggiunto a mano»): nessuna ricerca web,
+  nessun ente inventato. Esclusi gli enti già nel CRM, quelli con una proposta in attesa o approvata, rifiutati da
+  meno di 90 giorni, o letti negli ultimi 30. Massimo 10 enti per corsa.
+- **Legge il sito** con il fetch sicuro della ricerca (`fetchResearchPage`, redirect ricontrollati): la home e al più
+  due pagine di contatti dello stesso sito, piè di pagina compreso (`pageTextFromHtml`). Il modello (JSON strict)
+  propone identità, legame con la città (COVERS/MANAGES/PROMOTES), email, telefono e il **ruolo** di chi decide (mai
+  il nome della persona), ciascuno con la frase.
+- **Il codice decide** (`validateEnrichment`, puro): una frase vale solo se sta alla lettera in una pagina letta,
+  il valore deve stare nella frase, l'identità deve nominare l'ente e il legame la città. Solo caselle d'ufficio
+  (`isInstitutionalEmail`: info@, turismo@…; niente nome.cognome, niente PEC). **Un campo già pieno non si propone.**
+  Pronto = identità + legame + un recapito (nuovo o già presente).
+- **Nessuna scrittura prima del clic**: l'agente prepara solo `proposal` (`action: enrich_entity`) e il resoconto.
+  Approvando, `office_enrich_entity` (dentro `decide_office_output`, una transazione) agisce **a nome del titolare**
+  (`request.jwt.claim.sub` = chi approva: le prove sono quelle che ha letto nella proposta): riempie solo i campi
+  ancora vuoti (`kept` dice cosa è stato trovato pieno), scrive le prove VERIFIED (`method = 'ai'`, `verified_by` =
+  titolare), mette l'ente VERIFIED, trova o crea il luogo (verificato con la stessa frase), scrive la relazione,
+  porta l'ente nel CRM con **`tourism_promote`** (stesse regole del pulsante: nome ambiguo, email già usata, match da
+  rivedere fermano tutto) e lo accoda alle Presentazioni (`{entity_id, destination_id}`). Se qualcosa fallisce non
+  resta niente: la proposta torna in attesa con il motivo (409 `enrich_failed`). Il guard del catalogo toglie la
+  verifica alle prove vecchie quando cambia un campo: valgono le nuove.
+- Migration **`20261023120000_office_entity_enricher.sql`**, dopo pulizia e presentazioni: `office_enrich_entity` e
+  `decide_office_output` ridefinita con i rami Direttore e Pulizia identici. RPC solo `service_role`. Nessuna tabella nuova.
+- Test: `office-entity-enricher.unit.test.ts` (città, ente, email d'ufficio, dato senza prova scartato, campo pieno
+  non sovrascritto, handler senza scritture, Napoli mai letta, budget) e `office-entity-enricher.db.test.ts`
+  (migration vere del catalogo: approvazione completa, campo riempito nel frattempo, rollback se il CRM rifiuta,
+  otto clic insieme, permessi).
 
 ## Ufficio — Lingue e voce (Agente 03)
 

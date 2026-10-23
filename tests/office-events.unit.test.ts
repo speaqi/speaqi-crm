@@ -92,7 +92,7 @@ test('eventi: il Direttore e il merge del 05 restano identici nella funzione di 
   const read=(file:string)=>readFileSync(new URL(`../supabase/migrations/${file}`,import.meta.url),'utf8')
   const extract=(source:string)=>source.slice(source.indexOf('create or replace function public.decide_office_output(')).split('\n$$;')[0]
   const current=extract(read('20261023090000_office_db_cleaner.sql'))
-  const added=extract(read('20261023090200_office_events.sql')).replace(/  -- BEGIN EVENTS_SCOUT[\s\S]*?  -- END EVENTS_SCOUT\n/,'')
+  const added=extract(read('20261023120100_office_events.sql')).replace(/  -- BEGIN EVENTS_SCOUT[\s\S]*?  -- END EVENTS_SCOUT\n/,'')
     .replace('\n  event_row public.office_events; event_deadline date; todo_id uuid;','')
   assert.equal(added,current)
 })
