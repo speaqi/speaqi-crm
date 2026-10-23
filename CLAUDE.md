@@ -1030,3 +1030,33 @@ Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script 
 - Test: `office-db-cleaner.unit.test.ts` (regole, handler che non unisce e non duplica),
   `office-db-cleaner.db.test.ts` (Postgres vero: unione completa, vincoli di produzione,
   trattative aperte, gruppo estraneo saltato, otto clic concorrenti, permessi, scan senza effetti).
+
+
+## Ufficio — Lingue e voce (Agente 03)
+
+- `languages_voice`, reparto Mappe, ogni notte alle 02:00 Europe/Rome (`office-languages-voice`),
+  nasce spento. Budget 15 €/giorno (6.000/20.000 centesimi settimana/mese): la voce è circa l'80% del costo.
+- **Non riscrive la pipeline: la chiama.** Solo tre chiamate a Speaqi con `SPEAQI_API_KEY` su
+  `SPEAQI_PUBLIC_API_URL`: `GET /maps/:id/studiomap/status`, `GET …/translations` e
+  `POST …/translations/fill` (prima `dry_run`, poi il lancio). Mai sync, pubblicazione o
+  "rigenera audio". Senza la chiave l'agente non fa niente e lo dice.
+- **Coda** in `settings.queue`: la riempie il Direttore (proposte «Completare le lingue» approvate,
+  `target_id` = id della mappa Speaqi) o il titolare (`{ "map_id": "<uuid>" }`). Al massimo 6 mappe
+  per notte. **Napoli è esclusa** su nome, slug e slug StudioMap (`officeIsNaples`), sia in coda sia
+  dopo aver letto la mappa da Speaqi: se ci arriva con un altro nome non parte nessuna chiamata di lancio.
+- **Decisione** (`launchOptions`, puro): `dry_run` con `include ['missing','failed','stuck']` →
+  stima in dollari → euro con `settings.usd_to_eur` (poi `OFFICE_USD_TO_EUR`, default 1, prudente).
+  Si prova a prenotare tutto; se non ci sta, solo i testi (che costano poco, e sono in differita
+  se la mappa lo prevede) e l'audio aspetta la notte dopo, scritto nel riepilogo. Senza stima non si
+  lancia niente. `request_id` deterministico (corsa + mappa + tipo): un ritentativo non raddoppia il lavoro.
+- **Costo**: si salda la **stima** di Speaqi al lancio, dichiarato nel resoconto. Il costo vero dei
+  testi in differita sta in `translation_batches.cost_usd` su Speaqi e l'API non lo espone ancora.
+- **Le traduzioni da aggiornare (outdated) non partono mai da sole**: diventano una `proposal`
+  (`action: refresh_outdated`) col costo stimato; approvata, la notte dopo l'agente le lancia una
+  volta sola entro il budget (segno `languages:outdated-launched:<proposta>`).
+- **Controllo dei progressi**: il resoconto della notte (`languages:night:<giorno>`) salva per mappa
+  le percentuali. Se una mappa online lanciata ieri non è salita e su Speaqi non c'è niente in
+  lavorazione, non si rilancia: si segnala da controllare. Una mappa con un'esecuzione già in corso
+  si salta. Riga tipo «Capri: 11 lingue, testi 1.240/1.260, audio 980/1.260, speso 9,40 € (stima)».
+- Nessuna migration. Test: `office-languages.unit.test.ts` (coda e Napoli, budget tutto/solo
+  testi/niente, outdated solo su approvazione e una volta, niente rilancio senza progressi, installazione).
