@@ -2,7 +2,7 @@
 
 23 ottobre 2026 · Orari Europe/Rome.
 
-La base operativa esiste e supera i controlli locali: 11 agenti, budget atomici, code, approvazioni, API riservate al titolare. Il vecchio 3D era invece una dimostrazione statica scollegata dal CRM. Questa modifica lo sostituisce con due architetture selezionabili, entrambe collegate ai dati operativi.
+La base operativa esiste e supera i controlli locali: 12 agenti, budget atomici, code, approvazioni, API riservate al titolare. Il vecchio 3D era invece una dimostrazione statica scollegata dal CRM. Questa modifica lo sostituisce con due architetture selezionabili, entrambe collegate ai dati operativi.
 
 **Ambito verificato:** codice, migrazioni su PostgreSQL locale usa e getta, logica con servizi simulati e browser sulla build di produzione locale. Non è una certificazione dello stato del server remoto: in questo ambiente mancano le credenziali operative e non sono state eseguite corse a pagamento, invii o pubblicazioni. Nessun deploy eseguito.
 
@@ -38,7 +38,7 @@ Anteprime con **dati simulati**, non dati del workspace remoto:
 | Iframe con privilegi impliciti della pagina | `srcDoc` senza sandbox | Sandbox con soli script; nessun accesso a storage/sessione. Il genitore invia solo la proiezione necessaria, senza token, settings o corpi delle bozze |
 | Errori senza percorso alternativo pratico | Messaggio sul loader del 3D | Errori dati con recupero e ultimo snapshot conservato; in assenza di WebGL il pannello resta navigabile e agenti/bozze restano accessibili |
 | Telefono: il menu spingeva il 3D sotto la schermata | La classe mobile compatta era applicata a `/ufficio/agenti`, non a `/ufficio` | Navigazione compatta su entrambe; altezza del 3D vincolata al viewport e pannello sotto la scena |
-| Approvazioni descritte come prive di effetti sul CRM | Le RPC uniscono contatti, importano enti e accodano lavori, mentre il testo indicava solo “decisione registrata” | Effetto esplicito prima del clic e pulsanti specifici: “Approva e unisci”, “Approva e importa nel CRM”, “Approva e accoda” |
+| Approvazioni descritte come prive di effetti sul CRM | Le RPC uniscono contatti, importano enti e accodano lavori, mentre il testo indicava solo “decisione registrata” | Effetto esplicito prima del clic e pulsanti specifici: “Approva e unisci”, “Approva e importa nel CRM”, “Approva e accoda”, “Approva e crea To Do” |
 | Link alla scheda agente senza ancora | Nessun id HTML sulla riga agente | Ancora `#agente-<id>` e percorso di ritorno al 3D |
 
 ## Inventario operativo
@@ -52,6 +52,7 @@ Gli orari seguenti sono quelli dichiarati dal pianificatore, con fuso predefinit
 | Controllo qualità mappe | Mappe · 04:00 | Controlli e campione di testi; produce rapporti/proposte, non pubblica mappe |
 | Lingue e voce | Mappe · 02:00 | Completa le mappe in coda tramite API Speaqi e budget. Le traduzioni obsolete richiedono approvazione. Il costo registrato al lancio resta una stima, non il costo finale del fornitore |
 | Arricchimento enti | Ricerca · 06:00 | Cerca nei siti degli enti legati alle destinazioni prioritarie, verifica recapiti con frasi fonte. Solo l’approvazione aggiorna l’ente, lo porta nel CRM e accoda le Presentazioni |
+| Ricercatore eventi e fiere | Ricerca · 06:30 a giorni alterni | Eventi e bandi con fonti, scadenze e deduplicazione. L’approvazione crea un’attività To Do, non un’iscrizione all’evento |
 | Osservatorio novità | Ricerca · 07:00 | Rassegna recente con fonti, deduplicazione e controllo temporale; Telegram solo tramite azione esplicita del titolare |
 | Commerciale | Commerciale · lun–ven 08:00 | Follow-up con fonti CRM, massimo 15 bozze al giorno, deduplicazione e verifica delle risposte; niente invii automatici dell’ufficio |
 | Presentazioni | Commerciale · lunedì 10:00 | Deck Tourism da fonti verificate, massimo due tentativi di generazione per corsa; approvare il report non approva il deck. La revisione del deck resta nell’editor Tourism |
@@ -59,7 +60,7 @@ Gli orari seguenti sono quelli dichiarati dal pianificatore, con fuso predefinit
 | Social | Marketing · lunedì 09:00 | Bozze da guide/foto verificabili, deduplicate per settimana; nessuna pubblicazione social |
 | Pulizia database | Operazioni · domenica 04:30 | Propone gruppi di doppioni e dati sporchi. L’approvazione unisce i gruppi compatibili, sposta i collegamenti e conserva le righe duplicate nascoste |
 
-Tutti gli 11 id hanno definizione, handler e job. Manutenzione dello storico alle 03:15 con conservazione di 90 giorni per le corse; output pendenti e ledger conservati secondo i vincoli testati. Napoli è esclusa dai flussi cartografici automatici che la proteggono già nel codice.
+Tutti i 12 id hanno definizione, handler e job. Manutenzione dello storico alle 03:15 con conservazione di 90 giorni per le corse; output pendenti e ledger conservati secondo i vincoli testati. Napoli è esclusa dai flussi cartografici automatici che la proteggono già nel codice.
 
 ## Cosa funziona nei controlli
 
@@ -86,9 +87,9 @@ Tutti gli 11 id hanno definizione, handler e job. Manutenzione dello storico all
 
 | Controllo | Esito |
 |---|---|
-| Test applicativi ufficio esistenti | 106 superati |
-| Nuovi test proiezione 3D, stati, approvazioni e bundle JavaScript | 5 superati |
-| Test SQL su PostgreSQL 17 locale e PGlite | 58 superati |
+| Test applicativi ufficio e pianificatore, inclusi i nuovi controlli | 138 superati |
+| Nuovi test proiezione 3D, stati, approvazioni e bundle JavaScript | 5 superati, inclusi nei 138 precedenti |
+| Test SQL su PostgreSQL 17 locale e PGlite | 67 superati |
 | Browser sulla build production locale, Chromium | Superato: gestione operativa + due scene + telefono + errore/recupero + assenza WebGL |
 | `npm run build` | Superato, 153 pagine generate |
 | `git diff --check` | Superato |
@@ -108,3 +109,7 @@ CHROMIUM_PATH=/percorso/chromium npm run test:office:ui
 `npm run build` rigenera automaticamente il documento 3D con `prebuild`. Per lavorare soltanto sulla scena: modificare `scripts/ufficio/scena.html` e `scripts/ufficio/scene.js`, poi `npm run build:office`. `src/lib/server/ufficio-scene.ts` è generato e non va modificato a mano.
 
 Nessuna migrazione aggiuntiva necessaria per questa modifica. Le migrazioni dell’ufficio già presenti rimangono necessarie sul database di destinazione.
+
+## Integrazione prima della pull request
+
+Modifica riallineata alla revisione `dfed99b` di main: conservati il nuovo agente Eventi e gli aggiornamenti prestazionali del CRM. Aggiunta l’indicazione dell’effetto To Do nell’approvazione delle proposte Eventi.

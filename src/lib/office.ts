@@ -38,6 +38,10 @@ export type OfficeOverview = {
 
 /** Effetto concreto della decisione, coerente con decide_office_output. */
 export function officeApprovalEffect(output: Pick<OfficeOutput, 'agent_id' | 'kind' | 'body'>) {
+  if (output.agent_id === 'events_scout' && output.kind === 'task' && output.body.action === 'decide_event_participation') {
+    return { label: 'Approva e crea To Do', description: 'Crea un’attività To Do per decidere se partecipare all’evento, con la scadenza verificata. Non iscrive all’evento.',
+      notice: 'Attività To Do creata con la scadenza dell’evento. Nessuna iscrizione eseguita.' }
+  }
   if (output.agent_id === 'db_cleaner' && output.kind === 'data_fix' && output.body.action === 'merge_contacts') {
     return { label: 'Approva e unisci', description: 'Unisce i gruppi di contatti compatibili nel CRM e conserva i doppioni nascosti. Controlla i gruppi prima di approvare.',
       notice: 'Unione elaborata. I gruppi compatibili sono stati uniti; eventuali gruppi saltati sono registrati nel risultato della proposta.' }

@@ -52,6 +52,7 @@ test('approvazioni: la UI anticipa unioni, import, code e aggiornamenti', () => 
   assert.equal(effect('director', 'proposal', 'build_map').label, 'Approva e accoda')
   assert.equal(effect('languages_voice', 'proposal', 'refresh_outdated').label, 'Approva aggiornamento')
   assert.equal(effect('other', 'data_fix', 'merge_contacts').label, 'Approva')
+  assert.equal(officeApprovalEffect({ agent_id: 'events_scout', kind: 'task', body: { action: 'decide_event_participation' } }).label, 'Approva e crea To Do')
   assert.match(officeApprovalEffect({ agent_id: 'finance', kind: 'report', body: {} }).description, /Non invia/)
 })
 

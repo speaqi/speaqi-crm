@@ -123,8 +123,9 @@ async function main() {
     assert.ok(await page.getByRole('link', { name: 'Agenti e bozze →' }).count())
     assert.ok(await page.locator('.cc-list').getByRole('link', { name: /Report da controllare/ }).count())
 
-    // Il 3D riceve la stessa API: 11 agenti reali installabili, stati simulati.
-    const definitions = Object.values(OFFICE_AGENT_DEFINITIONS)
+    // Il 3D riceve la stessa API: agenti reali installabili, stati simulati.
+    const definitions = Object.values(OFFICE_AGENT_DEFINITIONS).sort((a, b) =>
+      a.id === 'entity_enricher' ? -1 : b.id === 'entity_enricher' ? 1 : a.id.localeCompare(b.id))
     const sceneRuns: OfficeRun[] = definitions.slice(0, 4).map((definition, i) => ({ id: `run-${i}`, agent_id: definition.id, user_id: OWNER,
       started_at: '2026-10-23T08:00:00Z', finished_at: i === 0 ? null : '2026-10-23T08:01:00Z',
       status: i === 0 ? 'running' : i === 1 ? 'failed' : 'done', summary: ['Ricerca fonti in corso', 'Una fonte richiede una verifica', 'Report preparato', 'Rassegna pronta'][i],
