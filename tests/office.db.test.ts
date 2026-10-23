@@ -1,7 +1,8 @@
 /** Lock, RLS, prenotazioni e idempotenza sul Postgres vero di tests/db.sh. */
 import assert from 'node:assert/strict'
 import { before, beforeEach, describe, test } from 'node:test'
-import { resetDatabase, sql as query, scalar as value, expectError as failure } from './psql'
+import { resetOfficeDatabase } from './office-schema'
+import { sql as query, scalar as value, expectError as failure } from './psql'
 
 const DB = 'office_test'
 const USER = '11111111-1111-1111-1111-111111111111'
@@ -13,7 +14,7 @@ const claim = async (key = 'corsa-di-test') => JSON.parse((await scalar(`select 
 const reserve = (run: string, cents: number) => scalar(`select public.reserve_agent_budget('prova', ${cents}, '${run}');`)
 
 before(async () => {
-  await resetDatabase(DB)
+  await resetOfficeDatabase(DB)
   await sql(`insert into auth.users(id,email) values ('${USER}','titolare@example.it'), ('${OTHER}','altro@example.it');
     grant usage on schema auth to authenticated;`)
 })

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { readFile } from 'node:fs/promises'
+import { officeSchemaSql } from './office-schema'
 import { PGlite } from '@electric-sql/pglite'
 
 const OWNER = '11111111-1111-4111-8111-111111111111'
@@ -8,14 +8,10 @@ const CONTACT = '22222222-2222-4222-8222-222222222222'
 test('Finanza: RPC bozze idempotente, cross-workspace rifiutato e source auto vietata', async () => {
   const db = new PGlite()
   try {
-    await db.exec(await readFile(new URL('./sql/fixture.sql', import.meta.url), 'utf8'))
-    await db.exec(await readFile(new URL('../supabase/migrations/20261022160000_office_agents.sql', import.meta.url), 'utf8'))
-    await db.exec(`create table public.email_drafts(id uuid primary key default gen_random_uuid(), user_id uuid not null,
-      contact_id uuid not null, subject text, body_text text, body_html text, source text not null default 'auto' constraint email_drafts_source_check check (source in ('auto', 'manual')), status text, created_at timestamptz default now());`)
-    await db.exec(await readFile(new URL('../supabase/migrations/20261022170450_office_finance.sql', import.meta.url), 'utf8'))
+    await db.exec(await officeSchemaSql())
     await db.exec(`insert into auth.users(id) values('${OWNER}');
       insert into office_agents(id,user_id,name,department,enabled) values('finance','${OWNER}','Finanza','finanza',true);
-      insert into contacts(id,user_id,name,email) values('${CONTACT}','${OWNER}','Ente','ufficio@example.it');`)
+      insert into contacts(id,user_id,name,email,status) values('${CONTACT}','${OWNER}','Ente','ufficio@example.it','New');`)
     const claim = await db.query<{ run: { id: string } }>(`select (public.claim_office_agent_run('finance','${OWNER}','chiave-di-test')->'run') as run`)
     const run = claim.rows[0].run.id
     const call = `select public.create_office_email_draft('${run}','${CONTACT}','finance:bonifico:q','Promemoria','Testo','<p>Testo</p>','Da rivedere') as draft`

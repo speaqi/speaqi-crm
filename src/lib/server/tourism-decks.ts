@@ -26,7 +26,7 @@ import {
   storagePath,
   type DeckAsset
 } from './tourism-deck-assets'
-import { runDeckAgent, type DeckEntityContext, type DeckMaterials } from './tourism-deck-agent'
+import { runDeckAgent, type DeckAgentArgs, type DeckAgentResult, type DeckEntityContext, type DeckMaterials } from './tourism-deck-agent'
 
 type Sb = any
 
@@ -102,7 +102,7 @@ export type DeckFields = {
   entity_id: string | null
 }
 
-export async function createDeck(sb: Sb, userId: string, fields: DeckFields): Promise<DeckRow> {
+export async function createDeck(sb: Sb, userId: string, fields: DeckFields, id?: string): Promise<DeckRow> {
   if (fields.entity_id) {
     const entity = checked(await sb.from('tourism_entities').select('id').eq('user_id', userId).eq('id', fields.entity_id).maybeSingle())
     if (!entity.data) throw new TourismInputError('Ente non trovato')
@@ -114,6 +114,7 @@ export async function createDeck(sb: Sb, userId: string, fields: DeckFields): Pr
     await sb
       .from('tourism_decks')
       .insert({
+        ...(id ? { id } : {}),
         user_id: userId,
         entity_id: fields.entity_id,
         title: `${fields.destination} · ${ente}`.slice(0, 200),
@@ -271,7 +272,8 @@ export async function loadMaterials(service: Sb, row: DeckRow): Promise<{ materi
  * se l'agente fallisce il deck resta con le slide che aveva e lo stato "failed" col motivo:
  * si può sempre correggere a mano.
  */
-export async function generateIntoDeck(sb: Sb, service: Sb, row: DeckRow, instruction?: string): Promise<DeckRow> {
+export async function generateIntoDeck(sb: Sb, service: Sb, row: DeckRow, instruction?: string,
+  agent: (args: DeckAgentArgs) => Promise<DeckAgentResult> = runDeckAgent): Promise<DeckRow> {
   const stale = new Date(Date.now() - GENERATING_STALE_MS).toISOString()
   // Due UPDATE condizionali, non un `.or()`: con PostgREST il filtro `or` di un UPDATE vale
   // anche per la risposta (la riga è già "generating"), e con select('id') la colonna
@@ -289,7 +291,7 @@ export async function generateIntoDeck(sb: Sb, service: Sb, row: DeckRow, instru
     const { template } = await getTemplate(sb, row.user_id)
     const { materials, skipped } = await loadMaterials(service, row)
     const entity = await entityContext(sb, row.user_id, row.entity_id)
-    const result = await runDeckAgent({
+    const result = await agent({
       template,
       input: row.input,
       notes: row.notes,
