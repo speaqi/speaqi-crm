@@ -961,6 +961,45 @@ Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script 
   L'unico confine simulato è Supabase Auth; CHECK, NOT NULL, FK e RLS restano.
   Il runner `reset-office` crea solo un DB locale usa-e-getta; non contatta
   Supabase. Le prove includono concorrenza, rollback, fonti, RLS e invio simulato.
+
+### Agente 12 — Social
+
+- `social`, Marketing, lunedì alle 09:00 (`office-social`), nasce spento;
+  budget iniziali 100/100/500 centesimi giorno/settimana/mese. Gestione in
+  `/ufficio/agenti`, nessuna modifica alla scena `/ufficio`.
+- Riusa `loadMapsStatus`; solo guide online confermate dal catalogo Speaqi.
+  Legge il catalogo pubblico e `GET /public/maps/:slug`, senza credenziali
+  social o API di pubblicazione. Napoli è esclusa prima di leggere il payload
+  e nuovamente nel controllo dei testi/SQL; nessuna nuova bozza su di essa.
+- Dati: punti del catalogo, itinerari espliciti del payload completo, elenco
+  delle lingue effettivamente disponibili solo se esposto, minuti audio solo
+  se presenti. `target_languages` non prova traduzioni completate; un dato
+  assente o dietro paywall resta null, non zero. Foto solo URL HTTPS ricevuti
+  nella mappa/catalogo. Senza guida e foto verificate si prepara un avviso,
+  senza spendere o inventare contenuti.
+- `office_social_batches` prenota una sola generazione per settimana italiana
+  prima del modello; `callModel` riserva budget e salda i token. Timeout o
+  esito incerto non vengono ripagati automaticamente. Il codice lega ogni
+  cifra alla propria unità/dato: avere tre itinerari non autorizza tre lingue.
+  Testi con cifre estranee, link inventati, Napoli, superlativi o promesse
+  non consentite sono scartati. La sostituzione è una bozza deterministica
+  diversa, ricostruita solo dai dati, con avviso della proposta AI scartata.
+- Tre-cinque `office_agent_outputs kind=draft_post`, sempre pending; ogni
+  bozza contiene testo/hashtag (max 5) per Instagram, LinkedIn, Facebook,
+  foto suggerita reale e link con UTM source=piattaforma, medium=social,
+  campaign=office_social. Approvare registra la decisione, non pubblica.
+- `office_social_snapshots` conserva i fatti settimanali: si parla di mappe
+  nuove solo con published_at degli ultimi sette giorni e di lingue aggiunte
+  solo con un confronto fra elenchi disponibili. I luoghi più aperti non
+  sono esposti da queste fonti: nessuna classifica inventata.
+- Migration nuova **20261023060654_office_social_drafts.sql**, dopo le
+  migration 00/11/10/01 già in main. Indipendente dal 07; nessuna nuova env.
+  Tabelle nuove nei backup, RLS proprietario e RPC solo service role. Salvataggio
+  atomico delle bozze con controlli di foto e UTM contro le fonti prenotate.
+  Nessuna migration applicata a database operativi durante lo sviluppo.
+- Test con DDL reali delle migration tramite `tests/office-schema.ts`, compresi
+  CHECK su source/status di email_drafts. Le prove usano solo Postgres locale
+  isolato e servizi simulati; nessuna pubblicazione o invio.
 ## Ufficio — Costruttore My Maps (Prompt 02)
 
 - `mymaps_builder` nasce spento. Il job `office-mymaps` controlla alle 01:30
