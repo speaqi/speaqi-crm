@@ -1148,6 +1148,51 @@ Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script 
   trattative aperte, gruppo estraneo saltato, otto clic concorrenti, permessi, scan senza effetti).
 
 
+### Agente 06 — Ricercatore eventi
+
+- `events_scout`, Ricerca, nasce **spento**. Budget iniziali 100/350/1500 centesimi
+  giorno/settimana/mese. Job `office-events-scout`, path
+  `/api/automation/agents/events_scout/run`, alle 06:30 Europe/Rome a giorni alterni.
+  Il cron controlla ogni giorno; `everyDays:2` conta i giorni locali dal 1 gennaio
+  1970, senza ripartire a ogni mese. La gestione resta in `/ufficio/agenti`.
+- `settings.sources`: massimo 30 URL pubblici, lista iniziale vuota. Riusa
+  `fetchResearchPage`: verifica DNS/reti private, GET senza redirect, timeout e
+  limite dimensione esistenti. Massimo cinque fetch contemporanei, nessun modulo.
+  `settings.queries` accetta fino a 20 query fisse ma **non le esegue**: la discovery
+  Tourism presente cerca enti, senza connettore eventi con costi prenotabili nel
+  ledger Ufficio. Il limite alle fonti configurate è esplicito in ogni report.
+- Prima JSON-LD Event, iCal VEVENT e RSS/Atom con date evento esplicite. `pubDate`
+  non è la data dell'evento. Soltanto le pagine senza struttura passano a
+  `callModel` con JSON Schema strict, riserva e saldo del budget. Nessuna ricerca
+  web o costo di strumenti aggiuntivi. Finestre, slug e punteggio sono codice.
+- Nome, città e organizzatore devono apparire nella pagina; inizio/fine e ogni
+  scadenza devono corrispondere alle date lette; URL ufficiale ammesso soltanto
+  fra i link realmente presenti. Nessuna deduzione di dati mancanti. iCal DTEND
+  conserva la data esclusiva pubblicata; una LOCATION libera non viene spacciata
+  per una città (solo X-CITY esplicito). Date passate, oltre sei mesi di calendario,
+  tipi estranei e fatti senza riscontro sono scartati. Doppioni per slug/data.
+- `office_event_batches` prenota una sola corsa giornaliera per workspace prima
+  del modello, congelando pagine, link e date. Timeout, errori o budget esaurito
+  restano segnalati; nessuna seconda spesa per le stesse pagine in quel giorno.
+  Analisi del modello limitata a 12 minuti complessivi (più l'ultima richiesta).
+  Fino a 100 candidati strutturati per pagina, 20 dal modello, 200 eventi/corsa.
+- `office_events` conserva solo nuovi eventi e fonti, con unicità, CHECK su tipi,
+  date, score e scadenze. `report` «Eventi e bandi», ordinato per scadenza; una
+  proposta `task` per evento con scadenza nei prossimi 30 giorni, anche se già
+  noto da una corsa precedente. Non ripropone decisioni approvate/rifiutate. Il clic di
+  approvazione crea **una sola** attività standalone: contact_id null, type todo,
+  area speaqi, data locale della scadenza e chiave `office-event:<id evento>`.
+  Rifiutare non crea attività; una scadenza ormai trascorsa non si approva.
+- Migration **`20261023120100_office_events.sql`**, dopo
+  `20261023120000_office_entity_enricher.sql`, `20261023090000_office_db_cleaner.sql`
+  e i prerequisiti To Do già presenti. La funzione `decide_office_output` conserva
+  il testo dei rami Direttore/05/08, aggiungendo solo il ramo del 06. RLS proprietario
+  di sola lettura, scritture solo via RPC service role con search_path fisso;
+  eventi e batch inclusi in entrambi i backup. Nessuna applicazione a DB operativi.
+- Nessun invio, iscrizione o modifica a trade_fair_exhibitors. Nessuna chiamata
+  alle mappe e nessuna prova su dati di produzione. Test su due pagine salvate,
+  modello simulato e PostgreSQL locale con DDL originali, compresi i prerequisiti
+  del vero merge 05. Le decisioni si provano anche con otto clic concorrenti.
 ## Ufficio — Arricchimento enti (Agente 08)
 
 - `entity_enricher`, reparto Ricerca, ogni mattina alle 06:00 Europe/Rome (`office-entity-enricher`), nasce spento.
