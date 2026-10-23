@@ -121,7 +121,10 @@ export default function OfficePage() {
     catch { /* Il messaggio resta visibile nella pagina. */ }
   }
   async function telegram(id: string) {
-    try { await act(id, () => apiFetch(`/api/office/outputs/${id}/telegram`, { method: 'POST' }), 'Rassegna approvata e inviata su Telegram.') }
+    try { await act(id, async () => {
+      const result = await apiFetch<{ sent: boolean; duplicate: boolean }>(`/api/office/outputs/${id}/telegram`, { method: 'POST' })
+      setNotice(result.sent ? 'Rassegna approvata e inviata su Telegram.' : 'Tentativo già registrato. Verifica il bot e il registro degli invii; nessun nuovo invio eseguito.')
+    }) }
     catch { /* Esito incerto visibile: nessun ritentativo automatico. */ }
   }
 

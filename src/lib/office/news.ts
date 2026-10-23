@@ -61,9 +61,10 @@ export function parseNewsPage(body:string,feedUrl:string):NewsArticle[] {
 }
 
 export function newsRelevance(article:NewsArticle,competitors=NEWS_COMPETITORS) {
-  const content=`${article.title} ${article.excerpt} ${article.url} ${article.feed_url}`.toLowerCase()
+  const content=`${article.title} ${article.excerpt}`.toLowerCase()
+  const hosts=[article.url,article.feed_url].flatMap((url)=>{try{return[new URL(url).hostname]}catch{return[]}}).join(' ')
   if(competitors.some((name)=>content.includes(name.toLowerCase()))) return 'Novità di un concorrente nelle guide digitali.'
-  if(/openai|gemini|openrouter|modelli? ai|ai model|intelligenza artificiale|artificial intelligence/.test(content)) return 'Tecnologia o costi AI da valutare per Speaqi.'
+  if(/openai|gemini|openrouter|modelli? ai|ai model|intelligenza artificiale|artificial intelligence/.test(content)||/(?:^|[.\s])(?:openai|openrouter)\.(?:com|ai)(?:\s|$)/.test(hosts)) return 'Tecnologia o costi AI da valutare per Speaqi.'
   if(/turis|touris|croci[ée]r|cruise|hospitality|muse[oui]|finanziament|funding|band[oi]|guide digital|digital guide|digital map|mappe digital/.test(content)) return 'Novità utile alle guide e alle destinazioni Speaqi.'
   return null
 }
@@ -85,7 +86,7 @@ export function validateNewsSummary(value:unknown,articles:NewsArticle[]):NewsIt
     const article=articles.find((a)=>row&&row.url===a.url)
     if(!article||seen.has(article.url)||typeof row.summary!=='string'||typeof row.why!=='string') continue
     const summary=row.summary.trim();const why=row.why.trim()
-    if(!summary||!why||summary.length>300||why.length>200||/[\r\n]|https?:\/\/|\b(?:[a-z0-9-]+\.)+[a-z]{2,24}\b/i.test(summary+why)) continue
+    if(!summary||!why||summary.length>300||why.length>200||/[\r\n]|https?:\/\/|\b(?:[a-z0-9-]+\.)+[a-z]{2,24}\b/i.test(`${summary} ${why}`)) continue
     const allowedNumbers=new Set((`${article.title} ${article.excerpt}`.match(/\d+(?:[.,]\d+)*/g)||[]))
     if((`${summary} ${why}`.match(/\d+(?:[.,]\d+)*/g)||[]).some((n)=>!allowedNumbers.has(n))) continue
     kept.push({...article,summary,why});seen.add(article.url);if(kept.length>=8) break

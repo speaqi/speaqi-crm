@@ -27,6 +27,8 @@ test('notizie: link, titolo quasi identico, già visti e temi estranei esclusi',
   assert.equal(selectNews([article()],[{url:'https://other.example.org/story',title:article().title}],NOW).length,0)
   assert.equal(selectNews([article({title:'Sport: risultato partita',excerpt:'La squadra ha vinto'})],[],NOW).length,0)
   assert.equal(selectNews([article({title:'STQRY presenta il nuovo editor',excerpt:''})],[],NOW).length,1)
+  assert.equal(selectNews([article({title:'New release',excerpt:'',url:'https://openai.com/index/release',feed_url:'https://openai.com/news/rss.xml'})],[],NOW).length,1)
+  assert.equal(selectNews([article({title:'Sport',excerpt:'',url:'https://openai.com.example.org/story',feed_url:'https://news.example.org/rss'})],[],NOW).length,0)
 })
 test('notizie: link inventati, numeri estranei e nuove righe scartati; massimo otto',()=>{
   const valid={url:article().url,summary:'Finanziamenti per 20 progetti.',why:'Opportunità per i musei.'}
