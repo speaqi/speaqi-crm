@@ -16,7 +16,9 @@ export async function proposalQuoteContext(sb: any, userId: string, type: 'agenc
       draft: { ...quoteDraftFromTemplate(normalizeQuoteTemplate(settings.quote_template, type), vars, (categories || []).map((c: any) => ({ description: c.name, details: `${c.description}\n[DA VERIFICARE: perimetro e consegne]`, quantity: 1, unit_price: null }))), title: project.title }
     }
   }
-  const [deck, { template }] = await Promise.all([loadDeck(sb, userId, id), getTemplate(sb, userId)])
+  const deck = await loadDeck(sb, userId, id)
+  // Il preventivo parte dal modello della base da cui è nata la presentazione.
+  const { template } = await getTemplate(sb, userId, deck.template_kind)
   const name = deck.input.ente || deck.destination
   const vars = { ...template.vars, ...Object.fromEntries(Object.entries(deck.input).filter(([,v]) => v)), cliente: name, progetto: deck.title, destinazione: deck.destination }
   return {

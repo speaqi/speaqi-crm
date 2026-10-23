@@ -12,6 +12,25 @@ export type DeckSlideKind = (typeof DECK_SLIDE_KINDS)[number]
 export const DECK_STATUSES = ['draft', 'generating', 'ready', 'approved', 'failed'] as const
 export type DeckStatus = (typeof DECK_STATUSES)[number]
 
+/**
+ * Due basi di partenza, due modi di fare partnership:
+ * - `destination`: la destinazione (ente del turismo, DMO/DMC, Comune, consorzio) distribuisce le guide e noi le facciamo;
+ * - `distribution`: chi porta i visitatori (compagnia di navigazione, tour operator, aeroporto, operatore di trasporto,
+ *   rete di vendita) distribuisce il prodotto ai propri clienti, in revenue sharing.
+ */
+export const DECK_KINDS = ['destination', 'distribution'] as const
+export type DeckKind = (typeof DECK_KINDS)[number]
+export const DEFAULT_DECK_KIND: DeckKind = 'destination'
+export const DECK_KIND_LABELS: Record<DeckKind, string> = {
+  destination: 'Partnership destinazioni',
+  distribution: 'Partnership distribuzione'
+}
+export const DECK_KIND_HINTS: Record<DeckKind, string> = {
+  destination: 'Per enti del turismo, DMO/DMC, Comuni, consorzi: la mappa è gratuita e loro distribuiscono le guide.',
+  distribution: 'Per compagnie di navigazione, tour operator, aeroporti, operatori di trasporto, reti di vendita: noi il prodotto, loro la distribuzione, revenue sharing e pilota di 90 giorni.'
+}
+export const isDeckKind = (value: unknown): value is DeckKind => typeof value === 'string' && (DECK_KINDS as readonly string[]).includes(value)
+
 export type DeckItem = { title: string; text: string }
 export type DeckSlide = {
   id: string
@@ -38,7 +57,9 @@ export const DECK_VAR_NAMES = ['destinazione', 'ente', 'paese', 'prezzo', 'conta
 export type DeckVarName = (typeof DECK_VAR_NAMES)[number]
 export type DeckInput = Partial<Record<DeckVarName, string>>
 
-const LIMITS = { slides: 12, items: 6, title: 160, body: 700, note: 300, itemTitle: 80, itemText: 260, hint: 500, varValue: 300 }
+/** Massimo di slide di un modello o di una presentazione (la base destinazioni ne usa 13). */
+export const DECK_MAX_SLIDES = 14
+const LIMITS = { slides: DECK_MAX_SLIDES, items: 6, title: 160, body: 700, note: 300, itemTitle: 80, itemText: 260, hint: 500, varValue: 300 }
 
 const slide = (s: Partial<DeckSlide> & Pick<DeckSlide, 'id' | 'kind' | 'title'>): DeckSlide => ({
   body: '',
@@ -50,19 +71,18 @@ const slide = (s: Partial<DeckSlide> & Pick<DeckSlide, 'id' | 'kind' | 'title'>)
 })
 
 /**
- * La proposta base per le destinazioni ("Speaqi — Proposta destinazioni",
- * ottobre 2026): la mappa è gratuita per l'ente, che in cambio garantisce
- * almeno 100.000 accessi all'anno e la distribuisce (QR nei luoghi, sulle
- * mappe, sul sito e sui social). Dodici slide nello stesso ordine della
- * presentazione di riferimento: apertura, territorio, problema, risposta,
- * prova, contenuti, lingue, visitatore, metodo, prezzo, area riservata, demo.
- * Nessuna funzione, tempo o prezzo che non stia lì: il resto è [DA VERIFICARE].
+ * Proposta base per le destinazioni ("Speaqi — Proposta destinazioni", ottobre 2026,
+ * allineata alla pagina guides.speaqi.com/destinations): la mappa è gratuita per l'ente,
+ * che in cambio distribuisce le guide sui canali concordati. Tredici slide: apertura,
+ * territorio, problema, risposta, prova, contenuti, visitatore, modello, requisiti,
+ * come funziona, cosa è incluso, servizi opzionali, demo.
+ * Nessuna funzione, soglia o condizione che non stia lì: il resto è [DA VERIFICARE].
  */
-export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
+export const DESTINATION_DECK_TEMPLATE: DeckTemplate = {
   version: 1,
   vars: {
     prezzo:
-      'in cambio garantite almeno 100.000 accessi all’anno: QR in ogni luogo, sulle mappe e sui materiali, link sul sito e sui social. A pagamento, su richiesta: Concierge personalizzato e sezione eventi.',
+      'distribuite le guide Speaqi sui canali concordati: almeno 2 canali di distribuzione attivi, un referente dedicato e un piano continuativo. Durata e perimetro della gratuità sono definiti nell’accordo.',
     contatto: DECK_TODO
   },
   slides: [
@@ -95,8 +115,8 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
       id: 'soluzione',
       kind: 'statement',
       title: 'Una mappa. Tutto il territorio. Ogni lingua.',
-      body: 'Speaqi crea la guida digitale ufficiale di {{destinazione}}: la voce della destinazione, nella lingua di chi la visita. Si apre da un link o da un QR Code, senza app.',
-      hint: 'Mantieni il titolo. Nel corpo nessuna funzione in più.'
+      body: 'Speaqi crea la guida digitale ufficiale di {{destinazione}}: la voce della destinazione, nella lingua di chi la visita, fino a 50 lingue. Si apre da un link o da un QR Code, senza app.',
+      hint: 'Mantieni il titolo. Se i materiali dicono da quali paesi arrivano i visitatori, puoi citare le lingue di quei mercati nel corpo. Non promettere quante lingue sono incluse: si definisce nell’accordo.'
     }),
     slide({
       id: 'prova',
@@ -126,13 +146,6 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
       hint: 'Mantieni le sei categorie. Negli esempi puoi citare luoghi o esperienze di questa destinazione solo se compaiono nei materiali.'
     }),
     slide({
-      id: 'lingue',
-      kind: 'statement',
-      title: 'Fino a 50 lingue. Le prime 10 sono incluse, con audio.',
-      body: 'Le dieci lingue si scelgono sui mercati di {{destinazione}}: per esempio italiano, inglese, spagnolo, francese, tedesco, portoghese, russo, giapponese, cinese e polacco. Le altre, fino a 50, su richiesta.',
-      hint: 'Se i materiali dicono da quali paesi arrivano i visitatori, scegli le dieci lingue su quelli e togli «per esempio». Altrimenti lascia l’elenco d’esempio.'
-    }),
-    slide({
       id: 'visitatore',
       kind: 'steps',
       title: 'Dal QR alla visita, in quattro passi',
@@ -140,20 +153,43 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
         { title: 'Scansiona', text: 'Un QR Code o un link. Nessuna app da scaricare.' },
         { title: 'È già nella sua lingua', text: 'La mappa si apre nella lingua del telefono. Nessuna scelta da fare.' },
         { title: 'Esplora', text: '«Sono qui» mostra cosa c’è intorno, a due passi.' },
-        { title: 'Chiede all’AI Concierge', text: 'Risponde solo con le informazioni approvate dall’ente.' }
+        { title: 'Ascolta e legge', text: 'Audio, video e testo su ogni luogo, nella sua lingua.' }
       ],
       hint: 'Mantieni i quattro passi così come sono.'
     }),
     slide({
+      id: 'modello',
+      kind: 'cards',
+      title: 'Noi la mappa. Voi la distribuzione.',
+      items: [
+        { title: 'Speaqi', text: 'Realizza la mappa multilingue, cura gli aggiornamenti nel perimetro concordato e affianca il progetto nel tempo.' },
+        { title: '{{ente}}', text: 'Distribuisce le guide sui canali concordati, coinvolge la rete locale e indica un referente.' }
+      ],
+      note: 'Durata, perimetro e continuità della gratuità sono definiti nell’accordo.',
+      hint: 'Mantieni le due colonne. Non aggiungere impegni che non stanno nel modello: responsabilità e frequenza degli aggiornamenti si concordano prima dell’avvio.'
+    }),
+    slide({
+      id: 'requisiti',
+      kind: 'cards',
+      title: 'Cosa serve per candidarsi',
+      items: [
+        { title: 'Presenze turistiche', text: 'Almeno 250.000 l’anno, documentabili con dati sui pernottamenti.' },
+        { title: 'Un soggetto rappresentativo', text: 'Ente del turismo, DMO o DMC, Comune, consorzio o rete territoriale.' },
+        { title: 'Canali di distribuzione', text: 'Almeno 2 canali attivi.' },
+        { title: 'Un referente', text: 'Almeno 1 persona dedicata al progetto.' },
+        { title: 'Un piano continuativo', text: 'Distribuzione nel tempo, non una tantum.' }
+      ],
+      note: 'La candidatura non garantisce l’ammissione.',
+      hint: 'Mantieni le cinque soglie. Se i materiali citano le presenze della destinazione, puoi aggiungere il dato (con anno e fonte) nella prima voce, senza togliere la soglia. Se una soglia non risulta rispettata, scrivi [DA VERIFICARE: …] invece di nasconderlo.'
+    }),
+    slide({
       id: 'metodo',
       kind: 'steps',
-      title: 'La custodiamo noi. Voi la provate.',
+      title: 'Dalla candidatura alla mappa online, in tre passi',
       items: [
-        { title: 'Analisi', text: 'Partiamo dai dati che avete già, a cominciare dal vostro sito.' },
-        { title: 'Costruzione', text: 'La costruiamo noi: testi, lingue e audio.' },
-        { title: 'Approvazione', text: 'Voi la provate e la approvate prima di pubblicare.' },
-        { title: 'Pubblicazione', text: 'La mappa va online, con i QR Code pronti.' },
-        { title: 'Aggiornamento', text: 'La custodiamo e la manteniamo noi, nel tempo.' }
+        { title: 'Candidatura', text: 'Presentate territorio, canali e piano di distribuzione. Senza pagamenti né obblighi.' },
+        { title: 'Accordo', text: 'Valutiamo la proposta e definiamo distribuzione, contenuti, aggiornamenti, durata e perimetro gratuito. L’attivazione avviene solo dopo l’accordo.' },
+        { title: 'Pubblicazione', text: 'Voi attivate i canali, noi realizziamo la mappa, la facciamo approvare a voi e la seguiamo nel tempo.' }
       ],
       hint: 'Non promettere tempi di consegna. Non parlare di white label.'
     }),
@@ -162,36 +198,193 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
       kind: 'cards',
       title: 'La mappa è gratuita.',
       items: [
-        { title: '500 punti di interesse', text: 'I luoghi del territorio, ognuno con la sua scheda.' },
-        { title: '10 lingue, con audio', text: 'Scelte sui mercati della destinazione.' },
-        { title: '10 itinerari', text: 'Pronti da seguire, sulla mappa.' },
-        { title: 'AI Concierge', text: 'Risponde solo con le informazioni approvate.' },
-        { title: 'QR Code pronti', text: 'Per i luoghi, le mappe e i materiali.' },
-        { title: 'Area riservata', text: 'Con le statistiche degli accessi.' }
+        { title: 'Luoghi, percorsi, punti di interesse', text: 'Una mappa digitale di tutto il territorio.' },
+        { title: 'Più lingue, una sola guida', text: 'Contenuti accessibili in più lingue, senza guide separate.' },
+        { title: 'Aggiornamenti concordati', text: 'Cosa si aggiorna e ogni quanto lo decidiamo insieme.' },
+        { title: 'Condivisa da tutti', text: 'Infopoint, strutture e operatori usano la stessa mappa.' },
+        { title: 'Link o QR, senza app', text: 'Accesso da browser, su qualsiasi telefono.' },
+        { title: 'QR Code pronti', text: 'Per i luoghi, le mappe e i materiali.' }
       ],
       note: 'In cambio: {{prezzo}}',
-      hint: 'Non cambiare le condizioni nella nota: usa solo quelle indicate dall’utente. Non aggiungere il video di presentazione fra gli inclusi finché non è confermato. Nessun importo in euro.'
+      hint: 'Non cambiare le condizioni nella nota: usa solo quelle indicate dall’utente. Non aggiungere funzioni o quantità non confermate. Nessun importo in euro.'
     }),
     slide({
-      id: 'area-riservata',
+      id: 'opzionali',
       kind: 'cards',
-      title: 'Seguite tutto, in chiaro',
+      title: 'Per andare oltre, quando vorrete',
       items: [
-        { title: 'Statistiche degli accessi', text: 'Sempre visibili nell’area riservata di {{ente}}.' },
-        { title: 'Report condiviso', text: 'Lo stesso report lo vediamo noi e lo vedete voi.' },
-        { title: 'Regole scritte', text: 'Che cosa è un «accesso» lo scriviamo nel contratto.' }
+        { title: 'iConcierge', text: 'Un assistente AI basato sui contenuti della destinazione.' },
+        { title: 'Eventi', text: 'Contenuti dedicati a festival e appuntamenti locali.' },
+        { title: 'Contenuti multilingue', text: 'Produzioni editoriali, audio e video.' }
       ],
-      hint: 'Mantieni le tre voci. Non mostrare numeri di accessi inventati.'
+      note: 'Servizi non obbligatori, su proposta economica separata.',
+      hint: 'Mantieni le tre voci. Nessun prezzo e nessuna promessa su tempi o volumi.'
     }),
     slide({
       id: 'demo',
       kind: 'closing',
       title: 'Guardate la mappa di {{ente}}',
-      body: 'Provate la demo, definiamo insieme le soglie e partiamo con la mappa. {{contatto}}',
+      body: 'Provate la demo, presentate la candidatura e definiamo insieme canali, perimetro e durata. {{contatto}}',
       hint: 'Chiusura breve. Non inventare link della demo o contatti: usa solo quelli indicati.'
     })
   ]
 }
+
+/** Compatibilità: il modello di partenza storico è quello delle destinazioni. */
+export const DEFAULT_DECK_TEMPLATE = DESTINATION_DECK_TEMPLATE
+
+/**
+ * Proposta base di distribuzione ("Speaqi — Partnership", dalla presentazione per Aeroporti
+ * di Roma, ottobre 2026): per chi porta i visitatori alla guida e non la riceve per il
+ * proprio territorio. Compagnie di navigazione, tour operator, aeroporti, operatori di
+ * trasporto, reti di vendita. Noi il prodotto, loro la distribuzione; revenue sharing a
+ * scaglioni e un pilota di 90 giorni. Dodici slide.
+ * Percentuali, soglie e durata del pilota sono quelle della proposta di riferimento: restano
+ * indicative e da concordare. Numeri del partner e contatto: sempre [DA VERIFICARE].
+ */
+export const DISTRIBUTION_DECK_TEMPLATE: DeckTemplate = {
+  version: 1,
+  vars: {
+    prezzo:
+      'Revenue sharing con commissioni progressive sul fatturato netto effettivamente generato, a zero investimento iniziale. Scaglioni indicativi, da concordare.',
+    contatto: DECK_TODO
+  },
+  slides: [
+    slide({
+      id: 'cover',
+      kind: 'cover',
+      title: '{{destinazione}}, nella lingua di ogni viaggiatore.',
+      body: 'Un servizio in più per i clienti di {{ente}}. Un ricavo in più per {{ente}}.',
+      hint: 'Il titolo porta la destinazione (o le destinazioni) dei clienti del partner. Se il partner chiama i clienti «passeggeri», «ospiti» o «turisti», usa la sua parola al posto di «viaggiatore». Come foto scegli un’immagine rappresentativa della destinazione o del partner, se ce n’è una. Nessuna promessa di ricavo con cifre.'
+    }),
+    slide({
+      id: 'opportunita',
+      kind: 'statement',
+      title: 'Milioni di viaggiatori. Una nuova opportunità.',
+      body: 'Ogni anno passano da {{ente}}: [DA VERIFICARE: numero, anno e fonte]. Ognuno arriva in una destinazione che non conosce e ha bisogno di una guida nella sua lingua.',
+      hint: 'Sostituisci il segnaposto con il dato del partner (passeggeri, ospiti, prenotazioni) solo se sta nei materiali o nella scheda dell’ente, con anno e fonte. Se non c’è, scrivi una frase qualitativa senza cifre. Mai stime tue.'
+    }),
+    slide({
+      id: 'prodotto',
+      kind: 'cards',
+      title: 'La guida digitale che accompagna il viaggio.',
+      items: [
+        { title: 'Luoghi scelti', text: 'Non risultati di ricerca: i luoghi da vedere, scelti da noi.' },
+        { title: 'Racconti e itinerari', text: 'Audio, video e testo, luogo per luogo.' },
+        { title: 'AI Concierge', text: 'Risponde nella lingua del viaggiatore, solo con contenuti approvati.' },
+        { title: 'Nessuna app', text: 'Si apre nel browser, da un link o da un QR Code.' }
+      ],
+      note: 'Le mappe gratuite dicono dove andare. Speaqi aiuta a vivere {{destinazione}}.',
+      hint: 'Mantieni le quattro voci. Nessuna funzione in più.'
+    }),
+    slide({
+      id: 'lingue',
+      kind: 'statement',
+      title: 'Un’esperienza che parla oltre 50 lingue.',
+      body: 'Italiano, inglese, spagnolo, francese, tedesco, portoghese, russo, giapponese, cinese, coreano, arabo, hindi, turco, olandese, polacco e molte altre. L’AI Concierge risponde nella lingua del viaggiatore, solo con contenuti approvati.',
+      hint: 'Se i materiali dicono da quali paesi arrivano i clienti del partner, metti per prime le lingue di quei mercati. Non promettere quante lingue sono incluse.'
+    }),
+    slide({
+      id: 'prova',
+      kind: 'cards',
+      title: 'Prima di tutto, provate una guida vera',
+      body: 'Aprite il link o scansionate il QR. Si apre nel browser, senza app. Cambiate lingua e guardate la stessa scheda parlare altre lingue.',
+      items: [
+        { title: 'Roma', text: 'guides.speaqi.com/roma' },
+        { title: 'Napoli', text: 'guides.speaqi.com/napoli' },
+        { title: 'Tutte le guide', text: 'guides.speaqi.com' }
+      ],
+      hint: 'Lascia le guide reali di Speaqi così come sono: sono la prova. Non inventare altri link. Se la guida della destinazione del partner esiste già, puoi aggiungerla solo se il suo link sta nei materiali.'
+    }),
+    slide({
+      id: 'partnership',
+      kind: 'cards',
+      title: 'Noi il prodotto. Voi la distribuzione.',
+      items: [
+        { title: 'Speaqi', text: 'Costruisce la guida, la alimenta e la aggiorna, gestisce assistenza e tecnologia.' },
+        { title: '{{ente}}', text: 'Pagine e servizi digitali, comunicazioni ai clienti, QR nei punti di contatto.' }
+      ],
+      note: 'Speaqi Guide · {{destinazione}} in partnership con {{ente}}',
+      hint: 'Adatta i canali del partner al suo settore (navigazione: app e programma di bordo, email prima dell’imbarco, kit in cabina; tour operator: voucher, conferma di prenotazione, sito e app; aeroporto: pagine web, QR nei terminal), solo come proposta: non affermare che il partner li abbia o li usi.'
+    }),
+    slide({
+      id: 'distribuzione',
+      kind: 'cards',
+      title: 'Dove il viaggiatore incontra la guida.',
+      items: [
+        { title: 'Affissioni e schermi', text: 'Un QR Code nei punti di passaggio del viaggio.' },
+        { title: 'Totem con QR', text: 'Nei punti di contatto fisici, tracciabili.' },
+        { title: 'Sito, app e Wi-Fi', text: 'Un link nei canali digitali di {{ente}}.' },
+        { title: 'Email ai clienti', text: 'Prima della partenza e dopo, con il link alla guida.' }
+      ],
+      note: 'Esempi di canali: idee da concordare, non materiali approvati da {{ente}}.',
+      hint: 'Mantieni quattro voci e adattale ai canali tipici del settore del partner (vedi slide precedente). Sono sempre proposte da concordare, mai canali già attivi. Se usi immagini generate con AI, dillo in nota.'
+    }),
+    slide({
+      id: 'esperienze',
+      kind: 'cards',
+      title: 'La nostra mappa, con le vostre esperienze dentro.',
+      items: [
+        { title: 'I vostri servizi', text: 'Accanto ai luoghi di {{destinazione}}.' },
+        { title: 'Le vostre offerte', text: 'Nella lingua del viaggiatore.' },
+        { title: 'Le vostre esperienze', text: 'Un canale in più per vendere.' }
+      ],
+      note: 'Esempio illustrativo: contenuti ed esperienze da scegliere con {{ente}}.',
+      hint: 'Adatta «servizi, offerte, esperienze» a ciò che il partner vende (escursioni, transfer, biglietti, pacchetti) solo se sta nei materiali; altrimenti lascia le tre voci generiche.'
+    }),
+    slide({
+      id: 'oltre',
+      kind: 'cards',
+      title: 'Si parte da {{destinazione}}, poi le mete dei vostri clienti.',
+      items: [
+        { title: 'Pronte', text: 'Roma, Napoli, Capri, Pompei, Lisbona, Costiera Amalfitana.' },
+        { title: 'In produzione', text: 'Firenze, Milano, Venezia.' },
+        { title: 'Poi', text: 'Le destinazioni estere dei vostri clienti.' }
+      ],
+      hint: 'Non aggiungere guide che non esistono. Se i materiali citano le mete principali dei clienti del partner, puoi nominarle nella voce «Poi».'
+    }),
+    slide({
+      id: 'modello',
+      kind: 'cards',
+      title: 'Più vendite. Più valore per entrambi.',
+      body: '{{prezzo}}',
+      items: [
+        { title: '20%', text: 'Fino a 100.000 € di fatturato netto l’anno.' },
+        { title: '35%', text: 'Da 100.000 a 500.000 €.' },
+        { title: '50%', text: 'Oltre 500.000 €.' }
+      ],
+      note: 'Commissioni progressive per scaglioni, sulle sole vendite attribuibili a {{ente}}. Soglie annuali indicative, da concordare.',
+      hint: 'Non cambiare percentuali né soglie, salvo che l’utente indichi condizioni diverse: in quel caso adatta anche le tre fasce e scrivi [DA VERIFICARE] se non sono chiare. Nessuna previsione di ricavi.'
+    }),
+    slide({
+      id: 'pilota',
+      kind: 'steps',
+      title: '90 giorni per dimostrare il potenziale di Speaqi.',
+      body: 'Speaqi porta tecnologia, guide e vendite. {{ente}}: almeno un canale digitale e un punto di contatto fisico, tracciabili.',
+      items: [
+        { title: '30 giorni', text: 'Prima verifica.' },
+        { title: '60 giorni', text: 'Ottimizzazione.' },
+        { title: '90 giorni', text: 'Valutazione ed estensione.' }
+      ],
+      note: 'Misuriamo viaggiatori, accessi, acquisti e ricavi condivisi. Si parte a canali operativi.',
+      hint: 'Mantieni 30, 60 e 90 giorni. Le metriche sono quattro: viaggiatori raggiunti, accessi alla guida, conversioni in acquisti, fatturato e ricavi condivisi; nella nota restano in forma breve (una riga). Non promettere risultati né date di avvio.'
+    }),
+    slide({
+      id: 'chiusura',
+      kind: 'closing',
+      title: 'Partiamo da {{destinazione}}.',
+      body: 'Provate la guida su guides.speaqi.com, poi definiamo insieme canali e scaglioni del pilota. {{contatto}}',
+      hint: 'Chiusura breve. Solo il contatto reale indicato dall’utente; nessun link nuovo.'
+    })
+  ]
+}
+
+/** Le basi di partenza, una per tipo di presentazione. */
+export const DECK_BASE_TEMPLATES: Record<DeckKind, DeckTemplate> = {
+  destination: DESTINATION_DECK_TEMPLATE,
+  distribution: DISTRIBUTION_DECK_TEMPLATE
+}
+export const baseTemplateFor = (kind: DeckKind): DeckTemplate => structuredClone(DECK_BASE_TEMPLATES[kind])
 
 /** Base Tourism per aziende: stessi strumenti, senza impegni di partnership impliciti. */
 export const TOURISM_COMPANY_TEMPLATE: DeckTemplate = {
@@ -271,7 +464,7 @@ export function normalizeSlide(raw: unknown, index: number): DeckSlide {
 }
 
 /** Legge un modello o un deck da JSON: scarta il superfluo, rende unici gli id, non lancia. */
-export function normalizeTemplate(raw: unknown): DeckTemplate {
+export function normalizeTemplate(raw: unknown, kind: DeckKind = DEFAULT_DECK_KIND): DeckTemplate {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   const seen = new Set<string>()
   const slides = (Array.isArray(r.slides) ? r.slides : []).slice(0, LIMITS.slides).map((s, i) => {
@@ -288,7 +481,7 @@ export function normalizeTemplate(raw: unknown): DeckTemplate {
       if (value) vars[name] = value
     }
   }
-  if (!slides.length) return structuredClone(DEFAULT_DECK_TEMPLATE)
+  if (!slides.length) return baseTemplateFor(kind)
   return { version: 1, vars, slides, quote_template: normalizeQuoteTemplate(r.quote_template, 'tourism') }
 }
 
@@ -428,4 +621,36 @@ export function buildCorpus(template: DeckTemplate, input: DeckInput, materials:
 
 export function deckSummary(slides: DeckSlide[]) {
   return { slides: slides.length, todo: countTodo(slides) }
+}
+
+// ---- Quale base usare ------------------------------------------------------
+
+/** Tipi di ente (`TOURISM_TYPES`) che ricevono la proposta destinazioni: chi governa o rappresenta un territorio. */
+export const DESTINATION_ENTITY_TYPES = [
+  'ministry', 'nto', 'rto', 'dmo', 'dmc', 'cvb', 'gal', 'municipal_union', 'consortium', 'wine_route', 'foundation',
+  'association', 'park', 'district', 'chamber', 'local_office', 'network', 'development_authority', 'municipality'
+] as const
+/** Tipi che ricevono la proposta di distribuzione: chi vende o porta i visitatori. */
+export const DISTRIBUTION_ENTITY_TYPES = [
+  'ota', 'tour_operator', 'wholesaler', 'travel_agency', 'bedbank', 'experience_marketplace', 'property_manager',
+  'cruise_line', 'ferry_operator', 'airline', 'rail_operator', 'bus_operator'
+] as const
+
+// Aeroporti, porti e terminal non hanno un tipo dedicato (stanno in `other`): si riconoscono dal nome.
+const DISTRIBUTION_NAME =
+  /\b(aeropor\w*|airports?|airlines?|compagnia\s+aerea|crocier\w*|cruises?|traghett\w*|ferry|ferries|tour\s*operator\w*|shipping|compagnia\s+di\s+navigazione|autorit[àa]\s+(?:di\s+sistema\s+)?portuale|port\s+authority|ferrovi\w*|railways?|bus\s+operator\w*)\b/i
+
+export type DeckKindSuggestion = { kind: DeckKind; reason: string }
+
+/**
+ * Quale base proporre per un ente: dal tipo (certo) e, se il tipo non dice nulla, dal nome.
+ * `null` = non si capisce: la scelta resta a chi crea la presentazione, non si indovina.
+ */
+export function suggestDeckKind(entity: { type_code?: string | null; name?: string | null }, typeLabel?: string): DeckKindSuggestion | null {
+  const type = entity.type_code || ''
+  const label = typeLabel ? `«${typeLabel}»` : 'del suo tipo'
+  if ((DESTINATION_ENTITY_TYPES as readonly string[]).includes(type)) return { kind: 'destination', reason: `L’ente è ${label}: rappresenta un territorio.` }
+  if ((DISTRIBUTION_ENTITY_TYPES as readonly string[]).includes(type)) return { kind: 'distribution', reason: `L’ente è ${label}: porta o vende ai visitatori.` }
+  if (entity.name && DISTRIBUTION_NAME.test(entity.name)) return { kind: 'distribution', reason: 'Il nome indica un operatore di trasporto o di viaggi.' }
+  return null
 }

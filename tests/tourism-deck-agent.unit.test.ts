@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test, { afterEach, beforeEach } from 'node:test'
-import { DEFAULT_DECK_TEMPLATE, DECK_TODO } from '../src/lib/tourism-deck'
-import { buildAgentRequest, parseAgentResponse, runDeckAgent, type DeckAgentArgs } from '../src/lib/server/tourism-deck-agent'
+import { DEFAULT_DECK_TEMPLATE, DISTRIBUTION_DECK_TEMPLATE, DECK_TODO } from '../src/lib/tourism-deck'
+import { DECK_DISTRIBUTION_PROMPT, DECK_SYSTEM_PROMPT, buildAgentRequest, parseAgentResponse, runDeckAgent, type DeckAgentArgs } from '../src/lib/server/tourism-deck-agent'
 
 const PHOTO = '33333333-3333-4333-8333-333333333333'
 const args = (over: Partial<DeckAgentArgs> = {}): DeckAgentArgs => ({
@@ -37,6 +37,21 @@ test('la richiesta porta testo, documenti, PDF e foto, e dice che sono dati', ()
   assert.equal(brief.foto[0].id, PHOTO)
 })
 
+test('la proposta di distribuzione aggiunge al prompt le regole del partner; le destinazioni non le portano', () => {
+  const system = (body: ReturnType<typeof buildAgentRequest>) => JSON.stringify(body.input[0])
+  const brief = (body: ReturnType<typeof buildAgentRequest>) => JSON.parse(((body.input[1].content as Record<string, unknown>[])[0].text as string).replace('BRIEF (JSON):\n', ''))
+  const dest = buildAgentRequest(args(), 'm')
+  assert.ok(!system(dest).includes('partnership di distribuzione'))
+  assert.equal(brief(dest).tipo_presentazione, 'destination')
+  const dist = buildAgentRequest(args({ kind: 'distribution', template: DISTRIBUTION_DECK_TEMPLATE, input: { destinazione: 'Roma', ente: 'Aeroporti di Roma' } }), 'm')
+  assert.match(system(dist), /partnership di distribuzione/)
+  assert.ok(system(dist).includes(JSON.stringify(DECK_SYSTEM_PROMPT).slice(1, 80)), 'le regole di base restano')
+  assert.match(DECK_DISTRIBUTION_PROMPT, /Non inventare numeri di clienti/)
+  assert.equal(brief(dist).tipo_presentazione, 'distribution')
+  assert.equal(brief(dist).slide[0].testo_attuale.title, 'Roma, nella lingua di ogni viaggiatore.')
+  assert.equal(brief(dist).slide.length, DISTRIBUTION_DECK_TEMPLATE.slides.length)
+})
+
 test('una risposta che non è JSON si rifiuta', () => {
   assert.throws(() => parseAgentResponse({ output_text: 'ciao' }), /non valida/)
   assert.throws(() => parseAgentResponse({ output_text: '{"x":1}' }), /senza slide/)
@@ -58,7 +73,7 @@ test('la risposta si fonde, un importo inventato e una foto estranea vengono fer
   const method = r.slides.find((s) => s.id === 'metodo')!
   assert.equal(method.note, `Offerta Destinazioni: ${DECK_TODO}/mese`)
   assert.equal(method.image_asset_id, null)
-  assert.equal(method.items.length, 5)
+  assert.equal(method.items.length, 3)
   assert.ok(r.warnings.some((w) => /99/.test(w.message)))
   assert.ok(r.warnings.some((w) => w.slide === '*' && /PDF/.test(w.message)))
   assert.deepEqual(r.missing, ['il referente'])

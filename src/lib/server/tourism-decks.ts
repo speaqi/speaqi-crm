@@ -1,16 +1,20 @@
 import { randomUUID } from 'node:crypto'
 import { quoteSummary } from '../agency'
 import {
-  DEFAULT_DECK_TEMPLATE,
+  DECK_KIND_LABELS,
+  DEFAULT_DECK_KIND,
   applyVars,
+  baseTemplateFor,
   countTodo,
   normalizeSlide,
   normalizeTemplate,
   type DeckInput,
+  type DeckKind,
   type DeckSlide,
   type DeckStatus,
   type DeckTemplate,
-  type DeckWarning
+  type DeckWarning,
+  DECK_MAX_SLIDES
 } from '../tourism-deck'
 import { TOURISM_TYPES, TourismInputError } from '../tourism'
 import {
@@ -34,6 +38,8 @@ export type DeckRow = {
   id: string
   user_id: string
   entity_id: string | null
+  /** Da quale base è nata (destinazioni o distribuzione). Le righe precedenti alla migration valgono `destination`. */
+  template_kind?: DeckKind
   title: string
   destination: string
   input: DeckInput
@@ -60,31 +66,32 @@ const checked = <T extends { error: unknown }>(result: T): T => {
 
 // ---- Modello generico -----------------------------------------------------
 
-export async function getTemplate(sb: Sb, userId: string): Promise<{ template: DeckTemplate; version: number }> {
-  const found = checked(await sb.from('tourism_deck_templates').select('content,version').eq('user_id', userId).eq('is_default', true).maybeSingle())
-  if (found.data) return { template: normalizeTemplate(found.data.content), version: found.data.version }
+export async function getTemplate(sb: Sb, userId: string, kind: DeckKind = DEFAULT_DECK_KIND): Promise<{ template: DeckTemplate; version: number; kind: DeckKind }> {
+  const found = checked(await sb.from('tourism_deck_templates').select('content,version').eq('user_id', userId).eq('kind', kind).eq('is_default', true).maybeSingle())
+  if (found.data) return { template: normalizeTemplate(found.data.content, kind), version: found.data.version, kind }
   const created = checked(
-    await sb.from('tourism_deck_templates').insert({ user_id: userId, content: DEFAULT_DECK_TEMPLATE }).select('content,version').single()
+    await sb.from('tourism_deck_templates').insert({ user_id: userId, kind, name: DECK_KIND_LABELS[kind], content: baseTemplateFor(kind) }).select('content,version').single()
   )
-  return { template: normalizeTemplate(created.data.content), version: created.data.version }
+  return { template: normalizeTemplate(created.data.content, kind), version: created.data.version, kind }
 }
 
-export async function saveTemplate(sb: Sb, userId: string, raw: unknown, version: number) {
-  const template = normalizeTemplate(raw)
-  const current = await getTemplate(sb, userId)
+export async function saveTemplate(sb: Sb, userId: string, raw: unknown, version: number, kind: DeckKind = DEFAULT_DECK_KIND) {
+  const template = normalizeTemplate(raw, kind)
+  const current = await getTemplate(sb, userId, kind)
   if (current.version !== version) throw new Error('Version conflict: il modello è stato cambiato altrove, ricarica.')
   const updated = checked(
     await sb
       .from('tourism_deck_templates')
       .update({ content: template, version: version + 1, updated_at: new Date().toISOString() })
       .eq('user_id', userId)
+      .eq('kind', kind)
       .eq('is_default', true)
       .eq('version', version)
       .select('content,version')
       .maybeSingle()
   )
   if (!updated.data) throw new Error('Version conflict: il modello è stato cambiato altrove, ricarica.')
-  return { template: normalizeTemplate(updated.data.content), version: updated.data.version as number }
+  return { template: normalizeTemplate(updated.data.content, kind), version: updated.data.version as number, kind }
 }
 
 // ---- Deck -----------------------------------------------------------------
@@ -96,6 +103,8 @@ export async function loadDeck(sb: Sb, userId: string, id: string): Promise<Deck
 }
 
 export type DeckFields = {
+  /** Base di partenza; senza, quella delle destinazioni. */
+  kind?: DeckKind
   destination: string
   input: DeckInput
   notes: string
@@ -107,7 +116,8 @@ export async function createDeck(sb: Sb, userId: string, fields: DeckFields, id?
     const entity = checked(await sb.from('tourism_entities').select('id').eq('user_id', userId).eq('id', fields.entity_id).maybeSingle())
     if (!entity.data) throw new TourismInputError('Ente non trovato')
   }
-  const { template } = await getTemplate(sb, userId)
+  const kind = fields.kind ?? DEFAULT_DECK_KIND
+  const { template } = await getTemplate(sb, userId, kind)
   const slides = applyVars(template, fields.input)
   const ente = fields.input.ente || fields.destination
   const row = checked(
@@ -117,6 +127,7 @@ export async function createDeck(sb: Sb, userId: string, fields: DeckFields, id?
         ...(id ? { id } : {}),
         user_id: userId,
         entity_id: fields.entity_id,
+        template_kind: kind,
         title: `${fields.destination} · ${ente}`.slice(0, 200),
         destination: fields.destination,
         input: fields.input,
@@ -288,11 +299,13 @@ export async function generateIntoDeck(sb: Sb, service: Sb, row: DeckRow, instru
   if (!claimed.data) claimed = checked(await claim().eq('status', 'generating').lt('updated_at', stale).select('id').maybeSingle())
   if (!claimed.data) throw new Error('Generazione già in corso per questa presentazione (already running)')
   try {
-    const { template } = await getTemplate(sb, row.user_id)
+    const kind = row.template_kind ?? DEFAULT_DECK_KIND
+    const { template } = await getTemplate(sb, row.user_id, kind)
     const { materials, skipped } = await loadMaterials(service, row)
     const entity = await entityContext(sb, row.user_id, row.entity_id)
     const result = await agent({
       template,
+      kind,
       input: row.input,
       notes: row.notes,
       entity,
@@ -350,7 +363,7 @@ export async function saveDeckEdits(
   const patch: Record<string, unknown> = {}
   if (Array.isArray(edits.slides)) {
     const ids = new Set(row.assets.filter((a) => a.kind === 'photo').map((a) => a.id))
-    const slides = edits.slides.slice(0, 12).map((s, i) => normalizeSlide(s, i))
+    const slides = edits.slides.slice(0, DECK_MAX_SLIDES).map((s, i) => normalizeSlide(s, i))
     patch.slides = slides.map((s) => ({ ...s, image_asset_id: s.image_asset_id && ids.has(s.image_asset_id) ? s.image_asset_id : null }))
     if (!slides.length) throw new TourismInputError('Serve almeno una slide')
   }
@@ -400,6 +413,7 @@ export type DeckView = {
   id: string
   title: string
   destination: string
+  template_kind: DeckKind
   entity_id: string | null
   entity_name: string | null
   status: DeckStatus
@@ -440,6 +454,7 @@ export async function toView(sb: Sb, service: Sb, row: DeckRow): Promise<DeckVie
     id: row.id,
     title: row.title,
     destination: row.destination,
+    template_kind: row.template_kind ?? DEFAULT_DECK_KIND,
     entity_id: row.entity_id,
     entity_name: entityName,
     status: row.status,

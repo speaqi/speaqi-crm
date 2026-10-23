@@ -2,9 +2,11 @@ import {
   DECK_TODO,
   applyVars,
   buildCorpus,
+  DEFAULT_DECK_KIND,
   guardGenerated,
   mergeGenerated,
   type DeckInput,
+  type DeckKind,
   type DeckSlide,
   type DeckTemplate,
   type DeckWarning
@@ -33,6 +35,8 @@ export type DeckEntityContext = {
 
 export type DeckAgentArgs = {
   template: DeckTemplate
+  /** Base da cui nasce la presentazione; senza, quella delle destinazioni. */
+  kind?: DeckKind
   input: DeckInput
   notes: string
   entity?: DeckEntityContext
@@ -53,6 +57,13 @@ export const DECK_SYSTEM_PROMPT = [
   'Mantieni gli id, il numero di voci e la struttura delle slide. Compila "note" solo dove la slide del modello ne ha una. Titolo massimo 90 caratteri, corpo 280, testo di una voce 160.',
   'Foto: scegli image_asset_id solo fra quelle elencate, solo se mostrano chiaramente la destinazione, una foto per slide al massimo e mai la stessa due volte. Altrimenti null.',
   'In "missing" elenca in breve i fatti che ti servirebbero e non hai trovato (per esempio il referente o i luoghi principali).'
+].join('\n')
+
+/** In più per la proposta di distribuzione: il destinatario porta i visitatori, non ha un territorio da raccontare. */
+export const DECK_DISTRIBUTION_PROMPT = [
+  'Questa è una proposta di partnership di distribuzione per chi porta o vende ai visitatori (compagnia di navigazione, tour operator, aeroporto, operatore di trasporto, rete di vendita): Speaqi costruisce e gestisce la guida, il partner la distribuisce ai propri clienti.',
+  'Il campo "destinazione" è la meta (o le mete) dei clienti del partner. Usa la parola con cui il partner chiama i suoi clienti (passeggeri, ospiti, viaggiatori) solo se sta nei materiali.',
+  'Non inventare numeri di clienti, passeggeri, fatturati, previsioni di ricavo o canali già attivi: i canali sono proposte da concordare. Percentuali, soglie e durata del pilota sono quelle del modello e restano indicative; cambiale solo se l’utente indica condizioni diverse.'
 ].join('\n')
 
 const ITEM_SCHEMA = {
@@ -89,6 +100,7 @@ export const DECK_OUTPUT_SCHEMA = {
 export function buildAgentRequest(args: DeckAgentArgs, model: string) {
   const base = applyVars(args.template, args.input)
   const brief = {
+    tipo_presentazione: args.kind ?? DEFAULT_DECK_KIND,
     destinazione: args.input.destinazione || null,
     ente: args.input.ente || null,
     paese: args.input.paese || null,
@@ -120,7 +132,7 @@ export function buildAgentRequest(args: DeckAgentArgs, model: string) {
     max_output_tokens: 6000,
     text: { format: { type: 'json_schema', name: 'tourism_deck', strict: true, schema: DECK_OUTPUT_SCHEMA } },
     input: [
-      { role: 'system', content: [{ type: 'input_text', text: DECK_SYSTEM_PROMPT }] },
+      { role: 'system', content: [{ type: 'input_text', text: args.kind === 'distribution' ? `${DECK_SYSTEM_PROMPT}\n${DECK_DISTRIBUTION_PROMPT}` : DECK_SYSTEM_PROMPT }] },
       { role: 'user', content }
     ]
   }

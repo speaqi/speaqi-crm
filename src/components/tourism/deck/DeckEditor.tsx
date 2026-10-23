@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
 import { createClient } from '@/lib/supabase'
-import { countTodo, type DeckSlide } from '@/lib/tourism-deck'
+import { countTodo, DECK_KIND_LABELS, type DeckSlide } from '@/lib/tourism-deck'
 import { formatMoney } from '@/lib/agency'
 import type { DeckView } from '@/lib/server/tourism-decks'
 import DeckPlayer from './DeckPlayer'
@@ -161,6 +161,7 @@ export default function DeckEditor({ id }: { id: string }) {
           <Link href="/tourism" className={e.help}>← Tourism Intelligence · Presentazioni</Link>
           <h1>{deck.title}</h1>
           <span className={e.status} data-s={deck.status}>{DECK_STATUS_LABELS[deck.status]}</span>{' '}
+          <span className={e.tag}>{DECK_KIND_LABELS[deck.template_kind]}</span>{' '}
           {deck.entity_name && <span className={e.help}>Ente: {deck.entity_name}</span>}
         </div>
         <div className={e.bar}>

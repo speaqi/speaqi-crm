@@ -37,7 +37,7 @@ function fixture(){
   const order:string[]=[]
   const db=new FakeSupabase({tourism_entities:[{id:ENTITY,user_id:'owner',kind:'organization',name:'Ente Marsiglia',country_code:'FR',status:'VERIFIED',details:{}},
     {id:DEST,user_id:'owner',kind:'place',name:'Marsiglia',country_code:'FR',status:'VERIFIED',details:{}}],tourism_evidence:[],
-    tourism_deck_templates:[{user_id:'owner',is_default:true,version:1,content:DEFAULT_DECK_TEMPLATE}],office_presentation_tasks:[],tourism_decks:[],office_agent_outputs:[]}, {
+    tourism_deck_templates:[{user_id:'owner',kind:'destination',is_default:true,version:1,content:DEFAULT_DECK_TEMPLATE}],office_presentation_tasks:[],tourism_decks:[],office_agent_outputs:[]}, {
     claim_office_presentation(args){order.push('claim');const old=db.tables.office_presentation_tasks[0];if(old)return{claimed:false,task:old}
       const task={id:'task',user_id:'owner',state:'claimed',email_prepared_at:null};db.tables.office_presentation_tasks.push(task);return{claimed:true,task}},
     finish_office_presentation(){order.push('finish');db.tables.office_presentation_tasks[0].state='ready';return'output'},
