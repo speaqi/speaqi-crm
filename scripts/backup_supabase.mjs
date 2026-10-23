@@ -36,6 +36,8 @@ const DEFAULT_TABLES = [
   'receivables',
   // Registro, bozze e spesa dell'ufficio.
   'office_agents',
+  'office_agency_items',
+  'office_agency_deliveries',
   'office_events',
   'office_event_batches',
   'office_news_batches',

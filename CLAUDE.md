@@ -785,9 +785,11 @@ migration `commercial_*`. `tests/db.sh stop` lo spegne.
   solo testo e senza strumenti esterni. Prenota il massimo stimato prima della
   chiamata e salda con i token restituiti. Il listino puro `office-pricing.ts`
   comprende `gpt-5-mini` (USD 0,25 ingresso / 2 uscita per milione di token,
-  verificato sul sito OpenAI il 22/10/2026). Modello sconosciuto -> stop.
+  verificato sul sito OpenAI il 22/10/2026) e `gpt-5.1`/snapshot `gpt-5.1-2025-11-13`
+  (USD 1,25 ingresso / 0,125 cache / 10 uscita per milione, verificato il
+  23/10/2026 su https://developers.openai.com/api/docs/models/gpt-5.1). Modello sconosciuto -> stop.
   `OFFICE_USD_TO_EUR` converte in EUR (default prudente 1, non cambio live, fino a sei decimali), ogni
-  chiamata arrotondata al centesimo superiore; cache prenotata al prezzo pieno e saldata a USD 0,025 per milione di token. Timeout,
+  chiamata arrotondata al centesimo superiore; cache prenotata al prezzo pieno e saldata al listino del modello (USD 0,025 per milione per `gpt-5-mini`). Timeout,
   errore HTTP o usage assente lasciano la riserva impegnata e la corsa in errore:
   il fornitore potrebbe avere gia' fatturato. Da riconciliare manualmente prima
   di liberarla; nessun ritentativo automatico di chiamate dall'esito incerto.
@@ -1258,3 +1260,66 @@ Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script 
   si salta. Riga tipo «Capri: 11 lingue, testi 1.240/1.260, audio 980/1.260, speso 9,40 € (stima)».
 - Nessuna migration. Test: `office-languages.unit.test.ts` (coda e Napoli, budget tutto/solo
   testi/niente, outdated solo su approvazione e una volta, niente rilancio senza progressi, installazione).
+
+
+## Ufficio — Agenzia (Agente 13)
+
+- `agency`, reparto **Agenzia** (`agenzia`), nasce spento. Job `office-agency`
+  nei feriali alle **08:15 Europe/Rome**, anche con ora legale; corsa manuale
+  in `/ufficio/agenti`. Budget iniziali **200/1000/4000 centesimi**
+  giorno/settimana/mese. Modello da `agencyModel()` / `OPENAI_AGENCY_MODEL`,
+  default `gpt-5.1`: nessun fallback a un modello senza listino.
+- `settings.queue`: `[{"agency_project_id":"UUID"}]` oppure
+  `[{"contact_id":"UUID","brief":"testo","services":["sito","branding"]}]`.
+  La alimentano il titolare e il Direttore operativo (Prompt 14). Massimo
+  **due elementi lavorati per corsa**; elementi già completati non affamano
+  quelli successivi. Formati invalidi sono segnalati nel rapporto quotidiano.
+- Riusa `createProject` (cliente CRM, `getOpenDeal`, categorie esistenti da
+  `listCategories`, brief senza riscrittura), `createPresentation`,
+  `claimGeneration` e `runGeneration`. Nessun contatto nuovo. Il callback
+  passa sempre da **`callModel` della base comune**, con riserva prima
+  e saldo sui token dopo. Schema e guardie restano quelli di Agency:
+  importi e percentuali non attestati diventano `[DA VERIFICARE]`,
+  la slide investimento legge esclusivamente il preventivo collegato.
+  Limite Ufficio di 12.000 token in uscita: la riserva ordinaria entra
+  nel budget giornaliero iniziale; brief grandi possono richiedere più budget.
+- Come Presentazioni (09), il trasporto Ufficio è solo testo: PDF, foto e
+  loghi non vengono scaricati né passati al modello e sono segnalati come
+  materiali da verificare a mano. Nessuna chiamata alle API delle mappe,
+  nemmeno se il brief cita mappe Speaqi o Napoli.
+- Presentazione pronta: uscita `report` con titolo, link
+  `/agency/presentazioni/<id>`, conteggio e posizione dei segnaposto,
+  preventivo mancante e link `/preventivi?agency_project=<id>` per crearlo.
+  Approvare il rapporto non approva la presentazione. Soltanto dopo
+  l'approvazione umana in Agency (`approved_at`) e preventivo collegato
+  `sent`/`accepted` prepara una bozza con `/proposta/<token>`. Non crea
+  né modifica preventivi, non approva e non invia.
+- Giro gratuito anche a coda vuota: opportunità per stato, presentazioni
+  da approvare, opportunità aperte ferme oltre 10 giorni senza attività,
+  preventivi Agency inviati senza risposta da oltre 7 giorni. Firme e
+  pagamenti escludono i follow-up. Testo deterministico senza modello,
+  massimo **5 nuove bozze al giorno** (quota atomica Europe/Rome).
+  Consegna della proposta approvata in coda prima del relativo follow-up.
+  Riusa `create_office_email_draft` di Finanza/Commerciale: controllo
+  proprietario, scope CRM, nascosti/disiscritti, risposta Gmail anche su
+  indirizzo gemello e bozza pending sullo stesso indirizzo normalizzato.
+  Tutte le bozze sono `source=office`, `status=pending`, visibili in Email
+  e **Aspetta te** tramite l'uscita `draft_email`.
+- Migration **`20261023154445_office_agency.sql`**, dopo Agency e base Ufficio,
+  da applicare prima del codice. Estende il CHECK dei reparti con `agenzia`
+  e `sviluppo`; nessuna modifica a `scripts/ufficio/`.
+  `office_agency_items` riserva gli UUID di progetto e presentazione prima
+  delle creazioni, con chiavi corsa/elemento/passo. Il claim della generazione
+  e quello della presentazione impediscono partenze concorrenti. Un budget
+  negato prima del provider è riprendibile; tentativi in corso o incerti
+  richiedono riconciliazione manuale e non vengono ripagati dal cron.
+  `office_agency_deliveries` conserva la consegna anche dopo eliminazione
+  o invio della bozza; la quota giornaliera non dipende dalle bozze rimaste.
+  Tabelle incluse nei due backup, RLS di lettura del proprietario, scritture
+  e RPC solo service role, controlli di corsa attiva e `search_path` fisso.
+- Test `node:test` + `tsx`: `tests/office-agency.unit.test.ts` esercita
+  la pipeline Agency vera con modello simulato, ordine riserva/provider/saldo,
+  budget, retry, limiti, guardie, approvazione umana e rapporto gratuito.
+  `tests/office-agency.db.test.ts` applica i DDL reali a Postgres locale
+  usa-e-getta: reparti, prenotazioni concorrenti, idempotenza fra corse,
+  vincoli sulle bozze, quota di cinque, risposte, RLS e privilegi RPC.
