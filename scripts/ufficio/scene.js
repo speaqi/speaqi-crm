@@ -32,7 +32,7 @@ let snapshot = null, focused = null, selected = null, light = romeHour() >= 7 &&
 let renderer, labels, scene, camera, controls, root, sun, hemi, resizeObserver, signature = ''
 let tween = null, stageWidth = 1, stageHeight = 1, lastFrame = 0, lastInteraction = 0, clockStart = performance.now()
 let webglFailed = false, down = null, dirty = true, hovered = null
-let pickables = [], pavilions = [], persons = [], spinners = [], trees = [], flags = [], lamps = [], screens = [], roomLights = []
+let pickables = [], pavilions = [], persons = [], spinners = [], trees = [], flags = [], lamps = [], screens = [], roomLights = [], hqWindows = [], hq = null
 let packets = [], kiosk = null, fountain = null, clouds = [], gulls = [], stars = null, bounds = { center: new THREE.Vector3(), radius: 30 }
 const tex = {}
 $('brand-logo').src = LOGO_WHITE
@@ -346,19 +346,29 @@ function buildPavilion(sector, index, place) {
   const working = sector.agents.filter((a) => a.status === 'running').length
   el.innerHTML = `<i></i>${esc(sector.name)}<b>${working ? `● ${working} al lavoro` : `${sector.agents.length} ${sector.agents.length === 1 ? 'agente' : 'agenti'}`}</b>`
   el.onclick = () => focusDepartment(focused === sector.id ? null : sector.id)
-  const tag = new CSS2DObject(el); tag.position.set(0, H + (sector.id === 'direzione' ? 3.2 : 1.6), d / 2); g.add(tag)
+  const tag = new CSS2DObject(el); tag.position.set(0, H + 1.6, d / 2); g.add(tag)
   pavilions.push({ id: sector.id, sector, group: g, ring, tag, w, d, center: new THREE.Vector3(), yaw: place.yaw, people })
+}
+// Una bandiera Speaqi che sventola (Commerciale e ingresso della sede).
+function flagPole(parent, x, y, z, color, tone, height = 2.2) {
+  cyl(parent, 0.04, 0.04, height, x, y + height / 2, z, '#d5d9e0', 8)
+  const flagGeo = new THREE.PlaneGeometry(1.3, 0.8, 16, 6)
+  flagGeo.translate(0.65, 0, 0)
+  const flag = new THREE.Mesh(flagGeo, new THREE.MeshStandardMaterial({ color, side: THREE.DoubleSide, roughness: 0.7 }))
+  flag.position.set(x + 0.04, y + height - 0.4, z); flag.castShadow = true; parent.add(flag)
+  const icon = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.39), new THREE.MeshBasicMaterial({ map: tex[`icon-${tone}`], transparent: true, depthWrite: false, side: THREE.DoubleSide }))
+  icon.position.set(0.6, 0, 0.01); flag.add(icon)
+  flags.push({ mesh: flag, base: flagGeo.attributes.position.array.slice(), icon })
 }
 function roofProp(id, g, w, d) {
   const top = H + 0.2
   if (id === 'direzione') {
-    // L'insegna Speaqi sopra la Direzione.
-    for (const x of [-1.9, 1.9]) cyl(g, 0.06, 0.06, 1.2, x, top + 0.6, -0.4, '#8b97a8', 8)
-    box(g, 5.2, 1.5, 0.2, 0, top + 1.75, -0.4, BRAND.navy)
-    const logo = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 4.4 * 470 / 2000), new THREE.MeshBasicMaterial({ map: tex['full-white'], transparent: true, toneMapped: false, depthWrite: false }))
-    logo.position.set(0, top + 1.75, -0.29); g.add(logo)
-    const beacon = mesh(new THREE.SphereGeometry(0.12, 12, 8), new THREE.MeshBasicMaterial({ color: BRAND.orange, toneMapped: false }), g, 2.45, top + 2.6, -0.4, false)
-    spinners.push({ o: beacon, kind: 'blink' })
+    // Terrazza della Direzione: ombrellone arancione e due sdraio. L'insegna Speaqi sta sulla sede, dietro.
+    cyl(g, 0.04, 0.04, 1.8, w / 2 - 1.6, top + 0.9, -0.2, '#f2f2ee', 8)
+    const shade = mesh(new THREE.ConeGeometry(1.15, 0.42, 18), std(BRAND.orange, { roughness: 0.6 }), g, w / 2 - 1.6, top + 1.8, -0.2)
+    spinners.push({ o: shade, kind: 'spinY', speed: 0.08 })
+    for (const dx of [-0.75, 0.75]) { const c = box(g, 0.5, 0.12, 1.1, w / 2 - 1.6 + dx, top + 0.35, 0.5, '#f4f6fb'); c.rotation.x = -0.25 }
+    box(g, 3.6, 0.05, 2.6, w / 2 - 1.8, top + 0.12, 0, '#d9c3a0')
   } else if (id === 'mappe') {
     const globe = new THREE.Group(); globe.position.set(w / 2 - 1.3, top + 1.15, -d / 2 + 1.3); g.add(globe)
     cyl(g, 0.05, 0.25, 0.5, w / 2 - 1.3, top + 0.25, -d / 2 + 1.3, '#8b97a8', 12)
@@ -381,14 +391,7 @@ function roofProp(id, g, w, d) {
     mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color: '#8fe3ff', toneMapped: false }), head, 0, 0.55, 0.85, false)
     spinners.push({ o: mount, kind: 'sweep', speed: 0.4 })
   } else if (id === 'commerciale') {
-    cyl(g, 0.04, 0.04, 2.2, -w / 2 + 0.8, top + 1.1, -d / 2 + 0.8, '#d5d9e0', 8)
-    const flagGeo = new THREE.PlaneGeometry(1.3, 0.8, 16, 6)
-    flagGeo.translate(0.65, 0, 0)
-    const flag = new THREE.Mesh(flagGeo, new THREE.MeshStandardMaterial({ color: '#ffffff', side: THREE.DoubleSide, roughness: 0.7 }))
-    flag.position.set(-w / 2 + 0.84, top + 1.8, -d / 2 + 0.8); flag.castShadow = true; g.add(flag)
-    const icon = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.39), new THREE.MeshBasicMaterial({ map: tex['icon-navy'], transparent: true, depthWrite: false, side: THREE.DoubleSide }))
-    icon.position.set(0.6, 0, 0.01); flag.add(icon)
-    flags.push({ mesh: flag, base: flagGeo.attributes.position.array.slice(), icon })
+    flagPole(g, -w / 2 + 0.8, top, -d / 2 + 0.8, '#ffffff', 'navy')
   } else if (id === 'finanza') {
     const coin = new THREE.Group(); coin.position.set(w / 2 - 1.1, top + 1.0, -d / 2 + 1.1); g.add(coin)
     const face = mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.1, 32), std('#f2c14e', { metalness: 0.75, roughness: 0.25 }), coin)
@@ -433,6 +436,79 @@ function roofProp(id, g, w, d) {
     gear(0.32, 7, w / 2 - 0.68, -d / 2 + 0.8, -0.7 * 0.5 / 0.32 * 1.05, BRAND.blue)
     box(g, 2.1, 0.35, 0.3, w / 2 - 1.1, top + 0.18, -d / 2 + 0.8, '#5a6170')
   }
+}
+
+
+/* ---------- la sede Speaqi ---------- */
+const HQ = { w: 13, d: 7.5, floors: 6, floorH: 2.6 }
+// Facciata a vetri: di giorno il riflesso del cielo, di sera alcune finestre accese.
+function facadeTextures(cols, floors, seed) {
+  const r = rng(seed), cw = 64, fh = 96
+  const draw = (lit) => canvasTexture(cols * cw, floors * fh, (ctx) => {
+    for (let f = 0; f < floors; f++) for (let c = 0; c < cols; c++) {
+      const x = c * cw, y = f * fh
+      if (lit) {
+        ctx.fillStyle = '#000'; ctx.fillRect(x, y, cw, fh)
+        if (r() < 0.55) { ctx.fillStyle = r() < 0.8 ? '#ffd9a0' : '#bfe0ff'; ctx.fillRect(x + 4, y + 8, cw - 8, fh - 18) }
+      } else {
+        const g = ctx.createLinearGradient(x, y, x + cw, y + fh)
+        g.addColorStop(0, '#cfe6f3'); g.addColorStop(0.55, '#7fa9c4'); g.addColorStop(1, '#5b84a3')
+        ctx.fillStyle = '#2b3446'; ctx.fillRect(x, y, cw, fh)
+        ctx.fillStyle = g; ctx.fillRect(x + 4, y + 8, cw - 8, fh - 18)
+        ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(x + 8, y + 12, 6, fh - 30)
+      }
+    }
+  })
+  return { map: draw(false), emissive: draw(true) }
+}
+function buildHQ(x, y, z) {
+  const g = new THREE.Group(); g.position.set(x, y, z); root.add(g)
+  const { w, d, floors, floorH } = HQ, bodyH = floors * floorH
+  // Piazzale in pietra con le bandiere.
+  box(g, w + 6, 0.05, 4.2, 0, 0.03, d / 2 + 2.1, '#ebe4d3').castShadow = false
+  for (const fx of [-3.2, -1.6, 1.6, 3.2]) flagPole(g, fx, 0, d / 2 + 3.4, fx < 0 ? '#ffffff' : BRAND.navy, fx < 0 ? 'navy' : 'white', 3.2)
+  // Atrio vetrato e pensilina.
+  box(g, w - 1.2, floorH, d - 1.2, 0, floorH / 2, 0, std('#a9cfe3', { transparent: true, opacity: 0.55, roughness: 0.1, metalness: 0.3 }))
+  box(g, 4.2, 0.18, 2.2, 0, floorH - 0.25, d / 2 + 0.6, BRAND.navy)
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) cyl(g, 0.16, 0.16, floorH, sx * (w / 2 - 0.4), floorH / 2, sz * (d / 2 - 0.4), '#f2f2ee', 12)
+  // Il corpo: vetro su quattro lati, solai bianchi a ogni piano.
+  const cols = Math.round(w / 1.1), side = Math.round(d / 1.1)
+  const front = facadeTextures(cols, floors - 1, 3), flank = facadeTextures(side, floors - 1, 9)
+  const glass = (t) => new THREE.MeshStandardMaterial({ map: t.map, emissiveMap: t.emissive, emissive: '#ffffff', emissiveIntensity: 0, roughness: 0.22, metalness: 0.35 })
+  const fm = glass(front), sm = glass(flank)
+  hqWindows.push(fm, sm)
+  const roofMat = std('#dfe3e8')
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, bodyH - floorH, d), [sm, sm, roofMat, roofMat, fm, fm])
+  body.position.y = floorH + (bodyH - floorH) / 2; body.castShadow = true; body.receiveShadow = true; g.add(body)
+  for (let f = 1; f <= floors; f++) box(g, w + 0.5, 0.18, d + 0.5, 0, f * floorH, 0, '#f4f4f0')
+  // Lame verticali sulla facciata: il ritmo dell'edificio.
+  for (let k = 0; k <= 6; k++) box(g, 0.14, bodyH - floorH, 0.3, -w / 2 + k * w / 6, floorH + (bodyH - floorH) / 2, d / 2 + 0.12, '#f4f4f0')
+  // Ascensore di vetro sul fianco, che sale e scende.
+  const shaftX = w / 2 + 0.75
+  box(g, 1.2, bodyH + 0.6, 1.4, shaftX, (bodyH + 0.6) / 2, 0.8, std('#cfe9f5', { transparent: true, opacity: 0.25, roughness: 0.05, depthWrite: false })).castShadow = false
+  for (const sx of [-0.6, 0.6]) for (const sz of [-0.7, 0.7]) box(g, 0.06, bodyH + 0.6, 0.06, shaftX + sx, (bodyH + 0.6) / 2, 0.8 + sz, '#2b3446')
+  const cabin = new THREE.Group(); cabin.position.set(shaftX, 0.2, 0.8); g.add(cabin)
+  box(cabin, 1.0, 1.9, 1.2, 0, 0.95, 0, std('#f7f2e6', { emissive: '#ffd79a', emissiveIntensity: 0.25 }))
+  box(cabin, 0.9, 0.06, 1.1, 0, 1.92, 0, BRAND.orange)
+  spinners.push({ o: cabin, kind: 'lift', low: 0.2, high: bodyH - 1.9 })
+  // Coronamento: piano arretrato, insegna Speaqi grande e luce di segnalazione.
+  const topY = bodyH + 0.1
+  box(g, w - 3, 1.6, d - 2.4, 0, topY + 0.8, -0.3, '#2b3446')
+  const signW = w * 0.82, signH = signW * 470 / 2000 + 0.9
+  for (const sx of [-1, 1]) box(g, 0.2, 1.8, 0.2, sx * (signW / 2 - 0.8), topY + 0.9, d / 2 - 0.6, '#5a6170')
+  box(g, signW, signH, 0.3, 0, topY + 1.7 + signH / 2, d / 2 - 0.6, BRAND.navy)
+  const logo = new THREE.Mesh(new THREE.PlaneGeometry(signW - 0.9, (signW - 0.9) * 470 / 2000), new THREE.MeshBasicMaterial({ map: tex['full-white'], transparent: true, toneMapped: false, depthWrite: false }))
+  logo.position.set(0, topY + 1.7 + signH / 2, d / 2 - 0.44); g.add(logo)
+  // Retro dell'insegna: si legge anche girando intorno al campus.
+  const back = logo.clone(); back.position.z = d / 2 - 0.76; back.rotation.y = Math.PI; g.add(back)
+  const beacon = mesh(new THREE.SphereGeometry(0.22, 12, 8), new THREE.MeshBasicMaterial({ color: BRAND.orange, toneMapped: false }), g, signW / 2 - 0.3, topY + 2.0 + signH, d / 2 - 0.6, false)
+  spinners.push({ o: beacon, kind: 'blink' })
+  // Luce dell'insegna di sera.
+  const glow = new THREE.PointLight('#9fb7ff', 0, 14, 1.5); glow.position.set(0, topY + 1.7 + signH / 2, d / 2 + 1.5); g.add(glow); roomLights.push(glow)
+  const tag = document.createElement('div'); tag.className = 'hq-tag'; tag.textContent = 'Sede Speaqi'
+  const label = new CSS2DObject(tag); label.position.set(0, topY + 2.6 + signH, d / 2 - 0.6); g.add(label)
+  hq = { group: g, top: topY + 2.2 + signH, x, z }
+  return hq
 }
 
 /* ---------- comportamento ---------- */
@@ -591,7 +667,9 @@ function path(parent, from, to, y, width = 1.1) {
 function buildCampus() {
   const L = layoutCampus()
   const W = L.maxX - L.minX, cx = (L.minX + L.maxX) / 2
-  const zFront = 13.5, zBack = BACK_Z - 5.6, D = zFront - zBack
+  const dirD = L.places.direzione ? L.places.direzione.size.d : 5
+  const hqZ = BACK_Z - dirD / 2 - 4.6 - HQ.d / 2
+  const zFront = 13.5, zBack = hqZ - HQ.d / 2 - 4.2, D = zFront - zBack
   // Isola: prato, bordo in pietra, fianchi di terra.
   slab(root, W, D, 2.4, 3.2, cx, 0, (zFront + zBack) / 2, '#a3c98f', '#7b6650')
   // Terrazza della Direzione con muro in pietra e scalinata.
@@ -605,6 +683,14 @@ function buildCampus() {
   for (let x = L.minX + 1.8; x < L.maxX - 1.8; x += 0.75) if (Math.abs(x) > 2.8) {
     const hedge = mesh(new THREE.IcosahedronGeometry(0.42, 0), std(x % 1.5 > 0.7 ? '#4f8a52' : '#5f9a5c', { flatShading: true }), root, x, TERRACE + 0.3, WALL_Z - 0.35)
     hedge.scale.set(1.1, 0.75, 0.9)
+  }
+  // La sede Speaqi dietro la Direzione, con i viali che la collegano alla terrazza.
+  buildHQ(0, TERRACE, hqZ)
+  for (const sx of [-1, 1]) {
+    const ex = sx * ((L.places.direzione ? L.places.direzione.size.w / 2 : 3) + 1.2)
+    path(root, new THREE.Vector3(ex, 0, WALL_Z - 1.6), new THREE.Vector3(ex, 0, hqZ + HQ.d / 2 + 1.2), TERRACE, 1.1)
+    path(root, new THREE.Vector3(ex, 0, hqZ + HQ.d / 2 + 1.2), new THREE.Vector3(sx * 3.4, 0, hqZ + HQ.d / 2 + 2.6), TERRACE, 1.1)
+    lamp(root, sx * (HQ.w / 2 + 3.4), TERRACE, hqZ + HQ.d / 2 + 2.2)
   }
   // Piazza con fontana e "Aspetta te".
   const plazaZ = 6.6
@@ -629,6 +715,7 @@ function buildCampus() {
     if (Math.hypot(x, z - plazaZ) < PLAZA + 0.8) return true
     if (z > WALL_Z - 1.8 && z < WALL_Z + 0.8) return true
     if (y > 0 && z > WALL_Z - 2.2) return true
+    if (Math.abs(x) < HQ.w / 2 + 4.2 && z > hqZ - HQ.d / 2 - 1.5 && z < hqZ + HQ.d / 2 + 5) return true
     for (const p of Object.values(L.places)) {
       const dx = x - p.x, dz = z - p.z, c = Math.cos(-p.yaw), s = Math.sin(-p.yaw)
       const lx = dx * c - dz * s, lz = dx * s + dz * c
@@ -638,7 +725,7 @@ function buildCampus() {
     }
     return false
   }
-  for (let x = L.minX + 1.4; x <= L.maxX - 1.4; x += 1.25) tree(root, x + (r() - 0.5) * 0.3, TERRACE, zBack + 0.9 + r() * 0.4, 'cypress', r)
+  for (let x = L.minX + 1.4; x <= L.maxX - 1.4; x += 1.25) if (Math.abs(x) > HQ.w / 2 + 2.6) tree(root, x + (r() - 0.5) * 0.3, TERRACE, zBack + 0.9 + r() * 0.4, 'cypress', r)
   let placed = 0
   for (let i = 0; i < 400 && placed < 34; i++) {
     const x = L.minX + 1.2 + r() * (W - 2.4), z = zBack + 2.2 + r() * (D - 3.6)
@@ -648,7 +735,7 @@ function buildCampus() {
     const edge = Math.abs(x) > W / 2 - 6
     tree(root, x, y, z, edge && r() < 0.5 ? 'pine' : 'round', r); placed++
   }
-  bounds = { center: new THREE.Vector3(cx, 1.2, (zFront + zBack) / 2 - 1), W, D, plazaZ }
+  bounds = { center: new THREE.Vector3(cx, 3, (zFront + zBack) / 2 - 1), W, D, plazaZ }
 }
 function buildFountain(at) {
   const g = new THREE.Group(); g.position.copy(at); root.add(g)
@@ -747,7 +834,7 @@ function init3D() {
     sun = new THREE.DirectionalLight('#fff1d8', 3.4)
     sun.position.set(-26, 42, 30); sun.castShadow = true
     sun.shadow.mapSize.set(2048, 2048)
-    Object.assign(sun.shadow.camera, { left: -42, right: 42, top: 42, bottom: -42, near: 5, far: 140 })
+    Object.assign(sun.shadow.camera, { left: -46, right: 46, top: 46, bottom: -46, near: 5, far: 160 })
     sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03
     scene.add(sun); scene.add(sun.target)
     const fill = new THREE.DirectionalLight('#a9c9e3', 0.9); fill.position.set(25, 18, -20); scene.add(fill)
@@ -781,6 +868,7 @@ function applyLight() {
   renderer.toneMappingExposure = night ? 1.05 : 1.0
   for (const m of lamps) m.emissiveIntensity = night ? 2.6 : 0
   for (const l of roomLights) l.intensity = night ? 14 : 0
+  for (const m of hqWindows) m.emissiveIntensity = night ? 1.3 : 0
   if (stars) stars.visible = night
   document.querySelector('.viewport').dataset.light = light
   dirty = true
@@ -808,7 +896,7 @@ function buildOffice() {
   const key = structureKey()
   if (key === signature && root) { updateKiosk(); updateFocus(); return }
   signature = key
-  disposeRoot(); pickables = []; pavilions = []; persons = []; spinners = []; trees = []; flags = []; screens = []; roomLights = []
+  disposeRoot(); pickables = []; pavilions = []; persons = []; spinners = []; trees = []; flags = []; screens = []; roomLights = []; hqWindows = []; hq = null
   lamps = []
   root = new THREE.Group(); scene.add(root)
   buildCampus()
@@ -870,6 +958,7 @@ function moveCamera(instant = false) {
     dir = new THREE.Vector3(0.3, 0.56, 1).normalize()
     points = pavilions.flatMap((p) => corners(p.group.position.x, p.group.position.z, p.w, p.d, p.group.position.y, p.group.position.y + H + 0.8, p.yaw))
       .concat(corners(0, bounds.plazaZ, PLAZA * 2, PLAZA * 2, 0, 2))
+      .concat(hq ? corners(hq.x, hq.z, HQ.w, HQ.d, TERRACE, TERRACE + hq.top) : [])
   }
   const pos = target.clone().addScaledVector(dir, fitDistance(target, dir, points, pav ? 0.82 : 0.94) * scale)
   if (instant || reduceMotion) { camera.position.copy(pos); controls.target.copy(target); tween = null; controls.update() }
@@ -950,6 +1039,7 @@ function step(t, dt) {
     else if (s.kind === 'spinZ') s.o.rotation.z = t * s.speed
     else if (s.kind === 'sweep') s.o.rotation.y = Math.sin(t * s.speed) * (s.range || 1.1)
     else if (s.kind === 'blink') s.o.visible = Math.sin(t * 4) > -0.2
+    else if (s.kind === 'lift') { const f = (Math.sin(t * 0.35) + 1) / 2; s.o.position.y = s.low + (s.high - s.low) * (f * f * (3 - 2 * f)) }
     else if (s.kind === 'rise') {
       const f = (t * 0.28 + s.phase) % 1
       s.o.position.set(s.base.x + Math.sin(f * 9 + s.phase * 6) * 0.25, s.base.y + f * 2.2, s.base.z)
