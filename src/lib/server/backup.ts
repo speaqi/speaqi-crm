@@ -48,6 +48,8 @@ export const BACKUP_TABLES = [
   'receivables',
   // Registro, bozze e spesa dell'ufficio.
   'office_agents',
+  'office_social_batches',
+  'office_social_snapshots',
   'office_agent_runs',
   'office_agent_outputs',
   'office_budget_ledger',

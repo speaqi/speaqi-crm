@@ -47,12 +47,12 @@ schema() {
 
 case "${1:-reset}" in
   start) start ;;
-  reset)
+  reset|reset-office)
     start
     "$PGBIN/psql" -h "$PGHOST" -p "$PGPORT" -U postgres -d postgres -v ON_ERROR_STOP=1 -q -c "drop database if exists $DB_NAME" >/dev/null
     "$PGBIN/psql" -h "$PGHOST" -p "$PGPORT" -U postgres -d postgres -v ON_ERROR_STOP=1 -q -c "create database $DB_NAME" >/dev/null
-    schema "$DB_NAME"
+    if [[ "${1:-reset}" = reset ]]; then schema "$DB_NAME"; fi
     ;;
   stop) as_postgres "$PGBIN/pg_ctl" -D "$PGDIR" -m fast stop >/dev/null ;;
-  *) echo 'uso: tests/db.sh [start|reset|stop] [database_test]' >&2; exit 2 ;;
+  *) echo 'uso: tests/db.sh [start|reset|reset-office|stop] [database_test]' >&2; exit 2 ;;
 esac
