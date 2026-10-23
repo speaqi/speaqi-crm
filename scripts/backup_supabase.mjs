@@ -34,6 +34,11 @@ const DEFAULT_TABLES = [
   'user_settings',
   'quote_signatures',
   'receivables',
+  // Registro, bozze e spesa dell'ufficio.
+  'office_agents',
+  'office_agent_runs',
+  'office_agent_outputs',
+  'office_budget_ledger',
   'tourism_taxonomy',
   'tourism_entities',
   'tourism_evidence',

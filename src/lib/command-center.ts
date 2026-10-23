@@ -35,7 +35,7 @@ export type MoneyInvoice = {
 }
 
 export type WaitingItem = {
-  kind: 'invoice_draft' | 'invoice_problem' | 'presentation' | 'deck' | 'unsigned' | 'past_due' | 'to_invoice'
+  kind: 'office_output' | 'invoice_draft' | 'invoice_problem' | 'presentation' | 'deck' | 'unsigned' | 'past_due' | 'to_invoice'
   title: string
   detail: string
   href: string
@@ -159,6 +159,7 @@ export function buildWaiting(input: {
   decks: Array<{ id: string; title: string; status: string; destination?: string | null }>
   pastDue: Array<{ id: string; label: string; contact_id: string | null }>
   toInvoiceCount: number
+  officeOutputs?: Array<{ id: string; title: string; status: string; agent_id: string }>
 }): WaitingItem[] {
   const items: WaitingItem[] = []
   for (const q of input.pastDue) {
@@ -180,6 +181,9 @@ export function buildWaiting(input: {
   }
   for (const d of input.decks) {
     if (d.status === 'ready') items.push({ kind: 'deck', title: `Presentazione da approvare: ${d.title}`, detail: d.destination ? `Destinazione ${d.destination}` : 'Tourism', href: '/tourism', tone: 'act' })
+  }
+  for (const output of input.officeOutputs || []) {
+    if (output.status === 'pending') items.push({ kind: 'office_output', title: output.title, detail: `Ufficio · ${output.agent_id}`, href: `/ufficio#uscita-${output.id}`, tone: 'act' })
   }
   const order: Record<WaitingItem['tone'], number> = { bad: 0, warn: 1, act: 2 }
   return items.sort((a, b) => order[a.tone] - order[b.tone])

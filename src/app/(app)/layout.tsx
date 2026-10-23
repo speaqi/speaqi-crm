@@ -94,7 +94,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <CRMContext.Provider value={contextValue}>
-      <div className={`app-layout${pathname === '/tourism' ? ' tourism-layout' : ''}`}>
+      <div className={`app-layout${pathname === '/tourism' ? ' tourism-layout' : pathname === '/ufficio' ? ' office-layout' : ''}`}>
         <Sidebar counts={counts} allowedAreas={crm.allowedAreas} isAdmin={crm.isAdmin} />
         <div className="app-main">
           <Topbar

@@ -7322,3 +7322,18 @@ textarea.form-input::placeholder { color: var(--text3); }
 .sc-inline-form input { flex: 1 1 180px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; }
 .sc-inline-form select { padding: 6px; border: 1px solid var(--border); border-radius: 4px; }
 @media (max-width: 900px) { .sc-grid { grid-template-columns: 1fr; } .sc-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Ufficio sul telefono: il menu resta su una riga, il lavoro si vede subito. */
+@media (max-width: 860px) {
+  .office-layout .sidebar { height: auto; }
+  .office-layout .sidebar-logo, .office-layout .sidebar-cta,
+  .office-layout .nav-section, .office-layout .sidebar-settings { display: none; }
+  .office-layout .nav { flex-direction: row; overflow-x: auto; padding: 8px; }
+  .office-layout .nav-group { flex-direction: row; }
+  .office-layout .nav-item { flex-shrink: 0; white-space: nowrap; }
+  .office-layout .topbar { padding: 10px 12px; gap: 8px; flex-wrap: wrap; }
+  .office-layout .topbar-user { display: none; }
+  .office-layout .topbar-title { font-size: 13px; }
+  .office-layout .topbar-actions { gap: 5px; }
+  .office-layout .topbar-actions .btn { font-size: 11px; padding: 6px 8px; }
+}

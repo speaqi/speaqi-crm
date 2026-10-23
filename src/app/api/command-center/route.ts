@@ -1,3 +1,4 @@
+import { loadOfficeOverview } from '@/lib/server/office-overview'
 import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
 import { requireWorkspaceOwner } from '@/lib/server/owner-auth'
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
   const { admin, userId } = auth
 
   try {
-    const [quotesRes, invoicesRes, presentationsRes, decksRes, dealsRes, maps] = await Promise.all([
+    const [quotesRes, invoicesRes, presentationsRes, decksRes, dealsRes, maps, officeResult] = await Promise.all([
       admin
         .from('quotes')
         .select('id, quote_number, title, customer_name, customer_company, contact_id, status, payment_state, total_amount, paid_at, billing_interval, subscription_status, current_period_end, cancel_at_period_end, sent_at')
@@ -33,6 +34,8 @@ export async function GET(request: NextRequest) {
       admin.from('tourism_decks').select('id, title, status, destination').eq('user_id', userId).eq('status', 'ready').limit(20),
       admin.from('deals').select('id, stage, value').eq('user_id', userId).is('closed_at', null).limit(2000),
       loadMapsStatus(),
+      loadOfficeOverview(admin, userId).then((data) => ({ data, error: null as string | null }))
+        .catch(() => ({ data: null, error: 'Ufficio non disponibile: verifica la migration e il collegamento al database.' })),
     ])
     if (quotesRes.error) throw quotesRes.error
     if (invoicesRes.error) throw invoicesRes.error
@@ -48,6 +51,7 @@ export async function GET(request: NextRequest) {
       decks: (decksRes.data || []) as any,
       pastDue: money.past_due,
       toInvoiceCount: money.to_invoice_count,
+      officeOutputs: officeResult.data?.outputs,
     })
 
     const stages = new Map<string, { stage: string; count: number; value: number }>()
@@ -67,6 +71,7 @@ export async function GET(request: NextRequest) {
 
     return Response.json({
       waiting,
+      office: officeResult.data ? { active_agents: officeResult.data.active_agents, pending_count: officeResult.data.pending_count, totals: officeResult.data.totals, error: null } : { error: officeResult.error },
       money,
       sales: {
         open_deals: (dealsRes.data || []).length,

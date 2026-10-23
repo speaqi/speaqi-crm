@@ -39,6 +39,6 @@ export async function expectError(query: string, database = DB) {
   }
 }
 
-export async function resetDatabase() {
-  await run('bash', [fileURLToPath(new URL('./db.sh', import.meta.url)), 'reset'])
+export async function resetDatabase(database = DB) {
+  await run('bash', [fileURLToPath(new URL('./db.sh', import.meta.url)), 'reset', database])
 }

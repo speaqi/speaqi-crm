@@ -41,6 +41,12 @@ export const DEFAULT_STEP_TIMEOUT_MS = 180_000
 
 export const AUTOMATION_JOBS: ScheduledJob[] = [
   {
+    name: 'office-maintenance',
+    cron: '15 3 * * *',
+    description: 'Elimina le corse dell’ufficio più vecchie di 90 giorni',
+    steps: [{ path: '/api/automation/office-maintenance' }],
+  },
+  {
     name: 'followups',
     cron: '*/10 * * * *',
     description: 'Task dovuti, SLA e recupero preventivi',
