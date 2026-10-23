@@ -41,6 +41,7 @@ export const SUPER_ADMIN_PATHS = [
   '/incassi',
   '/fatture',
   '/scheda',
+  '/ufficio',
   '/impostazioni/wine-project',
   '/impostazioni/whatsapp',
   '/impostazioni/team',
