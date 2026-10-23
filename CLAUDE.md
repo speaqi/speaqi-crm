@@ -921,3 +921,31 @@ Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script 
   senza spesa ripetuta; HTTP sulla RPC autorizzata; Postgres vero per decisioni
   concorrenti, coda, workspace, permessi, Napoli e assenza di effetti sui target.
   Le prove non generano mappe né pubblicano e non chiamano modelli a pagamento.
+
+
+## Ufficio — Costruttore My Maps (Prompt 02)
+
+- `mymaps_builder` nasce spento. Il job `office-mymaps` controlla alle 01:30
+  Europe/Rome; un turno persistente di due giorni impedisce doppi import tra
+  mesi e repliche. Una sola mappa per corsa, massimo 150 nuovi candidati.
+- `settings.queue`: `[ {"slug":"marsiglia","city":"Marsiglia","source":"URL o id My Maps"} ]`.
+  Accetta anche le proposte approvate del Direttore: senza URL usa solo una
+  fonte già collegata nel catalogo StudioMap; se manca lo dichiara e si ferma.
+- Il CRM registra corse, riserva e saldo. Questo import costa **0 centesimi**:
+  riusa parser, categorie e schede candidate, senza Google Places a pagamento,
+  scrittura testi, traduzioni, sync o pubblicazione. Il tetto resta 300
+  centesimi/corsa; nessun provider può spendere da questo handler.
+- StudioMap espone `POST /api/office/mymaps/run`, autenticato con segreto forte
+  anche senza login dashboard. `OFFICE_BRIDGE_SECRET` (almeno 32 caratteri)
+  identico su CRM/StudioMap; `OFFICE_STUDIOMAP_URL` nel CRM (origine HTTPS,
+  default `https://studiomap.speaqi.com`). Nessuna env Speaqi API nuova.
+- Matching per place_id, poi nome simile entro 30 metri. Solo campi vuoti
+  completati; testi esistenti intatti. Le descrizioni KML restano fonti.
+  Napoli è rifiutata per input e identità risolta. Le prove usano storage isolato.
+- Ricevuta persistente con id richiesta e impronta: richieste ripetute non
+  aggiungono altri candidati. Un import interrotto resta incerto e richiede
+  verifica manuale. Il gate di readiness viene soltanto letto; se superato
+  si prepara una proposta `Pubblicare <città>` senza eseguirla.
+- Nessuna nuova migration: usa le tabelle della base e i documenti StudioMap.
+  Prerequisiti CRM: migration Prompt 0, 11, 10 e 1 già presenti nel branch base.
+  Nessuna migration operativa o deploy viene eseguito dalle prove.
