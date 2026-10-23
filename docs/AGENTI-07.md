@@ -1,6 +1,6 @@
 # Osservatorio novità — consegna
 
-Branch `codex/office-07-news` da main aggiornato `8f11d8b`, PR indipendente verso main.
+Branch `codex/office-07-news` da main aggiornato `2ab93a5`, PR indipendente verso main.
 Nessuna dipendenza dai branch 02/04 o dal Social 12.
 
 Migration nuova da applicare a cura di Claude prima del merge:
@@ -24,13 +24,13 @@ Non provati dal vivo: disponibilità dei feed scelti dal titolare, credenziali
 OpenAI/Telegram/Railway e PostgREST di produzione. Tutti i servizi nei test sono
 simulati; nessun invio reale o deploy.
 
-Verifiche sul branch aggiornato con main `8f11d8b`:
+Verifiche sul branch aggiornato con main `2ab93a5`:
 - `npx tsc --noEmit`: superato.
-- `npm run test:unit`: 466 passati, 0 falliti, 1 skip preesistente
+- `npm run test:unit`: 473 passati, 0 falliti, 1 skip preesistente
   (pagina di dettaglio del sito TTG).
-- `npm run test:db`: 45 passati, 0 falliti, 0 skip su PostgreSQL 16 locale.
+- `npm run test:db`: 52 passati, 0 falliti, 0 skip su PostgreSQL 16 locale.
 - `npx next build`: superato con configurazione Supabase fittizia, nessun deploy.
 
-Tutte le suite DB dell'ufficio (base, Finanza, Commerciale, Direttore e questo
-agente) caricano DDL dalle migration reali. Anche le modifiche alle fixture
+Le suite DB Base, Finanza, Commerciale, Direttore e questo agente caricano
+DDL dalle migration reali. La suite 05 ereditata da main resta invariata. Anche le modifiche alle fixture
 sono indipendenti e identiche nelle due PR: nessuna PR richiede l'altra.
