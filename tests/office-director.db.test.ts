@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { before, beforeEach, test } from 'node:test'
-import { readFile } from 'node:fs/promises'
-import { resetDatabase, sql as query, scalar as value, expectError as failure } from './psql'
+import { resetOfficeDatabase } from './office-schema'
+import { sql as query, scalar as value, expectError as failure } from './psql'
 
 const DB='office_director_test'
 const OWNER='11111111-1111-4111-8111-111111111111'
@@ -13,8 +13,7 @@ let outputId:string
 const decide=(status='approved',owner=OWNER,id=outputId)=>scalar(`select public.decide_office_output('${id}','${owner}','${status}')`).then((s)=>JSON.parse(s!))
 
 before(async()=>{
-  await resetDatabase(DB)
-  await sql(await readFile(new URL('../supabase/migrations/20261022183327_office_director.sql',import.meta.url),'utf8'))
+  await resetOfficeDatabase(DB)
   await sql(`insert into auth.users(id) values('${OWNER}'),('${OTHER}')`)
 })
 beforeEach(async()=>{

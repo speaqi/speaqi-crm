@@ -215,9 +215,10 @@ async function sendTelegramText(body: string, config: { token: string; chatId: s
  */
 export async function sendNotificationText(
   text: string,
-  options: { notifyTo?: string | null }
+  options: { notifyTo?: string | null; requiredChannel?: NotificationChannel }
 ): Promise<WhatsappSendResult> {
   if (isWhatsappHardDisabled()) return { ok: false, error: 'Notifiche disattivate da WHATSAPP_NOTIFY_ENABLED' }
+  if (options.requiredChannel && notificationChannel() !== options.requiredChannel) return { ok: false, error: 'Canale richiesto non disponibile: nessun ripiego automatico' }
 
   const body = clampWhatsappText(text)
   if (!body) return { ok: false, error: 'Messaggio vuoto' }

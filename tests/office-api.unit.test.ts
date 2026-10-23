@@ -1,3 +1,4 @@
+import { POST as newsTelegram } from '../src/app/api/office/outputs/[id]/telegram/route'
 import { OFFICE_AGENT_DEFINITIONS } from '../src/lib/server/office-agents/definitions'
 /** I cancelli HTTP si provano con le rotte vere e Supabase simulato sulla rete. */
 import assert from 'node:assert/strict'
@@ -31,6 +32,9 @@ beforeEach(() => {
     const url = String(input); const method = init?.method || 'GET'
     const body = init?.body ? JSON.parse(String(init.body)) : null
     calls.push({ url, method, body })
+    if (url === 'https://api.telegram.org/botfinto/sendMessage') return Response.json({ ok:true,result:{message_id:123} })
+    if (url.includes('/rpc/claim_office_news_delivery')) return Response.json({claimed:true,id:'delivery',body:{articles:[]}})
+    if (url.includes('/rpc/record_office_news_delivery')) return Response.json(null)
     assert.ok(url.startsWith('https://office-test.invalid/'), `Chiamata esterna inattesa: ${url}`)
     if (url.includes('/auth/v1/user')) return Response.json({ id: member ? MEMBER : OWNER, email: 'test@example.it', app_metadata: {}, user_metadata: {} })
     if (url.includes('/team_members')) return Response.json([{ id: 'membro', user_id: OWNER, name: 'Persona', allowed_areas: ['oggi'] }])
@@ -55,7 +59,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   mock.restoreAll(); invalidateRouteUserCaches()
-  for (const key of ['NEXT_PUBLIC_SUPABASE_URL','NEXT_PUBLIC_SUPABASE_ANON_KEY','SUPABASE_SERVICE_ROLE_KEY','AUTOMATION_SECRET','AUTOMATION_WORKSPACE_USER_ID']) {
+  for (const key of ['NEXT_PUBLIC_SUPABASE_URL','NEXT_PUBLIC_SUPABASE_ANON_KEY','SUPABASE_SERVICE_ROLE_KEY','AUTOMATION_SECRET','AUTOMATION_WORKSPACE_USER_ID','TELEGRAM_BOT_TOKEN','TELEGRAM_NOTIFY_CHAT_ID']) {
     if (originalEnv[key] === undefined) delete process.env[key]; else process.env[key] = originalEnv[key]
   }
 })
@@ -91,7 +95,7 @@ test('il titolare installa gli agenti spenti e legge totali zero', async () => {
   const response = await GET(request('/api/office', undefined, 'GET'))
   assert.equal(response.status, 200)
   const data = await response.json()
-  assert.deepEqual(data.agents.map((agent: { id: string }) => agent.id).sort(), ['db_cleaner','director','finance','languages_voice','maps_quality','mymaps_builder','sales_followup']); assert.ok(data.agents.every((agent: { enabled: boolean }) => !agent.enabled)); assert.equal(data.pending_count, 0); assert.equal(data.totals.month_actual, 0)
+  assert.deepEqual(data.agents.map((agent: { id: string }) => agent.id).sort(), ['db_cleaner', 'director', 'finance', 'languages_voice', 'maps_quality', 'mymaps_builder', 'news_watch', 'sales_followup', 'social']); assert.ok(data.agents.every((agent: { enabled: boolean }) => !agent.enabled)); assert.equal(data.pending_count, 0); assert.equal(data.totals.month_actual, 0)
 })
 
 test('la pagina oltre la coda restituisce il conteggio aggiornato e consente di tornare indietro', async () => {
@@ -150,4 +154,21 @@ test('la corsa macchina di Finanza spenta non legge fatture o preventivi', async
   assert.equal(response?.status, 200)
   assert.equal((await response!.json()).run.status, 'skipped_disabled')
   assert.ok(!calls.some((c) => /\/(invoices|quotes)(\?|$)/.test(c.url)))
+})
+
+
+test('Telegram notizie: senza sessione o da collaboratore nessun invio e nessuna prenotazione',async()=>{
+  const context={params:Promise.resolve({id:OWNER})}
+  assert.equal((await newsTelegram(request('/api/office/outputs/'+OWNER+'/telegram',undefined,'POST',false),context)).status,401)
+  member=true
+  assert.equal((await newsTelegram(request('/api/office/outputs/'+OWNER+'/telegram',undefined,'POST'),context)).status,403)
+  assert.ok(!calls.some((c)=>c.url.includes('claim_office_news_delivery')||c.url.includes('api.telegram.org')))
+})
+test('Telegram notizie: solo il clic del titolare prenota e invia, destinatario nel corpo rifiutato',async()=>{
+  process.env.TELEGRAM_BOT_TOKEN='finto';process.env.TELEGRAM_NOTIFY_CHAT_ID='123'
+  const context={params:Promise.resolve({id:OWNER})};const path='/api/office/outputs/'+OWNER+'/telegram'
+  assert.equal((await newsTelegram(request(path,{notify_to:'altro'},'POST'),context)).status,400)
+  assert.equal((await newsTelegram(request(path,undefined,'POST'),context)).status,200)
+  assert.equal(calls.filter((c)=>c.url==='https://api.telegram.org/botfinto/sendMessage').length,1)
+  assert.ok(calls.find((c)=>c.url.includes('claim_office_news_delivery')))
 })

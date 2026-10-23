@@ -927,6 +927,79 @@ Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script 
   Le prove non generano mappe né pubblicano e non chiamano modelli a pagamento.
 
 
+### Agente 07 — Osservatorio novità
+
+- `news_watch`, Ricerca, ogni giorno alle 07:00 (`office-news-watch`), nasce
+  spento; budget iniziali 30/210/930 centesimi giorno/settimana/mese.
+  Gestione in `/ufficio/agenti`. La scena `/ufficio` non è modificata.
+- `settings.feeds` è una lista di massimo 20 URL pubblici (RSS, Atom o pagine
+  con data esplicita); nasce vuota, da configurare dal titolare. I concorrenti
+  predefiniti sono STQRY, Cuseum, SmartGuide, VoiceMap, Locatify e si possono
+  cambiare in `settings.competitors`. Nessun nuovo segreto o feed inventato.
+- Il fetch riusa `fetchResearchPage` con controllo degli indirizzi privati,
+  DNS fissato alla connessione, limiti di tempo/dimensione e senza redirect.
+  Solo pubblicazioni delle ultime 48 ore, mai una data dedotta da `updated`.
+  Link canonici, titoli normalizzati/simili e `office_news_seen` evitano doppioni.
+- `office_news_batches` prenota un solo tentativo per giorno e workspace prima
+  del modello; un timeout non ripaga e non marca gli articoli come visti.
+  `callModel` prenota budget prima della richiesta e salda dai token restituiti.
+  Il codice conserva massimo otto notizie, con link letto e cifre nelle fonti.
+  Report e inserimento dei visti sono atomici, con vincoli e lock PostgreSQL.
+- Telegram non parte dal job: la regola comune del clic umano prevale sul
+  testo del Prompt 7. `settings.telegram=true` abilita **Approva e invia su
+  Telegram** nella coda di `/ufficio/agenti`. Solo il titolare autenticato
+  può chiamare `POST /api/office/outputs/[id]/telegram`; workspace/destinatario
+  non sono accettati nel corpo. Riusa il bot/configurazione esistenti e impone
+  il canale Telegram, senza ripiego su WhatsApp. Una prenotazione persistente
+  precede l'invio: esiti incerti o doppio clic non vengono ritentati.
+- Migration nuova **20261023055356_office_news_watch.sql**, dopo le migration
+  00/11/10/01 già in main; non dipende dal 12. Tabelle nuove: batches, seen,
+  deliveries; RLS di lettura del proprietario, scritture e RPC solo service role,
+  tutte incluse nei backup. Nessuna applicazione al database operativo.
+- Test nuovi e Finanza/Commerciale caricano DDL reali da `supabase/migrations`
+  tramite `tests/office-schema.ts`, non copie di email_drafts/gmail_messages.
+  L'unico confine simulato è Supabase Auth; CHECK, NOT NULL, FK e RLS restano.
+  Il runner `reset-office` crea solo un DB locale usa-e-getta; non contatta
+  Supabase. Le prove includono concorrenza, rollback, fonti, RLS e invio simulato.
+
+### Agente 12 — Social
+
+- `social`, Marketing, lunedì alle 09:00 (`office-social`), nasce spento;
+  budget iniziali 100/100/500 centesimi giorno/settimana/mese. Gestione in
+  `/ufficio/agenti`, nessuna modifica alla scena `/ufficio`.
+- Riusa `loadMapsStatus`; solo guide online confermate dal catalogo Speaqi.
+  Legge il catalogo pubblico e `GET /public/maps/:slug`, senza credenziali
+  social o API di pubblicazione. Napoli è esclusa prima di leggere il payload
+  e nuovamente nel controllo dei testi/SQL; nessuna nuova bozza su di essa.
+- Dati: punti del catalogo, itinerari espliciti del payload completo, elenco
+  delle lingue effettivamente disponibili solo se esposto, minuti audio solo
+  se presenti. `target_languages` non prova traduzioni completate; un dato
+  assente o dietro paywall resta null, non zero. Foto solo URL HTTPS ricevuti
+  nella mappa/catalogo. Senza guida e foto verificate si prepara un avviso,
+  senza spendere o inventare contenuti.
+- `office_social_batches` prenota una sola generazione per settimana italiana
+  prima del modello; `callModel` riserva budget e salda i token. Timeout o
+  esito incerto non vengono ripagati automaticamente. Il codice lega ogni
+  cifra alla propria unità/dato: avere tre itinerari non autorizza tre lingue.
+  Testi con cifre estranee, link inventati, Napoli, superlativi o promesse
+  non consentite sono scartati. La sostituzione è una bozza deterministica
+  diversa, ricostruita solo dai dati, con avviso della proposta AI scartata.
+- Tre-cinque `office_agent_outputs kind=draft_post`, sempre pending; ogni
+  bozza contiene testo/hashtag (max 5) per Instagram, LinkedIn, Facebook,
+  foto suggerita reale e link con UTM source=piattaforma, medium=social,
+  campaign=office_social. Approvare registra la decisione, non pubblica.
+- `office_social_snapshots` conserva i fatti settimanali: si parla di mappe
+  nuove solo con published_at degli ultimi sette giorni e di lingue aggiunte
+  solo con un confronto fra elenchi disponibili. I luoghi più aperti non
+  sono esposti da queste fonti: nessuna classifica inventata.
+- Migration nuova **20261023060654_office_social_drafts.sql**, dopo le
+  migration 00/11/10/01 già in main. Indipendente dal 07; nessuna nuova env.
+  Tabelle nuove nei backup, RLS proprietario e RPC solo service role. Salvataggio
+  atomico delle bozze con controlli di foto e UTM contro le fonti prenotate.
+  Nessuna migration applicata a database operativi durante lo sviluppo.
+- Test con DDL reali delle migration tramite `tests/office-schema.ts`, compresi
+  CHECK su source/status di email_drafts. Le prove usano solo Postgres locale
+  isolato e servizi simulati; nessuna pubblicazione o invio.
 ## Ufficio — Costruttore My Maps (Prompt 02)
 
 - `mymaps_builder` nasce spento. Il job `office-mymaps` controlla alle 01:30

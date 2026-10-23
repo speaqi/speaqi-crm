@@ -1,7 +1,7 @@
 /** Quota, bozze e concorrenza sul Postgres usa-e-getta, mai su Supabase remoto. */
 import assert from 'node:assert/strict'
 import { before, beforeEach, test } from 'node:test'
-import { readFile } from 'node:fs/promises'
+import { resetOfficeDatabase } from './office-schema'
 import { resetDatabase, sql as query, scalar as value, expectError as failure } from './psql'
 
 const DB = 'office_sales_test'
@@ -15,22 +15,17 @@ let runId: string
 const create = async (i: number, key = `sales:${i}`) => JSON.parse((await scalar(`select public.create_office_email_draft('${runId}','${contactId(i)}','${key}','Promemoria','Da rivedere','<p>Da rivedere</p>','Preventivo in attesa')`))!) as { id: string | null; created: boolean; reason?: string }
 
 before(async () => {
-  await resetDatabase(DB)
-  await sql(`create table public.email_drafts(id uuid primary key default gen_random_uuid(), user_id uuid not null,
-    contact_id uuid not null, subject text, body_text text, body_html text, source text not null default 'auto' constraint email_drafts_source_check check (source in ('auto', 'manual')), status text, created_at timestamptz default now());
-    create table public.gmail_messages(id uuid primary key default gen_random_uuid(), user_id uuid not null,
-    contact_id uuid, direction text, from_email text, sent_at timestamptz);
-    insert into auth.users(id) values('${OWNER}'),('${OTHER}');`)
-  for (const file of ['20261022170450_office_finance.sql','20261022175856_office_sales_followup.sql']) {
-    await sql(await readFile(new URL(`../supabase/migrations/${file}`, import.meta.url), 'utf8'))
-  }
+  await resetOfficeDatabase(DB)
+  await sql(`insert into auth.users(id) values('${OWNER}'),('${OTHER}');
+    insert into gmail_accounts(id,user_id,email,refresh_token) values('${OWNER}','${OWNER}','owner@example.it','token-finto');`)
+
 })
 
 beforeEach(async () => {
   await sql(`truncate public.office_agents cascade;
     truncate public.gmail_messages, public.contacts cascade;
     insert into office_agents(id,user_id,name,department,enabled) values('sales_followup','${OWNER}','Commerciale','commerciale',true);
-    insert into contacts(id,user_id,name,email) values ${Array.from({ length: 20 }, (_, i) => `('${contactId(i)}','${OWNER}','Ente ${i}','ufficio${i}@example.it')`).join(',')};`)
+    insert into contacts(id,user_id,name,email,status) values ${Array.from({ length: 20 }, (_, i) => `('${contactId(i)}','${OWNER}','Ente ${i}','ufficio${i}@example.it','New')`).join(',')};`)
   const result = JSON.parse((await scalar(`select public.claim_office_agent_run('sales_followup','${OWNER}','test')`))!)
   runId = result.run.id
 })
@@ -57,8 +52,8 @@ test('Commerciale: retry e schede con email uguale non creano doppie bozze', asy
 })
 
 test('Commerciale: nuova risposta anche su scheda gemella blocca prima del salvataggio', async () => {
-  await sql(`insert into gmail_messages(user_id,contact_id,direction,from_email,sent_at)
-    values('${OWNER}','${contactId(1)}','inbound',' UFFICIO0@EXAMPLE.IT ',now());`)
+  await sql(`insert into gmail_messages(user_id,contact_id,direction,from_email,sent_at,gmail_account_id,gmail_message_id)
+    values('${OWNER}','${contactId(1)}','inbound',' UFFICIO0@EXAMPLE.IT ',now(),'${OWNER}','reply-1');`)
   assert.equal((await create(0)).reason, 'reply_received')
   assert.equal(await scalar('select count(*) from email_drafts'), '0')
   assert.equal(await scalar('select count(*) from office_agent_daily_quotas'), '0')

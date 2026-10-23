@@ -120,6 +120,13 @@ export default function OfficePage() {
     try { await act(id, () => apiFetch(`/api/office/outputs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }), status === 'approved' ? 'Approvata. La decisione è registrata; nessun invio eseguito.' : 'Uscita rifiutata.') }
     catch { /* Il messaggio resta visibile nella pagina. */ }
   }
+  async function telegram(id: string) {
+    try { await act(id, async () => {
+      const result = await apiFetch<{ sent: boolean; duplicate: boolean }>(`/api/office/outputs/${id}/telegram`, { method: 'POST' })
+      setNotice(result.sent ? 'Rassegna approvata e inviata su Telegram.' : 'Tentativo già registrato. Verifica il bot e il registro degli invii; nessun nuovo invio eseguito.')
+    }) }
+    catch { /* Esito incerto visibile: nessun ritentativo automatico. */ }
+  }
 
   return <div className={styles.page}>
     <header className={styles.header}><div><p className={styles.eyebrow}>Solo titolare</p><h1>Ufficio</h1><p>Compiti, corse e cose che aspettano una tua decisione.</p></div>
@@ -145,6 +152,7 @@ export default function OfficePage() {
           <small>{data.agents.find((agent) => agent.id === output.agent_id)?.name || output.agent_id} · {date(output.created_at)}</small><h3>{output.title}</h3>
           <div className={styles.outputBody}><OutputBody value={output.body} /></div>
           <div className={styles.actions}><button className="btn btn-primary btn-sm" disabled={!!busy} onClick={() => { void decide(output.id, 'approved') }}>Approva</button>
+            {output.agent_id === 'news_watch' && output.body.telegram_available === true && <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => { void telegram(output.id) }}>Approva e invia su Telegram</button>}
             <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => { void decide(output.id, 'rejected') }}>Rifiuta</button></div>
         </article>)}
         {(data.pending_count > 50 || offset > 0) && <div className={styles.actions}>
