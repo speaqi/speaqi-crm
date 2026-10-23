@@ -141,10 +141,15 @@ begin
   update public.deals set contact_id = p_keep where contact_id = any(p_drop); get diagnostics n = row_count; moved := moved || jsonb_build_object('deals', n); total := total + n;
   update public.quotes set contact_id = p_keep where contact_id = any(p_drop); get diagnostics n = row_count; moved := moved || jsonb_build_object('quotes', n); total := total + n;
   update public.invoices set contact_id = p_keep where contact_id = any(p_drop); get diagnostics n = row_count; moved := moved || jsonb_build_object('invoices', n); total := total + n;
-  update public.email_drafts set contact_id = p_keep where contact_id = any(p_drop)
-    and not (source = 'auto' and scheduled_for is not null and exists (select 1 from public.email_drafts k
-      where k.contact_id = p_keep and k.source = 'auto' and k.scheduled_for = email_drafts.scheduled_for));
-  get diagnostics n = row_count; moved := moved || jsonb_build_object('email_drafts', n); total := total + n;
+  -- Una bozza automatica per contatto e orario: una per volta, cosi' due doppioni con
+  -- la stessa ora non si scontrano fra loro. Quella che si scontrerebbe resta sul doppione.
+  foreach d in array p_drop loop
+    update public.email_drafts set contact_id = p_keep where contact_id = d
+      and not (source = 'auto' and scheduled_for is not null and exists (select 1 from public.email_drafts k
+        where k.contact_id = p_keep and k.source = 'auto' and k.scheduled_for = email_drafts.scheduled_for));
+    get diagnostics n = row_count; total := total + n;
+    moved := moved || jsonb_build_object('email_drafts', coalesce((moved->>'email_drafts')::bigint, 0) + n);
+  end loop;
   update public.gmail_messages set contact_id = p_keep where contact_id = any(p_drop); get diagnostics n = row_count; moved := moved || jsonb_build_object('gmail_messages', n); total := total + n;
   update public.stage_transitions set contact_id = p_keep where contact_id = any(p_drop); get diagnostics n = row_count; moved := moved || jsonb_build_object('stage_transitions', n);
   update public.ai_decision_logs set lead_id = p_keep where lead_id = any(p_drop); get diagnostics n = row_count; moved := moved || jsonb_build_object('ai_decision_logs', n);
