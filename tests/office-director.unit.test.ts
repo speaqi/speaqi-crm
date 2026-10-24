@@ -61,7 +61,10 @@ test('Direttore: copertura da GET autenticato, nessuna lettura per Napoli, dati 
 
 test('Direttore: pipeline legge fonti vere simulate, riserva prima del modello e non raddoppia la settimana', async () => {
   const db=new FakeSupabase({tourism_destinations:[{entity_id:'dest',user_id:'owner',guide_status:'planned',guide_priority:1,intl_arrivals:1000,arrivals_year:2025,arrivals_source:'https://ente.example.it/dati',arrivals_estimated:false}],
-    tourism_entities:[{id:'dest',user_id:'owner',name:'Marsiglia',aliases:[]}],tourism_hubs:[],quotes:[],invoices:[],deals:[],office_agent_runs:[],office_agent_outputs:[]})
+    tourism_entities:[{id:'dest',user_id:'owner',name:'Marsiglia',aliases:[]}],tourism_hubs:[],quotes:[],invoices:[],
+    // Le mappe diventano proposte solo se servono a un'opportunità aperta: qui la proposta per Marsiglia.
+    deals:[{id:'deal-1',user_id:'owner',contact_id:'c1',title:'Tourism · Marsiglia',pipeline:'tourism',stage:'proposta',map_ref:'Marsiglia',closed_at:null,created_at:NOW.toISOString(),updated_at:NOW.toISOString()}],
+    contacts:[{id:'c1',user_id:'owner',name:'Visit Marseille',email:'info@example.fr'}],office_agent_runs:[],office_agent_outputs:[]})
   const order:string[]=[]
   const ctx:AgentContext={agent:{...OFFICE_AGENT_DEFINITIONS.director,user_id:'owner'},runId:'run',async reserve(){order.push('reserve');return'ledger'},async settle(){order.push('settle')},log(){},
     async addOutput(output){const row={id:db.nextId('output'),user_id:'owner',agent_id:'director',output_key:output.key,...output};db.tables.office_agent_outputs.push(row);return row.id}}
@@ -71,7 +74,10 @@ test('Direttore: pipeline legge fonti vere simulate, riserva prima del modello e
     const run=directorHandler(db,{now:()=>NOW,maps:async()=>({rows:[],sources:{studiomap:'ok',speaqi:'ok'},fetched_at:NOW.toISOString()}),coverage:async()=>({rows:[],warnings:[]})})
     await run(ctx);await run(ctx)
     assert.deepEqual(order,['reserve','provider','settle'])
-    assert.equal(db.tables.office_agent_outputs.length,2)
+    // Piano del giorno + proposta + report della settimana, una volta sola anche con due corse.
+    assert.equal(db.tables.office_agent_outputs.length,3)
+    const planReport=db.tables.office_agent_outputs.find((o)=>o.output_key==='director:plan:2026-10-22')!
+    assert.match(planReport.body.testo,/Visit Marseille/)
     const proposal=db.tables.office_agent_outputs.find((o)=>o.kind==='proposal')!
     assert.equal(proposal.target_id,'dest');assert.equal(proposal.body.recipient_agent_id,'mymaps_builder');assert.ok(!proposal.body.lines.join(' ').includes('999999'))
     assert.equal(db.tables.office_agents,undefined)

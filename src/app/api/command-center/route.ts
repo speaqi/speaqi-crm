@@ -32,7 +32,8 @@ export async function GET(request: NextRequest) {
         .limit(500),
       admin.from('agency_presentations').select('id, title, status, project:agency_projects(title)').eq('user_id', userId).eq('status', 'ready').limit(20),
       admin.from('tourism_decks').select('id, title, status, destination').eq('user_id', userId).eq('status', 'ready').limit(20),
-      admin.from('deals').select('id, stage, value').eq('user_id', userId).is('closed_at', null).limit(2000),
+      // Le fasi della prima pagina sono quelle delle vendite: le altre pipeline stanno in /opportunita.
+      admin.from('deals').select('id, stage, value').eq('user_id', userId).eq('pipeline', 'vendite').is('closed_at', null).limit(2000),
       loadMapsStatus(),
       loadOfficeOverview(admin, userId).then((data) => ({ data, error: null as string | null }))
         .catch(() => ({ data: null, error: 'Ufficio non disponibile: verifica la migration e il collegamento al database.' })),

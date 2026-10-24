@@ -171,6 +171,16 @@ export interface Deal {
   closed_at?: string | null
   created_at: string
   updated_at: string
+  /** Percorso unico delle opportunità (src/lib/opportunities.ts). */
+  pipeline?: 'vendite' | 'tourism' | 'distribuzione' | 'agency'
+  role?: string | null
+  owner?: string | null
+  next_step?: string | null
+  next_step_due?: string | null
+  map_ref?: string | null
+  entity_id?: string | null
+  signed_at?: string | null
+  activated_at?: string | null
 }
 
 export interface ContactDetail {

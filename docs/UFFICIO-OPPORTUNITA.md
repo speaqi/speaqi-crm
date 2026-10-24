@@ -1,5 +1,7 @@
 # Ufficio — dalle opportunità alla distribuzione (piano, 24 ottobre 2026)
 
+**Stato (24/10/2026)**: fasi A (percorso unico) e B (Direttore sulle opportunità) nel codice, migration `20261024120000_opportunities.sql` da applicare prima del deploy. C, D, E da fare.
+
 Obiettivo nuovo dell'ufficio: **trovare opportunità, trasformarle in accordi, attivare la distribuzione delle guide.**
 
 ```

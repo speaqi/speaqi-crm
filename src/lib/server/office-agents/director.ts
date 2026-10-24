@@ -7,6 +7,8 @@ import { loadMapsStatus, type MapsStatus } from '../maps-status'
 import { officeRows } from '../office-read'
 import { selectByIdChunks } from '../http'
 import { addOfficeOutputOnce } from './shared'
+import { loadOpenOpportunities } from '../opportunities'
+import { buildDirectorPlan, directorPlanLines, mapPrioritySupported } from '@/lib/office/director-plan'
 
 /** Solo GET autenticato della copertura: nessun fill, sync o dry_run a pagamento. */
 export async function loadDirectorCoverage(maps: MapsStatus): Promise<{ rows: DirectorCoverage[]; warnings: string[] }> {
@@ -40,10 +42,18 @@ export function directorHandler(admin: any, options: { now?: () => Date; maps?: 
   coverage?: (maps: MapsStatus) => Promise<{ rows: DirectorCoverage[]; warnings: string[] }> } = {}): AgentHandler {
   return async (ctx) => {
     const now = options.now?.() || new Date(); const userId = ctx.agent.user_id; const week = mondayKey(now)
+    // 1. Ogni giorno, gratis: quali opportunità lavorare, quali sbloccare, quali partner attivare.
+    const opportunities = await loadOpenOpportunities(admin,userId,{ maps:options.maps })
+    const plan = buildDirectorPlan(opportunities,now)
+    const day = officeRomeDay(now)
+    const planOutput = await addOfficeOutputOnce(admin,ctx,`director:plan:${day}`,{kind:'report',title:`Piano di oggi — ${day.split('-').reverse().join('/')}`,
+      body:{giorno:day,testo:directorPlanLines(plan).join('\n'),da_lavorare:plan.work,da_sbloccare:plan.unblock,partner_da_attivare:plan.activate,guide_che_servono:plan.maps}})
+    const planSummary = `Piano di oggi: ${plan.work.length} da lavorare, ${plan.unblock.length} da sbloccare, ${plan.activate.length} partner da attivare${planOutput.created ? '' : ' (già preparato)'}.`
+    // 2. Una volta a settimana: le mappe, ma come proposta solo se servono a un'opportunità.
     const reportKey = `director:report:${week}`
     const existing = await admin.from('office_agent_outputs').select('id').eq('user_id',userId).eq('agent_id','director').eq('output_key',reportKey).limit(1)
     if (existing.error) throw existing.error
-    if (existing.data?.length) return { summary: 'Priorità della settimana già preparate: nessuna nuova spesa.' }
+    if (existing.data?.length) return { summary: `${planSummary} Priorità mappe della settimana già preparate.` }
     const [destinations, hubs, quotes, invoices, deals, runs, previous, maps] = await Promise.all([
       officeRows<any>(admin,userId,'tourism_destinations','*',(q) => q.eq('guide_status','planned').eq('guide_priority',1),'entity_id'),
       officeRows<any>(admin,userId,'tourism_hubs','*',(q) => q.eq('mode','sea').eq('guide_status','planned').eq('guide_priority',1)),
@@ -65,7 +75,10 @@ export function directorHandler(admin: any, options: { now?: () => Date; maps?: 
     const coverage = await (options.coverage || loadDirectorCoverage)(maps)
     const suppressed = [...directorSuppressed(previous.filter((o) => o.status==='rejected'),now),
       ...previous.filter((o) => o.status==='pending').map((o) => o.body?.action_key).filter((key): key is string => typeof key==='string')]
-    const priorities = directorPriorities({ destinations:sources,maps:maps.rows,coverage:coverage.rows,catalogKnown:maps.sources.studiomap==='ok',speaqiKnown:maps.sources.speaqi==='ok',suppressed })
+    const allPriorities = directorPriorities({ destinations:sources,maps:maps.rows,coverage:coverage.rows,catalogKnown:maps.sources.studiomap==='ok',speaqiKnown:maps.sources.speaqi==='ok',suppressed })
+    // Le altre restano nel report come investimento: nessuna proposta, nessuna spesa del modello.
+    const priorities = allPriorities.filter((p) => mapPrioritySupported(p,opportunities))
+    const investments = allPriorities.filter((p) => !priorities.includes(p))
     const facts = { money:summarizeMoney(quotes,invoices,now),deals:{count:deals.length,value:deals.reduce((sum,d) => sum+(Number(d.value)||0),0),sources:deals},
       runs, maps:{sources:maps.sources,fetched_at:maps.fetched_at},warnings:coverage.warnings,
       nota:'Volumi di passeggeri e arrivi sono indicatori diversi: si confrontano per priorità operativa, non si sommano.' }
@@ -83,8 +96,9 @@ export function directorHandler(admin: any, options: { now?: () => Date; maps?: 
           fonti:priority.facts,lines:directorReportLines(priority,prose.find((p) => p.key===priority.key)?.lines)},target_table:priority.target_table,target_id:priority.target_id})
       if (output.created) created++
     }
-    await addOfficeOutputOnce(admin,ctx,reportKey,{kind:'report',title:'Priorità della settimana',body:{week,points:priorities.map((p) => ({...p,lines:directorReportLines(p,prose.find((v) => v.key===p.key)?.lines)})),dati_usati:facts}})
-    return {summary:`Preparate le priorità della settimana: ${created} proposte da decidere.`}
+    await addOfficeOutputOnce(admin,ctx,reportKey,{kind:'report',title:'Priorità della settimana',body:{week,points:priorities.map((p) => ({...p,lines:directorReportLines(p,prose.find((v) => v.key===p.key)?.lines)})),
+      investimento:investments.map((p) => ({ titolo:p.title, citta:p.city, fonti:p.facts, perche:'Nessuna opportunità aperta la richiede: si fa solo se decidi di investire.' })),dati_usati:facts}})
+    return {summary:`${planSummary} Mappe: ${created} proposte legate a opportunità, ${investments.length} come investimento.`}
   }
 }
 export const runDirector: AgentHandler = (ctx) => directorHandler(createServiceRoleClient())(ctx)

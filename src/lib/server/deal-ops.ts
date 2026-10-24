@@ -1,6 +1,8 @@
 /**
  * Trattative (deals): storico delle opportunità per contatto, al massimo una
- * aperta. contacts.status resta la fonte che l'app legge ovunque; queste
+ * aperta per pipeline. Queste funzioni lavorano solo sulla pipeline 'vendite',
+ * quella che rispecchia contacts.status; tourism, distribuzione e agency hanno
+ * fasi proprie (src/lib/opportunities.ts). contacts.status resta la fonte che l'app legge ovunque; queste
  * funzioni tengono la trattativa aperta allineata a ogni cambio di status
  * ("shadowing") e abilitano il rientro in pipeline con una nuova opportunità.
  *
@@ -28,6 +30,10 @@ export type Deal = {
   closed_at?: string | null
   created_at: string
   updated_at: string
+  pipeline?: string
+  owner?: string | null
+  next_step?: string | null
+  next_step_due?: string | null
 }
 
 /** Tabella deals assente (42P01) o colonna mancante: degrada senza rompere. */
@@ -55,6 +61,7 @@ export async function getOpenDeal(supabase: any, userId: string, contactId: stri
       .select('*')
       .eq('user_id', userId)
       .eq('contact_id', contactId)
+      .eq('pipeline', 'vendite')
       .is('closed_at', null)
       .maybeSingle()
     if (error) throw error
@@ -132,6 +139,7 @@ export async function syncDealWithContactStatus(
       .insert({
         user_id: userId,
         contact_id: contactId,
+        pipeline: 'vendite',
         title: 'Trattativa',
         stage: status,
         value: extra.value ?? null,
@@ -180,6 +188,7 @@ export async function reopenWithNewDeal(
     .insert({
       user_id: userId,
       contact_id: contactId,
+      pipeline: 'vendite',
       title,
       counterparty,
       stage: 'New',

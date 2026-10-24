@@ -110,7 +110,7 @@ supabase migration up
 |---|---|
 | `pipeline_stages` | Configurable pipeline stages |
 | `contacts` | Leads/contacts (AI-ready fields, contact_scope, `is_partner`, `hidden`, engagement tracking) |
-| `deals` | Trattative/opportunità per contact (max 1 open per contact, enables re-entry after close) |
+| `deals` | Trattative/opportunità per contact: `pipeline` vendite/tourism/distribuzione/agency, al massimo una aperta per (contatto, pipeline); responsabile (`owner`), prossimo passo con scadenza, prove, `signed_at` ≠ `activated_at` |
 | `activities` | Full interaction timeline per contact |
 | `tasks` | Follow-ups and next actions (idempotency_key for deduplication) |
 | `lead_memories` | AI-generated synthetic memory per lead |
@@ -355,11 +355,23 @@ Each stage has a `system_key` and `color`. Closed statuses: `closed`, `paid`, `l
 
 ## Deals (Trattative)
 
-- Pipeline position lives on `contacts.status` (mirror cache read by dashboard/kanban/automations), but each contact has a history of `deals` — at most ONE open (partial unique index `deals_one_open_per_contact`).
+- Pipeline position lives on `contacts.status` (mirror cache read by dashboard/kanban/automations), but each contact has a history of `deals` — at most ONE open **per pipeline** (partial unique index `deals_one_open_per_contact_pipeline`, migration `20261024120000_opportunities.sql`). Only `pipeline = 'vendite'` mirrors the contact status; see «Opportunità» below.
 - `src/lib/server/deal-ops.ts`: `syncDealWithContactStatus` keeps the open deal aligned on every status change (hooked in contacts POST/PATCH, bulk, lead-ops, Gmail reply outcome); `reopenWithNewDeal` re-enters a closed/paid contact into the pipeline with a new opportunity.
 - `POST /api/deals` = "Nuova opportunità" (button in contact detail page); `GET /api/deals?contact_id=X` = history.
 - Each deal has an optional `counterparty` (the entity the deal is with — a person can carry deals for different organizations).
 - Quote paid → contact `Paid` + open deal closed as won; new quotes attach to the open deal via `quotes.deal_id`.
+
+## Opportunità (`/opportunita`)
+
+Un solo percorso per tutte le opportunità, dentro `deals` (non un secondo CRM). Solo titolare (`SUPER_ADMIN_PATHS`, `requireWorkspaceOwner`); piano in `docs/UFFICIO-OPPORTUNITA.md` (fasi A e B fatte, C/D/E da fare).
+
+- **Quattro pipeline**: `vendite` (le 1.060 trattative di sempre: fasi New→Paid, specchio di `contacts.status`, mai cambiate da qui), `tourism`, `distribuzione`, `agency` con fasi proprie (`scoperta`→`qualificata`→`proposta`→`trattativa`→`firmato`→`attivazione`→`attiva`, più `persa`/`ferma`) che **non** toccano lo stato del contatto. `deal-ops.ts`, il riquadro Vendite della prima pagina e `getOpenDeal` leggono solo `vendite`.
+- **Regole in un posto** (`src/lib/opportunities.ts`, puro e testato): `opportunityPatch` (campi ammessi, fase rifiutata su vendite, firma e attivazione scritte dal codice: `firmato` scrive `signed_at`, `attiva` scrive `activated_at`, tornare prima della firma le toglie entrambe, `persa` chiude), `newOpportunityRow` (mai `vendite`: quelle nascono dal contatto), `nextStepOf` (le vendite ereditano il follow-up del contatto), `stuckReason` (senza passo, passo scaduto da più di 3 giorni, fase ferma da 14).
+- **Un responsabile per opportunità** (`owner`: nome di un membro del team o `agent:<id>`). È la regola che chiude la sovrapposizione fra generatori email: l'agente Commerciale salta i contatti con un'opportunità affidata ad altri (`selectSalesCandidates`), il vecchio orchestratore salta quelli con un responsabile e si ferma del tutto quando `sales_followup` è acceso. `email_drafts.deal_id` lega una bozza alla sua opportunità.
+- **Database**: vincoli su pipeline, fasi, ruolo, responsabile, prove (array ≤ 50), `activated_at` solo dopo `signed_at`; trigger `deals_same_owner` (ente Tourism e progetto Agency dello stesso workspace, `stage_changed_at` scritto a ogni cambio fase). Test: `tests/opportunities.unit.test.ts`, `tests/opportunities.db.test.ts` (Postgres vero, migration applicata due volte).
+- **Il piano di oggi** (`src/lib/office/director-plan.ts`, puro, nessun modello): punteggio = (1 + prove) × log10(valore + 10) × urgenza / (1 + 0,5 × lavoro mancante); tre liste — da lavorare, da sbloccare, partner da attivare (firmati non attivi) — più le guide che servono a un'opportunità. In testa alla pagina, nel report del Direttore e nella risposta allo «stato» del Direttore. `GET /api/opportunities` (filtri pipeline/owner/view/q), `POST`, `PATCH /api/opportunities/[id]`, `GET /api/opportunities/plan`.
+- **Direttore** ogni mattina feriale alle 7:30 (`office-director`): report «Piano di oggi» (una volta al giorno); il lunedì le priorità mappe diventano proposte **solo se un'opportunità aperta le chiede** (`mapPrioritySupported`: `map_ref`, ente o nome della città), le altre restano nel report come «investimento», senza chiamare il modello. Un contatto approvato dagli ordini al Direttore apre l'opportunità della sua pipeline (destinazione → tourism, partner → distribuzione, agenzia → agency).
+- **Ordine di deploy**: prima la migration, poi il codice (il codice filtra su `deals.pipeline`).
 
 ## Contact Scopes
 
@@ -894,7 +906,7 @@ Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script 
 
 ### Agente 01 — Direttore
 
-- `director`, reparto Direzione, lunedì alle 07:00 Europe/Rome (`office-director`),
+- `director`, reparto Direzione, feriali alle 07:30 Europe/Rome (`office-director`: piano del giorno sulle opportunità, vedi «Opportunità»; priorità mappe il lunedì),
   nasce spento. Budget 100/100/500 centesimi giorno/settimana/mese; modello
   configurabile in `settings.model`, altrimenti quello del registro.
 - Priorità deterministiche in `src/lib/office/director.ts`: destinazioni previste
