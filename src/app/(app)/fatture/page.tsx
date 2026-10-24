@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useCRMContext } from '@/components/layout/CRMContext'
 import { apiFetch } from '@/lib/api'
+import ReceivablesSection from '@/components/incassi/ReceivablesSection'
 import { createClient } from '@/lib/supabase'
 import { computeFeTotals, NATURE_ESENTI, REGIMI_FISCALI, type FeCustomer, type FeLine } from '@/lib/fatturapa'
 
@@ -186,7 +187,7 @@ export default function FatturePage() {
     <div className="page-container fe-page">
       <div className="page-header">
         <h1>Fatture</h1>
-        <p className="page-subtitle">Fatture elettroniche dai preventivi pagati, inviate allo SDI con Aruba. Ogni invio lo confermi tu.</p>
+        <p className="page-subtitle">Fatture elettroniche dai preventivi pagati, inviate allo SDI con Aruba. Ogni invio lo confermi tu. In fondo, i soldi ancora da incassare.</p>
       </div>
 
       {data ? (
@@ -284,6 +285,8 @@ export default function FatturePage() {
               <div className="rc-empty">Nessuna fattura ancora. Le bozze nascono da sole quando un cliente paga con carta, oppure da “Prepara fattura”.</div>
             )}
           </section>
+
+          <ReceivablesSection />
         </>
       ) : null}
     </div>

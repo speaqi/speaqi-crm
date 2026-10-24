@@ -75,6 +75,12 @@ export const BACKUP_TABLES = [
   'tourism_poi_candidates',
   'tourism_project_opportunities',
   'tourism_canonical_links',
+  // Turismo operativo: schede di lavoro assegnate a collaboratori e partner.
+  'tourism_work_members',
+  'tourism_work_items',
+  'tourism_work_notes',
+  'tourism_work_events',
+  'tourism_work_rules',
   // Porti, aeroporti e stazioni; i porti di Navigazione sono la vista shipping_ports su questa tabella.
   'tourism_hubs',
   'tourism_destinations',

@@ -11,8 +11,10 @@ import { normalizeForSearch, searchPattern } from '../command-center'
 import { officeRomeDay } from '../office/finance'
 import {
   CONTACT_CATEGORY_LABELS, DIRECTOR_ORDER_SCHEMA, contactNextStep, directorOrderPrompt, directorStatusLines,
-  interpretDirectorOrder, type DirectorOrderPlan,
+  interpretDirectorOrder, queuedWorkReport, type DirectorOrderPlan, type QueuedWork,
 } from '../office/director-orders'
+import { sendNotificationText } from './whatsapp'
+import { createServiceRoleClient } from './supabase'
 
 /**
  * Ordini al Direttore. Tre garanzie da non smontare:
@@ -131,13 +133,52 @@ function queueSentence(result: QueueResult) {
 }
 
 /** Un agente acceso a cui è appena arrivato lavoro parte subito, in background. */
-export function startQueuedAgents(userId: string, results: QueueResult[], key: string) {
-  for (const result of results) {
-    if (!result.enabled || result.reason === 'agent_missing') continue
+export function startQueuedAgents(userId: string, results: QueueResult[], key: string): Promise<QueuedWork[]> {
+  const started = results.filter((result) => result.enabled && result.reason !== 'agent_missing')
+  return Promise.all(started.map(async (result): Promise<QueuedWork | null> => {
     const handler = officeAgentHandler(result.agent)
-    if (!handler) continue
-    void runAgent(result.agent, handler, { userId, key: `${key}:${result.agent}` })
-      .catch((error) => console.error('[direttore] corsa non avviata', result.agent, errorMessage(error, '')))
+    if (!handler) return null
+    const name = AGENT_NAMES[result.agent] || result.agent
+    try {
+      const done = await runAgent(result.agent, handler, { userId, key: `${key}:${result.agent}` })
+      if (done.skipped) return { name, state: 'skipped', summary: '', reason: done.skipped === 'running' ? 'sta già lavorando a un’altra cosa' : done.skipped === 'disabled' ? 'è spento' : 'lavoro già fatto', outputs: [] }
+      if (done.error || !done.run) return { name, state: 'failed', summary: '', reason: done.error || 'corsa non avviata', outputs: [] }
+      const outputs = await readRunOutputs(userId, done.run.id)
+      if (done.run.status === 'failed' || done.run.status === 'skipped_budget') {
+        return { name, state: 'failed', summary: '', reason: done.run.error || (done.run.status === 'skipped_budget' ? 'budget finito' : 'errore'), outputs }
+      }
+      return { name, state: 'ok', summary: String(done.run.summary || ''), outputs }
+    } catch (error) {
+      console.error('[direttore] corsa non avviata', result.agent, errorMessage(error, ''))
+      return { name, state: 'failed', summary: '', reason: errorMessage(error, 'errore'), outputs: [] }
+    }
+  })).then((rows) => rows.filter((row): row is QueuedWork => !!row))
+}
+
+async function readRunOutputs(userId: string, runId: string): Promise<QueuedWork['outputs']> {
+  const { data } = await createServiceRoleClient().from('office_agent_outputs').select('title,body,status')
+    .eq('user_id', userId).eq('run_id', runId).order('created_at', { ascending: true }).limit(10)
+  return (data || []) as QueuedWork['outputs']
+}
+
+/**
+ * Il lavoro passato agli agenti non resta un «parte adesso»: quando finiscono,
+ * l'esito si scrive sull'ordine e arriva su Telegram. Non può far fallire l'ordine.
+ */
+export async function reportQueuedWork(admin: Admin, userId: string, orderId: string | null, title: string, pending: Promise<QueuedWork[]>) {
+  try {
+    const work = await pending
+    if (!work.length) return
+    const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+    const report = queuedWorkReport(work, `${base}/ufficio`)
+    if (orderId) {
+      const { data } = await admin.from('office_director_orders').select('reply').eq('id', orderId).eq('user_id', userId).maybeSingle()
+      if (data) await admin.from('office_director_orders').update({ reply: `${String(data.reply || '').trim()}\n\nEsito:\n${report}` }).eq('id', orderId).eq('user_id', userId)
+    }
+    const sent = await sendNotificationText(`*${title}*\n${report}`, { requiredChannel: 'telegram' })
+    if (!sent.ok) console.error('[direttore] esito non inviato su Telegram:', sent.error)
+  } catch (error) {
+    console.error('[direttore] esito non registrato', errorMessage(error, ''))
   }
 }
 
@@ -145,14 +186,21 @@ async function findEntity(admin: Admin, userId: string, names: Array<string | nu
   for (const name of names) {
     const pattern = name ? searchPattern(name) : null
     if (!pattern) continue
-    const { data, error } = await admin.from('tourism_entities').select('id,name,kind').eq('user_id', userId)
+    const { data, error } = await admin.from('tourism_entities').select('id,name,kind,status,website').eq('user_id', userId)
       .eq('kind', 'organization').ilike('name', pattern).limit(5)
     if (error) throw error
     const exact = (data || []).filter((row: { name: string }) => normalizeForSearch(row.name) === normalizeForSearch(name!))
     const pick = exact.length === 1 ? exact[0] : (data || []).length === 1 ? data[0] : null
-    if (pick) return pick as { id: string; name: string }
+    if (pick) return pick as { id: string; name: string; status: string; website: string | null }
   }
   return null
+}
+
+/** Una presentazione si scrive solo su un ente verificato: meglio dirlo subito che passare il lavoro e fermarsi. */
+function unverifiedEntity(entity: { name: string; website: string | null }): Outcome {
+  const site = entity.website ? '' : ' e non ha ancora un sito'
+  return { status: 'waiting_you', outputs: [], queued: [], reply:
+    `${entity.name} è nel catalogo Tourism ma non è ancora verificato${site}: senza dati verificati non scrivo una presentazione. Apri la scheda in Tourism Intelligence, completala e verificala, poi rimandami l’ordine.` }
 }
 
 async function findDuplicates(admin: Admin, userId: string, contact: Record<string, string | null>) {
@@ -236,6 +284,7 @@ async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrder
   }
   if (plan.intent === 'presentation') {
     const entity = await findEntity(admin, userId, [plan.target])
+    if (entity && entity.status !== 'VERIFIED') return unverifiedEntity(entity)
     if (entity) {
       const result = await queueForAgent(admin, userId, 'presentations', { key: `presentation:${entity.id}`, entity_id: entity.id })
       return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `Presentazione per ${entity.name}: ${queueSentence(result)}` }
@@ -246,6 +295,7 @@ async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrder
     if (contacts.length === 1) {
       // Il contatto di un ente del catalogo: la presentazione è quella dell'ente.
       const owner = contacts[0].company ? await findEntity(admin, userId, [contacts[0].company]) : null
+      if (owner && owner.status !== 'VERIFIED') return unverifiedEntity(owner)
       if (owner) {
         const result = await queueForAgent(admin, userId, 'presentations', { key: `presentation:${owner.id}`, entity_id: owner.id })
         return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `Presentazione per ${owner.name} (${contacts[0].name}): ${queueSentence(result)}` }
@@ -303,7 +353,7 @@ export async function processDirectorOrder(admin: Admin, userId: string, orderId
   if (done) {
     Object.assign(patch, { status: done.status, reply: done.reply, intent: (plan as DirectorOrderPlan | null)?.intent || null,
       interpretation: plan, output_ids: done.outputs, queued: done.queued, error: null })
-    startQueuedAgents(userId, done.queued, `order:${order.id}`)
+    void reportQueuedWork(admin, userId, order.id, 'Esito del lavoro', startQueuedAgents(userId, done.queued, `order:${order.id}`))
   } else if (result.skipped) {
     Object.assign(patch, { status: 'failed', reply: result.skipped === 'disabled'
       ? 'Il Direttore è spento: accendilo dall’Ufficio e rimandami l’ordine.'
@@ -404,7 +454,7 @@ export async function approveDirectorContact(admin: Admin, userId: string, outpu
   const done = checked(await admin.rpc('office_director_contact_done', { p_output_id: outputId, p_user_id: userId,
     p_contact_id: created!.id, p_result: { queued, notes } })) as { output: unknown; reason?: string }
   if (!done.output) return { error: 'Questa proposta è già stata decisa. Aggiorna la pagina.', status: 409 }
-  startQueuedAgents(userId, queued, `contact:${outputId}`)
+  void reportQueuedWork(admin, userId, body.order_id || null, `Esito: ${created!.name}`, startQueuedAgents(userId, queued, `contact:${outputId}`))
   const notice = [`Contatto inserito: ${created!.name}.`, ...notes].join(' ')
   if (body.order_id) {
     // L'ordine da cui è nato il contatto non aspetta più te.

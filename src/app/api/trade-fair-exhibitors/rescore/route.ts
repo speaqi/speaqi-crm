@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
-import { requireArea, requireRouteUser } from '@/lib/server/supabase'
+import { requireRouteUser } from '@/lib/server/supabase'
 import { scoreColumns, SosInput } from '@/lib/opportunity-score'
 
 /**
@@ -10,8 +10,7 @@ import { scoreColumns, SosInput } from '@/lib/opportunity-score'
 export async function POST(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
-  const areaError = requireArea(auth, 'fiere')
-  if (areaError) return areaError
+  if (!auth.isAdmin) return Response.json({ error: 'Le fiere sono di Tourism Intelligence: solo il titolare' }, { status: 403 })
 
   try {
     const body = await request.json().catch(() => ({}))

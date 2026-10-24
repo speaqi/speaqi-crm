@@ -265,3 +265,43 @@ export function telegramDirectorReply(order: { status: string; reply: string | n
     ? `${reply}\n\nDecidi qui: ${baseUrl.replace(/\/$/, '')}/ufficio (un «sì» in chat non approva niente).`
     : reply
 }
+
+
+export type QueuedWork = {
+  name: string
+  /** `ok` = la corsa è finita; `skipped` = non è partita; `failed` = è finita in errore. */
+  state: 'ok' | 'skipped' | 'failed'
+  summary: string
+  reason?: string | null
+  outputs: Array<{ title: string; body: unknown; status: string }>
+}
+
+const OUTPUT_MESSAGES: Array<[RegExp, string]> = [
+  [/Ente non verificato o disabilitato/i, 'l’ente non è ancora verificato in Tourism Intelligence: aggiungi il sito e verificalo, poi rimandami l’ordine.'],
+]
+
+function outputMessage(body: unknown): string {
+  const message = body && typeof body === 'object' && typeof (body as { message?: unknown }).message === 'string'
+    ? (body as { message: string }).message : ''
+  if (!message) return ''
+  return OUTPUT_MESSAGES.find(([pattern]) => pattern.test(message))?.[1] || message
+}
+
+/** Cosa è successo al lavoro passato agli agenti, in frasi: è quello che il titolare ritrova. */
+export function queuedWorkReport(work: QueuedWork[], uiUrl: string): string {
+  const lines: string[] = []
+  let waiting = 0
+  for (const item of work) {
+    if (item.state === 'skipped') { lines.push(`• ${item.name}: non è partito (${item.reason || 'già al lavoro o spento'}).`); continue }
+    if (item.state === 'failed') { lines.push(`• ${item.name}: non è riuscito: ${item.reason || 'errore sconosciuto'}.`); continue }
+    const notes = item.outputs.map((output) => {
+      if (output.status === 'pending') waiting += 1
+      const detail = outputMessage(output.body)
+      return detail ? `${output.title}: ${detail}` : output.title
+    })
+    lines.push(`• ${item.name}: ${item.summary || 'finito.'}`)
+    for (const note of notes) lines.push(`   → ${note}`)
+  }
+  if (waiting) lines.push(`Le uscite da guardare sono in «Aspetta te»: ${uiUrl}`)
+  return lines.join('\n')
+}

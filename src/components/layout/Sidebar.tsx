@@ -65,7 +65,6 @@ const NAV_GROUPS: { label: string; adminOnly?: boolean; items: NavItem[] }[] = [
     label: 'Strumenti',
     items: [
       { href: '/navigazione', label: 'Navigazione', icon: '🚢' },
-      { href: '/fiere', label: 'Fiere', icon: '🎪' },
       { href: '/import', label: 'Importa', icon: '📥' },
     ],
   },
@@ -76,8 +75,7 @@ const NAV_GROUPS: { label: string; adminOnly?: boolean; items: NavItem[] }[] = [
       { href: '/tourism', label: 'Tourism Intelligence', icon: '◎' },
       { href: '/acumbamail', label: 'Acumbamail', icon: '📧' },
       { href: '/ufficio', label: 'Ufficio', icon: '🏛️' },
-      { href: '/fatture', label: 'Fatture', icon: '🧾' },
-      { href: '/incassi', label: 'Da incassare', icon: '💰' },
+      { href: '/fatture', label: 'Fatture e incassi', icon: '🧾' },
     ],
   },
 ]

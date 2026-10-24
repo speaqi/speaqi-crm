@@ -1,5 +1,5 @@
--- Schema additivo, da versionare con `supabase migration new tourism_work`
--- quando la CLI è disponibile. Eseguire una sola volta, dopo tourism_site_research.
+-- Turismo operativo: schede di lavoro assegnate a collaboratori e partner (area /tourism-lavoro).
+-- Verificata con tests/tourism-work.db.test.ts (PGlite, migration reali). Additiva: eseguire una sola volta.
 begin;
 create schema if not exists tourism_private;
 revoke all on schema tourism_private from public, anon;

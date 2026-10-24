@@ -239,14 +239,19 @@ export async function GET(request: NextRequest) {
     const crmFilter = params.get('crm') || ''
     if (crmFilter && crmFilter !== 'matched')
       throw new TourismInputError('Filtro CRM non valido')
+    // «Fiera» è un tag: gli enti che espongono a quella fiera (trade_fair_exhibitors.entity_id).
+    const fairFilter = params.get('fair') || ''
+    if (fairFilter && !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(fairFilter))
+      throw new TourismInputError('Fiera non valida')
     let query = sb
       .from('tourism_entities')
       .select(
-        `*, evidence:tourism_evidence(*), crm:tourism_crm_links(contact_id), matches:tourism_crm_matches${crmFilter === 'matched' ? '!inner' : ''}(contact_id,score,state)`,
+        `*, evidence:tourism_evidence(*), crm:tourism_crm_links(contact_id), matches:tourism_crm_matches${crmFilter === 'matched' ? '!inner' : ''}(contact_id,score,state)${fairFilter ? ', fairs:trade_fair_exhibitors!inner(fair,hall,stand)' : ''}`,
         { count: 'exact' }
       )
       .eq('user_id', owner)
     if (crmFilter === 'matched') query = query.eq('matches.state', 'candidate')
+    if (fairFilter) query = query.eq('fairs.fair', fairFilter)
     const kind = params.get('kind') || 'organization'
     if (!(ENTITY_KINDS as readonly string[]).includes(kind))
       throw new TourismInputError('Tipo entità non valido')

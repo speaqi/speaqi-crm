@@ -34,15 +34,11 @@ RLS anche per l'accesso diretto a PostgREST. Identità tramite `auth_user_id`, o
 
 Funzioni applicative `SECURITY INVOKER`. Solo i lookup privati di autorizzazione e l'audit dei trigger usano `SECURITY DEFINER`, con search path vuoto, oggetti qualificati e privilegi espliciti. Nessuna funzione trigger invocabile direttamente, nessuna scrittura diretta allo storico, nessun privilegio anonimo sulle nuove tabelle/API. Aggiornamenti API con versione e passaggio di portafoglio con controllo della versione e lock. I contenuti delle note interne non vengono copiati nello storico condiviso.
 
-## Attivazione ancora da completare
+## Attivazione
 
-Lo schema è in [`scripts/sql/tourism-work.sql`](../../scripts/sql/tourism-work.sql), transazionale e additivo. È intenzionalmente **fuori dalla cronologia delle migrazioni**: la CLI non era installata e non è stato possibile scaricarla. Non applicare il file senza prima completare la verifica del database.
+Schema: `supabase/migrations/20261024130000_tourism_work.sql`, transazionale e additivo, da applicare **una sola volta** sul database CRM **prima** del codice (senza, `/tourism-lavoro` risponde «Area lavoro non attivata»). Verificato con `npm run test:tourism:work` (11 scenari di RLS, note, revoca, assegnazioni, storico, idempotenza e isolamento su PGlite con le migration reali del catalogo e della ricerca). Le cinque tabelle sono nei backup (script locale e server).
 
-1. Ripristinare l'installazione delle dipendenze del lockfile nell'ambiente di sviluppo, compreso `@electric-sql/pglite`, e rendere disponibile la CLI Supabase.
-2. Eseguire `npm run test:tourism:work`, `node --import tsx scripts/areas.test.mjs`, le suite Tourism esistenti e `npm run build`. I test database applicano le migrazioni reali del catalogo e della ricerca, poi lo schema additivo, a un database PGlite isolato.
-3. Generare il file con `supabase migration new tourism_work`, seguendo l'help della CLI installata, e trasferirvi il contenuto SQL verificato. Non inventare una versione né registrare una migrazione già applicata.
-4. Sul progetto CRM corretto, con il processo di rilascio del repository: backup delle tabelle CRM/team, revisione della migrazione, applicazione singola e controllo degli advisor di sicurezza. Lo script di backup include le cinque nuove tabelle dopo l'attivazione.
-5. Verificare nel browser proprietario, interno e partner esterno: creazione dalla directory e da un segnale, passaggio di portafoglio, note interne invisibili al partner, revoca con sessione aperta, errore di conflitto fra due schede, regola per territorio e carichi. Provare una bozza AI su dati di test solo dopo configurazione del provider.
+Dopo l'applicazione: controllare gli advisor di sicurezza di Supabase e provare nel browser proprietario, interno e partner esterno (creazione dalla directory e da un segnale, passaggio di portafoglio, note interne invisibili al partner, revoca con sessione aperta, regola per territorio). La bozza AI richiede `OPENAI_API_KEY`.
 
 ## Verifiche di questa sessione
 
