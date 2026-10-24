@@ -15,6 +15,7 @@ export type PlanContact = {
   id: string; name: string; company?: string | null; email?: string | null; score?: number | null; priority?: number | null
   email_open_count?: number | null; email_click_count?: number | null
   next_followup_at?: string | null; next_action_at?: string | null; responsible?: string | null
+  last_contact_at?: string | null; contact_scope?: string | null; hidden?: boolean | null
 }
 export type PlanQuote = { contact_id: string | null; status: string; total_amount: number | null; sent_at?: string | null }
 export type PlanInput = {
@@ -27,10 +28,32 @@ export type PlanItem = {
   score: number; value: number | null; value_source: string; owner: string; next_step: string; due: string | null
   reasons: string[]; missing: string[]; stuck: string | null; map_ref: string | null
 }
-export type DirectorPlan = { work: PlanItem[]; unblock: PlanItem[]; activate: PlanItem[]; maps: PlanItem[]; open: number; stuck: number }
+export type DirectorPlan = { work: PlanItem[]; unblock: PlanItem[]; activate: PlanItem[]; maps: PlanItem[]; open: number; stuck: number
+  /** Trattative di vendita aperte ma ferme da oltre IN_PLAY_DAYS giorni: restano nel CRM, fuori dal piano. */
+  dormant: number }
 
 const DAY = 86400_000
 export const PLAN_LIST_SIZE = 5
+export const IN_PLAY_DAYS = 90
+
+/**
+ * Un'opportunità è «in gioco» se qualcuno la sta lavorando. Le pipeline nuove
+ * (tourism, distribuzione, agency) nascono apposta e ci sono sempre. Le
+ * vendite sono le trattative di sempre, quasi tutte ferme da mesi: entrano
+ * solo se c'è stato un movimento negli ultimi IN_PLAY_DAYS giorni (trattativa
+ * o contatto) o c'è un preventivo che aspetta risposta, e mai se il contatto
+ * è fuori dalla pipeline (attesa, personale, nascosto). Senza questo filtro
+ * il piano segnava come «ferme» 1.057 trattative su 1.061.
+ */
+export function inPlay(input: PlanInput, now: Date) {
+  if ((input.deal.pipeline || 'vendite') !== 'vendite') return true
+  const contact = input.contact
+  if (contact && ((contact.contact_scope && contact.contact_scope !== 'crm') || contact.hidden)) return false
+  if (input.quotes.some((q) => q.status === 'sent' || q.status === 'accepted')) return true
+  const last = Math.max(...[input.deal.updated_at, input.deal.stage_changed_at, contact?.last_contact_at]
+    .map((at) => (at ? Date.parse(at) : NaN)).filter((t) => Number.isFinite(t)), 0)
+  return last >= now.getTime() - IN_PLAY_DAYS * DAY
+}
 
 function valueOf(input: PlanInput): { value: number | null; source: string } {
   const quotes = input.quotes.filter((q) => q.status !== 'cancelled' && q.status !== 'draft')
@@ -103,7 +126,8 @@ function item(input: PlanInput, now: Date): PlanItem {
 const byScore = (a: PlanItem, b: PlanItem) => b.score - a.score || (b.value || 0) - (a.value || 0) || a.deal_id.localeCompare(b.deal_id)
 
 export function buildDirectorPlan(inputs: PlanInput[], now: Date, size = PLAN_LIST_SIZE): DirectorPlan {
-  const open = inputs.filter((input) => !input.deal.closed_at)
+  const openAll = inputs.filter((input) => !input.deal.closed_at)
+  const open = openAll.filter((input) => inPlay(input, now))
   const items = open.map((input) => item(input, now))
   const activateIds = new Set(open.filter((input) => input.deal.signed_at && !input.deal.activated_at).map((input) => input.deal.id))
   const signedAt = new Map(open.map((input) => [input.deal.id, input.deal.signed_at || '']))
@@ -118,7 +142,7 @@ export function buildDirectorPlan(inputs: PlanInput[], now: Date, size = PLAN_LI
     unblock: stuck.sort(byScore).slice(0, size),
     activate: activate.slice(0, size),
     maps: maps.slice(0, size),
-    open: open.length, stuck: stuck.length,
+    open: open.length, stuck: stuck.length, dormant: openAll.length - open.length,
   }
 }
 
@@ -136,7 +160,8 @@ function line(row: PlanItem) {
 
 /** Il piano in righe: per il report, Telegram e la risposta allo stato. */
 export function directorPlanLines(plan: DirectorPlan): string[] {
-  const lines = [`Opportunità aperte: ${plan.open}, ferme: ${plan.stuck}.`]
+  const lines = [`Opportunità in gioco: ${plan.open}, ferme: ${plan.stuck}.`]
+  if (plan.dormant) lines.push(dormantLine(plan.dormant))
   const section = (title: string, rows: PlanItem[], extra: (row: PlanItem) => string | null = () => null) => {
     if (!rows.length) return
     lines.push('', title)
@@ -173,4 +198,26 @@ export function mapPrioritySupported(priority: { city: string; map_slug: string 
     const entity = key(entityName)
     return !!city && !!entity && entity.split(' ').includes(city)
   })
+}
+
+const dormantLine = (n: number) => `Fuori dal piano: ${n === 1 ? '1 trattativa' : `${n} trattative`} di vendita senza movimenti da ${IN_PLAY_DAYS} giorni.`
+
+/**
+ * Il piano in poche righe, per Telegram e per la risposta allo «stato»: i
+ * numeri, le prime tre da lavorare, le prime tre da sbloccare e i partner da
+ * attivare. Il resto si legge nell'Ufficio.
+ */
+export function directorPlanBrief(plan: DirectorPlan, size = 3): string[] {
+  const lines = [`In gioco: ${plan.open} ${plan.open === 1 ? 'opportunità' : 'opportunità'}, ${plan.stuck} ferme.`]
+  if (plan.dormant) lines.push(dormantLine(plan.dormant))
+  const section = (title: string, rows: PlanItem[], tail: (row: PlanItem) => string) => {
+    if (!rows.length) return
+    lines.push('', title)
+    rows.slice(0, size).forEach((row, index) => lines.push(`${index + 1}. ${line(row).head} — ${tail(row)}`))
+  }
+  section('Da lavorare oggi', plan.work, (row) => line(row).step)
+  section('Da sbloccare', plan.unblock, (row) => row.stuck || line(row).step)
+  section('Partner da attivare', plan.activate, () => 'verificare consegna e prime scansioni')
+  if (!plan.work.length && !plan.unblock.length && !plan.activate.length) lines.push('', 'Niente da segnalare oggi.')
+  return lines
 }

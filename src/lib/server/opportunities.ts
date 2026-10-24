@@ -11,7 +11,7 @@ import { nextStepOf, stuckReason, type Opportunity } from '../opportunities'
  * le trattative aperte sono più di mille.
  */
 type Admin = any
-const CONTACT_COLUMNS = 'id,name,company,email,score,priority,email_open_count,email_click_count,next_followup_at,next_action_at,responsible,status'
+const CONTACT_COLUMNS = 'id,name,company,email,score,priority,email_open_count,email_click_count,next_followup_at,next_action_at,responsible,status,last_contact_at,contact_scope,hidden'
 
 export async function loadOpenOpportunities(admin: Admin, userId: string, options: { maps?: () => Promise<MapsStatus> } = {}): Promise<PlanInput[]> {
   const deals = await officeRows<Opportunity>(admin, userId, 'deals', '*', (q) => q.is('closed_at', null))
