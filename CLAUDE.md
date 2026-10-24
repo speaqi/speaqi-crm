@@ -800,8 +800,10 @@ migration `commercial_*`. `tests/db.sh stop` lo spegne.
   comprende `gpt-5-mini` (USD 0,25 ingresso / 2 uscita per milione di token,
   verificato sul sito OpenAI il 22/10/2026). Modello sconosciuto -> stop.
   `OFFICE_USD_TO_EUR` converte in EUR (default prudente 1, non cambio live, fino a sei decimali), ogni
-  chiamata arrotondata al centesimo superiore; cache prenotata al prezzo pieno e saldata a USD 0,025 per milione di token. Timeout,
-  errore HTTP o usage assente lasciano la riserva impegnata e la corsa in errore:
+  chiamata arrotondata al centesimo superiore; cache prenotata al prezzo pieno e saldata a USD 0,025 per milione di token. Una richiesta respinta
+  da OpenAI prima di generare (400/401/403/404/422/429: chiave, permessi, modello, limiti)
+  non è fatturata: riserva saldata a zero, e un 401/403 dice di controllare `OPENAI_API_KEY`. Timeout,
+  5xx o usage assente lasciano la riserva impegnata e la corsa in errore:
   il fornitore potrebbe avere gia' fatturato. Da riconciliare manualmente prima
   di liberarla; nessun ritentativo automatico di chiamate dall'esito incerto.
 - Il contesto del compito espone solo `reserve`, `settle`, `addOutput`, `log` e

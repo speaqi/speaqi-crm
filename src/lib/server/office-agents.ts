@@ -113,6 +113,9 @@ export async function runAgent(agentId: string, handler: AgentHandler, options: 
   }
 }
 
+/** Stati con cui OpenAI respinge una richiesta senza elaborarla, e quindi senza addebito. */
+const OPENAI_REFUSED = new Set([400, 401, 403, 404, 422, 429])
+
 /** Stessa API Responses e chiave gia' usate da ai-ready.ts, senza strumenti esterni. */
 export async function callModel(ctx: AgentContext, options: { model: string; input: string; maxOutputTokens: number;
   jsonSchema?: { name: string; schema: Record<string, unknown> }
@@ -135,7 +138,17 @@ export async function callModel(ctx: AgentContext, options: { model: string; inp
         ...images.map((url) => ({ type: 'input_image', image_url: url, detail: 'high' }))] }] : options.input,
       ...(options.jsonSchema ? { text: { format: { type:'json_schema',name:options.jsonSchema.name,strict:true,schema:options.jsonSchema.schema } } } : {}) }),
   })
-  if (!response.ok) throw new Error(`OpenAI non disponibile (HTTP ${response.status}); riserva mantenuta`)
+  if (!response.ok) {
+    // Richiesta respinta prima di generare (chiave, permessi, modello, limiti): OpenAI non la
+    // fattura, quindi la riserva si libera. Un 5xx resta incerto e la riserva rimane.
+    if (OPENAI_REFUSED.has(response.status)) {
+      await ctx.settle(ledgerId, 0, { model: options.model })
+      throw new Error(response.status === 401 || response.status === 403
+        ? `OpenAI ha rifiutato la chiave (HTTP ${response.status}): controlla OPENAI_API_KEY nelle variabili del CRM su Railway. Nulla speso.`
+        : `OpenAI ha respinto la richiesta (HTTP ${response.status}). Nulla speso.`)
+    }
+    throw new Error(`OpenAI non disponibile (HTTP ${response.status}); riserva mantenuta`)
+  }
   const payload = await response.json()
   const usage = payload.usage
   if (!nonNegativeInteger(usage?.input_tokens) || !nonNegativeInteger(usage?.output_tokens)) {

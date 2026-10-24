@@ -154,6 +154,11 @@ describe('chiamate al modello con budget', () => {
       result = await runAgent('prova', async (ctx) => { await callModel(ctx, { model: 'gpt-5-mini', input: 'a', maxOutputTokens: 100 }) }, { userId: 'titolare', store: g.store })
       assert.equal(result.run?.status, 'failed'); assert.equal(calls, 1); assert.equal(settles, 0)
       assert.equal(result.run?.cost_cents_reserved, 1)
+      // Chiave rifiutata: nessuna generazione, nessun addebito, riserva liberata e motivo chiaro.
+      mocked.mock.mockImplementation(async () => new Response('{}', { status: 401 }))
+      const k = fixture(); let zero = -1; k.store.settle = async (_id, cents) => { zero = cents }
+      result = await runAgent('prova', async (ctx) => { await callModel(ctx, { model: 'gpt-5-mini', input: 'a', maxOutputTokens: 100 }) }, { userId: 'titolare', store: k.store })
+      assert.equal(result.run?.status, 'failed'); assert.equal(zero, 0); assert.match(String(result.run?.error), /OPENAI_API_KEY/)
       mocked.mock.mockImplementation(async () => { throw new Error('Timeout') })
       const h = fixture(); h.store.settle = f.store.settle
       result = await runAgent('prova', async (ctx) => { await callModel(ctx, { model: 'gpt-5-mini', input: 'a', maxOutputTokens: 100 }) }, { userId: 'titolare', store: h.store })
