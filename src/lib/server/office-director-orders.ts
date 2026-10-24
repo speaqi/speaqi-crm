@@ -3,6 +3,8 @@ import { callModel, runAgent, type AgentContext } from './office-agents'
 import { officeAgentHandler } from './office-agents/registry'
 import { officeRows } from './office-read'
 import { createLeadFromInput } from './lead-ops'
+import { loadDirectorPlan } from './opportunities'
+import { directorPlanLines } from '../office/director-plan'
 import { photoForModel, sniffUpload, safeFileName } from './tourism-deck-assets'
 import { errorMessage } from './http'
 import { normalizeForSearch, searchPattern } from '../command-center'
@@ -125,7 +127,7 @@ function queueSentence(result: QueueResult) {
   const name = AGENT_NAMES[result.agent] || result.agent
   if (result.reason === 'agent_missing') return `L’agente ${name} non è ancora installato: il lavoro non è stato accodato.`
   const what = result.queued ? `Ho passato il lavoro a ${name}` : `${name} lo aveva già in coda`
-  return result.enabled ? `${what}, che parte adesso.` : `${what}. È spento: accendilo in /ufficio/agenti e premi «Fai girare adesso».`
+  return result.enabled ? `${what}, che parte adesso.` : `${what}. È spento: accendilo dall’Ufficio (scheda Squadra) e premi «Fai girare adesso».`
 }
 
 /** Un agente acceso a cui è appena arrivato lavoro parte subito, in background. */
@@ -265,7 +267,8 @@ async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrder
     return { status: 'done', outputs: [], queued: [], reply: `Segnato nel To Do: «${plan.title}»${plan.due_date ? ` per il ${plan.due_date.slice(8, 10)}/${plan.due_date.slice(5, 7)}` : ''}.` }
   }
   if (plan.intent === 'status') {
-    return { status: 'done', outputs: [], queued: [], reply: (await statusReport(admin, userId, now)).join('\n') }
+    const [plan, status] = await Promise.all([loadDirectorPlan(admin, userId, now), statusReport(admin, userId, now)])
+    return { status: 'done', outputs: [], queued: [], reply: ['Il piano di oggi', ...directorPlanLines(plan), '', 'La situazione', ...status].join('\n') }
   }
   return { status: 'failed', outputs: [], queued: [], reply: plan.question }
 }
@@ -301,13 +304,47 @@ export async function processDirectorOrder(admin: Admin, userId: string, orderId
     startQueuedAgents(userId, done.queued, `order:${order.id}`)
   } else if (result.skipped) {
     Object.assign(patch, { status: 'failed', reply: result.skipped === 'disabled'
-      ? 'Il Direttore è spento: accendilo in /ufficio/agenti e rimandami l’ordine.'
+      ? 'Il Direttore è spento: accendilo dall’Ufficio e rimandami l’ordine.'
       : result.skipped === 'running' ? 'Il Direttore sta già lavorando a un’altra cosa: rimandami l’ordine fra qualche minuto.'
       : 'Questo ordine era già stato elaborato.', error: result.skipped })
   } else {
     Object.assign(patch, { status: 'failed', reply: `Non ci sono riuscito: ${result.error || 'errore sconosciuto'}.`, error: result.error || 'errore' })
   }
   return checked(await admin.from('office_director_orders').update(patch).eq('id', order.id).eq('user_id', userId).select('*').single())
+}
+
+const OPPORTUNITY_BY_CATEGORY: Record<string, { pipeline: string; role: string; next_step: string } | undefined> = {
+  destinazione: { pipeline: 'tourism', role: 'destinazione', next_step: 'Preparare e mandare la presentazione' },
+  partner: { pipeline: 'distribuzione', role: 'distributore', next_step: 'Proporre come distribuire le guide e un pilota' },
+  agenzia: { pipeline: 'agency', role: 'cliente_agenzia', next_step: 'Capire il brief e preparare la proposta' },
+}
+
+/**
+ * Il contatto entra nel percorso unico: un'opportunità nella pipeline del suo
+ * tipo, con il prossimo passo fra due giorni. Una già aperta non si duplica.
+ */
+async function openContactOpportunity(admin: Admin, userId: string, contactId: string, body: any): Promise<string | null> {
+  const plan = OPPORTUNITY_BY_CATEGORY[body.category as string]
+  const due = new Date(Date.now() + 2 * 86400_000).toISOString()
+  if (!plan) {
+    if (body.category !== 'cliente_mappe') return null
+    // La trattativa di vendita nasce già con il contatto: le si dà solo il ruolo.
+    await admin.from('deals').update({ role: 'cliente_mappe' }).eq('user_id', userId).eq('contact_id', contactId)
+      .eq('pipeline', 'vendite').is('closed_at', null)
+    return null
+  }
+  const who = body.contact?.company || body.contact?.name || 'contatto'
+  const { error } = await admin.from('deals').insert({
+    user_id: userId, contact_id: contactId, pipeline: plan.pipeline, role: plan.role, stage: 'qualificata',
+    title: `${plan.pipeline === 'tourism' ? 'Tourism' : plan.pipeline === 'distribuzione' ? 'Distribuzione' : 'Agency'} · ${who}`,
+    entity_id: body.entity_id || null, next_step: plan.next_step, next_step_due: due,
+    evidence: [{ kind: body.card_text ? 'bigliettino' : 'ordine', text: `Contatto passato dal titolare al Direttore${body.brief ? `: ${String(body.brief).slice(0, 300)}` : ''}.` }],
+  })
+  if (error && (error as { code?: string }).code !== '23505') {
+    console.error('[direttore] opportunità non aperta', errorMessage(error, ''))
+    return 'L’opportunità non si è aperta: aprila da /opportunita.'
+  }
+  return `Aperta l’opportunità in ${plan.pipeline} con il prossimo passo «${plan.next_step}».`
 }
 
 /**
@@ -360,6 +397,8 @@ export async function approveDirectorContact(admin: Admin, userId: string, outpu
     queued.push(await queueForAgent(admin, userId, 'agency', { key: `agency:contact:${created!.id}`, contact_id: created!.id, brief: body.brief || null }))
   }
   notes.push(...queued.map(queueSentence))
+  const opportunity = await openContactOpportunity(admin, userId, created!.id, body)
+  if (opportunity) notes.push(opportunity)
   const done = checked(await admin.rpc('office_director_contact_done', { p_output_id: outputId, p_user_id: userId,
     p_contact_id: created!.id, p_result: { queued, notes } })) as { output: unknown; reason?: string }
   if (!done.output) return { error: 'Questa proposta è già stata decisa. Aggiorna la pagina.', status: 409 }

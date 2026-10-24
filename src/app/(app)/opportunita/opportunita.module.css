@@ -1,0 +1,64 @@
+/* .page-content non scorre: lo scorrimento è della pagina, che occupa tutta l'altezza. */
+.page { height: 100%; overflow-y: auto; padding: 32px max(24px, calc((100% - 1192px) / 2)) 64px; }
+.header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 24px; }
+.header h1 { font-size: 28px; margin: 4px 0 6px; }
+.header p { color: var(--text2); font-size: 14px; line-height: 1.5; max-width: 640px; }
+.eyebrow { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--text2); }
+.muted { color: var(--text2); font-size: 13px; line-height: 1.5; }
+.error { color: #c92a2a; font-size: 13px; margin: 12px 0; }
+
+.plan { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: var(--radius-sm); padding: 20px; margin-bottom: 24px; }
+.plan h2 { font-size: 18px; margin-bottom: 4px; }
+.planGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin-top: 14px; }
+.planCol h3 { font-size: 14px; margin-bottom: 8px; }
+.planCol h3 span { color: var(--accent); margin-left: 6px; }
+.planCol ol { list-style: none; display: grid; gap: 12px; }
+.planCol li { font-size: 13px; line-height: 1.45; padding-top: 10px; border-top: 1px solid var(--border); }
+.planCol li a { color: var(--text); text-decoration: none; }
+.planCol li a:hover strong { text-decoration: underline; }
+.planCol li small { display: block; color: var(--text2); font-size: 12px; }
+.planCol li p { margin: 4px 0 2px; }
+.why { color: #a15c00 !important; }
+.maps { margin-top: 14px; font-size: 13px; color: var(--text2); }
+
+.filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+.filters > input { flex: 1; min-width: 200px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.tabs button { border: 1px solid var(--border); background: var(--surface); padding: 6px 10px; border-radius: 999px; font-size: 13px; cursor: pointer; color: var(--text); }
+.tabs button span { color: var(--text2); margin-left: 4px; font-variant-numeric: tabular-nums; }
+.tabs button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tabs button.on span { color: rgba(255,255,255,.8); }
+
+.list { list-style: none; margin-top: 8px; }
+.list > li { border-top: 1px solid var(--border); }
+.row { display: grid; grid-template-columns: minmax(0, 2.2fr) 110px minmax(0, 1.1fr) 90px minmax(0, 1.2fr) minmax(0, 2fr); gap: 12px; align-items: start;
+  width: 100%; text-align: left; background: none; border: 0; padding: 12px 4px; font: inherit; font-size: 13px; color: var(--text); cursor: pointer; }
+.row:hover { background: var(--surface2); }
+.row small { display: block; color: var(--text2); font-size: 12px; margin-top: 2px; }
+.who strong { display: block; overflow-wrap: anywhere; }
+.num { font-variant-numeric: tabular-nums; }
+.badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--surface2); justify-self: start; }
+.badge[data-pipeline='tourism'] { background: #e7f5ff; color: #1864ab; }
+.badge[data-pipeline='distribuzione'] { background: #ebfbee; color: #2b8a3e; }
+.badge[data-pipeline='agency'] { background: #f3f0ff; color: #5f3dc4; }
+.overdue { color: #c92a2a; }
+.stuckRow { background: linear-gradient(90deg, rgba(232,89,12,.06), transparent 40%); }
+.stuckText { font-size: 12px; color: #a15c00; padding: 0 4px 10px; }
+
+.editor, .newBox { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 14px; margin: 0 0 14px; background: var(--surface2); border-radius: var(--radius-sm); }
+.newBox { background: var(--surface); border: 1px solid var(--border); position: relative; min-width: min(720px, 100%); }
+.editor label, .newBox label, .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text2); }
+.wide { grid-column: span 2; }
+.actions { display: flex; gap: 8px; align-items: flex-end; }
+.picked { display: flex; gap: 8px; align-items: center; color: var(--text); font-size: 14px; }
+.results { list-style: none; border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-sm); margin-top: 4px; }
+.results button { width: 100%; text-align: left; background: none; border: 0; padding: 8px 10px; font: inherit; font-size: 13px; cursor: pointer; color: var(--text); }
+.results button:hover { background: var(--surface2); }
+
+@media (max-width: 900px) {
+  .planGrid { grid-template-columns: 1fr; }
+  .row { grid-template-columns: 1fr 1fr; }
+  .header { flex-direction: column; }
+  .editor, .newBox { grid-template-columns: 1fr; }
+  .wide { grid-column: auto; }
+}

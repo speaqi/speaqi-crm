@@ -7,6 +7,7 @@ export type SalesMessage = { contact_id?: string | null; direction: string; sent
 export type SalesSignature = { quote_id: string; signed_at: string }
 export type SalesCandidate = { contact: CRMContact; key: string; reason: 'unsigned' | 'unpaid' | 'renewal' | 'followup' | 'stale_deal'; note: string; value: number; latestOutbound: string | null; quoteId?: string; dealId?: string }
 export const SALES_DAILY_CAP = 15
+export const SALES_AGENT_OWNER = 'agent:sales_followup'
 const time = (value: unknown) => typeof value === 'string' && Number.isFinite(Date.parse(value)) ? Date.parse(value) : null
 const ago = (value: string, now: Date) => Math.floor((now.getTime() - Date.parse(value)) / 86400_000)
 export const salesEmailKey = (value: string | null | undefined) => String(value || '').trim().toLowerCase()
@@ -27,6 +28,8 @@ export function selectSalesCandidates(input: { contacts: CRMContact[]; quotes: Q
   const today = officeRomeDay(now)
   const candidates: SalesCandidate[] = []
   for (const c of input.contacts) {
+    // Un solo responsabile per comunicazione: un'opportunità affidata ad altri non riceve bozze da qui.
+    if ((dealGroups.get(c.id) || []).some((d) => d.owner && d.owner !== SALES_AGENT_OWNER)) continue
     if ((c.contact_scope || 'crm') !== 'crm' || c.hidden || c.email_unsubscribed_at || !salesEmailKey(c.email) || pending.has(c.id) || pendingEmails.has(salesEmailKey(c.email))) continue
     const history = messages.get(c.id) || []
     const outbound = history.filter((m) => m.direction === 'outbound' && time(m.sent_at)).sort((a,b) => time(b.sent_at)! - time(a.sent_at)!)[0]?.sent_at || null

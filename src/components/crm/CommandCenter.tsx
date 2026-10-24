@@ -179,7 +179,7 @@ export function CommandCenter() {
                 <dt>Prenotato</dt><dd>{formatEuroPlain((data.office.totals?.day_reserved || 0) / 100)}</dd>
                 <dt>Aspetta te</dt><dd>{data.office.pending_count}</dd></dl>
             </>}
-            <Link href="/ufficio/agenti" className="btn btn-ghost btn-sm">Agenti e bozze →</Link>
+            <Link href="/ufficio" className="btn btn-ghost btn-sm">Apri l’Ufficio →</Link>
           </div>
 
           <div className="cc-card">

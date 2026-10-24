@@ -369,8 +369,26 @@ export async function POST(request: NextRequest) {
     const maxContacts = Math.min(80, Number(body.max_contacts) || 50)
     const supabase = createServiceRoleClient()
 
+    // Un solo motore di bozze: con l'agente Commerciale dell'ufficio acceso,
+    // le bozze le prepara lui (con budget, fonti e controlli) e qui non si scrive.
+    const workspace = String(process.env.AUTOMATION_WORKSPACE_USER_ID || '').trim()
+    if (workspace) {
+      const { data: salesAgent } = await supabase.from('office_agents').select('enabled').eq('id', 'sales_followup').eq('user_id', workspace).maybeSingle()
+      if (salesAgent?.enabled) {
+        return Response.json({ scanned: 0, generated: 0, saved: 0, skipped: 'office_sales_followup_active',
+          message: 'Bozze affidate all’agente Commerciale dell’ufficio: l’orchestratore non genera.', drafts: [] })
+      }
+    }
+
     // ─── Step 1: Scan ───
-    const contacts = await scanContacts(supabase, daysAhead)
+    const scanned = await scanContacts(supabase, daysAhead)
+    // Un'opportunità con un responsabile non riceve bozze da qui: le scrive chi ne risponde.
+    const scannedIds = scanned.map((contact: CRMContact) => contact.id)
+    const { data: ownedDeals, error: ownedError } = scannedIds.length
+      ? await supabase.from('deals').select('contact_id').in('contact_id', scannedIds).is('closed_at', null).not('owner', 'is', null)
+      : { data: [], error: null }
+    const owned = new Set(ownedError ? [] : (ownedDeals || []).map((deal: { contact_id: string }) => deal.contact_id))
+    const contacts = scanned.filter((contact: CRMContact) => !owned.has(contact.id))
     const limited = contacts.slice(0, maxContacts)
 
     if (!limited.length) {

@@ -13,7 +13,9 @@ export function nonNegativeInteger(value: unknown): value is number {
 }
 
 export function modelCostCents(model: string, tokensIn: number, tokensOut: number, usdToEur = 1, cachedTokens = 0): number {
-  const price = Object.hasOwn(OFFICE_MODEL_PRICES, model) ? OFFICE_MODEL_PRICES[model] : undefined
+  // Anche con il nome OpenRouter (`openai/gpt-5-mini`).
+  const key = model.replace(/^openai\//, '')
+  const price = Object.hasOwn(OFFICE_MODEL_PRICES, key) ? OFFICE_MODEL_PRICES[key] : undefined
   if (!price) throw new Error(`Modello senza listino: ${model}`)
   if (!nonNegativeInteger(tokensIn) || !nonNegativeInteger(tokensOut)) throw new Error('Numero di token non valido')
   if (!nonNegativeInteger(cachedTokens) || cachedTokens > tokensIn) throw new Error('Token in cache non validi')

@@ -48,7 +48,8 @@ document.querySelectorAll('[data-light]').forEach((button) => {
     applyLight()
   }
 })
-window.addEventListener('keydown', (event) => { if (event.key === 'Escape') focusDepartment(null) })
+// Esc torna alla vista completa e, se la pagina è a schermo intero, lo chiude: il tasto premuto qui non arriva alla pagina da solo.
+window.addEventListener('keydown', (event) => { if (event.key === 'Escape') { focusDepartment(null); send({ type: 'office:escape' }) } })
 
 function fail3D() {
   webglFailed = true
@@ -1009,6 +1010,8 @@ function updateFocus() {
 function focusDepartment(id, agentId = null) {
   focused = id; selected = agentId
   updateFocus(); renderPanel(); moveCamera()
+  // Il pannello della pagina mostra la squadra del reparto scelto qui.
+  send({ type: 'office:focus', department: id })
 }
 // Distanza minima perché tutti i punti stiano nell'inquadratura, con un margine: vale per ogni formato di finestra.
 function fitDistance(target, dir, points, margin = 0.86) {
@@ -1244,7 +1247,15 @@ $('panel').addEventListener('click', (event) => {
 
 window.addEventListener('message', (event) => {
   if (event.source !== window.parent) return
-  if (event.data?.type === 'office:snapshot') {
+  if (event.data?.type === 'office:embed') {
+    // La pagina disegna barra e pannello: qui resta solo il campus, a tutta larghezza.
+    $('app').classList.toggle('embedded', event.data.panel === false)
+    if (event.data.panel === false) $('fallback').textContent = 'Il 3D non è disponibile in questo browser. Agenti, proposte e Direttore sono nel pannello a destra.'
+  } else if (event.data?.type === 'office:focus') {
+    const id = typeof event.data.department === 'string' ? event.data.department : null
+    if (id === focused) return
+    if (!id || snapshot?.departments.some((d) => d.id === id)) { focused = id; selected = null; updateFocus(); renderPanel(); moveCamera() }
+  } else if (event.data?.type === 'office:snapshot') {
     const first = !snapshot
     snapshot = event.data.snapshot; dataError = ''
     if (focused && !snapshot.departments.some((d) => d.id === focused)) { focused = null; selected = null }

@@ -46,6 +46,7 @@ export function newsWatchHandler(admin:any,options:{now?:()=>Date;fetchPage?:Res
       nota:'Fonti delle ultime 48 ore. Nessun invio automatico: Telegram richiede il pulsante esplicito del titolare.'}
     const saved=await admin.rpc('finish_office_news_batch',{p_batch_id:claim.data.id,p_run_id:ctx.runId,p_body:body})
     if(saved.error) throw saved.error
+    if(!feeds.length) return {summary:'Nessuna fonte da leggere: aggiungi i feed RSS o le pagine con data in «Budget e impostazioni» (feeds).'}
     return {summary:`Rassegna preparata: ${news.length} novità verificate${warnings.length?`, ${warnings.length} avvisi sulle fonti`:''}.`}
   }
 }

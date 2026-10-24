@@ -255,6 +255,6 @@ export function telegramDirectorRoute(text: string, options: { photo: boolean; m
 export function telegramDirectorReply(order: { status: string; reply: string | null }, baseUrl: string) {
   const reply = order.reply || 'Ho finito, ma non ho niente da dirti.'
   return order.status === 'waiting_you'
-    ? `${reply}\n\nDecidi qui: ${baseUrl.replace(/\/$/, '')}/ufficio/agenti (un «sì» in chat non approva niente).`
+    ? `${reply}\n\nDecidi qui: ${baseUrl.replace(/\/$/, '')}/ufficio (un «sì» in chat non approva niente).`
     : reply
 }

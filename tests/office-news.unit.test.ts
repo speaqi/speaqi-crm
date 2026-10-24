@@ -7,6 +7,7 @@ import { sendNotificationText } from '../src/lib/server/whatsapp'
 import { OFFICE_AGENT_DEFINITIONS } from '../src/lib/server/office-agents/definitions'
 import { FakeSupabase } from './fake-supabase'
 import type { AgentContext } from '../src/lib/server/office-agents'
+import { MODEL_URL, modelReply } from './model-reply'
 
 const NOW=new Date('2026-10-23T08:00:00Z')
 const article=(patch:Partial<NewsArticle>={}):NewsArticle=>({url:'https://news.example.org/turismo',title:'Turismo: nuovi finanziamenti per musei e guide digitali',published_at:'2026-10-22T08:00:00Z',excerpt:'Disponibili 20 progetti per i musei.',feed_url:'https://news.example.org/rss',...patch})
@@ -47,13 +48,13 @@ function fixture(){
   return{db,ctx,order}
 }
 test('notizie: tentativo persistente prima della spesa, saldo e report; telegram=true non invia dal job',async()=>{
-  const f=fixture();const old=process.env.OPENAI_API_KEY;process.env.OPENAI_API_KEY='finta'
-  const fetch=mock.method(globalThis,'fetch',async(url:unknown)=>{assert.equal(url,'https://api.openai.com/v1/responses');f.order.push('provider');return Response.json({status:'completed',usage:{input_tokens:1000,output_tokens:100},output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({news:[{url:article().url,summary:'Disponibili 20 progetti.',why:'Opportunità per i musei.'}]})}]}]})})
+  const f=fixture();const old=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='finta'
+  const fetch=mock.method(globalThis,'fetch',async(url:unknown)=>{assert.equal(url,MODEL_URL);f.order.push('provider');return modelReply(JSON.stringify({news:[{url:article().url,summary:'Disponibili 20 progetti.',why:'Opportunità per i musei.'}]}),{input_tokens:1000,output_tokens:100})})
   try{
     const run=newsWatchHandler(f.db,{now:()=>NOW,fetchPage:async()=>({status:200,text:RSS,bytes:RSS.length,headers:{}})})
     await run(f.ctx);await run(f.ctx);assert.deepEqual(f.order,['claim','reserve','provider','settle','save']);assert.equal(fetch.mock.callCount(),1)
     assert.equal(f.db.tables.office_agent_outputs[0].body.telegram_available,true)
-  }finally{fetch.mock.restore();if(old===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=old}
+  }finally{fetch.mock.restore();if(old===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=old}
 })
 test('notizie: timeout non ripaga il modello e non marca articoli come visti',async()=>{
   const f=fixture();let calls=0;const run=newsWatchHandler(f.db,{now:()=>NOW,fetchPage:async()=>({status:200,text:RSS,bytes:RSS.length,headers:{}}),model:async()=>{calls++;throw new Error('Timeout')}})

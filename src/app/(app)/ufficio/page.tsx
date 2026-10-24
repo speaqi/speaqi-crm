@@ -1,15 +1,20 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { apiFetch } from '@/lib/api'
 import { officeSceneSnapshot, type OfficeSceneSnapshot } from '@/lib/office-scene'
 import type { OfficeOverview } from '@/lib/office'
+import { OfficePanel, type PanelTab } from './OfficePanel'
+import styles from './ufficio.module.css'
 
+/**
+ * L'Ufficio in una pagina: il campus 3D a sinistra, a destra il pannello da cui si fa tutto
+ * (Direttore, proposte da decidere, agenti, piano di oggi). Lo schermo intero tiene entrambi.
+ */
 export default function UfficioPage() {
-  const router = useRouter()
+  const room = useRef<HTMLDivElement>(null)
   const frame = useRef<HTMLIFrameElement>(null)
   const snapshot = useRef<OfficeSceneSnapshot | null>(null)
   const refreshController = useRef<AbortController | null>(null)
@@ -18,6 +23,16 @@ export default function UfficioPage() {
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
   const [sceneFailed, setSceneFailed] = useState(false)
+  const [overview, setOverview] = useState<OfficeOverview | null>(null)
+  const [tab, setTab] = useState<PanelTab>('waiting')
+  const [department, setDepartment] = useState<string | null>(null)
+  const [highlight, setHighlight] = useState<string | null>(null)
+  const [full, setFull] = useState(false)
+  // «Aspetta te» in prima pagina porta qui con ?uscita=<id>: si apre la proposta nel pannello.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('uscita')
+    if (id) { setTab('waiting'); setHighlight(id) }
+  }, [])
 
   const send = useCallback((message: object) => frame.current?.contentWindow?.postMessage(message, '*'), [])
   const refresh = useCallback(async (signal?: AbortSignal) => {
@@ -30,6 +45,7 @@ export default function UfficioPage() {
     try {
       const data = await apiFetch<OfficeOverview>('/api/office', { signal: controller.signal })
       if (controller.signal.aborted) return
+      setOverview(data)
       snapshot.current = officeSceneSnapshot(data)
       send({ type: 'office:snapshot', snapshot: snapshot.current })
       dataError.current = ''
@@ -73,23 +89,51 @@ export default function UfficioPage() {
       // L’iframe sandbox ha origine opaca: l’identità è la finestra, mai il payload.
       if (event.source !== frame.current?.contentWindow) return
       if (event.data?.type === 'office:ready') {
+        // Barra e pannello li disegna la pagina: alla scena resta il campus.
+        send({ type: 'office:embed', panel: false })
         if (snapshot.current) send({ type: 'office:snapshot', snapshot: snapshot.current })
         if (dataError.current) send({ type: 'office:error', message: dataError.current })
       } else if (event.data?.type === 'office:refresh') void refresh()
       else if (event.data?.type === 'office:failed') setSceneFailed(true)
-      else if (event.data?.type === 'office:navigate') {
+      else if (event.data?.type === 'office:escape') { if (!document.fullscreenElement) setFull(false) }
+      else if (event.data?.type === 'office:focus') {
+        const id = event.data.department
+        setDepartment(typeof id === 'string' ? id : null)
+        if (typeof id === 'string') setTab('team')
+      } else if (event.data?.type === 'office:navigate') {
+        // Dal 3D non si cambia pagina: il totem «Aspetta te» e le schede aprono il pannello.
         const id = event.data.outputId
-        const agentId = event.data.agentId
-        const hash = typeof id === 'string' ? `#uscita-${encodeURIComponent(id)}`
-          : typeof agentId === 'string' ? `#agente-${encodeURIComponent(agentId)}` : ''
-        router.push(`/ufficio/agenti${hash}`)
+        if (typeof event.data.agentId === 'string') { setTab('team'); return }
+        setTab('waiting'); setHighlight(typeof id === 'string' ? id : null)
       }
     }
     window.addEventListener('message', message)
     return () => window.removeEventListener('message', message)
-  }, [refresh, router, send])
+  }, [refresh, send])
 
-  return <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: '#101b26', position: 'relative' }}>
+  const reload = useCallback(() => refresh(), [refresh])
+  const pickDepartment = useCallback((id: string | null) => { setDepartment(id); send({ type: 'office:focus', department: id }) }, [send])
+
+  // Schermo intero vero dove il browser lo permette; altrimenti la stanza copre la finestra.
+  useEffect(() => {
+    const sync = () => setFull(document.fullscreenElement === room.current)
+    document.addEventListener('fullscreenchange', sync)
+    return () => document.removeEventListener('fullscreenchange', sync)
+  }, [])
+  async function toggleFull() {
+    if (document.fullscreenElement) { await document.exitFullscreen().catch(() => {}); return }
+    if (full) { setFull(false); return }
+    try { await room.current?.requestFullscreen() } catch { setFull(true) }
+  }
+  useEffect(() => {
+    if (!full || document.fullscreenElement) return
+    const key = (event: KeyboardEvent) => { if (event.key === 'Escape') setFull(false) }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [full])
+
+  return <div ref={room} className={`${styles.room} ${full ? styles.full : ''}`}>
+    <div className={styles.stage}>
     {(error || sceneFailed) && <div role="alert" style={{ padding: '10px 16px', color: '#fff2cb', background: '#3e3025', display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
       <span>{error || 'Il 3D non è disponibile in questo browser.'}</span>
       <button className="btn btn-ghost btn-sm" onClick={() => { setError(''); if (!html || sceneFailed) { setHtml(null); setAttempt((n) => n + 1) } else void refresh() }}>Riprova</button>
@@ -98,5 +142,10 @@ export default function UfficioPage() {
     {html ? <iframe ref={frame} title="Ufficio Speaqi" srcDoc={html} sandbox="allow-scripts"
       style={{ flex: 1, border: 0, width: '100%', minHeight: 0 }} />
       : !error && <p style={{ margin: 'auto', color: '#b9c8d0' }}>Apro l’ufficio…</p>}
+      <button type="button" className={styles.fullButton} onClick={() => { void toggleFull() }}
+        aria-pressed={full}>{full ? '✕ Esci da schermo intero' : '⛶ Schermo intero'}</button>
+    </div>
+    <OfficePanel data={overview} reload={reload} tab={tab} setTab={setTab}
+      department={department} setDepartment={pickDepartment} highlight={highlight} />
   </div>
 }

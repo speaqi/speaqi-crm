@@ -7,22 +7,10 @@ import { formatEuroPlain } from '@/lib/command-center'
 import { OFFICE_DEPARTMENTS, OFFICE_RUN_LABELS, officeApprovalEffect, type OfficeAgent, type OfficeOverview, type OfficeRun } from '@/lib/office'
 import styles from './office.module.css'
 import { DirectorOrders } from './DirectorOrders'
+import { CONTACT_HIDDEN_KEYS, OutputBody } from '@/components/office/OutputBody'
 
 const euro = (cents: number) => formatEuroPlain(cents / 100)
 const date = (value: string) => new Date(value).toLocaleString('it-IT', { timeZone: 'Europe/Rome', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-
-const BODY_LABELS: Record<string, string> = { testo: 'Testo', text: 'Testo', subject: 'Oggetto', body: 'Contenuto', summary: 'Riepilogo', points: 'Punti', sources: 'Fonti', evidence: 'Fonti', proposal: 'Proposta',
-  contact: 'Contatto', name: 'Nome', role: 'Ruolo', company: 'Azienda / ente', email: 'Email', phone: 'Telefono', website: 'Sito', city: 'Città', country: 'Paese',
-  perche: 'Perché', card_text: 'Bigliettino', scartati: 'Dati lasciati fuori', ente_nel_catalogo: 'Ente nel catalogo', possibili_doppioni: 'Possibili doppioni', dopo_il_clic: 'Dopo il clic', brief: 'Richiesta' }
-/** Campi tecnici del nuovo contatto: servono al server, non a chi decide. */
-const CONTACT_HIDDEN_KEYS = new Set(['action', 'order_id', 'category', 'entity_id', 'duplicate_ids', 'claimed_at'])
-
-function OutputBody({ value, hide }: { value: unknown; hide?: Set<string> }) {
-  if (value === null || value === undefined) return <span>—</span>
-  if (Array.isArray(value)) return <ul>{value.map((item, index) => <li key={index}><OutputBody value={item} hide={hide} /></li>)}</ul>
-  if (typeof value === 'object') return <dl>{Object.entries(value).filter(([key, item]) => !hide || (!hide.has(key) && item !== null && !(Array.isArray(item) && !item.length))).map(([key, item]) => <div key={key}><dt>{BODY_LABELS[key] || key.replace(/_/g, ' ')}</dt><dd><OutputBody value={item} hide={hide} /></dd></div>)}</dl>
-  return <p>{typeof value === 'boolean' ? value ? 'Sì' : 'No' : String(value)}</p>
-}
 
 function AgentRow({ agent, busy, change, run }: {
   agent: OfficeOverview['agents'][number]; busy: boolean
@@ -94,6 +82,13 @@ export default function OfficePage() {
   const refresh = useCallback(() => { void load().catch(() => {}) }, [load])
 
   useEffect(() => { if (data && data.outputs.length === 0 && offset > 0) setOffset(Math.max(0, offset - 50)) }, [data, offset])
+  // I link dalla scena e da «Aspetta te» portano un'ancora (#agente-…, #uscita-…), ma le schede
+  // arrivano dopo il caricamento: il browser non le trova da solo, quindi si scorre all'arrivo dei dati.
+  const ready = Boolean(data)
+  useEffect(() => {
+    if (!ready || !window.location.hash) return
+    document.getElementById(decodeURIComponent(window.location.hash.slice(1)))?.scrollIntoView({ block: 'start' })
+  }, [ready])
 
   async function act(id: string, action: () => Promise<unknown>, message?: string) {
     setBusy(id); setError(''); setNotice('')
@@ -159,7 +154,7 @@ export default function OfficePage() {
         const agents = data.agents.filter((agent) => agent.department === department)
         return agents.length > 0 && <section key={department} className={styles.department}><h2>{label}</h2>{agents.map((agent) => <AgentRow key={agent.id} agent={agent} busy={!!busy} change={change} run={run} />)}</section>
       })}
-      <section className={styles.queue}><h2>Aspetta te <span>{data.pending_count}</span></h2><p>Leggi l’effetto indicato su ogni proposta prima di decidere: alcune approvazioni aggiornano il CRM o accodano nuovi lavori.</p>
+      <section className={styles.queue} id="coda"><h2>Aspetta te <span>{data.pending_count}</span></h2><p>Leggi l’effetto indicato su ogni proposta prima di decidere: alcune approvazioni aggiornano il CRM o accodano nuovi lavori.</p>
         {data.pending_count === 0 && <p className={styles.emptyQueue}>Nessuna uscita da valutare.</p>}
         {data.outputs.map((output) => <article className={styles.output} id={`uscita-${output.id}`} key={output.id}>
           <small>{data.agents.find((agent) => agent.id === output.agent_id)?.name || output.agent_id} · {date(output.created_at)}</small><h3>{output.title}</h3>
