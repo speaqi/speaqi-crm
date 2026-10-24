@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import {
-  DIRECTOR_ORDER_SCHEMA, decideCategory, directorOrderPrompt, directorStatusLines, interpretDirectorOrder, queuedWorkReport,
+  DIRECTOR_ORDER_SCHEMA, decideCategory, directorOrderPrompt, directorStatusLines, interpretDirectorOrder, queuedWorkReport, directorEventsReply,
   telegramDirectorReply, telegramDirectorRoute,
 } from '../src/lib/office/director-orders'
 import { validateOrderFiles } from '../src/lib/server/office-director-orders'
@@ -164,5 +164,22 @@ describe('foto e costi', () => {
     assert.match(report, /Agenzia: non è riuscito: budget finito/)
     assert.match(report, /«Aspetta te»: https:\/\/crm\.example\/ufficio/)
     assert.doesNotMatch(queuedWorkReport([{ name: 'A', state: 'ok', summary: 'fatto', outputs: [] }], 'x'), /Aspetta te/)
+  })
+
+  test('«quali sono le prossime fiere?» risponde con gli eventi trovati o col motivo, non con un To Do', () => {
+    const plan = interpretDirectorOrder(answer({ intent: 'events' }), { text: 'mi dici le prossime fiere interessanti?', today: TODAY })
+    assert.deepEqual(plan, { intent: 'events' })
+    const empty = directorEventsReply([], { installed: true, enabled: true, sources: 0 })
+    assert.match(empty, /non ne ha ancora trovate/)
+    assert.match(empty, /non ha fonti/)
+    const list = directorEventsReply([{ name: 'WTM London', start_date: '2026-11-03', end_date: '2026-11-05', city: 'Londra', kind: 'fair',
+      url: 'https://www.wtm.com', deadlines: [{ date: '2026-10-30' }] }], { installed: true, enabled: true, sources: 3 })
+    assert.match(list, /03\/11–05\/11 WTM London \(Londra\) — fiera · scadenza 30\/10/)
+    assert.doesNotMatch(list, /non ha fonti/)
+  })
+  test('la spesa degli agenti mostra i centesimi', () => {
+    const lines = directorStatusLines({ deals: [], quotesAwaiting: [], overdueTasks: 0, activities7d: 0, timeline: [], pendingOutputs: 0,
+      runs: [{ agent: 'Direttore', status: 'done', summary: 'ok', started_at: '2026-10-24T10:00:00Z' }], spendWeekCents: 5 }, { brief: true })
+    assert.match(lines.join('\n'), /0,05 € spesi/)
   })
 })

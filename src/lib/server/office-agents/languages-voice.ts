@@ -4,7 +4,7 @@ import { createServiceRoleClient } from '../supabase'
 import { officeIsNaples } from '@/lib/office/director'
 import { officeRomeDay } from '@/lib/office/finance'
 import {
-  LANGUAGES_INCLUDE, MAX_MAPS_PER_NIGHT, euro, languagesQueue, launchOptions, percentDone, progressCheck, summaryLine, usdToCents,
+  LANGUAGES_INCLUDE, MAX_MAPS_PER_NIGHT, euro, nightWindow, languagesQueue, launchOptions, percentDone, progressCheck, summaryLine, usdToCents,
   type FillDryRun, type LanguagesQueueEntry, type TranslationsSummary,
 } from '@/lib/office/languages-voice'
 import { addOfficeOutputOnce } from './shared'
@@ -80,7 +80,7 @@ export function languagesVoiceHandler(admin: any, options: { api?: SpeaqiTransla
 
     const lines: string[] = []; const maps: Record<string, unknown> = {}; const deferred: string[] = []
     let spent = 0; let launched = 0
-    for (const entry of entries.slice(0, MAX_MAPS_PER_NIGHT)) {
+    for (const entry of nightWindow(entries, day)) {
       try {
         const result = await workMap(entry)
         if (result) { spent += result.spent; launched += result.launched ? 1 : 0 }
@@ -90,7 +90,7 @@ export function languagesVoiceHandler(admin: any, options: { api?: SpeaqiTransla
         ctx.log(`Errore su ${entry.map_id}: ${message}`)
       }
     }
-    if (entries.length > MAX_MAPS_PER_NIGHT) deferred.push(`${entries.length - MAX_MAPS_PER_NIGHT} mappe oltre il limite di ${MAX_MAPS_PER_NIGHT} per notte`)
+    if (entries.length > MAX_MAPS_PER_NIGHT) deferred.push(`${entries.length - MAX_MAPS_PER_NIGHT} mappe oltre il limite di ${MAX_MAPS_PER_NIGHT} per notte: toccano nelle prossime notti, a rotazione`)
 
     await addOfficeOutputOnce(admin, ctx, `languages:night:${day}`, { kind: 'report', title: `Lingue e voce — ${day}`,
       body: { righe: lines, maps, rimandate: deferred, speso_cents: spent, cambio_usd_eur: usdToEur,

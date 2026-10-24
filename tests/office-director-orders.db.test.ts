@@ -17,7 +17,7 @@ const queue = (agent: string, entry: Record<string, unknown>, owner = OWNER) =>
 let outputId: string
 
 before(async () => {
-  await resetOfficeDatabase(DB, ['20261024090000_office_director_orders.sql'])
+  await resetOfficeDatabase(DB, ['20261024090000_office_director_orders.sql', '20261024140000_office_queue_update.sql'])
   await sql(`insert into auth.users(id) values('${OWNER}'),('${OTHER}')`)
 })
 beforeEach(async () => {
@@ -48,6 +48,20 @@ test('coda: elenco chiuso, Napoli fuori, nessun doppione, impostazioni intatte',
   assert.equal((await queue('mymaps_builder', { key: 'build_map:lione', slug: 'lione', city: 'Lione' }, OTHER)).reason, 'agent_missing')
   assert.equal(await scalar('select count(*) from office_agents where enabled'), '0')
   assert.equal(await scalar('select count(*) from office_agent_runs'), '0')
+})
+
+test('coda: lo stesso lavoro con un dato nuovo aggiorna la voce, senza cancellare quello che c’era', async () => {
+  assert.equal((await queue('mymaps_builder', { key: 'build_map:marsiglia', slug: 'marsiglia', city: 'Marsiglia' })).queued, true)
+  const link = 'https://www.google.com/maps/d/viewer?mid=abc'
+  const updated = await queue('mymaps_builder', { key: 'build_map:marsiglia', slug: 'marsiglia', city: 'Marsiglia', source: link })
+  assert.equal(updated.reason, 'updated')
+  assert.deepEqual(updated.fields, ['source'])
+  assert.equal(await scalar(`select settings->'queue'->0->>'source' from office_agents where id='mymaps_builder'`), link)
+  assert.equal(await scalar(`select settings->'queue'->0->>'revisions' from office_agents where id='mymaps_builder'`), '1')
+  // Un ordine senza link non cancella il link di prima.
+  assert.equal((await queue('mymaps_builder', { key: 'build_map:marsiglia', slug: 'marsiglia', city: 'Marsiglia', source: null })).reason, 'already_queued')
+  assert.equal(await scalar(`select settings->'queue'->0->>'source' from office_agents where id='mymaps_builder'`), link)
+  assert.equal(await scalar(`select jsonb_array_length(settings->'queue') from office_agents where id='mymaps_builder'`), '1')
 })
 
 test('contatto: otto clic insieme, uno solo lavora; poi la proposta risulta approvata una volta', async () => {

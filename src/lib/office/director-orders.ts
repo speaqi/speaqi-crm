@@ -6,7 +6,7 @@ import { officeIsNaples } from './director'
  * decide cosa si fa. Puro e testato: nessun accesso a database o rete.
  */
 
-export const DIRECTOR_ORDER_INTENTS = ['new_contact', 'build_map', 'check_map', 'presentation', 'status', 'task', 'unknown'] as const
+export const DIRECTOR_ORDER_INTENTS = ['new_contact', 'build_map', 'check_map', 'presentation', 'status', 'events', 'task', 'unknown'] as const
 export type DirectorOrderIntent = (typeof DIRECTOR_ORDER_INTENTS)[number]
 export const CONTACT_CATEGORIES = ['destinazione', 'partner', 'agenzia', 'cliente_mappe', 'dubbio'] as const
 export type ContactCategory = (typeof CONTACT_CATEGORIES)[number]
@@ -28,6 +28,7 @@ export type DirectorOrderPlan =
   | { intent: 'check_map'; city: string; slug: string }
   | { intent: 'presentation'; target: string; brief: string | null }
   | { intent: 'status' }
+  | { intent: 'events' }
   | { intent: 'task'; title: string; due_date: string | null }
   | { intent: 'unknown'; question: string }
 
@@ -60,7 +61,8 @@ export function directorOrderPrompt(text: string, images: number, today: string)
     '- check_map: controllare la qualità della mappa di una città. city = la città.',
     '- presentation: preparare una presentazione per un ente, una destinazione o un cliente. target = il nome come scritto, brief = cosa chiede.',
     '- status: come stanno andando pipeline, trattative, timeline, agenti.',
-    '- task: una cosa da fare per il titolare. task_title breve, task_due in formato AAAA-MM-GG se è detta una data (oggi è ' + today + ').',
+    '- events: chiede quali fiere, eventi, workshop o bandi ci sono in arrivo ("quali sono le prossime fiere?"). Non è un task: la risposta la dà l’ufficio.',
+    '- task: una cosa da fare per il titolare ("ricordami di…", "segna che devo…"), non una domanda. task_title breve, task_due in formato AAAA-MM-GG se è detta una data (oggi è ' + today + ').',
     '- unknown: non è chiaro. question = cosa ti serve sapere, in una frase.',
     '',
     'Regole:',
@@ -179,6 +181,7 @@ export function interpretDirectorOrder(parsed: unknown, input: { text: string; t
     return { intent, title, due_date: due }
   }
   if (intent === 'status') return { intent }
+  if (intent === 'events') return { intent }
   return { intent: 'unknown', question }
 }
 
@@ -195,6 +198,8 @@ export type DirectorStatusInput = {
 
 // A mano: Node e browser non concordano sul separatore delle migliaia.
 const euro = (value: number) => formatEuroPlain(Math.round(value))
+/** La spesa degli agenti è fatta di centesimi: arrotondata all'euro diventava «0 €». */
+const spend = (cents: number) => formatEuroPlain(cents / 100)
 const day = (iso: string) => new Date(iso).toLocaleString('it-IT', { timeZone: 'Europe/Rome', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
 /** Lo stato in frasi: i numeri li calcola il codice, nessun modello. */
@@ -218,7 +223,7 @@ export function directorStatusLines(input: DirectorStatusInput, options: { brief
   if (options.brief) {
     lines.splice(1, lines.length - 1, lines.find((l) => l.startsWith('Preventivi'))!, lines.find((l) => l.startsWith('Follow-up'))!)
     lines.push(`Aspetta te: ${input.pendingOutputs} uscite degli agenti da decidere.`)
-    lines.push(input.runs.length ? `Agenti: ${input.runs.length} corse negli ultimi 7 giorni, ${euro(input.spendWeekCents / 100)} spesi questa settimana.` : 'Agenti: nessuna corsa negli ultimi 7 giorni.')
+    lines.push(input.runs.length ? `Agenti: ${input.runs.length} corse negli ultimi 7 giorni, ${spend(input.spendWeekCents)} spesi questa settimana.` : 'Agenti: nessuna corsa negli ultimi 7 giorni.')
     return lines
   }
   if (input.timeline.length) {
@@ -227,7 +232,7 @@ export function directorStatusLines(input: DirectorStatusInput, options: { brief
   }
   lines.push(`Aspetta te: ${input.pendingOutputs} uscite degli agenti da decidere.`)
   if (input.runs.length) {
-    lines.push(`Agenti negli ultimi 7 giorni: ${input.runs.length} corse, ${euro(input.spendWeekCents / 100)} spesi questa settimana.`)
+    lines.push(`Agenti negli ultimi 7 giorni: ${input.runs.length} corse, ${spend(input.spendWeekCents)} spesi questa settimana.`)
     lines.push(...input.runs.slice(0, 5).map((run) => `· ${run.agent} (${day(run.started_at)}): ${run.summary.slice(0, 120)}`))
   } else {
     lines.push('Agenti: nessuna corsa negli ultimi 7 giorni.')
@@ -303,5 +308,32 @@ export function queuedWorkReport(work: QueuedWork[], uiUrl: string): string {
     for (const note of notes) lines.push(`   → ${note}`)
   }
   if (waiting) lines.push(`Le uscite da guardare sono in «Aspetta te»: ${uiUrl}`)
+  return lines.join('\n')
+}
+
+
+export type DirectorEventRow = { name: string; start_date: string; end_date: string | null; city: string | null; kind: string; url: string; deadlines: Array<{ date: string; label?: string }> }
+const EVENT_KINDS: Record<string, string> = { fair: 'fiera', b2b_workshop: 'workshop B2B', grant: 'bando', conference: 'conferenza' }
+const eventDay = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
+
+/**
+ * «Quali sono le prossime fiere?» non è un To Do: si risponde con quello che
+ * l'agente Eventi ha trovato, e se non ha trovato niente si dice perché.
+ */
+export function directorEventsReply(events: DirectorEventRow[], scout: { installed: boolean; enabled: boolean; sources: number }): string {
+  const lines: string[] = []
+  if (events.length) {
+    lines.push('Prossimi eventi e fiere trovati dall’agente Eventi:')
+    for (const e of events.slice(0, 8)) {
+      const when = e.end_date && e.end_date !== e.start_date ? `${eventDay(e.start_date)}–${eventDay(e.end_date)}` : eventDay(e.start_date)
+      const deadline = e.deadlines?.[0]?.date ? ` · scadenza ${eventDay(e.deadlines[0].date)}` : ''
+      lines.push(`• ${when} ${e.name}${e.city ? ` (${e.city})` : ''} — ${EVENT_KINDS[e.kind] || e.kind}${deadline}\n  ${e.url}`)
+    }
+  } else {
+    lines.push('Non ho un elenco di fiere: l’agente Eventi non ne ha ancora trovate.')
+  }
+  if (!scout.installed) lines.push('L’agente Eventi non è installato.')
+  else if (!scout.sources) lines.push('Motivo: l’agente Eventi non ha fonti. Aggiungi gli indirizzi dei calendari delle fiere nelle sue impostazioni (settings.sources) in Ufficio → Squadra → Budget e impostazioni.')
+  else if (!scout.enabled) lines.push('L’agente Eventi è spento: accendilo dall’Ufficio (scheda Squadra).')
   return lines.join('\n')
 }

@@ -11,7 +11,7 @@ import { normalizeForSearch, searchPattern } from '../command-center'
 import { officeRomeDay } from '../office/finance'
 import {
   CONTACT_CATEGORY_LABELS, DIRECTOR_ORDER_SCHEMA, contactNextStep, directorOrderPrompt, directorStatusLines,
-  interpretDirectorOrder, queuedWorkReport, type DirectorOrderPlan, type QueuedWork,
+  directorEventsReply, interpretDirectorOrder, queuedWorkReport, type DirectorEventRow, type DirectorOrderPlan, type QueuedWork,
 } from '../office/director-orders'
 import { sendNotificationText } from './whatsapp'
 import { createServiceRoleClient } from './supabase'
@@ -123,13 +123,34 @@ export async function queueForAgent(admin: Admin, userId: string, agentId: strin
 
 const AGENT_NAMES: Record<string, string> = {
   mymaps_builder: 'Costruttore My Maps', maps_quality: 'Controllo qualità mappe', presentations: 'Presentazioni', agency: 'Agenzia',
+  languages_voice: 'Lingue e voce',
 }
 
 function queueSentence(result: QueueResult) {
   const name = AGENT_NAMES[result.agent] || result.agent
   if (result.reason === 'agent_missing') return `L’agente ${name} non è ancora installato: il lavoro non è stato accodato.`
-  const what = result.queued ? `Ho passato il lavoro a ${name}` : `${name} lo aveva già in coda`
+  const what = result.queued ? `Ho passato il lavoro a ${name}`
+    : result.reason === 'updated' ? `${name} lo aveva già in coda: ho aggiornato la voce con i dati nuovi`
+    : `${name} lo aveva già in coda`
   return result.enabled ? `${what}, che parte adesso.` : `${what}. È spento: accendilo dall’Ufficio (scheda Squadra) e premi «Fai girare adesso».`
+}
+
+const BUSY_RETRY_MS = 20_000
+const BUSY_RETRIES = 9
+
+/**
+ * Un agente occupato da un'altra corsa non è un errore: si aspetta e si riprova
+ * (al più tre minuti), invece di chiedere al titolare di rimandare l'ordine.
+ */
+export async function runAgentWhenFree(agentId: string, handler: Parameters<typeof runAgent>[1], options: Parameters<typeof runAgent>[2],
+  wait: { retries?: number; delayMs?: number; sleep?: (ms: number) => Promise<void> } = {}) {
+  const sleep = wait.sleep || ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
+  let result = await runAgent(agentId, handler, options)
+  for (let attempt = 0; result.skipped === 'running' && attempt < (wait.retries ?? BUSY_RETRIES); attempt += 1) {
+    await sleep(wait.delayMs ?? BUSY_RETRY_MS)
+    result = await runAgent(agentId, handler, options)
+  }
+  return result
 }
 
 /** Un agente acceso a cui è appena arrivato lavoro parte subito, in background. */
@@ -140,7 +161,7 @@ export function startQueuedAgents(userId: string, results: QueueResult[], key: s
     if (!handler) return null
     const name = AGENT_NAMES[result.agent] || result.agent
     try {
-      const done = await runAgent(result.agent, handler, { userId, key: `${key}:${result.agent}` })
+      const done = await runAgentWhenFree(result.agent, handler, { userId, key: `${key}:${result.agent}` })
       if (done.skipped) return { name, state: 'skipped', summary: '', reason: done.skipped === 'running' ? 'sta già lavorando a un’altra cosa' : done.skipped === 'disabled' ? 'è spento' : 'lavoro già fatto', outputs: [] }
       if (done.error || !done.run) return { name, state: 'failed', summary: '', reason: done.error || 'corsa non avviata', outputs: [] }
       const outputs = await readRunOutputs(userId, done.run.id)
@@ -307,6 +328,19 @@ async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrder
       ? `Ho trovato più contatti per «${plan.target}» (${contacts.map((c) => c.name).join(', ')}): dimmi quale.`
       : `Non trovo «${plan.target}» né fra gli enti del catalogo Tourism né fra i contatti. Se è nuovo, mandami prima il contatto.` }
   }
+  if (plan.intent === 'events') {
+    const today = officeRomeDay(now)
+    const [events, scout] = await Promise.all([
+      admin.from('office_events').select('name,start_date,end_date,city,kind,url,deadlines').eq('user_id', userId)
+        .gte('start_date', today).order('start_date', { ascending: true }).limit(8),
+      admin.from('office_agents').select('enabled,settings').eq('id', 'events_scout').eq('user_id', userId).maybeSingle(),
+    ])
+    if (events.error) throw events.error
+    if (scout.error) throw scout.error
+    const sources = Array.isArray(scout.data?.settings?.sources) ? scout.data.settings.sources.length : 0
+    return { status: 'done', outputs: [], queued: [], reply: directorEventsReply((events.data || []) as DirectorEventRow[],
+      { installed: !!scout.data, enabled: !!scout.data?.enabled, sources }) }
+  }
   if (plan.intent === 'task') {
     const { error } = await admin.from('tasks').insert({
       user_id: userId, contact_id: null, type: 'todo', title: plan.title, note: order.text.slice(0, 1000) || null,
@@ -347,7 +381,7 @@ export async function processDirectorOrder(admin: Admin, userId: string, orderId
     outcome = await executePlan(admin, ctx, order, plan, now)
     return { summary: `Ordine: ${outcome.reply.split('\n')[0].slice(0, 300)}` }
   }
-  const result = await runAgent('director', handler, { userId, key: `order:${order.id}` })
+  const result = await runAgentWhenFree('director', handler, { userId, key: `order:${order.id}` })
   const done = outcome as Outcome | null
   const patch: Record<string, unknown> = { run_id: result.run?.id || null }
   if (done) {
@@ -357,7 +391,7 @@ export async function processDirectorOrder(admin: Admin, userId: string, orderId
   } else if (result.skipped) {
     Object.assign(patch, { status: 'failed', reply: result.skipped === 'disabled'
       ? 'Il Direttore è spento: accendilo dall’Ufficio e rimandami l’ordine.'
-      : result.skipped === 'running' ? 'Il Direttore sta già lavorando a un’altra cosa: rimandami l’ordine fra qualche minuto.'
+      : result.skipped === 'running' ? 'Il Direttore è rimasto occupato per più di tre minuti: rimandami l’ordine.'
       : 'Questo ordine era già stato elaborato.', error: result.skipped })
   } else {
     Object.assign(patch, { status: 'failed', reply: `Non ci sono riuscito: ${result.error || 'errore sconosciuto'}.`, error: result.error || 'errore' })
@@ -462,4 +496,21 @@ export async function approveDirectorContact(admin: Admin, userId: string, outpu
       .eq('id', body.order_id).eq('user_id', userId).eq('status', 'waiting_you')
   }
   return { output: done.output, contact_id: created!.id, notice }
+}
+
+
+/**
+ * Un'approvazione che accoda lavoro (proposta mappe del Direttore, ente arricchito
+ * → Presentazioni) fa partire subito il destinatario se è acceso, come gli ordini,
+ * e l'esito arriva su Telegram. Senza, il lavoro aspettava il turno successivo.
+ */
+export async function startAfterApproval(admin: Admin, userId: string, output: { id: string; agent_id: string; kind: string; title: string; body: any; status: string }) {
+  if (output.status !== 'approved') return
+  const recipient = output.agent_id === 'director' && output.kind === 'proposal' ? String(output.body?.recipient_agent_id || '')
+    : output.agent_id === 'entity_enricher' && output.body?.action === 'enrich_entity' ? 'presentations' : ''
+  if (!recipient) return
+  const { data } = await admin.from('office_agents').select('enabled').eq('id', recipient).eq('user_id', userId).maybeSingle()
+  if (!data) return
+  void reportQueuedWork(admin, userId, null, `Esito: ${output.title}`,
+    startQueuedAgents(userId, [{ agent: recipient, queued: true, enabled: !!data.enabled }], `approval:${output.id}`))
 }
