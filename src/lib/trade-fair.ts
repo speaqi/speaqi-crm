@@ -459,3 +459,15 @@ export function compareByLocation(a: Pick<FairExhibitor, 'hall' | 'stand' | 'nam
   const [bMissing, bHall, bNum] = key(b)
   return aMissing - bMissing || aHall.localeCompare(bHall) || aNum - bNum || a.name.localeCompare(b.name)
 }
+
+
+/**
+ * Le fiere che compaiono come «tag» in Tourism Intelligence (filtro Fiera della
+ * directory e scheda Fiere). Aggiungerne una è aggiungere una riga: lo slug è
+ * quello di `trade_fair_exhibitors.fair`.
+ */
+export const TRADE_FAIRS = [{ slug: 'ttg-2026', label: 'TTG Travel Experience 2026', short: 'TTG 2026' }] as const
+
+export function tradeFairLabel(slug: string): string {
+  return TRADE_FAIRS.find((fair) => fair.slug === slug)?.short || slug
+}

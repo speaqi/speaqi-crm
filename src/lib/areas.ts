@@ -22,7 +22,6 @@ export const AREAS = [
   { key: 'marketing', label: 'Marketing', paths: ['/marketing'], alwaysOn: false, defaultOn: false },
   { key: 'progetti', label: 'Progetti', paths: ['/progetti'], alwaysOn: false, defaultOn: false },
   { key: 'navigazione', label: 'Navigazione', paths: ['/navigazione'], alwaysOn: false, defaultOn: false },
-  { key: 'fiere', label: 'Fiere', paths: ['/fiere'], alwaysOn: false, defaultOn: false },
   { key: 'import', label: 'Import', paths: ['/import'], alwaysOn: false, defaultOn: false },
   { key: 'impostazioni', label: 'Impostazioni', paths: ['/impostazioni'], alwaysOn: false, defaultOn: false },
 ] as const
@@ -34,6 +33,7 @@ export const ALL_AREA_KEYS: AreaKey[] = AREAS.map((area) => area.key)
 // Riservati al proprietario del workspace: non delegabili dal pannello.
 export const SUPER_ADMIN_PATHS = [
   '/tourism',
+  '/fiere',
   '/agency',
   '/acumbamail',
   '/hospitality',

@@ -37,6 +37,8 @@ import { TARGET_LABELS } from '@/lib/tourism-site-qualification'
 import s from './tourism.module.css'
 import TourismResearch, { EntityPicker } from './TourismResearch'
 import TourismDecks from './deck/TourismDecks'
+import FairsWorkspace from '@/components/fiere/FairsWorkspace'
+import { TRADE_FAIRS } from '@/lib/trade-fair'
 import DeckWizard from './deck/DeckWizard'
 
 const WorldMap = dynamic(() => import('./WorldMap'), {
@@ -151,6 +153,7 @@ type Filters = {
   kind: string
   sort: string
   crm: string
+  fair: string
 }
 const INITIAL: Filters = {
   availability: 'active',
@@ -162,7 +165,8 @@ const INITIAL: Filters = {
   status: '',
   kind: 'organization',
   sort: 'name',
-  crm: ''
+  crm: '',
+  fair: ''
 }
 const OUTREACH_LABELS: Record<1 | 2 | 3, string> = {
   1: 'Top · contattare prima',
@@ -416,6 +420,11 @@ export default function TourismWorkspace() {
     }
   }, [reload])
   useEffect(() => {
+    // /fiere e i link «?tab=…» aprono direttamente la scheda richiesta (dopo l'idratazione).
+    const wanted = new URLSearchParams(window.location.search).get('tab')
+    if (wanted && ['overview', 'directory', 'explorer', 'discovery', 'research', 'decks', 'fiere'].includes(wanted)) setTab(wanted)
+  }, [])
+  useEffect(() => {
     let live = true
     setLoading(true)
     const params = new URLSearchParams({ ...filters, page: String(page) })
@@ -575,7 +584,8 @@ export default function TourismWorkspace() {
             { key: 'explorer', label: 'Territori e relazioni', icon: 'link' },
             { key: 'discovery', label: 'AI Discovery', icon: 'spark' },
             { key: 'research', label: 'Ricerca siti e progetti', icon: 'globe' },
-            { key: 'decks', label: 'Presentazioni', icon: 'spark' }
+            { key: 'decks', label: 'Presentazioni', icon: 'spark' },
+            { key: 'fiere', label: 'Fiere', icon: 'grid' }
           ].map((t) => (
             <button
               key={t.key}
@@ -1003,6 +1013,18 @@ export default function TourismWorkspace() {
                 <option value="listed">Lista destinazioni (1ª–3ª ondata)</option>
               </select>
               <select
+                aria-label="Fiera"
+                value={filters.fair || ''}
+                onChange={(e) => setFilter('fair', e.target.value)}
+              >
+                <option value="">Tutte le fiere</option>
+                {TRADE_FAIRS.map((fair) => (
+                  <option key={fair.slug} value={fair.slug}>
+                    Fiera: {fair.short}
+                  </option>
+                ))}
+              </select>
+              <select
                 aria-label="Controllo del sito"
                 value={filters.target || ''}
                 onChange={(e) => setFilter('target', e.target.value)}
@@ -1325,6 +1347,7 @@ export default function TourismWorkspace() {
           </section>
         )}
         {tab === 'decks' && <TourismDecks />}
+        {tab === 'fiere' && <FairsWorkspace />}
         {tab === 'research' && (
           <TourismResearch
             onOpen={setDetailId}

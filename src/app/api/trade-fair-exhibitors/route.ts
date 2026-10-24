@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
-import { requireArea, requireRouteUser } from '@/lib/server/supabase'
+import { requireRouteUser } from '@/lib/server/supabase'
 import {
   isTradeFairStatus,
   newNote,
@@ -28,8 +28,7 @@ function fairOf(value: unknown) {
 export async function GET(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
-  const areaError = requireArea(auth, 'fiere')
-  if (areaError) return areaError
+  if (!auth.isAdmin) return Response.json({ error: 'Le fiere sono di Tourism Intelligence: solo il titolare' }, { status: 403 })
 
   const fair = fairOf(request.nextUrl.searchParams.get('fair'))
   if (!fair) return Response.json({ error: 'Fiera non valida' }, { status: 400 })
@@ -63,8 +62,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
-  const areaError = requireArea(auth, 'fiere')
-  if (areaError) return areaError
+  if (!auth.isAdmin) return Response.json({ error: 'Le fiere sono di Tourism Intelligence: solo il titolare' }, { status: 403 })
 
   try {
     const body = await request.json()
@@ -109,8 +107,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
-  const areaError = requireArea(auth, 'fiere')
-  if (areaError) return areaError
+  if (!auth.isAdmin) return Response.json({ error: 'Le fiere sono di Tourism Intelligence: solo il titolare' }, { status: 403 })
 
   try {
     const body = await request.json()
@@ -243,8 +240,7 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
-  const areaError = requireArea(auth, 'fiere')
-  if (areaError) return areaError
+  if (!auth.isAdmin) return Response.json({ error: 'Le fiere sono di Tourism Intelligence: solo il titolare' }, { status: 403 })
 
   try {
     const id = String(request.nextUrl.searchParams.get('id') || '').trim()

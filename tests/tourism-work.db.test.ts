@@ -55,7 +55,7 @@ before(async () => {
   for (const path of [
     'supabase/migrations/20261017205455_tourism_intelligence.sql',
     'supabase/migrations/20261018185155_tourism_site_research.sql',
-    'scripts/sql/tourism-work.sql',
+    'supabase/migrations/20261024130000_tourism_work.sql',
   ]) {
     await db.exec(
       await readFile(new URL(`../${path}`, import.meta.url), 'utf8'),

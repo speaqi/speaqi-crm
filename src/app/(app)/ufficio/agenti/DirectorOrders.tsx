@@ -34,7 +34,9 @@ export function DirectorOrders({ directorEnabled, onEnable, onChanged, compact =
   const recorder = useRef<MediaRecorder | null>(null)
   const chunks = useRef<Blob[]>([])
   const fileInput = useRef<HTMLInputElement | null>(null)
-  const working = orders.some((order) => order.status === 'received' || order.status === 'working')
+  // Un ordine appena chiuso può ancora ricevere l'esito del lavoro passato agli agenti.
+  const working = orders.some((order) => order.status === 'received' || order.status === 'working'
+    || Date.now() - new Date(order.created_at).getTime() < 4 * 60_000)
 
   const load = useCallback(async () => {
     const response = await apiFetch<{ orders: Order[] }>('/api/office/director/orders')
