@@ -5,6 +5,7 @@ import { PGlite } from '@electric-sql/pglite'
 
 const OWNER = '11111111-1111-4111-8111-111111111111'
 const OTHER = '22222222-2222-4222-8222-222222222222'
+const LEGACY = '33333333-3333-4333-8333-333333333333'
 let db: PGlite
 
 const asUser = (id: string) => db.exec(`reset role;set request.jwt.claim.sub='${id}';set role authenticated;`)
@@ -16,11 +17,15 @@ before(async () => {
     create table auth.users(id uuid primary key,email text);
     create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
     grant usage on schema auth,public to authenticated;grant execute on function auth.uid() to authenticated;
-    insert into auth.users(id) values('${OWNER}'),('${OTHER}');
+    insert into auth.users(id) values('${OWNER}'),('${OTHER}'),('${LEGACY}');
     alter default privileges in schema public grant all on tables to anon,authenticated;
     create table public.tourism_entities(id uuid primary key default gen_random_uuid(),user_id uuid not null default auth.uid(),name text);
   `)
   await db.exec(await readFile(new URL('../supabase/migrations/20261019190000_tourism_decks.sql', import.meta.url), 'utf8'))
+  // Una riga della vita precedente, scritta prima dei due tipi: la migration deve lasciarla com'e' e farla `destination`.
+  await db.exec(`insert into public.tourism_deck_templates(user_id,content) values('${LEGACY}','{"version":1,"legacy":true}');
+    insert into public.tourism_decks(user_id,title,destination) values('${LEGACY}','Vecchio','Ischia')`)
+  await db.exec(await readFile(new URL('../supabase/migrations/20261023130000_tourism_deck_kinds.sql', import.meta.url), 'utf8'))
   await db.exec(`insert into public.tourism_entities(id,user_id,name) values('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','${OWNER}','Ente di prova')`)
 })
 
@@ -48,10 +53,27 @@ test('approvato e data di approvazione vanno insieme', async () => {
   await assert.rejects(db.exec(`update public.tourism_decks set approved_at=null where title='A'`))
 })
 
-test('un solo modello di partenza per proprietario', async () => {
+test('un solo modello di partenza per proprietario e per tipo', async () => {
   await asUser(OWNER)
   await db.exec(`insert into public.tourism_deck_templates(content) values('{"version":1}')`)
   await assert.rejects(db.exec(`insert into public.tourism_deck_templates(content) values('{"version":1}')`))
+  await assert.rejects(db.exec(`insert into public.tourism_deck_templates(kind,content) values('destination','{"version":1}')`))
+  // L'altro tipo ha il suo modello, e uno solo.
+  await db.exec(`insert into public.tourism_deck_templates(kind,name,content) values('distribution','Partnership distribuzione','{"version":1}')`)
+  await assert.rejects(db.exec(`insert into public.tourism_deck_templates(kind,content) values('distribution','{"version":1}')`))
+  const { rows } = await db.query<{ kind: string }>('select kind from public.tourism_deck_templates order by kind')
+  assert.deepEqual(rows.map((r) => r.kind), ['destination', 'distribution'])
+})
+
+test('il tipo è un elenco chiuso e le righe precedenti diventano destinazioni', async () => {
+  await asUser(OWNER)
+  await assert.rejects(db.exec(`insert into public.tourism_deck_templates(kind,is_default,content) values('altro',false,'{}')`))
+  await assert.rejects(db.exec(`insert into public.tourism_decks(title,destination,template_kind) values('X','Y','altro')`))
+  await db.exec(`insert into public.tourism_decks(title,destination,template_kind) values('Dist','Roma','distribution')`)
+  assert.equal((await db.query<{ template_kind: string }>(`select template_kind from public.tourism_decks where title='A'`)).rows[0].template_kind, 'destination')
+  await db.exec('reset role')
+  assert.equal((await db.query<{ kind: string }>(`select kind from public.tourism_deck_templates where user_id='${LEGACY}'`)).rows[0].kind, 'destination')
+  assert.equal((await db.query<{ template_kind: string }>(`select template_kind from public.tourism_decks where user_id='${LEGACY}'`)).rows[0].template_kind, 'destination')
 })
 
 test('cancellando l’ente il deck resta', async () => {

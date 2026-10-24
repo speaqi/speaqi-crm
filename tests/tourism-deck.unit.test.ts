@@ -2,6 +2,16 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   DEFAULT_DECK_TEMPLATE,
+  DESTINATION_DECK_TEMPLATE,
+  DISTRIBUTION_DECK_TEMPLATE,
+  DECK_BASE_TEMPLATES,
+  DECK_KINDS,
+  DECK_MAX_SLIDES,
+  DECK_VAR_NAMES,
+  DESTINATION_ENTITY_TYPES,
+  DISTRIBUTION_ENTITY_TYPES,
+  baseTemplateFor,
+  suggestDeckKind,
   DECK_TODO,
   applyVars,
   buildCorpus,
@@ -11,15 +21,94 @@ import {
   normalizeTemplate,
   resolveVars
 } from '../src/lib/tourism-deck'
+import { TOURISM_TYPES } from '../src/lib/tourism'
 
 const ASSET = '11111111-1111-4111-8111-111111111111'
 
-test('il modello segue la proposta destinazioni: dodici slide nello stesso ordine', () => {
+test('la base destinazioni segue la pagina destinations: tredici slide nello stesso ordine', () => {
   const ids = DEFAULT_DECK_TEMPLATE.slides.map((s) => s.id)
-  assert.deepEqual(ids, ['cover', 'territorio', 'problema', 'soluzione', 'prova', 'contenuti', 'lingue', 'visitatore', 'metodo', 'prezzo', 'area-riservata', 'demo'])
+  assert.deepEqual(ids, ['cover', 'territorio', 'problema', 'soluzione', 'prova', 'contenuti', 'visitatore', 'modello', 'requisiti', 'metodo', 'prezzo', 'opzionali', 'demo'])
+  assert.equal(DEFAULT_DECK_TEMPLATE, DESTINATION_DECK_TEMPLATE)
   // La mappa e' gratuita: nessun importo in euro nel modello.
   assert.ok(!JSON.stringify(DEFAULT_DECK_TEMPLATE).includes('€'))
-  assert.match(DEFAULT_DECK_TEMPLATE.vars.prezzo, /100\.000 accessi/)
+  assert.match(DEFAULT_DECK_TEMPLATE.vars.prezzo, /2 canali di distribuzione/)
+  // Le soglie della candidatura sono quelle pubblicate, non altre.
+  const requisiti = DEFAULT_DECK_TEMPLATE.slides.find((s) => s.id === 'requisiti')!
+  assert.equal(requisiti.items.length, 5)
+  assert.match(requisiti.items[0].text, /250\.000/)
+  // I servizi opzionali sono su proposta separata, non inclusi.
+  assert.deepEqual(DEFAULT_DECK_TEMPLATE.slides.find((s) => s.id === 'opzionali')!.items.map((i) => i.title), ['iConcierge', 'Eventi', 'Contenuti multilingue'])
+})
+
+test('la base distribuzione segue la presentazione di partnership: dodici slide, revenue sharing e pilota di 90 giorni', () => {
+  const ids = DISTRIBUTION_DECK_TEMPLATE.slides.map((s) => s.id)
+  assert.deepEqual(ids, ['cover', 'opportunita', 'prodotto', 'lingue', 'prova', 'partnership', 'distribuzione', 'esperienze', 'oltre', 'modello', 'pilota', 'chiusura'])
+  const byId = (id: string) => DISTRIBUTION_DECK_TEMPLATE.slides.find((s) => s.id === id)!
+  assert.deepEqual(byId('modello').items.map((i) => i.title), ['20%', '35%', '50%'])
+  assert.deepEqual(byId('pilota').items.map((i) => i.title), ['30 giorni', '60 giorni', '90 giorni'])
+  assert.match(DISTRIBUTION_DECK_TEMPLATE.vars.prezzo, /zero investimento iniziale/)
+  // Il dato del partner non si inventa: il numero di viaggiatori e il contatto restano da verificare.
+  const slides = applyVars(DISTRIBUTION_DECK_TEMPLATE, { destinazione: 'Roma', ente: 'Aeroporti di Roma' })
+  assert.equal(slides[0].title, 'Roma, nella lingua di ogni viaggiatore.')
+  assert.equal(slides[0].body, 'Un servizio in più per i clienti di Aeroporti di Roma. Un ricavo in più per Aeroporti di Roma.')
+  assert.match(slides.find((s) => s.id === 'opportunita')!.body, /\[DA VERIFICARE: numero, anno e fonte\]/)
+  assert.match(slides.find((s) => s.id === 'chiusura')!.body, /\[DA VERIFICARE\]/)
+  assert.equal(countTodo(slides), 2)
+  // Le condizioni indicate dall'utente sostituiscono quelle del modello.
+  const custom = applyVars(DISTRIBUTION_DECK_TEMPLATE, { destinazione: 'Roma', ente: 'X', prezzo: 'Commissione fissa del 15%', contatto: 'a@b.it' })
+  assert.equal(custom.find((s) => s.id === 'modello')!.body, 'Commissione fissa del 15%')
+  assert.equal(countTodo(custom), 1)
+})
+
+test('le due basi sopravvivono alla normalizzazione senza tagli e usano solo segnaposto noti', () => {
+  for (const kind of DECK_KINDS) {
+    const base = DECK_BASE_TEMPLATES[kind]
+    assert.ok(base.slides.length <= DECK_MAX_SLIDES, kind)
+    const normalized = normalizeTemplate(base, kind)
+    // Un testo oltre i limiti verrebbe tagliato in silenzio: il modello salvato non sarebbe piu' quello scritto qui.
+    assert.deepEqual(normalized.slides, base.slides, kind)
+    assert.deepEqual(normalized.vars, base.vars, kind)
+    assert.equal(new Set(base.slides.map((s) => s.id)).size, base.slides.length, kind)
+    const placeholders = new Set([...JSON.stringify(base).matchAll(/\{\{\s*([a-z_]+)\s*\}\}/gi)].map((m) => m[1].toLowerCase()))
+    for (const name of placeholders) assert.ok((DECK_VAR_NAMES as readonly string[]).includes(name), `${kind}: {{${name}}}`)
+    // Ogni slide spiega all'agente cosa personalizzare.
+    for (const slide of base.slides) assert.ok(slide.hint.length > 10, `${kind}/${slide.id}`)
+  }
+  assert.notDeepEqual(DECK_BASE_TEMPLATES.destination.slides.map((s) => s.id), DECK_BASE_TEMPLATES.distribution.slides.map((s) => s.id))
+})
+
+test('baseTemplateFor restituisce una copia: modificarla non tocca la base', () => {
+  const copy = baseTemplateFor('distribution')
+  copy.slides[0].title = 'cambiato'
+  assert.notEqual(DISTRIBUTION_DECK_TEMPLATE.slides[0].title, 'cambiato')
+})
+
+test('un modello vuoto torna alla base del suo tipo, non sempre alle destinazioni', () => {
+  assert.deepEqual(normalizeTemplate({ slides: [] }, 'distribution').slides.map((s) => s.id), DISTRIBUTION_DECK_TEMPLATE.slides.map((s) => s.id))
+  assert.deepEqual(normalizeTemplate({ slides: [] }).slides.map((s) => s.id), DESTINATION_DECK_TEMPLATE.slides.map((s) => s.id))
+})
+
+test('il tipo di presentazione si suggerisce dal tipo di ente, poi dal nome; nel dubbio non si indovina', () => {
+  assert.equal(suggestDeckKind({ type_code: 'dmo' })?.kind, 'destination')
+  assert.equal(suggestDeckKind({ type_code: 'municipality' })?.kind, 'destination')
+  assert.equal(suggestDeckKind({ type_code: 'cruise_line', name: 'MSC Crociere' })?.kind, 'distribution')
+  assert.equal(suggestDeckKind({ type_code: 'tour_operator' }, 'Tour operator')?.reason, 'L’ente è «Tour operator»: porta o vende ai visitatori.')
+  // Aeroporti e porti non hanno un tipo: il nome decide, ma solo se parla chiaro.
+  assert.equal(suggestDeckKind({ type_code: 'other', name: 'Aeroporti di Roma' })?.kind, 'distribution')
+  assert.equal(suggestDeckKind({ type_code: null, name: 'Autorità di Sistema Portuale del Mar Tirreno' })?.kind, 'distribution')
+  assert.equal(suggestDeckKind({ type_code: 'other', name: 'Fondazione Capri' }), null)
+  assert.equal(suggestDeckKind({}), null)
+  // Il tipo vince sul nome: un ente del turismo con "porto" nel nome resta un ente del turismo.
+  assert.equal(suggestDeckKind({ type_code: 'dmo', name: 'Visit Porto' })?.kind, 'destination')
+})
+
+test('ogni tipo di ente ha una base: aggiungerne uno a TOURISM_TYPES obbliga a decidere', () => {
+  const assigned = [...DESTINATION_ENTITY_TYPES, ...DISTRIBUTION_ENTITY_TYPES] as string[]
+  assert.equal(new Set(assigned).size, assigned.length, 'un tipo non può stare in tutte e due')
+  for (const code of Object.keys(TOURISM_TYPES)) {
+    if (code !== 'other') assert.ok(assigned.includes(code), `tipo senza base: ${code}`)
+  }
+  for (const code of assigned) assert.ok(code in TOURISM_TYPES, `tipo inesistente: ${code}`)
 })
 
 test('i segnaposto si riempiono e ciò che manca resta da verificare', () => {
@@ -28,7 +117,7 @@ test('i segnaposto si riempiono e ciò che manca resta da verificare', () => {
   assert.equal(slides[1].title, 'Tutto Capri in una mappa sola')
   // Condizioni e contatto non sono stati dati: restano quelle del modello, il contatto da verificare.
   const byId = (id: string) => slides.find((s) => s.id === id)!
-  assert.match(byId('prezzo').note, /^In cambio: in cambio garantite almeno 100\.000 accessi/)
+  assert.match(byId('prezzo').note, /^In cambio: distribuite le guide Speaqi sui canali concordati/)
   assert.match(byId('demo').body, /\[DA VERIFICARE\]/)
   // I numeri del territorio non si indovinano.
   assert.match(byId('territorio').items[0].text, /\[DA VERIFICARE: quanti\]/)

@@ -3,7 +3,7 @@ import { requireTourismOwner, tourismError, tourismResponse } from '@/lib/server
 import { createServiceRoleClient } from '@/lib/server/supabase'
 import { addAssets, createDeck, deleteDeck, generateIntoDeck, toView, type UploadedFile } from '@/lib/server/tourism-decks'
 import { MAX_DOCUMENTS, MAX_PHOTOS, MAX_DOCUMENT_BYTES, MAX_PHOTO_BYTES } from '@/lib/server/tourism-deck-assets'
-import { countTodo } from '@/lib/tourism-deck'
+import { countTodo, DEFAULT_DECK_KIND, isDeckKind } from '@/lib/tourism-deck'
 import { isUuid, textValue, TourismInputError } from '@/lib/tourism'
 
 export const dynamic = 'force-dynamic'
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   try {
     const { data, error } = await auth.supabase
       .from('tourism_decks')
-      .select('id,title,destination,entity_id,status,slides,public_token,updated_at,approved_at')
+      .select('id,title,destination,entity_id,template_kind,status,slides,public_token,updated_at,approved_at')
       .eq('user_id', auth.user.id)
       .order('updated_at', { ascending: false })
       .limit(200)
@@ -44,6 +44,9 @@ export async function POST(request: NextRequest) {
     const form = await request.formData()
     const destination = textValue(form.get('destinazione'), 200)
     if (!destination) throw new TourismInputError('Indica la destinazione')
+    // Senza indicazione vale la base delle destinazioni (client precedenti ai due modelli); un valore sbagliato non si indovina.
+    const kindRaw = textValue(form.get('kind'), 40)
+    if (kindRaw && !isDeckKind(kindRaw)) throw new TourismInputError('Tipo di presentazione non valido')
     const entityRaw = textValue(form.get('entity_id'), 40)
     if (entityRaw && !isUuid(entityRaw)) throw new TourismInputError('Ente non valido')
     const files: UploadedFile[] = []
@@ -53,6 +56,7 @@ export async function POST(request: NextRequest) {
     }
     const service = createServiceRoleClient()
     created = await createDeck(auth.supabase, auth.user.id, {
+      kind: isDeckKind(kindRaw) ? kindRaw : DEFAULT_DECK_KIND,
       destination,
       entity_id: entityRaw || null,
       notes: textValue(form.get('notes'), 30000),

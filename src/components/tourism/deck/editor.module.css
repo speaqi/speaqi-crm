@@ -32,8 +32,22 @@
 .table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .table th { text-align: left; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: #6c7b76; padding: 8px; border-bottom: 1px solid #e0e7e3; }
 .table td { padding: 10px 8px; border-bottom: 1px solid #eef2ee; vertical-align: middle; }
+/* Scelta della base nella creazione: due schede affiancate, una selezionata. */
+.kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border: 0; padding: 0; margin: 0; min-width: 0; }
+.kinds legend { font-size: 11px; color: #617857; padding: 0 0 6px; }
+.kinds > small { grid-column: 1 / -1; }
+.kind { position: relative; display: flex; flex-direction: column; gap: 4px; border: 1px solid #e0e7e3; border-radius: 10px; padding: 12px 14px 12px 38px; background: #fff; cursor: pointer; font-size: 11px; color: #6c7b76; line-height: 1.45; }
+.kind input { position: absolute; left: 14px; top: 14px; margin: 0; width: auto; }
+.kind strong { font-size: 13px; color: #193c32; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.kind[data-on='true'] { border-color: #16755d; background: #edf5f0; box-shadow: 0 0 0 1px #16755d inset; }
+.kind:focus-within { outline: 2px solid #16755d; outline-offset: 2px; }
+.suggested { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; background: #16755d; color: #fff; border-radius: 99px; padding: 2px 8px; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.tabs button { border: 1px solid #e0e7e3; background: #fff; border-radius: 99px; padding: 6px 14px; color: #193c32; }
+.tabs button[aria-pressed='true'] { background: #16755d; border-color: #16755d; color: #fff; }
 .wide { width: min(1100px, 96vw); }
 .scroll { max-height: 72vh; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 4px; }
 .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: r 0.8s linear infinite; }
 @keyframes r { to { transform: rotate(360deg); } }
+@media (max-width: 640px) { .kinds { grid-template-columns: 1fr; } }
 @media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } .sticky { position: static; } }

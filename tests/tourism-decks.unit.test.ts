@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
 import test, { afterEach, beforeEach } from 'node:test'
 import sharp from 'sharp'
-import { DECK_TODO, DECK_TODO_PATTERN, applyVars, DEFAULT_DECK_TEMPLATE, type DeckSlide } from '../src/lib/tourism-deck'
+import { DECK_TODO, DECK_TODO_PATTERN, applyVars, DEFAULT_DECK_TEMPLATE, DISTRIBUTION_DECK_TEMPLATE, type DeckSlide } from '../src/lib/tourism-deck'
 
 // I numeri del territorio restano da verificare nel modello: per approvare li si scrive.
 const completed = (slides: DeckSlide[]) => slides.map((s) => JSON.parse(JSON.stringify(s).replace(DECK_TODO_PATTERN, '12')) as DeckSlide)
-import { addAssets, createDeck, deleteDeck, generateIntoDeck, loadDeck, loadPublicDeck, saveDeckEdits, setApproval, type DeckRow } from '../src/lib/server/tourism-decks'
+import { addAssets, createDeck, deleteDeck, generateIntoDeck, getTemplate, loadDeck, loadPublicDeck, saveDeckEdits, saveTemplate, setApproval, toView, type DeckRow } from '../src/lib/server/tourism-decks'
 
 type Row = Record<string, any>
 
@@ -56,7 +56,8 @@ class Q {
   private async run(one: boolean, strict: boolean) {
     const rows = this.db.tables[this.table]
     if (this.op === 'insert') {
-      const row = { id: `00000000-0000-4000-8000-${String(++this.db.n).padStart(12, '0')}`, version: 1, status: 'draft', assets: [], warnings: [], error: null, generated_at: null, approved_at: null, public_token: 'f'.repeat(63) + this.db.n, created_at: 'x', updated_at: 'x', ...this.payload }
+      // Il default di colonna del database: un modello nasce `is_default`, come nella tabella vera.
+      const row = { id: `00000000-0000-4000-8000-${String(++this.db.n).padStart(12, '0')}`, ...(this.table === 'tourism_deck_templates' ? { is_default: true } : {}), version: 1, status: 'draft', assets: [], warnings: [], error: null, generated_at: null, approved_at: null, public_token: 'f'.repeat(63) + this.db.n, created_at: 'x', updated_at: 'x', ...this.payload }
       rows.push(row)
       return { data: structuredClone(one ? row : [row]), error: null }
     }
@@ -96,6 +97,70 @@ test('createDeck parte dal modello con i segnaposto riempiti', async () => {
   assert.equal(row.status, 'draft')
   assert.equal(row.slides[0].title, 'La mappa perfetta per Capri Tourism')
   assert.equal(db.tables.tourism_deck_templates.length, 1)
+})
+
+test('senza indicazione un deck nasce dalla base destinazioni, e lo ricorda', async () => {
+  const row = await createDeck(db, USER, fields)
+  assert.equal(row.template_kind, 'destination')
+  assert.equal(db.tables.tourism_deck_templates[0].kind, 'destination')
+  assert.equal((await toView(db, db, row)).template_kind, 'destination')
+})
+
+test('un deck di distribuzione parte dalla sua base, con un modello salvato a parte', async () => {
+  const dist = { ...fields, kind: 'distribution' as const, destination: 'Roma', input: { destinazione: 'Roma', ente: 'Aeroporti di Roma' } }
+  const row = await createDeck(db, USER, dist)
+  assert.equal(row.template_kind, 'distribution')
+  assert.equal(row.slides.length, DISTRIBUTION_DECK_TEMPLATE.slides.length)
+  assert.equal(row.slides[0].title, 'Roma, nella lingua di ogni viaggiatore.')
+  assert.equal(row.title, 'Roma · Aeroporti di Roma')
+  assert.equal((await toView(db, db, row)).template_kind, 'distribution')
+  // Un secondo deck dello stesso tipo riusa il modello; l'altro tipo ne ha uno suo.
+  await createDeck(db, USER, dist)
+  assert.deepEqual(db.tables.tourism_deck_templates.map((t) => t.kind), ['distribution'])
+  const other = await createDeck(db, USER, fields)
+  assert.equal(other.slides[0].title, 'La mappa perfetta per Capri Tourism')
+  assert.deepEqual(db.tables.tourism_deck_templates.map((t) => t.kind).sort(), ['destination', 'distribution'])
+})
+
+test('salvare un modello cambia solo quello del suo tipo', async () => {
+  const dest = await getTemplate(db, USER, 'destination')
+  const dist = await getTemplate(db, USER, 'distribution')
+  assert.equal(dest.template.slides.length, DEFAULT_DECK_TEMPLATE.slides.length)
+  assert.equal(dist.template.slides.length, DISTRIBUTION_DECK_TEMPLATE.slides.length)
+  const edited = structuredClone(dist.template)
+  edited.slides[0].title = 'Nuovo titolo per {{ente}}'
+  const saved = await saveTemplate(db, USER, edited, dist.version, 'distribution')
+  assert.equal(saved.version, dist.version + 1)
+  assert.equal(saved.kind, 'distribution')
+  assert.equal((await getTemplate(db, USER, 'distribution')).template.slides[0].title, 'Nuovo titolo per {{ente}}')
+  assert.equal((await getTemplate(db, USER, 'destination')).version, dest.version)
+  assert.equal((await getTemplate(db, USER, 'destination')).template.slides[0].title, 'La mappa perfetta per {{ente}}')
+  await assert.rejects(saveTemplate(db, USER, edited, dist.version, 'distribution'), /Version conflict/)
+})
+
+test('la rigenerazione riparte dalla base del deck e dice all’agente che è distribuzione', async () => {
+  const row = await createDeck(db, USER, { ...fields, kind: 'distribution', destination: 'Roma', input: { destinazione: 'Roma', ente: 'MSC' } })
+  let sent = ''
+  globalThis.fetch = (async (_u: unknown, init: RequestInit) => {
+    sent = String(init.body)
+    return provider([{ id: 'cover', title: 'Roma parla ogni lingua', body: 'Per i clienti di MSC', note: '', items: [], image_asset_id: null }])(_u as string, init)
+  }) as typeof fetch
+  const deck = await generateIntoDeck(db, db, row)
+  assert.equal(deck.status, 'ready')
+  assert.equal(deck.slides.length, DISTRIBUTION_DECK_TEMPLATE.slides.length)
+  assert.match(sent, /partnership di distribuzione/)
+  assert.match(sent, /\\"tipo_presentazione\\":\\"distribution\\"/)
+  assert.match(sent, /pilota/)
+  assert.doesNotMatch(sent, /requisiti/)
+})
+
+test('un deck nato prima dei due modelli, senza tipo, si rigenera dalle destinazioni', async () => {
+  const row = await createDeck(db, USER, fields)
+  delete (row as Partial<DeckRow>).template_kind
+  globalThis.fetch = provider([{ id: 'cover', title: 'Capri ha voce', body: '', note: '', items: [], image_asset_id: null }])
+  const deck = await generateIntoDeck(db, db, row)
+  assert.equal(deck.status, 'ready')
+  assert.equal(deck.slides.length, DEFAULT_DECK_TEMPLATE.slides.length)
 })
 
 test('un ente non del proprietario si rifiuta', async () => {

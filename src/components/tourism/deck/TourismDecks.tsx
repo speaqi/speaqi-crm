@@ -4,13 +4,13 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
-import type { DeckStatus } from '@/lib/tourism-deck'
+import { DECK_KIND_LABELS, DEFAULT_DECK_KIND, type DeckKind, type DeckStatus } from '@/lib/tourism-deck'
 import DeckWizard from './DeckWizard'
 import TemplateEditor from './TemplateEditor'
 import s from '../tourism.module.css'
 import e from './editor.module.css'
 
-type Row = { id: string; title: string; destination: string; status: DeckStatus; todo: number; updated_at: string; approved_at: string | null }
+type Row = { id: string; title: string; destination: string; template_kind?: DeckKind; status: DeckStatus; todo: number; updated_at: string; approved_at: string | null }
 
 export const DECK_STATUS_LABELS: Record<DeckStatus, string> = {
   draft: 'Bozza',
@@ -40,7 +40,7 @@ export default function TourismDecks() {
       <div className={e.head}>
         <div>
           <h2 style={{ margin: 0 }}>Presentazioni per destinazione</h2>
-          <p className={e.help}>Una presentazione personalizzata per ogni DMC o ente: la crei da qui, la rivedi, la approvi e poi la invii.</p>
+          <p className={e.help}>Una presentazione personalizzata per ogni ente o partner: scegli la base (destinazioni o distribuzione), la rivedi, la approvi e poi la invii.</p>
         </div>
         <div className={e.bar}>
           <button className={s.secondary} onClick={() => setTemplate(true)}>Modifica il modello</button>
@@ -53,12 +53,13 @@ export default function TourismDecks() {
       {rows && rows.length > 0 && (
         <table className={e.table}>
           <thead>
-            <tr><th>Destinazione</th><th>Stato</th><th>Da completare</th><th>Aggiornata</th><th /></tr>
+            <tr><th>Destinazione</th><th>Tipo</th><th>Stato</th><th>Da completare</th><th>Aggiornata</th><th /></tr>
           </thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.id}>
                 <td><Link href={`/tourism/presentazioni/${r.id}`}><strong>{r.title}</strong></Link></td>
+                <td>{DECK_KIND_LABELS[r.template_kind ?? DEFAULT_DECK_KIND]}</td>
                 <td><span className={e.status} data-s={r.status}>{DECK_STATUS_LABELS[r.status]}</span></td>
                 <td>{r.todo ? `${r.todo} [DA VERIFICARE]` : '—'}</td>
                 <td>{new Date(r.updated_at).toLocaleDateString('it-IT')}</td>
