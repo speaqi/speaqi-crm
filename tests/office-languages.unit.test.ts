@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { languagesQueue, launchOptions, progressCheck, summaryLine, usdToCents, type TranslationsSummary } from '../src/lib/office/languages-voice'
+import { languagesQueue, launchOptions, nightWindow, progressCheck, summaryLine, usdToCents, type TranslationsSummary } from '../src/lib/office/languages-voice'
 import { languagesVoiceHandler, type SpeaqiTranslationsApi } from '../src/lib/server/office-agents/languages-voice'
 import { OFFICE_AGENT_DEFINITIONS } from '../src/lib/server/office-agents/definitions'
 import { OFFICE_AGENT_HANDLERS } from '../src/lib/server/office-agents/registry'
@@ -136,4 +136,13 @@ describe('Lingue e voce: handler', () => {
     const job = AUTOMATION_JOBS.find((j) => j.name === 'office-languages-voice')!
     assert.equal(job.cron, '0 2 * * *'); assert.equal(job.steps[0].path, '/api/automation/agents/languages_voice/run')
   })
+})
+
+test('Lingue: con più di sei mappe in coda la finestra ruota e tocca a tutte', () => {
+  const maps = Array.from({ length: 9 }, (_, i) => `m${i}`)
+  assert.deepEqual(nightWindow(maps.slice(0, 4), '2026-10-24'), maps.slice(0, 4))
+  const seen = new Set<string>()
+  for (const day of ['2026-10-24', '2026-10-25', '2026-10-26']) for (const m of nightWindow(maps, day)) seen.add(m)
+  assert.equal(seen.size, 9)
+  assert.equal(nightWindow(maps, '2026-10-24').length, 6)
 })

@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { officeMapQueue, officeMapSlot } from '../src/lib/office/maps'
-import { myMapsHandler } from '../src/lib/server/office-agents/mymaps'
+import { myMapsHandler, nextMapToImport } from '../src/lib/server/office-agents/mymaps'
 import { OFFICE_AGENT_DEFINITIONS } from '../src/lib/server/office-agents/definitions'
 import type { AgentContext } from '../src/lib/server/office-agents'
 import { FakeSupabase } from './fake-supabase'
@@ -21,4 +21,12 @@ test('My Maps: zero riservato prima del bridge, riepilogo dai conteggi e nessun 
   const run=myMapsHandler(db,{now:()=>new Date('2026-10-23T01:00:00Z'),bridge:async(path,body:any)=>{order.push('bridge');assert.equal(path,'/api/office/mymaps/run');assert.match(body.request_id,/^[a-f0-9-]{36}$/);return {slug:'marsiglia',requested_slug:'marsiglia',city:'Marsiglia',read:10,created:8,existing:1,duplicates:1,skipped:0,remaining:0,ready:false,cost_cents:0}}})
   assert.match((await run(ctx))!.summary,/8 nuovi/);await run(ctx)
   assert.deepEqual(order,['reserve','bridge','settle']);assert.equal(db.tables.office_agent_outputs.length,1)
+})
+
+test('My Maps: una città accodata dopo il primo import del turno non aspetta il turno dopo',()=>{
+  const keys=['build_map:marsiglia','build_map:barcellona']
+  assert.equal(nextMapToImport(keys,10,new Set()),0)
+  assert.equal(nextMapToImport(keys,10,new Set(['mymaps:10:build_map:marsiglia'])),1)
+  assert.equal(nextMapToImport(keys,10,new Set(['mymaps:10:build_map:marsiglia','mymaps:10:build_map:barcellona'])),null)
+  assert.equal(nextMapToImport(keys,11,new Set()),1)
 })

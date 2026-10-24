@@ -19,6 +19,16 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export const LANGUAGES_INCLUDE = ['missing', 'failed', 'stuck'] as const
 export const MAX_MAPS_PER_NIGHT = 6
 
+/**
+ * Le mappe di questa notte: una finestra che ruota col giorno, così con più di
+ * sei mappe in coda anche la settima prima o poi tocca (prima era sempre slice(0, 6)).
+ */
+export function nightWindow<T>(entries: T[], day: string, max = MAX_MAPS_PER_NIGHT): T[] {
+  if (entries.length <= max) return entries
+  const start = (Math.floor(Date.parse(`${day}T00:00:00Z`) / 86400_000) * max) % entries.length
+  return Array.from({ length: max }, (_, i) => entries[(start + i) % entries.length])
+}
+
 /** La coda la scrive il Direttore (proposte approvate) o il titolare a mano: si accettano entrambe le forme. */
 export function languagesQueue(raw: unknown): { entries: LanguagesQueueEntry[]; rejected: Array<{ entry: unknown; reason: string }> } {
   const entries: LanguagesQueueEntry[] = []; const rejected: Array<{ entry: unknown; reason: string }> = []

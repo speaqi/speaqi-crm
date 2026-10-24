@@ -10,16 +10,32 @@ function requestId(key: string) {
   const hex=createHash('sha256').update(key).digest('hex')
   return `${hex.slice(0,8)}-${hex.slice(8,12)}-4${hex.slice(13,16)}-a${hex.slice(17,20)}-${hex.slice(20,32)}`
 }
+/**
+ * Quale mappa importare in questa corsa: si parte dalla posizione del turno
+ * (rotazione equa fra i turni) e si salta chi è già stato importato nel turno.
+ */
+export function nextMapToImport(mapKeys: string[], slot: number, done: Set<string>): number | null {
+  for (let step = 0; step < mapKeys.length; step += 1) {
+    const index = (slot + step) % mapKeys.length
+    if (!done.has(`mymaps:${slot}:${mapKeys[index]}`)) return index
+  }
+  return null
+}
 export function myMapsHandler(admin: any, options: { now?: () => Date; bridge?: typeof officeStudioRequest } = {}): AgentHandler {
   return async (ctx) => {
     const queue=officeMapQueue(ctx.agent.settings.queue || [])
     if (!queue.length) return {summary:'Nessuna My Maps in coda: nessuna spesa.'}
     const slot=officeMapSlot(options.now?.() || new Date())
-    const key=`mymaps:${slot}`
-    const existing=await admin.from('office_agent_outputs').select('id').eq('user_id',ctx.agent.user_id).eq('agent_id',ctx.agent.id).eq('output_key',key).limit(1)
+    // Un import per mappa e per turno, non uno per turno in tutto: con la chiave
+    // del solo turno una città accodata dopo il primo import aspettava due giorni.
+    const keys=queue.map((map) => `mymaps:${slot}:${map.key}`)
+    const existing=await admin.from('office_agent_outputs').select('output_key').eq('user_id',ctx.agent.user_id).eq('agent_id',ctx.agent.id).in('output_key',keys)
     if (existing.error) throw existing.error
-    if (existing.data?.length) return {summary:'Import già concluso in questo turno di due giorni.'}
-    const map=queue[slot % queue.length]
+    const done=new Set<string>((existing.data || []).map((row: { output_key: string }) => row.output_key))
+    const next=nextMapToImport(queue.map((map) => map.key),slot,done)
+    if (next===null) return {summary:'Ogni mappa in coda è già stata importata in questo turno di due giorni.'}
+    const map=queue[next]
+    const key=keys[next]
     // L'importazione riusa solo parser e store: nessuna chiamata a pagamento.
     // Ogni corsa importa una sola mappa, quindi il limite è 150 nuovi in totale.
     const ledger=await ctx.reserve(0)

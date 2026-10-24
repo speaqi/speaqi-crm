@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { officeOwnerRoute } from '@/lib/server/office-api'
-import { approveDirectorContact } from '@/lib/server/office-director-orders'
+import { approveDirectorContact, startAfterApproval } from '@/lib/server/office-director-orders'
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   return officeOwnerRoute(request, async ({ admin, userId }) => {
@@ -34,6 +34,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       }
       return Response.json({ error: data?.reason==='agent_missing' ? 'Il destinatario non è ancora installato. Installa gli agenti successivi prima di accodare.' : 'Uscita non trovata o già decisa. Aggiorna la pagina.' }, { status: 409 })
     }
+    await startAfterApproval(admin, userId, data.output).catch(() => undefined)
     return Response.json({ output: data.output })
   })
 }

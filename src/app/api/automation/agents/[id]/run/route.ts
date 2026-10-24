@@ -18,5 +18,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   // I retry del pianificatore nello stesso minuto riusano la corsa.
   const key = officeRunKey(request) || `cron:${new Date().toISOString().slice(0, 16)}`
   const result = await runAgent(id, handler, { userId: auth.context.workspaceUserId, key })
+  // Una corsa finita in errore è un errore anche per il pianificatore: con 200
+  // finiva in automation_job_runs come riuscita e l'avviso non partiva.
+  if (result.run?.status === 'failed') {
+    return Response.json({ ...result, error: result.run.error || result.error || 'Corsa dell’agente fallita' }, { status: 502 })
+  }
   return Response.json(result, { status: result.error && !result.run ? 500 : 200 })
 }
