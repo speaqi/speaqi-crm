@@ -1367,3 +1367,16 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Scheda snella: l'essenziale in alto, il resto si apre a richiesta. */
+.moreDetails {
+  border-top: 1px solid #e3e9df;
+  margin-top: 24px;
+  padding-top: 16px;
+}
+.moreDetails > summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: #4d5c46;
+  font-weight: 600;
+}

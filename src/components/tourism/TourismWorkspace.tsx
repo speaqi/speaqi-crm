@@ -38,6 +38,7 @@ import s from './tourism.module.css'
 import TourismResearch, { EntityPicker } from './TourismResearch'
 import TourismDecks from './deck/TourismDecks'
 import FairsWorkspace from '@/components/fiere/FairsWorkspace'
+import EntityEssentials from './EntityEssentials'
 import { TRADE_FAIRS } from '@/lib/trade-fair'
 import DeckWizard from './deck/DeckWizard'
 
@@ -1652,97 +1653,40 @@ export default function TourismWorkspace() {
           >
             {detail ? (
               <>
-                <div className={s.detailMeta}>
-                  <Badge status={detail.entity.status} />
-                  <span>
-                    {KIND_LABELS[detail.entity.kind]} ·{' '}
-                    {countryName(detail.entity.country_code || 'IT')} · versione{' '}
-                    {detail.entity.version}
-                  </span>
-                </div>
-                <small className={s.muted}>
-                  {detail.evidence.some(
-                    (e) =>
-                      e.status === 'VERIFIED' &&
-                      e.fields.includes('description')
-                  )
-                    ? 'Descrizione verificata'
-                    : 'Descrizione non verificata'}
-                  {detail.evidence.some((e) => e.method === 'ai')
-                    ? ' · estrazione AI'
-                    : ''}
-                </small>
-                <p className={s.description}>
-                  {detail.entity.details.description ||
-                    'Descrizione da completare con una fonte.'}
-                </p>
-                <div className={s.actions}>
-                  <Link className={s.secondary} href={`/tourism-lavoro?entities=${detail.entity.id}`}>Assegna al team</Link>
-                  <button
-                    className={s.secondary}
-                    onClick={() => setModal('edit')}
-                  >
-                    Modifica scheda
-                  </button>
-                  {detail.entity.kind === 'organization' && (
-                    <button
-                      className={s.primary}
-                      onClick={() => setDeckFor(detail.entity)}
-                    >
-                      Crea la presentazione
-                    </button>
-                  )}
-                  <button
-                    className={s.secondary}
-                    disabled={busy}
-                    onClick={() =>
-                      act(async () => {
-                        await apiFetch('/api/tourism', {
-                          method: 'PATCH',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            id: detail.entity.id,
-                            version: detail.entity.version,
-                            status: 'INACTIVE'
-                          })
-                        })
-                        refresh()
-                        notify('Entità archiviata; storico conservato')
+                <EntityEssentials
+                  key={`${detail.entity.id}:${detail.entity.version}`}
+                  entity={detail.entity}
+                  contact={detail.contact}
+                  typeLabel={detail.entity.type_code ? TOURISM_TYPES[detail.entity.type_code] : KIND_LABELS[detail.entity.kind]}
+                  place={countryName(detail.entity.country_code || 'IT')}
+                  busy={busy}
+                  onActivate={(fields) =>
+                    act(async () => {
+                      const r = await post<{ contact_created: boolean; contact_id: string | null; crm_error_text: string | null }>({
+                        action: 'activate',
+                        id: detail.entity.id,
+                        version: detail.entity.version,
+                        ...fields
                       })
-                    }
-                  >
-                    Archivia
-                  </button>
-                  {detail.entity.kind === 'organization' && !detail.contact && (
-                    <button
-                      className={s.primary}
-                      disabled={
-                        busy ||
-                        detail.entity.status !== 'VERIFIED' ||
-                        Boolean(detail.matches?.length)
-                      }
-                      onClick={() =>
-                        setConfirmation({
-                          label: `Aggiungere ${detail.entity.name} al CRM? Il sistema cercherà un’identità esistente e registrerà la provenienza.`,
-                          run: async () => {
-                            const r = await post<{ created: boolean }>({
-                              action: 'promote',
-                              id: detail.entity.id
-                            })
-                            refresh()
-                            notify(
-                              r.created
-                                ? 'Contatto aziendale creato nel CRM'
-                                : 'Contatto CRM esistente collegato'
-                            )
-                          }
-                        })
-                      }
-                    >
-                      Add to CRM <Icon name="arrow" />
-                    </button>
-                  )}
-                </div>
+                      refresh()
+                      if (r.crm_error_text) setError(`Scheda confermata, ma non è entrata nei contatti: ${r.crm_error_text}.`)
+                      else notify(r.contact_created ? 'Confermata e aggiunta ai contatti' : 'Confermata e collegata al contatto già presente')
+                    })
+                  }
+                  onPresentation={() => setDeckFor(detail.entity)}
+                  onEdit={() => setModal('edit')}
+                  onArchive={() =>
+                    act(async () => {
+                      await apiFetch('/api/tourism', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: detail.entity.id, version: detail.entity.version, status: 'INACTIVE' })
+                      })
+                      refresh()
+                      notify('Entità archiviata; storico conservato')
+                    })
+                  }
+                />
                 {!detail.contact && Boolean(detail.matches?.length) && (
                   <section className={s.detailSection}>
                     <h3>Corrispondenze nel CRM da confermare</h3>
@@ -1816,6 +1760,29 @@ export default function TourismWorkspace() {
                       ))}
                   </section>
                 )}
+                <details className={s.moreDetails}>
+                  <summary>Altri dettagli: fonti, punteggio, legami, storico</summary>
+                  <div className={s.detailMeta}>
+                    <Badge status={detail.entity.status} />
+                    <span>versione {detail.entity.version}</span>
+                    <Link className={s.secondary} href={`/tourism-lavoro?entities=${detail.entity.id}`}>Assegna al team</Link>
+                  </div>
+                <small className={s.muted}>
+                  {detail.evidence.some(
+                    (e) =>
+                      e.status === 'VERIFIED' &&
+                      e.fields.includes('description')
+                  )
+                    ? 'Descrizione verificata'
+                    : 'Descrizione non verificata'}
+                  {detail.evidence.some((e) => e.method === 'ai')
+                    ? ' · estrazione AI'
+                    : ''}
+                </small>
+                <p className={s.description}>
+                  {detail.entity.details.description ||
+                    'Descrizione da completare con una fonte.'}
+                </p>
                 <section className={s.detailSection}>
                   <h3>Identità e presenza digitale</h3>
                   <dl className={s.identityGrid}>
@@ -2133,6 +2100,7 @@ export default function TourismWorkspace() {
                     </div>
                   ))}
                 </section>
+                </details>
               </>
             ) : (
               <p role="status">Caricamento scheda e fonti…</p>

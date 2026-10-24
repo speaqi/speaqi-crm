@@ -21,6 +21,8 @@ import {
   tourismResponse
 } from '@/lib/server/tourism'
 import pilot from '@/data/tourism-italy-pilot'
+import { createServiceRoleClient } from '@/lib/server/supabase'
+import { crmErrorText } from '@/lib/office/entity-activation'
 
 export const dynamic = 'force-dynamic'
 const requireId = (value: unknown) => {
@@ -475,6 +477,23 @@ export async function POST(request: NextRequest) {
       })
       if (error) throw error
       return tourismResponse({ ok: true })
+    }
+    // «Conferma e aggiungi ai contatti»: il titolare chiude la scheda (email e sito
+    // se mancano) e l'ente entra nel CRM. Un rifiuto del CRM non annulla la verifica.
+    if (body.action === 'activate') {
+      if (!Number.isInteger(body.version)) throw new TourismInputError('Versione richiesta')
+      const email = textValue(body.email, 200).toLowerCase()
+      if (email && !/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/.test(email)) throw new TourismInputError('Email non valida')
+      const rawSite = textValue(body.website, 300)
+      const website = rawSite ? safePublicUrl(/^https?:\/\//i.test(rawSite) ? rawSite : `https://${rawSite}`) : null
+      if (rawSite && !website) throw new TourismInputError('Sito non valido')
+      const { data, error } = await createServiceRoleClient().rpc('tourism_activate', {
+        p_user_id: owner,
+        p_entity_id: requireId(body.id),
+        p_payload: { origin: 'owner', version: body.version, email: email || null, website, city: textValue(body.city, 80) || null }
+      })
+      if (error) throw new TourismInputError(error.message)
+      return tourismResponse({ ...data, crm_error_text: crmErrorText(data?.crm_error) })
     }
     if (body.action === 'promote') {
       const { data, error } = await sb.rpc('tourism_promote', {
