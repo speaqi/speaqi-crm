@@ -1,4 +1,6 @@
-.page { max-width: 1200px; padding: 28px; color: var(--text); }
+/* .page-content non scorre: lo scorrimento è della pagina, che occupa tutta l'altezza. */
+.page { height: 100%; overflow-y: auto; padding: 28px; color: var(--text); }
+.page > * { max-width: 1144px; }
 .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 16px; }
 .header h1 { font-size: 32px; letter-spacing: -.04em; margin: 4px 0 8px; }
 .header p, .queue > p { color: var(--text2); font-size: 14px; line-height: 1.6; }

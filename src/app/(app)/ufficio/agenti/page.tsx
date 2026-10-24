@@ -94,6 +94,13 @@ export default function OfficePage() {
   const refresh = useCallback(() => { void load().catch(() => {}) }, [load])
 
   useEffect(() => { if (data && data.outputs.length === 0 && offset > 0) setOffset(Math.max(0, offset - 50)) }, [data, offset])
+  // I link dalla scena e da «Aspetta te» portano un'ancora (#agente-…, #uscita-…), ma le schede
+  // arrivano dopo il caricamento: il browser non le trova da solo, quindi si scorre all'arrivo dei dati.
+  const ready = Boolean(data)
+  useEffect(() => {
+    if (!ready || !window.location.hash) return
+    document.getElementById(decodeURIComponent(window.location.hash.slice(1)))?.scrollIntoView({ block: 'start' })
+  }, [ready])
 
   async function act(id: string, action: () => Promise<unknown>, message?: string) {
     setBusy(id); setError(''); setNotice('')

@@ -63,7 +63,9 @@ ${JSON.stringify({ source_url: page.source_url, text: page.text.slice(0, 20000),
     const result = checked(await admin.rpc('finish_office_event_batch', { p_run_id: ctx.runId, p_batch_id: claim.id,
       p_events: events.slice(0, 200), p_report: { warnings, sources_checked: unique.length, pages_read: pages.length, model_pages: modelPages,
         queries_executed: false, queries_ignored: settings.queries || [], note: 'Solo fonti configurate. Nessuna iscrizione, compilazione, email o invio. iCal: DTEND conserva la data esclusiva pubblicata, senza dedurre il giorno prima.' } }))
-    return { summary: `Eventi e bandi: ${result.created || 0} nuovi, ${result.tasks || 0} decisioni da approvare, ${warnings.length} avvisi; nessun invio.` }
+    // Senza fonti l'agente non cerca nulla da solo: il riepilogo lo deve dire, non contare «2 avvisi».
+    if (!unique.length) return { summary: 'Nessuna fonte da leggere: aggiungi gli indirizzi delle agende di fiere ed eventi in «Budget e impostazioni» (sources). Nulla speso.' }
+    return { summary: `Eventi e bandi: ${result.created || 0} nuovi, ${result.tasks || 0} decisioni da approvare da ${unique.length} fonti${warnings.length ? `, ${warnings.length} avvisi` : ''}; nessun invio.` }
   }
 }
 export const runEventsScout: AgentHandler = (ctx) => eventsScoutHandler(createServiceRoleClient())(ctx)
