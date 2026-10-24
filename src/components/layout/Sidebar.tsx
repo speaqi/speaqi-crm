@@ -56,7 +56,6 @@ const NAV_GROUPS: { label: string; adminOnly?: boolean; items: NavItem[] }[] = [
   {
     label: 'Vendite',
     items: [
-      { href: '/opportunita', label: 'Opportunità', icon: '🎯' },
       { href: '/preventivi', label: 'Preventivi', icon: '💶' },
       { href: '/commerciale', label: 'Commerciale', icon: '📣' },
       { href: '/attivita', label: 'Analytics', icon: '📊' },

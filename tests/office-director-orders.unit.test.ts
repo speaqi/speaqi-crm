@@ -126,7 +126,7 @@ describe('Telegram', () => {
   })
 
   test('la risposta rimanda al CRM per decidere', () => {
-    assert.match(telegramDirectorReply({ status: 'waiting_you', reply: 'Ho letto Marie.' }, 'https://crm.speaqi.com/'), /crm\.speaqi\.com\/ufficio\/agenti/)
+    assert.match(telegramDirectorReply({ status: 'waiting_you', reply: 'Ho letto Marie.' }, 'https://crm.speaqi.com/'), /crm\.speaqi\.com\/ufficio \(/)
     assert.equal(telegramDirectorReply({ status: 'done', reply: 'Fatto.' }, 'https://crm.speaqi.com'), 'Fatto.')
   })
 })

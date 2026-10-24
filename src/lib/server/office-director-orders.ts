@@ -127,7 +127,7 @@ function queueSentence(result: QueueResult) {
   const name = AGENT_NAMES[result.agent] || result.agent
   if (result.reason === 'agent_missing') return `L’agente ${name} non è ancora installato: il lavoro non è stato accodato.`
   const what = result.queued ? `Ho passato il lavoro a ${name}` : `${name} lo aveva già in coda`
-  return result.enabled ? `${what}, che parte adesso.` : `${what}. È spento: accendilo in /ufficio/agenti e premi «Fai girare adesso».`
+  return result.enabled ? `${what}, che parte adesso.` : `${what}. È spento: accendilo dall’Ufficio (scheda Squadra) e premi «Fai girare adesso».`
 }
 
 /** Un agente acceso a cui è appena arrivato lavoro parte subito, in background. */
@@ -304,7 +304,7 @@ export async function processDirectorOrder(admin: Admin, userId: string, orderId
     startQueuedAgents(userId, done.queued, `order:${order.id}`)
   } else if (result.skipped) {
     Object.assign(patch, { status: 'failed', reply: result.skipped === 'disabled'
-      ? 'Il Direttore è spento: accendilo in /ufficio/agenti e rimandami l’ordine.'
+      ? 'Il Direttore è spento: accendilo dall’Ufficio e rimandami l’ordine.'
       : result.skipped === 'running' ? 'Il Direttore sta già lavorando a un’altra cosa: rimandami l’ordine fra qualche minuto.'
       : 'Questo ordine era già stato elaborato.', error: result.skipped })
   } else {

@@ -183,7 +183,7 @@ export function buildWaiting(input: {
     if (d.status === 'ready') items.push({ kind: 'deck', title: `Presentazione da approvare: ${d.title}`, detail: d.destination ? `Destinazione ${d.destination}` : 'Tourism', href: '/tourism', tone: 'act' })
   }
   for (const output of input.officeOutputs || []) {
-    if (output.status === 'pending') items.push({ kind: 'office_output', title: output.title, detail: `Ufficio · ${output.agent_id}`, href: `/ufficio/agenti#uscita-${output.id}`, tone: 'act' })
+    if (output.status === 'pending') items.push({ kind: 'office_output', title: output.title, detail: `Ufficio · ${output.agent_id}`, href: `/ufficio?uscita=${encodeURIComponent(output.id)}`, tone: 'act' })
   }
   const order: Record<WaitingItem['tone'], number> = { bad: 0, warn: 1, act: 2 }
   return items.sort((a, b) => order[a.tone] - order[b.tone])

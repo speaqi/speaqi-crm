@@ -18,8 +18,10 @@ const date = (value: string) => new Date(value).toLocaleString('it-IT', { timeZo
  * La casella per parlare al Direttore: testo, foto del bigliettino, voce.
  * L'ordine parte subito; la risposta arriva qui sotto quando il Direttore ha finito.
  */
-export function DirectorOrders({ directorEnabled, onEnable, onChanged }: {
+export function DirectorOrders({ directorEnabled, onEnable, onChanged, compact = false }: {
   directorEnabled: boolean; onEnable: () => Promise<void>; onChanged: () => void
+  /** Nel pannello dell'Ufficio: esempi in una riga e solo gli ultimi ordini. */
+  compact?: boolean
 }) {
   const [orders, setOrders] = useState<Order[]>([])
   const [text, setText] = useState('')
@@ -28,6 +30,7 @@ export function DirectorOrders({ directorEnabled, onEnable, onChanged }: {
   const [recording, setRecording] = useState(false)
   const [transcribing, setTranscribing] = useState(false)
   const [error, setError] = useState('')
+  const [showAll, setShowAll] = useState(false)
   const recorder = useRef<MediaRecorder | null>(null)
   const chunks = useRef<Blob[]>([])
   const fileInput = useRef<HTMLInputElement | null>(null)
@@ -93,7 +96,8 @@ export function DirectorOrders({ directorEnabled, onEnable, onChanged }: {
 
   return <section className={styles.box} aria-labelledby="direttore-titolo">
     <h2 id="direttore-titolo">Scrivi al Direttore</h2>
-    <p className={styles.hint}>Un contatto (anche la foto del bigliettino), «costruisci la mappa di Marsiglia da questo link», «prepara la presentazione per Visit Marseille», «controlla la mappa di Barcellona», «come va la pipeline?», «ricordami di chiamare Rossi venerdì». Ti propongo i contatti prima di inserirli; il resto lo passo all’agente giusto.</p>
+    {compact ? <p className={styles.hint}>Un contatto o la foto del bigliettino, «prepara la presentazione per Visit Marseille», «come va la pipeline?», «ricordami di chiamare Rossi venerdì».</p>
+      : <p className={styles.hint}>Un contatto (anche la foto del bigliettino), «costruisci la mappa di Marsiglia da questo link», «prepara la presentazione per Visit Marseille», «controlla la mappa di Barcellona», «come va la pipeline?», «ricordami di chiamare Rossi venerdì». Ti propongo i contatti prima di inserirli; il resto lo passo all’agente giusto.</p>}
     {!directorEnabled && <p className={styles.off}>Il Direttore è spento: senza interruttore acceso non lavora gli ordini. <button type="button" className="btn btn-primary btn-sm" onClick={() => { void onEnable() }}>Accendi il Direttore</button></p>}
     <form onSubmit={send} className={styles.form}>
       <textarea rows={3} value={text} maxLength={4000} placeholder="Cosa devo fare?" onChange={(event) => setText(event.target.value)}
@@ -112,12 +116,13 @@ export function DirectorOrders({ directorEnabled, onEnable, onChanged }: {
       {error && <p role="alert" className={styles.error}>{error}</p>}
     </form>
     {orders.length > 0 && <ul className={styles.orders}>
-      {orders.slice(0, 10).map((order) => <li key={order.id}>
+      {orders.slice(0, compact && !showAll ? 3 : 10).map((order) => <li key={order.id}>
         <div className={styles.meta}><span className={styles[`s_${order.status}`]}>{STATUS[order.status]}</span>
           <small>{date(order.created_at)}{order.source === 'telegram' ? ' · Telegram' : ''}{order.attachments?.length ? ` · ${order.attachments.length} foto` : ''}</small></div>
         {order.text && <p className={styles.said}>«{order.text}»</p>}
         {order.reply && <p className={styles.reply}>{order.reply}</p>}
       </li>)}
     </ul>}
+    {compact && !showAll && orders.length > 3 && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowAll(true)}>Ordini precedenti ({Math.min(orders.length, 10) - 3})</button>}
   </section>
 }

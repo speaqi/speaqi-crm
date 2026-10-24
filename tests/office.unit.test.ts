@@ -184,7 +184,7 @@ describe('accesso e prima pagina', () => {
   test('Aspetta te mostra solo le uscite ancora da decidere', () => {
     const items = buildWaiting({ invoices: [], presentations: [], decks: [], pastDue: [], toInvoiceCount: 0,
       officeOutputs: [{ id: 'a', title: 'Da leggere', status: 'pending', agent_id: 'prova' }, { id: 'b', title: 'Decisa', status: 'approved', agent_id: 'prova' }] })
-    assert.equal(items.length, 1); assert.equal(items[0].kind, 'office_output'); assert.equal(items[0].href, '/ufficio/agenti#uscita-a')
+    assert.equal(items.length, 1); assert.equal(items[0].kind, 'office_output'); assert.equal(items[0].href, '/ufficio?uscita=a')
   })
   test('modifiche limitate a interruttore, budget interi e impostazioni JSON', () => {
     assert.deepEqual(officeAgentPatch({ enabled: false, daily_budget_cents: 0, settings: { lingua: 'it' } }), { enabled: false, daily_budget_cents: 0, settings: { lingua: 'it' } })
