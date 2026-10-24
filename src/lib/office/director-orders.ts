@@ -198,7 +198,8 @@ const euro = (value: number) => formatEuroPlain(Math.round(value))
 const day = (iso: string) => new Date(iso).toLocaleString('it-IT', { timeZone: 'Europe/Rome', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
 /** Lo stato in frasi: i numeri li calcola il codice, nessun modello. */
-export function directorStatusLines(input: DirectorStatusInput): string[] {
+/** In breve (Telegram, risposta allo «stato»): solo i numeri, senza elenchi. */
+export function directorStatusLines(input: DirectorStatusInput, options: { brief?: boolean } = {}): string[] {
   const byStage = new Map<string, { n: number; value: number }>()
   for (const deal of input.deals) {
     const key = deal.stage || 'senza fase'
@@ -214,6 +215,12 @@ export function directorStatusLines(input: DirectorStatusInput): string[] {
     `Preventivi in attesa di firma: ${input.quotesAwaiting.length}${quotes ? ` per ${euro(quotes)}` : ''}.`,
     `Follow-up scaduti: ${input.overdueTasks}. Attività negli ultimi 7 giorni: ${input.activities7d}.`,
   ]
+  if (options.brief) {
+    lines.splice(1, lines.length - 1, lines.find((l) => l.startsWith('Preventivi'))!, lines.find((l) => l.startsWith('Follow-up'))!)
+    lines.push(`Aspetta te: ${input.pendingOutputs} uscite degli agenti da decidere.`)
+    lines.push(input.runs.length ? `Agenti: ${input.runs.length} corse negli ultimi 7 giorni, ${euro(input.spendWeekCents / 100)} spesi questa settimana.` : 'Agenti: nessuna corsa negli ultimi 7 giorni.')
+    return lines
+  }
   if (input.timeline.length) {
     lines.push('Ultime cose successe:')
     lines.push(...input.timeline.slice(0, 8).map((item) => `· ${day(item.at)}${item.who ? ` — ${item.who}` : ''}: ${item.content.replace(/\s+/g, ' ').slice(0, 120)}`))

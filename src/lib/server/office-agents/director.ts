@@ -8,7 +8,7 @@ import { officeRows } from '../office-read'
 import { selectByIdChunks } from '../http'
 import { addOfficeOutputOnce } from './shared'
 import { loadOpenOpportunities } from '../opportunities'
-import { buildDirectorPlan, directorPlanLines, mapPrioritySupported } from '@/lib/office/director-plan'
+import { buildDirectorPlan, directorPlanBrief, directorPlanLines, mapPrioritySupported } from '@/lib/office/director-plan'
 import { sendNotificationText } from '../whatsapp'
 
 /** Il piano arriva su Telegram, mai su WhatsApp: nessun ripiego verso un canale che oggi è scollegato. */
@@ -64,7 +64,7 @@ export function directorHandler(admin: any, options: { now?: () => Date; maps?: 
     // Su Telegram una volta al giorno, solo quando il piano nasce: rilanciare il Direttore non lo rimanda.
     // Un invio fallito non ferma la corsa: il piano resta nel CRM e il riepilogo dice perché.
     if (planOutput.created) {
-      const sent = await (options.notify || sendPlanToTelegram)(directorPlanMessage(day, directorPlanLines(plan)))
+      const sent = await (options.notify || sendPlanToTelegram)(directorPlanMessage(day, directorPlanBrief(plan)))
       planSummary += sent.ok ? ' Inviato su Telegram.' : ` Telegram: ${sent.error || 'invio non riuscito'}.`
       if (!sent.ok) ctx.log(`Piano non inviato su Telegram: ${sent.error || 'invio non riuscito'}`)
     }

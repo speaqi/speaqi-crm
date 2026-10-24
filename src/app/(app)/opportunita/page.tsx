@@ -183,7 +183,7 @@ export default function OpportunitaPage() {
     <section className={styles.plan} aria-label="Il piano di oggi">
       <h2>Il piano di oggi</h2>
       {plan ? <>
-        <p className={styles.muted}>Opportunità aperte {plan.open} · ferme {plan.stuck}. Calcolato adesso su prove, valore, tempi e lavoro che manca.</p>
+        <p className={styles.muted}>In gioco {plan.open} · ferme {plan.stuck}{plan.dormant ? ` · ${plan.dormant} vendite senza movimenti da 90 giorni fuori dal piano` : ''}. Calcolato adesso su prove, valore, tempi e lavoro che manca.</p>
         <div className={styles.planGrid}>
           <PlanList title="Da lavorare" hint="Nessuna opportunità pronta: assegna un prossimo passo a quelle ferme." rows={plan.work} />
           <PlanList title="Da sbloccare" hint="Niente di fermo." rows={plan.unblock} />

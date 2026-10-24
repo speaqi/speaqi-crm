@@ -170,7 +170,7 @@ export function OfficePanel({ data, reload, tab, setTab, department, setDepartme
       {planError && <p role="alert" className={styles.error}>{planError}</p>}
       {!plan && !planError && <p className={styles.muted}>Calcolo il piano…</p>}
       {plan && <>
-        <p className={styles.muted}>Opportunità aperte {plan.open} · ferme {plan.stuck}. Calcolato adesso, senza AI.</p>
+        <p className={styles.muted}>In gioco {plan.open} · ferme {plan.stuck}{plan.dormant ? ` · ${plan.dormant} vendite senza movimenti da 90 giorni fuori dal piano` : ''}. Calcolato adesso, senza AI.</p>
         <PlanList title="Da lavorare oggi" rows={plan.work} />
         <PlanList title="Da sbloccare" rows={plan.unblock} extra={(row) => row.stuck} />
         <PlanList title="Partner da attivare" rows={plan.activate} extra={() => 'Accordo firmato, partner non ancora attivo'} />

@@ -4,7 +4,7 @@ import { officeAgentHandler } from './office-agents/registry'
 import { officeRows } from './office-read'
 import { createLeadFromInput } from './lead-ops'
 import { loadDirectorPlan } from './opportunities'
-import { directorPlanLines } from '../office/director-plan'
+import { directorPlanBrief } from '../office/director-plan'
 import { photoForModel, sniffUpload, safeFileName } from './tourism-deck-assets'
 import { errorMessage } from './http'
 import { normalizeForSearch, searchPattern } from '../command-center'
@@ -195,7 +195,7 @@ async function statusReport(admin: Admin, userId: string, now: Date) {
     pendingOutputs: pending.count || 0,
     runs: ((runs.data || []) as any[]).map((run) => ({ agent: names.get(run.agent_id) || run.agent_id, status: run.status, summary: String(run.summary || ''), started_at: run.started_at })),
     spendWeekCents: ledger.reduce((sum, row) => sum + (row.actual_cents ?? row.reserved_cents ?? 0), 0),
-  })
+  }, { brief: true })
 }
 
 type Outcome = { status: DirectorOrderRow['status']; reply: string; outputs: string[]; queued: QueueResult[] }
@@ -267,8 +267,10 @@ async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrder
     return { status: 'done', outputs: [], queued: [], reply: `Segnato nel To Do: «${plan.title}»${plan.due_date ? ` per il ${plan.due_date.slice(8, 10)}/${plan.due_date.slice(5, 7)}` : ''}.` }
   }
   if (plan.intent === 'status') {
+    // Corta apposta: arriva anche su Telegram. Il dettaglio sta nell'Ufficio.
     const [plan, status] = await Promise.all([loadDirectorPlan(admin, userId, now), statusReport(admin, userId, now)])
-    return { status: 'done', outputs: [], queued: [], reply: ['Il piano di oggi', ...directorPlanLines(plan), '', 'La situazione', ...status].join('\n') }
+    const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+    return { status: 'done', outputs: [], queued: [], reply: ['Il piano di oggi', ...directorPlanBrief(plan), '', 'La situazione', ...status, '', `Tutto il dettaglio nell’Ufficio: ${base}/ufficio`].join('\n') }
   }
   return { status: 'failed', outputs: [], queued: [], reply: plan.question }
 }

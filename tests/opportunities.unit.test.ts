@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, mock, test } from 'node:test'
 import { newOpportunityRow, nextStepOf, opportunityPatch, stuckReason, type Opportunity } from '../src/lib/opportunities'
-import { buildDirectorPlan, directorPlanLines, mapPrioritySupported, scoreOpportunity, type PlanInput } from '../src/lib/office/director-plan'
+import { buildDirectorPlan, directorPlanBrief, directorPlanLines, inPlay, mapPrioritySupported, scoreOpportunity, type PlanInput } from '../src/lib/office/director-plan'
 import { filterOpportunities } from '../src/lib/server/opportunities'
 import { selectSalesCandidates } from '../src/lib/office/sales-followup'
 import { directorHandler } from '../src/lib/server/office-agents/director'
@@ -169,4 +169,26 @@ test('Direttore: il piano parte su Telegram una volta al giorno e un invio falli
   result = await directorHandler(other, { ...options, notify: async () => ({ ok: false, error: 'Canale richiesto non disponibile' }) })(ctxFor(other))
   assert.match(String(result?.summary), /Telegram: Canale richiesto non disponibile/)
   assert.equal(other.tables.office_agent_outputs.filter((o) => String(o.title).startsWith('Piano di oggi')).length, 1)
+})
+
+test('in gioco: le vendite ferme da 90 giorni escono dal piano, le pipeline nuove restano', () => {
+  const old = deal({ updated_at: ago(200), stage_changed_at: ago(200), stage: 'New' })
+  assert.equal(inPlay(input(old), NOW), false)
+  assert.equal(inPlay(input(old, { contact: { id: 'c1', name: 'X', last_contact_at: ago(10) } }), NOW), true, 'un contatto recente la rimette in gioco')
+  assert.equal(inPlay(input(old, { quotes: [{ contact_id: 'c1', status: 'sent', total_amount: 488 }] }), NOW), true, 'un preventivo in attesa la rimette in gioco')
+  assert.equal(inPlay(input(deal(), { contact: { id: 'c1', name: 'X', contact_scope: 'holding' } }), NOW), false, 'contatto in attesa: fuori')
+  assert.equal(inPlay(input(deal(), { contact: { id: 'c1', name: 'X', hidden: true } }), NOW), false, 'contatto nascosto: fuori')
+  assert.equal(inPlay(input(deal({ pipeline: 'tourism', stage: 'scoperta', updated_at: ago(400), stage_changed_at: ago(400) })), NOW), true)
+  const plan = buildDirectorPlan([input(old), input(deal({ next_step: 'Chiamare', next_step_due: ahead(1) }))], NOW)
+  assert.equal(plan.open, 1); assert.equal(plan.dormant, 1)
+  assert.match(directorPlanLines(plan).join('\n'), /Fuori dal piano: 1 trattativa di vendita senza movimenti da 90 giorni/)
+})
+
+test('il piano breve sta in poche righe: tre da lavorare, tre da sbloccare', () => {
+  const inputs = Array.from({ length: 8 }, (_, i) => input(deal({ id: `w${i}`, contact_id: `c${i}`, next_step: 'Chiamare', next_step_due: ahead(1) })))
+    .concat(Array.from({ length: 6 }, (_, i) => input(deal({ id: `s${i}`, contact_id: `s${i}`, stage_changed_at: ago(30) }))))
+  const brief = directorPlanBrief(buildDirectorPlan(inputs, NOW))
+  assert.equal(brief.filter((l) => /^\d\. /.test(l)).length, 6)
+  assert.ok(brief.length <= 12, brief.join('\n'))
+  assert.equal(brief[0], 'In gioco: 14 opportunità, 6 ferme.')
 })
