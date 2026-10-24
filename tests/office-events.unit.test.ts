@@ -7,6 +7,7 @@ import { OFFICE_AGENT_DEFINITIONS } from '../src/lib/server/office-agents/defini
 import { AUTOMATION_JOBS, dueJobs } from '../src/lib/automation-schedule'
 import { FakeSupabase } from './fake-supabase'
 import type { AgentContext } from '../src/lib/server/office-agents'
+import { MODEL_URL, modelReply } from './model-reply'
 const NOW=new Date('2026-10-23T08:00:00Z'),SOURCE_URL='https://calendar.example.org/events'
 const structured=readFileSync(new URL('./fixtures/office-events-structured.html',import.meta.url),'utf8')
 const plain=readFileSync(new URL('./fixtures/office-events-unstructured.html',import.meta.url),'utf8')
@@ -58,15 +59,15 @@ function fixture(){
   return{db,ctx,order}
 }
 test('eventi: prenotazione prima della spesa, schema strict, query non eseguite e nessun secondo costo giornaliero',async()=>{
-  const f=fixture();const previous=process.env.OPENAI_API_KEY;process.env.OPENAI_API_KEY='finta'
+  const f=fixture();const previous=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='finta'
   const fetch=mock.method(globalThis,'fetch',async(url:unknown,init?:RequestInit)=>{
-    assert.equal(url,'https://api.openai.com/v1/responses');f.order.push('provider');const body=JSON.parse(String(init?.body));assert.equal(body.text.format.strict,true);assert.equal(body.text.format.name,'office_events');assert.equal(body.tools,undefined)
-    return Response.json({status:'completed',usage:{input_tokens:1000,output_tokens:100},output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({events:[proposed]})}]}]})
+    assert.equal(url,MODEL_URL);f.order.push('provider');const body=JSON.parse(String(init?.body));assert.equal(body.response_format.json_schema.strict,true);assert.equal(body.response_format.json_schema.name,'office_events');assert.equal(body.tools,undefined)
+    return modelReply(JSON.stringify({events:[proposed]}),{input_tokens:1000,output_tokens:100})
   })
   try{const handler=eventsScoutHandler(f.db,{now:()=>NOW,fetchPage:async()=>({status:200,text:plain,bytes:plain.length,headers:{}})})
     await handler(f.ctx);await handler(f.ctx);assert.deepEqual(f.order,['claim','reserve','provider','settle','finish']);assert.equal(fetch.mock.callCount(),1)
     assert.equal(f.db.tables.report[0].queries_executed,false);assert.ok(f.db.tables.report[0].warnings[0].includes('settings.sources'));assert.equal(f.db.tables.events.length,1)
-  }finally{fetch.mock.restore();if(previous===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=previous}
+  }finally{fetch.mock.restore();if(previous===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=previous}
 })
 test('eventi: timeout resta prenotato; nessuna seconda chiamata al modello, nessuna attività automatica',async()=>{
   const f=fixture();let calls=0;const handler=eventsScoutHandler(f.db,{now:()=>NOW,fetchPage:async()=>({status:200,text:plain,bytes:plain.length,headers:{}}),model:async()=>{calls++;throw new Error('Timeout')}})

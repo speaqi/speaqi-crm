@@ -7,6 +7,7 @@ import { createDeck, setApproval } from '../src/lib/server/tourism-decks'
 import { OFFICE_AGENT_DEFINITIONS } from '../src/lib/server/office-agents/definitions'
 import type { AgentContext } from '../src/lib/server/office-agents'
 import { FakeSupabase } from './fake-supabase'
+import { MODEL_URL, modelReply } from './model-reply'
 
 const ENTITY='11111111-1111-4111-8111-111111111111',DEST='22222222-2222-4222-8222-222222222222'
 const slides=applyVars(DEFAULT_DECK_TEMPLATE,{destinazione:'Marsiglia',ente:'Ente Marsiglia'})
@@ -49,17 +50,17 @@ function fixture(){
   return{db,ctx,order,create}
 }
 test('presentazioni: riusa createDeck e generateIntoDeck, riserva prima di OpenAI, ready mai approved, retry senza costo',async()=>{
-  const f=fixture();const old=process.env.OPENAI_API_KEY;process.env.OPENAI_API_KEY='finta'
+  const f=fixture();const old=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='finta'
   const fetch=mock.method(globalThis,'fetch',async(url:unknown,init?:RequestInit)=>{
-    assert.equal(url,'https://api.openai.com/v1/responses');f.order.push('provider')
-    const body=JSON.parse(String(init?.body));assert.equal(body.text.format.name,'tourism_deck')
-    return Response.json({status:'completed',usage:{input_tokens:1000,output_tokens:100},output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({slides,missing:[]})}]}]})
+    assert.equal(url,MODEL_URL);f.order.push('provider')
+    const body=JSON.parse(String(init?.body));assert.equal(body.response_format.json_schema.name,'tourism_deck')
+    return modelReply(JSON.stringify({slides,missing:[]}),{input_tokens:1000,output_tokens:100})
   })
   try{const handler=presentationsHandler(f.db,{create:f.create});await handler(f.ctx);await handler(f.ctx)
     assert.equal(fetch.mock.callCount(),1);assert.deepEqual(f.order.slice(0,4),['claim','reserve','provider','settle'])
     assert.equal(f.db.tables.tourism_decks.length,1);assert.equal(f.db.tables.tourism_decks[0].status,'ready');assert.equal(f.db.tables.tourism_decks[0].approved_at,null)
     assert.equal(f.db.tables.email_drafts?.length||0,0)
-  }finally{fetch.mock.restore();if(old===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=old}
+  }finally{fetch.mock.restore();if(old===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=old}
 })
 test('presentazioni: timeout non ripaga e non approva; la pipeline conserva failed e la riserva',async()=>{
   const f=fixture();let calls=0;const handler=presentationsHandler(f.db,{create:f.create,model:async()=>{calls++;throw new Error('Timeout')}})

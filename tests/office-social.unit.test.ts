@@ -6,6 +6,7 @@ import { OFFICE_AGENT_DEFINITIONS } from '../src/lib/server/office-agents/defini
 import { FakeSupabase } from './fake-supabase'
 import type { AgentContext } from '../src/lib/server/office-agents'
 import type { MapsStatus } from '../src/lib/server/maps-status'
+import { MODEL_URL, modelReply } from './model-reply'
 const GUIDE:SocialGuide={id:'marsiglia',slug:'marsiglia',name:'Marsiglia',url:'https://guides.speaqi.com/maps/marsiglia',points:28,languages:['it','en'],routes:3,audio_minutes:null,
   photo_urls:['https://images.speaqi.com/marsiglia.jpg'],published_at:null,source_url:'https://api.speaqi.com/api/v1/public/maps/marsiglia',changes:[]}
 const maps:MapsStatus={rows:[{key:'marsiglia',name:'Marsiglia',stage:'online',places:28,ready_places:28,speaqi_slug:'marsiglia',studiomap_slug:null,price_cents:null},
@@ -48,10 +49,10 @@ test('social: prenota prima del modello, solo draft_post pending via RPC, nessun
     finish_office_social_batch(args){order.push('save');assert.equal(args.p_posts.length,3);db.tables.posts=args.p_posts;return{created:true}},
   })
   const ctx:AgentContext={agent:{...OFFICE_AGENT_DEFINITIONS.social,user_id:'owner'},runId:'run',async reserve(){order.push('reserve');return'l'},async settle(){order.push('settle')},async addOutput(){throw new Error('Solo salvataggio atomico')},log(){}}
-  const old=process.env.OPENAI_API_KEY;process.env.OPENAI_API_KEY='finta'
-  const fetch=mock.method(globalThis,'fetch',async(url:unknown)=>{assert.equal(url,'https://api.openai.com/v1/responses');order.push('provider');return Response.json({status:'completed',usage:{input_tokens:1000,output_tokens:100},output:[{type:'message',content:[{type:'output_text',text:'{"posts":[]}'}]}]})})
+  const old=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='finta'
+  const fetch=mock.method(globalThis,'fetch',async(url:unknown)=>{assert.equal(url,MODEL_URL);order.push('provider');return modelReply('{"posts":[]}',{input_tokens:1000,output_tokens:100})})
   try{const run=socialHandler(db,{now:()=>new Date('2026-10-23T08:00:00Z'),maps:async()=>maps,guides:async()=>({guides:[structuredClone(GUIDE)],warnings:[]})});await run(ctx);await run(ctx)
     assert.deepEqual(order,['claim','reserve','provider','settle','save']);assert.equal(fetch.mock.callCount(),1);assert.equal(db.tables.posts.length,3)
-  }finally{fetch.mock.restore();if(old===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=old}
+  }finally{fetch.mock.restore();if(old===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=old}
   assert.equal(socialWeek(new Date('2026-10-25T22:00:00Z')),'2026-10-19');assert.equal(OFFICE_AGENT_DEFINITIONS.social.enabled,false)
 })

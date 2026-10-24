@@ -7,6 +7,7 @@ import type { MapStatusRow } from '../src/lib/command-center'
 import type { AgentContext } from '../src/lib/server/office-agents'
 import { OFFICE_AGENT_DEFINITIONS } from '../src/lib/server/office-agents/definitions'
 import { FakeSupabase } from './fake-supabase'
+import { MODEL_URL, modelReply } from './model-reply'
 
 const NOW = new Date('2026-10-22T06:00:00Z')
 const map = (name: string, patch: Partial<MapStatusRow> = {}): MapStatusRow => ({key:name,name,stage:'pronta',places:20,ready_places:20,speaqi_slug:null,studiomap_slug:name.toLowerCase(),price_cents:null,...patch})
@@ -68,8 +69,8 @@ test('Direttore: pipeline legge fonti vere simulate, riserva prima del modello e
   const order:string[]=[]
   const ctx:AgentContext={agent:{...OFFICE_AGENT_DEFINITIONS.director,user_id:'owner'},runId:'run',async reserve(){order.push('reserve');return'ledger'},async settle(){order.push('settle')},log(){},
     async addOutput(output){const row={id:db.nextId('output'),user_id:'owner',agent_id:'director',output_key:output.key,...output};db.tables.office_agent_outputs.push(row);return row.id}}
-  const old=process.env.OPENAI_API_KEY;process.env.OPENAI_API_KEY='finta'
-  const fetch=mock.method(globalThis,'fetch',async(url:unknown)=>{assert.equal(url,'https://api.openai.com/v1/responses');order.push('provider');return Response.json({status:'completed',usage:{input_tokens:1000,output_tokens:100},output:[{type:'message',content:[{type:'output_text',text:'{"points":[null,{"key":"build_map:marsiglia","lines":["999999 luoghi","Fatto","Subito"]}]}'}]}]})})
+  const old=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='finta'
+  const fetch=mock.method(globalThis,'fetch',async(url:unknown)=>{assert.equal(url,MODEL_URL);order.push('provider');return modelReply('{"points":[null,{"key":"build_map:marsiglia","lines":["999999 luoghi","Fatto","Subito"]}]}',{input_tokens:1000,output_tokens:100})})
   try {
     const run=directorHandler(db,{now:()=>NOW,maps:async()=>({rows:[],sources:{studiomap:'ok',speaqi:'ok'},fetched_at:NOW.toISOString()}),coverage:async()=>({rows:[],warnings:[]})})
     await run(ctx);await run(ctx)
@@ -81,5 +82,5 @@ test('Direttore: pipeline legge fonti vere simulate, riserva prima del modello e
     const proposal=db.tables.office_agent_outputs.find((o)=>o.kind==='proposal')!
     assert.equal(proposal.target_id,'dest');assert.equal(proposal.body.recipient_agent_id,'mymaps_builder');assert.ok(!proposal.body.lines.join(' ').includes('999999'))
     assert.equal(db.tables.office_agents,undefined)
-  } finally {fetch.mock.restore();if(old===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=old}
+  } finally {fetch.mock.restore();if(old===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=old}
 })

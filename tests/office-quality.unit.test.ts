@@ -6,6 +6,7 @@ import { OFFICE_AGENT_DEFINITIONS } from '../src/lib/server/office-agents/defini
 import type { AgentContext } from '../src/lib/server/office-agents'
 import { BudgetExceeded } from '../src/lib/server/office-agents'
 import { FakeSupabase } from './fake-supabase'
+import { MODEL_URL, modelReply } from './model-reply'
 
 test('qualità: campione globale massimo 20, ruota fra mappe e non duplica con meno di 20 luoghi',()=>{
   const maps=[{slug:'a',city:'Marsiglia',total:25},{slug:'b',city:'Barcellona',total:25}]
@@ -34,11 +35,11 @@ function fixture() {
   return{db,ctx,order,bridge}
 }
 test('qualità: rapporti prima della spesa, JSON strict, budget prima del modello, niente fix Napoli e niente doppio costo',async()=>{
-  const f=fixture();const previous=process.env.OPENAI_API_KEY;process.env.OPENAI_API_KEY='finta'
+  const f=fixture();const previous=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='finta'
   const fetch=mock.method(globalThis,'fetch',async(_url:unknown,init?:RequestInit)=>{
-    const body=JSON.parse(String(init?.body));assert.equal(body.text.format.type,'json_schema');assert.equal(body.text.format.strict,true)
+    const body=JSON.parse(String(init?.body));assert.equal(body.response_format.type,'json_schema');assert.equal(body.response_format.json_schema.strict,true)
     assert.equal(f.order.filter((x)=>x==='output:report').length,2);f.order.push('provider')
-    return Response.json({status:'completed',usage:{input_tokens:1000,output_tokens:100},output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({issues:[{place_key:'museo',sentence:'Frase inventata da eliminare.',source_refs:[]}]})}]}]})
+    return modelReply(JSON.stringify({issues:[{place_key:'museo',sentence:'Frase inventata da eliminare.',source_refs:[]}]}),{input_tokens:1000,output_tokens:100})
   })
   try{
     const run=mapsQualityHandler(f.db,{now:()=>new Date('2026-10-23T08:00:00Z'),bridge:f.bridge});await run(f.ctx);const calls=fetch.mock.callCount();await run(f.ctx)
@@ -46,7 +47,7 @@ test('qualità: rapporti prima della spesa, JSON strict, budget prima del modell
     assert.equal(f.db.tables.office_agent_outputs.filter((o)=>o.kind==='data_fix').length,1)
     assert.ok(f.db.tables.office_agent_outputs.filter((o)=>o.kind==='report').every((o)=>o.body.model_status==='completato'&&o.body.model_findings.length===0))
     const providers=f.order.map((v,i)=>v==='provider'?i:-1).filter((i)=>i>=0);assert.ok(providers.every((i)=>f.order[i-1]==='reserve'&&f.order[i+1]==='settle'))
-  }finally{fetch.mock.restore();if(previous===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=previous}
+  }finally{fetch.mock.restore();if(previous===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=previous}
 })
 test('qualità: budget finito conserva tutti i controlli gratuiti e segnala campione non completato',async()=>{
   const f=fixture();const run=mapsQualityHandler(f.db,{now:()=>new Date('2026-10-23T08:00:00Z'),bridge:f.bridge,model:async()=>{throw new BudgetExceeded()}})

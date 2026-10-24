@@ -6,6 +6,7 @@ import { OFFICE_AGENT_DEFINITIONS } from '../src/lib/server/office-agents/defini
 import { BudgetExceeded, type AgentContext } from '../src/lib/server/office-agents'
 import type { CRMContact, Quote } from '../src/types'
 import { FakeSupabase } from './fake-supabase'
+import { MODEL_URL, modelReply } from './model-reply'
 
 const OWNER='owner'
 const NOW=new Date('2026-10-22T06:00:00Z')
@@ -65,10 +66,10 @@ function fixture(){
 }
 
 test('pipeline esistente: budget prima del modello, bozza locale, nota e idempotenza',async()=>{
-  const{db,ctx,order}=fixture();const old=process.env.OPENAI_API_KEY;process.env.OPENAI_API_KEY='finta'
+  const{db,ctx,order}=fixture();const old=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='finta'
   const mocked=mock.method(globalThis,'fetch',async(_url:unknown,init:RequestInit)=>{
     order.push('provider');const body=JSON.parse(String(init.body));assert.equal(body.tools,undefined)
-    return Response.json({status:'completed',usage:{input_tokens:1000,output_tokens:200},output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({subject:'Un aggiornamento',body_text:'Buongiorno Rosa,\nsono Massimo Morgante, fondatore di Speaqi.\nRiprendo il preventivo: possiamo sentirci per un breve aggiornamento?',body_html:'<script>non usare html del modello</script>'})}]}]})
+    return modelReply(JSON.stringify({subject:'Un aggiornamento',body_text:'Buongiorno Rosa,\nsono Massimo Morgante, fondatore di Speaqi.\nRiprendo il preventivo: possiamo sentirci per un breve aggiornamento?',body_html:'<script>non usare html del modello</script>'}),{input_tokens:1000,output_tokens:200})
   })
   try{
     const run=salesFollowupHandler(db,{now:()=>NOW});await run(ctx);await run(ctx)
@@ -76,15 +77,15 @@ test('pipeline esistente: budget prima del modello, bozza locale, nota e idempot
     assert.equal(db.tables.email_drafts.length,1);const draft=db.tables.email_drafts[0]
     assert.equal(draft.source,'office');assert.equal(draft.status,'pending');assert.match(draft.office_note,/PRV-2026-q/)
     assert.ok(!draft.body_html.includes('<script>'));assert.match(draft.body_html,/Buongiorno/)
-  }finally{mocked.mock.restore();if(old===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=old}
+  }finally{mocked.mock.restore();if(old===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=old}
 })
 
 test('BudgetExceeded non viene ingoiato dalla pipeline; nessun modello e nessuna bozza',async()=>{
-  const{db,ctx}=fixture();const old=process.env.OPENAI_API_KEY;process.env.OPENAI_API_KEY='finta'
+  const{db,ctx}=fixture();const old=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='finta'
   ctx.reserve=async()=>{throw new BudgetExceeded()}
   const fetch=mock.method(globalThis,'fetch',async()=>{assert.fail('Budget non prenotato')})
   try{await assert.rejects(salesFollowupHandler(db,{now:()=>NOW})(ctx),BudgetExceeded);assert.equal(db.tables.email_drafts.length,0);assert.equal(fetch.mock.callCount(),0)}
-  finally{fetch.mock.restore();if(old===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=old}
+  finally{fetch.mock.restore();if(old===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=old}
 })
 
 test('risposta su una scheda gemella e quota gia consumata bloccano prima di spendere',async()=>{

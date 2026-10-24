@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import { describe, test, mock } from 'node:test'
 import { estimateModelCost, modelCostCents } from '../src/lib/office-pricing'
 import { officeAgentPatch, type OfficeAgent, type OfficeRun } from '../src/lib/office'
-import { BudgetExceeded, callModel, runAgent, type AgentContext, type OfficeStore } from '../src/lib/server/office-agents'
+import { BudgetExceeded, callModel, creditCostCents, runAgent, toOpenRouterModel, type AgentContext, type OfficeStore } from '../src/lib/server/office-agents'
+import { MODEL_URL, modelReply } from './model-reply'
 import { officeAgentHandler, OFFICE_AGENT_HANDLERS } from '../src/lib/server/office-agents/registry'
 import { canAccessPath } from '../src/lib/areas'
 import { buildWaiting } from '../src/lib/command-center'
@@ -120,19 +121,26 @@ describe('corse', () => {
   })
 })
 
+function restoreKeys(general: string | undefined, office: string | undefined) {
+  if (general === undefined) delete process.env.OPENROUTER_API_KEY; else process.env.OPENROUTER_API_KEY = general
+  if (office === undefined) delete process.env.OPENROUTER_API_KEY_OFFICE; else process.env.OPENROUTER_API_KEY_OFFICE = office
+}
+
 describe('chiamate al modello con budget', () => {
   test('prenota prima della rete, salda dai token reali, mai strumenti esterni', async () => {
-    const old = process.env.OPENAI_API_KEY; process.env.OPENAI_API_KEY = 'chiave-finta'
+    const old = process.env.OPENROUTER_API_KEY; process.env.OPENROUTER_API_KEY = 'chiave-finta'
+    const office = process.env.OPENROUTER_API_KEY_OFFICE; delete process.env.OPENROUTER_API_KEY_OFFICE
     const order: string[] = []
     const f = fixture()
     const settle = f.store.settle
     f.store.settle = async (...args) => { order.push('saldo'); await settle(...args); assert.deepEqual(args[2], { tokensIn: 1000, tokensOut: 100, model: 'gpt-5-mini', cachedTokens: 1000 }) }
     const reserve = f.store.reserve
     f.store.reserve = async (...args) => { order.push('riserva'); return reserve(...args) }
-    const mocked = mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
-      order.push('rete')
-      const body = JSON.parse(String(init.body)); assert.equal(body.tools, undefined); assert.equal(body.store, false)
-      return Response.json({ status: 'completed', usage: { input_tokens: 1000, output_tokens: 100, input_tokens_details: { cached_tokens: 1000 } }, output: [{ type: 'message', content: [{ type: 'output_text', text: 'Bozza verificabile' }] }] })
+    const mocked = mock.method(globalThis, 'fetch', async (url: unknown, init: RequestInit) => {
+      order.push('rete'); assert.equal(url, MODEL_URL)
+      const body = JSON.parse(String(init.body)); assert.equal(body.tools, undefined); assert.equal(body.model, 'openai/gpt-5-mini')
+      assert.equal(body.max_tokens, 1000); assert.equal((init.headers as Record<string, string>).Authorization, 'Bearer chiave-finta')
+      return modelReply('Bozza verificabile', { input_tokens: 1000, output_tokens: 100, cached_tokens: 1000 })
     })
     try {
       const result = await runAgent('prova', async (ctx) => {
@@ -140,10 +148,33 @@ describe('chiamate al modello con budget', () => {
         assert.equal(result.text, 'Bozza verificabile'); assert.equal(result.costCents, 1)
       }, { userId: 'titolare', store: f.store })
       assert.equal(result.run?.status, 'done'); assert.deepEqual(order, ['riserva', 'rete', 'saldo'])
-    } finally { mocked.mock.restore(); if (old === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = old }
+    } finally { mocked.mock.restore(); restoreKeys(old, office) }
   })
-  test('senza budget non chiama OpenAI; timeout e usage mancanti mantengono la riserva', async () => {
-    const old = process.env.OPENAI_API_KEY; process.env.OPENAI_API_KEY = 'chiave-finta'
+  test('il costo dichiarato da OpenRouter vince sul listino; la chiave dell’Ufficio vince su quella generale', async () => {
+    const old = process.env.OPENROUTER_API_KEY; process.env.OPENROUTER_API_KEY = 'generale'
+    const office = process.env.OPENROUTER_API_KEY_OFFICE; process.env.OPENROUTER_API_KEY_OFFICE = 'ufficio'
+    let charged = -1
+    const mocked = mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+      assert.equal((init.headers as Record<string, string>).Authorization, 'Bearer ufficio')
+      const body = JSON.parse(String(init.body))
+      assert.equal(body.response_format.json_schema.strict, true); assert.deepEqual(body.provider, { require_parameters: true })
+      return modelReply('{"a":"b"}', { input_tokens: 10, output_tokens: 10, cost: 0.0312 })
+    })
+    try {
+      const f = fixture(); const settle = f.store.settle
+      f.store.settle = async (...args) => { charged = args[1]; await settle(...args) }
+      const result = await runAgent('prova', async (ctx) => {
+        await callModel(ctx, { model: 'gpt-5-mini', input: 'a', maxOutputTokens: 100, jsonSchema: { name: 'r', schema: { type: 'object' } } })
+      }, { userId: 'titolare', store: f.store })
+      assert.equal(result.run?.status, 'done'); assert.equal(charged, 4)
+      assert.equal(creditCostCents(0.0312, 1), 4); assert.equal(creditCostCents(0.01, 1), 1); assert.equal(creditCostCents(0, 1), 0)
+      assert.equal(creditCostCents(0.01, 0.92), 1); assert.equal(creditCostCents(1, 0.92), 92); assert.equal(creditCostCents(Number.NaN), null)
+      assert.equal(toOpenRouterModel('gpt-5-mini'), 'openai/gpt-5-mini'); assert.equal(toOpenRouterModel('anthropic/claude-x'), 'anthropic/claude-x')
+    } finally { mocked.mock.restore(); restoreKeys(old, office) }
+  })
+  test('senza budget non chiama il modello; timeout e usage mancanti mantengono la riserva', async () => {
+    const old = process.env.OPENROUTER_API_KEY; process.env.OPENROUTER_API_KEY = 'chiave-finta'
+    const office = process.env.OPENROUTER_API_KEY_OFFICE; delete process.env.OPENROUTER_API_KEY_OFFICE
     let calls = 0; let settles = 0
     const mocked = mock.method(globalThis, 'fetch', async () => { calls++; return Response.json({ status: 'completed' }) })
     try {
@@ -158,12 +189,17 @@ describe('chiamate al modello con budget', () => {
       mocked.mock.mockImplementation(async () => new Response('{}', { status: 401 }))
       const k = fixture(); let zero = -1; k.store.settle = async (_id, cents) => { zero = cents }
       result = await runAgent('prova', async (ctx) => { await callModel(ctx, { model: 'gpt-5-mini', input: 'a', maxOutputTokens: 100 }) }, { userId: 'titolare', store: k.store })
-      assert.equal(result.run?.status, 'failed'); assert.equal(zero, 0); assert.match(String(result.run?.error), /OPENAI_API_KEY/)
+      assert.equal(result.run?.status, 'failed'); assert.equal(zero, 0); assert.match(String(result.run?.error), /OPENROUTER_API_KEY/)
+      // Credito finito: stesso trattamento, con il motivo da leggere.
+      mocked.mock.mockImplementation(async () => new Response('{}', { status: 402 }))
+      const c = fixture(); zero = -1; c.store.settle = async (_id, cents) => { zero = cents }
+      result = await runAgent('prova', async (ctx) => { await callModel(ctx, { model: 'gpt-5-mini', input: 'a', maxOutputTokens: 100 }) }, { userId: 'titolare', store: c.store })
+      assert.equal(zero, 0); assert.match(String(result.run?.error), /Credito OpenRouter esaurito/)
       mocked.mock.mockImplementation(async () => { throw new Error('Timeout') })
       const h = fixture(); h.store.settle = f.store.settle
       result = await runAgent('prova', async (ctx) => { await callModel(ctx, { model: 'gpt-5-mini', input: 'a', maxOutputTokens: 100 }) }, { userId: 'titolare', store: h.store })
       assert.equal(result.run?.status, 'failed'); assert.equal(settles, 0); assert.equal(result.run?.cost_cents_reserved, 1)
-    } finally { mocked.mock.restore(); if (old === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = old }
+    } finally { mocked.mock.restore(); restoreKeys(old, office) }
   })
 })
 

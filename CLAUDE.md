@@ -54,7 +54,8 @@ Copy `.env.local.example` to `.env.local`. Required keys:
 | `GOOGLE_CLIENT_SECRET` | Gmail OAuth secret |
 | `GOOGLE_REDIRECT_URI` | Gmail OAuth callback URL |
 | `GMAIL_TOKEN_ENCRYPTION_KEY` | 32+ char secret for token encryption |
-| `OPENAI_API_KEY` | OpenAI API key |
+| `OPENAI_API_KEY` | OpenAI API key (oggi: funzioni AI del CRM fuori dall'Ufficio e trascrizione dei vocali) |
+| `OPENROUTER_API_KEY` / `OPENROUTER_API_KEY_OFFICE` | OpenRouter per gli agenti dell'Ufficio (`callModel`). La seconda, facoltativa, separa i consumi dell'Ufficio; senza nessuna delle due gli agenti che scrivono col modello si fermano col motivo |
 | `OPENAI_MODEL` | Model ID (e.g. `gpt-5-mini`) |
 | `OPENAI_AGENCY_MODEL` | Modello dell'agente Speaqi Agency (analisi del brief, presentazioni, revisioni). Default `gpt-5.1`, indipendente da `OPENAI_MODEL`: con `gpt-5-mini` i titoli tornavano etichette d'argomento. Deve leggere immagini e PDF |
 | `AGENCY_RENDER_SECRET` | Segreto della chiave con cui Chromium stampa in PDF una proposta Agency non ancora approvata. Senza, si usa `SUPABASE_SERVICE_ROLE_KEY`; senza nessuno dei due il PDF di una bozza non si genera (quello di una approvata sì) |
@@ -794,18 +795,23 @@ migration `commercial_*`. `tests/db.sh stop` lo spegne.
   `settle_agent_budget` sostituisce la riserva col costo reale; ripetere lo stesso
   saldo e' innocuo, cambiarlo dopo il saldo e' rifiutato. RPC solo `service_role`,
   `search_path` fisso e nessun privilegio per `anon`/`authenticated`.
-- `callModel` usa la stessa API OpenAI Responses e `OPENAI_API_KEY` gia' presenti,
-  solo testo e senza strumenti esterni. Prenota il massimo stimato prima della
-  chiamata e salda con i token restituiti. Il listino puro `office-pricing.ts`
-  comprende `gpt-5-mini` (USD 0,25 ingresso / 2 uscita per milione di token,
-  verificato sul sito OpenAI il 22/10/2026). Modello sconosciuto -> stop.
-  `OFFICE_USD_TO_EUR` converte in EUR (default prudente 1, non cambio live, fino a sei decimali), ogni
-  chiamata arrotondata al centesimo superiore; cache prenotata al prezzo pieno e saldata a USD 0,025 per milione di token. Una richiesta respinta
-  da OpenAI prima di generare (400/401/403/404/422/429: chiave, permessi, modello, limiti)
-  non è fatturata: riserva saldata a zero, e un 401/403 dice di controllare `OPENAI_API_KEY`. Timeout,
-  5xx o usage assente lasciano la riserva impegnata e la corsa in errore:
-  il fornitore potrebbe avere gia' fatturato. Da riconciliare manualmente prima
-  di liberarla; nessun ritentativo automatico di chiamate dall'esito incerto.
+- `callModel` passa da **OpenRouter** (chat completions, `openai/gpt-5-mini`), non da OpenAI:
+  la chiave e' `OPENROUTER_API_KEY_OFFICE` se c'e' (su OpenRouter, Activity filtrata per
+  chiave, si leggono i consumi dell'Ufficio da soli), altrimenti `OPENROUTER_API_KEY`. Solo
+  testo e immagini, senza strumenti esterni; con uno schema JSON `require_parameters`, cosi'
+  risponde solo un fornitore che lo rispetta. Prenota il massimo stimato dal listino puro
+  `office-pricing.ts` prima della chiamata (`gpt-5-mini`, USD 0,25 ingresso / 2 uscita per
+  milione di token, verificato il 22/10/2026; modello sconosciuto -> stop) e salda col
+  **costo dichiarato da OpenRouter** (`usage.cost`, crediti in dollari), o col listino se
+  manca. `OFFICE_USD_TO_EUR` converte in EUR (default prudente 1, fino a sei decimali), ogni
+  chiamata arrotondata al centesimo superiore. Una richiesta respinta prima di generare
+  (400/401/402/403/404/413/422/429: chiave, credito finito, moderazione, modello, limiti) non
+  e' fatturata: riserva saldata a zero e motivo leggibile (401/403 → controlla
+  `OPENROUTER_API_KEY`, 402 → ricarica il credito). Timeout, 5xx o usage assente lasciano la
+  riserva impegnata e la corsa in errore: il fornitore potrebbe avere gia' fatturato. Da
+  riconciliare manualmente prima di liberarla; nessun ritentativo automatico. La
+  trascrizione dei vocali (`transcribe.ts`) resta su OpenAI (`OPENAI_API_KEY`): OpenRouter non
+  ha un endpoint di trascrizione e non accetta il WebM che registra il browser.
 - Il contesto del compito espone solo `reserve`, `settle`, `addOutput`, `log` e
   metadati: nessun invio email, social, fattura o pubblicazione di mappe.
   `addOutput` scrive solo nella coda `pending`, con chiave unica per corsa.

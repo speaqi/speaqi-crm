@@ -113,16 +113,44 @@ export async function runAgent(agentId: string, handler: AgentHandler, options: 
   }
 }
 
-/** Stati con cui OpenAI respinge una richiesta senza elaborarla, e quindi senza addebito. */
-const OPENAI_REFUSED = new Set([400, 401, 403, 404, 422, 429])
+export const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
-/** Stessa API Responses e chiave gia' usate da ai-ready.ts, senza strumenti esterni. */
+/** Stati con cui OpenRouter respinge una richiesta senza farla generare, e quindi senza addebito:
+ * chiave, credito finito (402), moderazione, modello, richiesta troppo grande, limiti. */
+const OPENROUTER_REFUSED = new Set([400, 401, 402, 403, 404, 413, 422, 429])
+
+/** Chiave dell'Ufficio: `OPENROUTER_API_KEY_OFFICE` se c'e' (su OpenRouter si leggono
+ * i suoi consumi da soli), altrimenti quella generale, come per le traduzioni di Speaqi. */
+export function officeModelKey(): string | undefined {
+  return process.env.OPENROUTER_API_KEY_OFFICE?.trim() || process.env.OPENROUTER_API_KEY?.trim() || undefined
+}
+
+/** `gpt-5-mini` → `openai/gpt-5-mini`; un id con `/` resta com'e'. */
+export function toOpenRouterModel(model: string): string {
+  const trimmed = model.trim()
+  return trimmed.includes('/') ? trimmed : `openai/${trimmed.replace(/-\d{4}-\d{2}-\d{2}$/, '')}`
+}
+
+/** Credito OpenRouter (dollari) in centesimi EUR arrotondati per eccesso, a interi come il listino. */
+export function creditCostCents(credits: number, usdToEur = 1): number | null {
+  if (typeof credits !== 'number' || !Number.isFinite(credits) || credits < 0 || credits > 1000) return null
+  // Stessa verifica del cambio del listino: un valore storto non diventa uno sconto.
+  modelCostCents('gpt-5-mini', 0, 0, usdToEur)
+  const usdMicros = BigInt(Math.ceil(credits * 1_000_000 - 1e-6))
+  const rate = BigInt(Math.round(usdToEur * 1_000_000))
+  // microdollari × cambio in milionesimi × 100 / 10^12 = centesimi EUR
+  const denominator = BigInt('1000000000000')
+  return Number((usdMicros * rate * BigInt(100) + denominator - BigInt(1)) / denominator)
+}
+
+/** Una chiamata di solo testo (piu' eventuali immagini) via OpenRouter, senza strumenti esterni.
+ * Si prenota dal listino prima di spendere; si salda col costo che OpenRouter dichiara. */
 export async function callModel(ctx: AgentContext, options: { model: string; input: string; maxOutputTokens: number;
   jsonSchema?: { name: string; schema: Record<string, unknown> }
   /** Immagini come data URL (JPEG/PNG/WebP), gia' ridotte da chi chiama. */
   images?: string[] }) {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) throw new Error('OPENAI_API_KEY non configurata')
+  const apiKey = officeModelKey()
+  if (!apiKey) throw new Error('OPENROUTER_API_KEY non configurata nelle variabili del CRM')
   const usdToEur = Number(process.env.OFFICE_USD_TO_EUR || '1')
   const images = options.images || []
   if (images.length > 4 || images.some((url) => !/^data:image\/(jpeg|png|webp);base64,/.test(url))) throw new Error('Immagini non valide per il modello')
@@ -130,35 +158,45 @@ export async function callModel(ctx: AgentContext, options: { model: string; inp
   const ledgerId = await ctx.reserve(estimate.cents)
   // Su timeout, errore HTTP o token assenti, la riserva resta impegnata:
   // una risposta persa potrebbe essere gia' stata fatturata dal fornitore.
-  const response = await fetch('https://api.openai.com/v1/responses', {
+  const response = await fetch(OPENROUTER_CHAT_URL, {
     method: 'POST', signal: AbortSignal.timeout(120_000),
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: options.model, max_output_tokens: options.maxOutputTokens, store: false,
-      input: images.length ? [{ role: 'user', content: [{ type: 'input_text', text: options.input },
-        ...images.map((url) => ({ type: 'input_image', image_url: url, detail: 'high' }))] }] : options.input,
-      ...(options.jsonSchema ? { text: { format: { type:'json_schema',name:options.jsonSchema.name,strict:true,schema:options.jsonSchema.schema } } } : {}) }),
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}`,
+      'HTTP-Referer': 'https://crm.speaqi.com', 'X-Title': 'Speaqi CRM - Ufficio' },
+    body: JSON.stringify({ model: toOpenRouterModel(options.model), max_tokens: options.maxOutputTokens,
+      messages: [{ role: 'user', content: images.length ? [{ type: 'text', text: options.input },
+        ...images.map((url) => ({ type: 'image_url', image_url: { url, detail: 'high' } }))] : options.input }],
+      // Con uno schema, solo un fornitore che lo rispetta davvero.
+      ...(options.jsonSchema ? { response_format: { type: 'json_schema', json_schema: { name: options.jsonSchema.name, strict: true, schema: options.jsonSchema.schema } },
+        provider: { require_parameters: true } } : {}) }),
   })
   if (!response.ok) {
-    // Richiesta respinta prima di generare (chiave, permessi, modello, limiti): OpenAI non la
-    // fattura, quindi la riserva si libera. Un 5xx resta incerto e la riserva rimane.
-    if (OPENAI_REFUSED.has(response.status)) {
+    // Richiesta respinta prima di generare: non fatturata, quindi la riserva si libera.
+    // Un 5xx o un timeout resta incerto e la riserva rimane.
+    if (OPENROUTER_REFUSED.has(response.status)) {
       await ctx.settle(ledgerId, 0, { model: options.model })
       throw new Error(response.status === 401 || response.status === 403
-        ? `OpenAI ha rifiutato la chiave (HTTP ${response.status}): controlla OPENAI_API_KEY nelle variabili del CRM su Railway. Nulla speso.`
-        : `OpenAI ha respinto la richiesta (HTTP ${response.status}). Nulla speso.`)
+        ? `OpenRouter ha rifiutato la richiesta (HTTP ${response.status}): controlla OPENROUTER_API_KEY nelle variabili del CRM su Railway. Nulla speso.`
+        : response.status === 402
+          ? 'Credito OpenRouter esaurito: ricaricalo su openrouter.ai. Nulla speso.'
+          : `OpenRouter ha respinto la richiesta (HTTP ${response.status}). Nulla speso.`)
     }
-    throw new Error(`OpenAI non disponibile (HTTP ${response.status}); riserva mantenuta`)
+    throw new Error(`OpenRouter non disponibile (HTTP ${response.status}); riserva mantenuta`)
   }
   const payload = await response.json()
   const usage = payload.usage
-  if (!nonNegativeInteger(usage?.input_tokens) || !nonNegativeInteger(usage?.output_tokens)) {
-    throw new Error('OpenAI non ha restituito i consumi; riserva mantenuta')
+  if (!nonNegativeInteger(usage?.prompt_tokens) || !nonNegativeInteger(usage?.completion_tokens)) {
+    throw new Error('OpenRouter non ha restituito i consumi; riserva mantenuta')
   }
-  const cachedTokens = usage.input_tokens_details?.cached_tokens ?? 0
-  const cost = modelCostCents(options.model, usage.input_tokens, usage.output_tokens, usdToEur, cachedTokens)
-  await ctx.settle(ledgerId, cost, { tokensIn: usage.input_tokens, tokensOut: usage.output_tokens, model: options.model, cachedTokens })
-  if (payload.status !== 'completed') throw new Error('Risposta del modello incompleta; costo registrato')
-  const output = (Array.isArray(payload.output) ? payload.output : []).flatMap((item: { type?: string; content?: Array<{ type: string; text?: string }> }) =>
-    item.type === 'message' ? (item.content || []).filter((part) => part.type === 'output_text').map((part) => part.text || '') : []).join('\n')
-  return { text: output, costCents: cost, tokensIn: usage.input_tokens, tokensOut: usage.output_tokens }
+  const tokensIn = usage.prompt_tokens as number
+  const tokensOut = usage.completion_tokens as number
+  const cachedTokens = Math.min(tokensIn, nonNegativeInteger(usage.prompt_tokens_details?.cached_tokens) ? usage.prompt_tokens_details.cached_tokens : 0)
+  // Il costo dichiarato da OpenRouter e' quello addebitato; senza, il listino.
+  const cost = creditCostCents(usage.cost, usdToEur) ?? modelCostCents(options.model, tokensIn, tokensOut, usdToEur, cachedTokens)
+  await ctx.settle(ledgerId, cost, { tokensIn, tokensOut, model: options.model, cachedTokens })
+  const choice = Array.isArray(payload.choices) ? payload.choices[0] : undefined
+  const content = choice?.message?.content
+  if (!choice || choice.finish_reason === 'length' || typeof content !== 'string' || (choice.message?.refusal && !content)) {
+    throw new Error('Risposta del modello incompleta; costo registrato')
+  }
+  return { text: content, costCents: cost, tokensIn, tokensOut }
 }
