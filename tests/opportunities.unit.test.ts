@@ -148,3 +148,25 @@ test('Direttore: senza opportunità le mappe restano un investimento, senza prop
     assert.equal(fetch.mock.callCount(), 0)
   } finally { fetch.mock.restore() }
 })
+
+test('Direttore: il piano parte su Telegram una volta al giorno e un invio fallito non ferma la corsa', async () => {
+  const make = () => new FakeSupabase({ tourism_destinations: [], tourism_entities: [], tourism_hubs: [], quotes: [], invoices: [], deals: [], office_agent_runs: [], office_agent_outputs: [] })
+  const ctxFor = (db: FakeSupabase): AgentContext => ({ agent: { ...OFFICE_AGENT_DEFINITIONS.director, user_id: 'owner' } as any, runId: 'run', log() {},
+    async reserve() { throw new Error('nessuna spesa attesa') }, async settle() {},
+    async addOutput(output) { const row = { id: db.nextId('o'), user_id: 'owner', agent_id: 'director', output_key: output.key, ...output }; db.tables.office_agent_outputs.push(row); return row.id } })
+  const options = { now: () => NOW, maps: async () => ({ rows: [], sources: { studiomap: 'ok', speaqi: 'ok' }, fetched_at: NOW.toISOString() } as any), coverage: async () => ({ rows: [], warnings: [] }) }
+  const sent: string[] = []
+  const db = make()
+  const handler = directorHandler(db, { ...options, notify: async (text) => { sent.push(text); return { ok: true } } })
+  let result = await handler(ctxFor(db))
+  assert.match(String(result?.summary), /Inviato su Telegram/)
+  assert.equal(sent.length, 1)
+  assert.match(sent[0], /^\*Piano di oggi — \d{2}\/\d{2}\/\d{4}\*/)
+  assert.match(sent[0], /\/ufficio$/)
+  result = await handler(ctxFor(db))
+  assert.equal(sent.length, 1, 'rilanciare il Direttore non rimanda il piano')
+  const other = make()
+  result = await directorHandler(other, { ...options, notify: async () => ({ ok: false, error: 'Canale richiesto non disponibile' }) })(ctxFor(other))
+  assert.match(String(result?.summary), /Telegram: Canale richiesto non disponibile/)
+  assert.equal(other.tables.office_agent_outputs.filter((o) => String(o.title).startsWith('Piano di oggi')).length, 1)
+})

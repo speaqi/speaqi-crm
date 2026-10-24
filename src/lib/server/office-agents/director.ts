@@ -9,6 +9,17 @@ import { selectByIdChunks } from '../http'
 import { addOfficeOutputOnce } from './shared'
 import { loadOpenOpportunities } from '../opportunities'
 import { buildDirectorPlan, directorPlanLines, mapPrioritySupported } from '@/lib/office/director-plan'
+import { sendNotificationText } from '../whatsapp'
+
+/** Il piano arriva su Telegram, mai su WhatsApp: nessun ripiego verso un canale che oggi è scollegato. */
+async function sendPlanToTelegram(text: string) {
+  return sendNotificationText(text, { requiredChannel: 'telegram' })
+}
+
+export function directorPlanMessage(day: string, lines: string[]) {
+  const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+  return [`*Piano di oggi — ${day.split('-').reverse().join('/')}*`, '', ...lines, '', `Apri l’Ufficio: ${base}/ufficio`].join('\n')
+}
 
 /** Solo GET autenticato della copertura: nessun fill, sync o dry_run a pagamento. */
 export async function loadDirectorCoverage(maps: MapsStatus): Promise<{ rows: DirectorCoverage[]; warnings: string[] }> {
@@ -39,7 +50,8 @@ function mondayKey(now: Date) {
 }
 
 export function directorHandler(admin: any, options: { now?: () => Date; maps?: () => Promise<MapsStatus>;
-  coverage?: (maps: MapsStatus) => Promise<{ rows: DirectorCoverage[]; warnings: string[] }> } = {}): AgentHandler {
+  coverage?: (maps: MapsStatus) => Promise<{ rows: DirectorCoverage[]; warnings: string[] }>
+  notify?: (text: string) => Promise<{ ok: boolean; error?: string }> } = {}): AgentHandler {
   return async (ctx) => {
     const now = options.now?.() || new Date(); const userId = ctx.agent.user_id; const week = mondayKey(now)
     // 1. Ogni giorno, gratis: quali opportunità lavorare, quali sbloccare, quali partner attivare.
@@ -48,7 +60,14 @@ export function directorHandler(admin: any, options: { now?: () => Date; maps?: 
     const day = officeRomeDay(now)
     const planOutput = await addOfficeOutputOnce(admin,ctx,`director:plan:${day}`,{kind:'report',title:`Piano di oggi — ${day.split('-').reverse().join('/')}`,
       body:{giorno:day,testo:directorPlanLines(plan).join('\n'),da_lavorare:plan.work,da_sbloccare:plan.unblock,partner_da_attivare:plan.activate,guide_che_servono:plan.maps}})
-    const planSummary = `Piano di oggi: ${plan.work.length} da lavorare, ${plan.unblock.length} da sbloccare, ${plan.activate.length} partner da attivare${planOutput.created ? '' : ' (già preparato)'}.`
+    let planSummary = `Piano di oggi: ${plan.work.length} da lavorare, ${plan.unblock.length} da sbloccare, ${plan.activate.length} partner da attivare${planOutput.created ? '' : ' (già preparato)'}.`
+    // Su Telegram una volta al giorno, solo quando il piano nasce: rilanciare il Direttore non lo rimanda.
+    // Un invio fallito non ferma la corsa: il piano resta nel CRM e il riepilogo dice perché.
+    if (planOutput.created) {
+      const sent = await (options.notify || sendPlanToTelegram)(directorPlanMessage(day, directorPlanLines(plan)))
+      planSummary += sent.ok ? ' Inviato su Telegram.' : ` Telegram: ${sent.error || 'invio non riuscito'}.`
+      if (!sent.ok) ctx.log(`Piano non inviato su Telegram: ${sent.error || 'invio non riuscito'}`)
+    }
     // 2. Una volta a settimana: le mappe, ma come proposta solo se servono a un'opportunità.
     const reportKey = `director:report:${week}`
     const existing = await admin.from('office_agent_outputs').select('id').eq('user_id',userId).eq('agent_id','director').eq('output_key',reportKey).limit(1)
