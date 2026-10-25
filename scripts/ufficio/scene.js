@@ -861,12 +861,34 @@ function path(parent, from, to, y, width = 1.1) {
   const p = box(parent, width, 0.04, len, (from.x + to.x) / 2, y + 0.02, (from.z + to.z) / 2, '#ebe4d3')
   p.rotation.y = Math.atan2(d.x, d.z); p.castShadow = false
 }
+function buildGround(cx, cz, radius) {
+  const tiles = canvasTexture(256, 256, (ctx, w, h) => {
+    ctx.fillStyle = '#d8d3c6'; ctx.fillRect(0, 0, w, h)
+    ctx.strokeStyle = '#c4beb0'; ctx.lineWidth = 3
+    ctx.strokeRect(1.5, 1.5, w - 3, h - 3)
+    ctx.beginPath(); ctx.moveTo(w / 2, 0); ctx.lineTo(w / 2, h); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.lineWidth = 1.5; ctx.stroke()
+  })
+  tiles.wrapS = tiles.wrapT = THREE.RepeatWrapping
+  tiles.repeat.set(radius / 3, radius / 3)
+  const fade = canvasTexture(256, 256, (ctx, w, h) => {
+    const g = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2)
+    g.addColorStop(0, '#fff'); g.addColorStop(0.55, '#fff'); g.addColorStop(1, '#000')
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h)
+  })
+  fade.colorSpace = THREE.NoColorSpace
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(radius, 64),
+    new THREE.MeshStandardMaterial({ map: tiles, alphaMap: fade, transparent: true, depthWrite: false, roughness: 0.95 }))
+  floor.rotation.x = -Math.PI / 2; floor.position.set(cx, -0.06, cz); floor.receiveShadow = true; floor.renderOrder = -1
+  root.add(floor)
+}
 function buildCampus() {
   const L = layoutCampus()
   const W = L.maxX - L.minX, cx = (L.minX + L.maxX) / 2
   // La sede sta in cima alla scalinata, dietro il suo piazzale.
   const hqZ = WALL_Z - 1.6 - 4.6 - HQ.d / 2
   const zFront = 13.5, zBack = hqZ - HQ.d / 2 - 4.2, D = zFront - zBack
+  // Pavimento: un grande piano di lastre che si dissolve nello sfondo, così l'isola poggia a terra e non galleggia.
+  buildGround((L.minX + L.maxX) / 2, (zFront + zBack) / 2, Math.max(W, D) * 2.4)
   // Isola: prato, bordo in pietra, fianchi di terra.
   slab(root, W, D, 2.4, 3.2, cx, 0, (zFront + zBack) / 2, '#a3c98f', '#7b6650')
   // Terrazza della Direzione con muro in pietra e scalinata.
