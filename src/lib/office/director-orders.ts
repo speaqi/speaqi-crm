@@ -26,7 +26,7 @@ export type DirectorOrderPlan =
       category: ContactCategory; category_reason: string; brief: string | null; card_text: string | null }
   | { intent: 'build_map'; city: string; slug: string; source: string | null }
   | { intent: 'check_map'; city: string; slug: string }
-  | { intent: 'presentation'; target: string; brief: string | null }
+  | { intent: 'presentation'; target: string; brief: string | null; city: string | null }
   | { intent: 'status' }
   | { intent: 'events' }
   | { intent: 'task'; title: string; due_date: string | null }
@@ -59,7 +59,7 @@ export function directorOrderPrompt(text: string, images: number, today: string)
     '  category: destinazione = ente del turismo, DMO, comune, consorzio, regione; partner = hotel, agenzia viaggi, tour operator, compagnia di navigazione, chi distribuisce le guide; agenzia = cliente che vuole un sito, branding, SEO, software, AI, marketing; cliente_mappe = attività che vuole comparire in una mappa; dubbio = non si capisce.',
     '- build_map: costruire una mappa di una città (di solito da una Google My Maps). city = la città, map_link = il link solo se c’è nel testo.',
     '- check_map: controllare la qualità della mappa di una città. city = la città.',
-    '- presentation: preparare una presentazione per un ente, una destinazione o un cliente. target = il nome come scritto, brief = cosa chiede.',
+    '- presentation: preparare una presentazione per un ente, una destinazione o un cliente. target = il nome come scritto, brief = cosa chiede, city = la città o il territorio dell’ente se è detto o è nel nome («Visit Bergamo» → Bergamo).',
     '- status: come stanno andando pipeline, trattative, timeline, agenti.',
     '- events: chiede quali fiere, eventi, workshop o bandi ci sono in arrivo ("quali sono le prossime fiere?"). Non è un task: la risposta la dà l’ufficio.',
     '- task: una cosa da fare per il titolare ("ricordami di…", "segna che devo…"), non una domanda. task_title breve, task_due in formato AAAA-MM-GG se è detta una data (oggi è ' + today + ').',
@@ -171,7 +171,7 @@ export function interpretDirectorOrder(parsed: unknown, input: { text: string; t
     const target = str(raw.target, 160)
     if (!target) return { intent: 'unknown', question: 'Per chi devo preparare la presentazione?' }
     if (officeIsNaples(target)) return { intent: 'unknown', question: 'Napoli resta fuori dal lavoro degli agenti. Per quale altro ente preparo la presentazione?' }
-    return { intent, target, brief: str(raw.brief, 1000) }
+    return { intent, target, brief: str(raw.brief, 1000), city: str(raw.city, 80) }
   }
   if (intent === 'task') {
     const title = str(raw.task_title, 200)

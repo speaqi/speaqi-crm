@@ -432,6 +432,16 @@ async function main() {
           entity.version++
           return json({ ok: true })
         }
+        if (body.action === 'activate') {
+          const r = rows.find((r) => r.id === body.id)!
+          assert.equal(body.version, r.version)
+          r.status = 'VERIFIED'
+          r.version++
+          if (suggestions.has(r.id))
+            return json({ contact_id: null, contact_created: false, crm_error: 'Possible CRM matches require review before creating a contact', crm_error_text: 'c’è un possibile doppione nel CRM: confermalo dalla scheda dell’ente' })
+          r.crm = [{ contact_id: '66666666-6666-4666-8666-666666666666' }]
+          return json({ contact_id: r.crm[0].contact_id, contact_created: true, crm_error: null, crm_error_text: null })
+        }
         if (body.action === 'promote') {
           const r = rows.find((r) => r.id === body.id)!
           r.crm = [{ contact_id: '66666666-6666-4666-8666-666666666666' }]
@@ -560,25 +570,9 @@ async function main() {
       .click()
     const detail = page.getByRole('dialog', { name: 'ENIT S.p.A.' })
     await detail.waitFor()
-    assert.equal(
-      await detail.getByRole('button', { name: 'Add to CRM' }).isDisabled(),
-      true
-    )
-    await detail
-      .getByRole('button', { name: 'Conferma verifica' })
-      .first()
-      .click()
-    await page
-      .getByRole('dialog', { name: 'Conferma operazione' })
-      .getByRole('button', { name: 'Conferma', exact: true })
-      .click()
-    await detail.getByText('Identità verificata', { exact: true }).waitFor()
-    await detail.getByRole('button', { name: 'Add to CRM' }).click()
-    await page
-      .getByRole('dialog', { name: 'Conferma operazione' })
-      .getByRole('button', { name: 'Conferma', exact: true })
-      .click()
-    await detail.getByRole('heading', { name: 'Collegamento CRM' }).waitFor()
+    // Scheda snella: un gesto solo verifica e porta nei contatti.
+    await detail.getByRole('button', { name: 'Conferma e aggiungi ai contatti' }).click()
+    await detail.getByText('nei contatti', { exact: false }).first().waitFor()
     await page.screenshot({
       path: output + '/profile-desktop.png',
       fullPage: true
@@ -596,27 +590,13 @@ async function main() {
       .waitFor()
     assert.equal(
       await matchingDetail
-        .getByRole('button', { name: 'Add to CRM' })
-        .isDisabled(),
-      true
-    )
-    assert.equal(
-      await matchingDetail
         .getByRole('button', { name: 'Conferma collegamento' })
         .isDisabled(),
       true
     )
-    await matchingDetail
-      .getByRole('button', { name: 'Conferma verifica' })
-      .first()
-      .click()
-    await page
-      .getByRole('dialog', { name: 'Conferma operazione' })
-      .getByRole('button', { name: 'Conferma', exact: true })
-      .click()
-    await matchingDetail
-      .getByText('Identità verificata', { exact: true })
-      .waitFor()
+    // La conferma verifica la scheda; il possibile doppione ferma solo il passaggio nel CRM.
+    await matchingDetail.getByRole('button', { name: 'Conferma e aggiungi ai contatti' }).click()
+    await page.getByText('possibile doppione', { exact: false }).first().waitFor()
     await matchingDetail
       .getByRole('button', { name: 'Conferma collegamento' })
       .click()
@@ -625,10 +605,8 @@ async function main() {
       .getByRole('button', { name: 'Conferma', exact: true })
       .click()
     await matchingDetail
-      .getByRole('heading', { name: 'Collegamento CRM' })
-      .waitFor()
-    await matchingDetail
-      .getByRole('link', { name: 'Toscana CRM esistente' })
+      .getByRole('link', { name: 'Toscana CRM esistente ↗' })
+      .first()
       .waitFor()
     assert.equal(
       calls.some(
@@ -810,8 +788,8 @@ async function main() {
       'The module itself must fit the mobile viewport'
     )
     assert.deepEqual(errors, [])
-    assert.ok(calls.some((c) => c.body.action === 'review'))
-    assert.ok(calls.some((c) => c.body.action === 'promote'))
+    // La revisione fonte per fonte resta in «Altri dettagli», ma non serve più per entrare nel CRM.
+    assert.ok(calls.some((c) => c.body.action === 'activate'))
     await writeFile(
       output + '/results.json',
       JSON.stringify(

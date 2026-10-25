@@ -15,6 +15,7 @@ import {
 } from '../office/director-orders'
 import { sendNotificationText } from './whatsapp'
 import { createServiceRoleClient } from './supabase'
+import { activateEntityForOrder, verifiedDestination, type ActivationEntity } from './office-entity-activation'
 
 /**
  * Ordini al Direttore. Tre garanzie da non smontare:
@@ -207,21 +208,33 @@ async function findEntity(admin: Admin, userId: string, names: Array<string | nu
   for (const name of names) {
     const pattern = name ? searchPattern(name) : null
     if (!pattern) continue
-    const { data, error } = await admin.from('tourism_entities').select('id,name,kind,status,website').eq('user_id', userId)
+    const { data, error } = await admin.from('tourism_entities').select('id,name,kind,status,website,email,phone,country_code,type_code,aliases,disabled,version').eq('user_id', userId)
       .eq('kind', 'organization').ilike('name', pattern).limit(5)
     if (error) throw error
     const exact = (data || []).filter((row: { name: string }) => normalizeForSearch(row.name) === normalizeForSearch(name!))
     const pick = exact.length === 1 ? exact[0] : (data || []).length === 1 ? data[0] : null
-    if (pick) return pick as { id: string; name: string; status: string; website: string | null }
+    if (pick) return pick as ActivationEntity & { kind: string }
   }
   return null
 }
 
-/** Una presentazione si scrive solo su un ente verificato: meglio dirlo subito che passare il lavoro e fermarsi. */
-function unverifiedEntity(entity: { name: string; website: string | null }): Outcome {
-  const site = entity.website ? '' : ' e non ha ancora un sito'
-  return { status: 'waiting_you', outputs: [], queued: [], reply:
-    `${entity.name} è nel catalogo Tourism ma non è ancora verificato${site}: senza dati verificati non scrivo una presentazione. Apri la scheda in Tourism Intelligence, completala e verificala, poi rimandami l’ordine.` }
+/**
+ * La presentazione di un ente: se non è ancora attivo (non verificato o senza una
+ * destinazione), il Direttore lo attiva lui — sito, email, contatto nel CRM — perché
+ * l'ordine del titolare è l'autorizzazione. Si ferma solo per chiedere il sito o la città.
+ */
+async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, entity: ActivationEntity,
+  plan: Extract<DirectorOrderPlan, { intent: 'presentation' }>, orderText: string, label: string): Promise<Outcome> {
+  let destination = entity.status === 'VERIFIED' ? await verifiedDestination(admin, userId, entity.id) : null
+  let note = ''
+  if (!destination) {
+    const activated = await activateEntityForOrder(admin, ctx, userId, entity, { orderText, proposedCity: plan.city })
+    if (!activated.ok) return { status: 'waiting_you', outputs: [], queued: [], reply: activated.reply }
+    destination = activated.placeId
+    note = `${activated.note} `
+  }
+  const result = await queueForAgent(admin, userId, 'presentations', { key: `presentation:${entity.id}`, entity_id: entity.id, ...(destination ? { destination_id: destination } : {}) })
+  return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `Presentazione per ${label}: ${note}${queueSentence(result)}` }
 }
 
 async function findDuplicates(admin: Admin, userId: string, contact: Record<string, string | null>) {
@@ -305,22 +318,14 @@ async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrder
   }
   if (plan.intent === 'presentation') {
     const entity = await findEntity(admin, userId, [plan.target])
-    if (entity && entity.status !== 'VERIFIED') return unverifiedEntity(entity)
-    if (entity) {
-      const result = await queueForAgent(admin, userId, 'presentations', { key: `presentation:${entity.id}`, entity_id: entity.id })
-      return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `Presentazione per ${entity.name}: ${queueSentence(result)}` }
-    }
+    if (entity) return presentationFor(admin, ctx, userId, entity, plan, order.text, entity.name)
     const pattern = searchPattern(plan.target)
     const contacts = pattern ? checked(await admin.from('contacts').select('id,name,company').eq('user_id', userId)
       .or(`name.ilike.${pattern},company.ilike.${pattern}`).limit(3)) as Array<{ id: string; name: string; company: string | null }> : []
     if (contacts.length === 1) {
       // Il contatto di un ente del catalogo: la presentazione è quella dell'ente.
       const owner = contacts[0].company ? await findEntity(admin, userId, [contacts[0].company]) : null
-      if (owner && owner.status !== 'VERIFIED') return unverifiedEntity(owner)
-      if (owner) {
-        const result = await queueForAgent(admin, userId, 'presentations', { key: `presentation:${owner.id}`, entity_id: owner.id })
-        return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `Presentazione per ${owner.name} (${contacts[0].name}): ${queueSentence(result)}` }
-      }
+      if (owner) return presentationFor(admin, ctx, userId, owner, plan, order.text, `${owner.name} (${contacts[0].name})`)
       const result = await queueForAgent(admin, userId, 'agency', { key: `agency:contact:${contacts[0].id}`, contact_id: contacts[0].id, brief: plan.brief || order.text })
       return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `${contacts[0].name} non è un ente del catalogo Tourism, quindi è un lavoro da agenzia. ${queueSentence(result)}` }
     }
