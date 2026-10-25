@@ -62,7 +62,24 @@ const checked = <T extends { error: unknown }>(result: T): T => {
 
 export async function getTemplate(sb: Sb, userId: string): Promise<{ template: DeckTemplate; version: number }> {
   const found = checked(await sb.from('tourism_deck_templates').select('content,version').eq('user_id', userId).eq('is_default', true).maybeSingle())
-  if (found.data) return { template: normalizeTemplate(found.data.content), version: found.data.version }
+  if (found.data) {
+    // Un modello senza `base` è precedente alla presentazione destinazioni di ottobre 2026:
+    // si sostituisce una volta con quella. Uno salvato dopo (anche la base aziende) resta.
+    if (found.data.content?.base) return { template: normalizeTemplate(found.data.content), version: found.data.version }
+    const upgraded = checked(
+      await sb
+        .from('tourism_deck_templates')
+        .update({ content: DEFAULT_DECK_TEMPLATE, version: found.data.version + 1, updated_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .eq('is_default', true)
+        .eq('version', found.data.version)
+        .select('content,version')
+        .maybeSingle()
+    )
+    // Due richieste insieme: vince la prima, l'altra rilegge.
+    if (!upgraded.data) return getTemplate(sb, userId)
+    return { template: normalizeTemplate(upgraded.data.content), version: upgraded.data.version }
+  }
   const created = checked(
     await sb.from('tourism_deck_templates').insert({ user_id: userId, content: DEFAULT_DECK_TEMPLATE }).select('content,version').single()
   )
@@ -70,7 +87,9 @@ export async function getTemplate(sb: Sb, userId: string): Promise<{ template: D
 }
 
 export async function saveTemplate(sb: Sb, userId: string, raw: unknown, version: number) {
-  const template = normalizeTemplate(raw)
+  const read = normalizeTemplate(raw)
+  // Un modello salvato a mano non si sostituisce mai da solo, anche se arriva senza base.
+  const template = { ...read, base: read.base || 'personalizzato' }
   const current = await getTemplate(sb, userId)
   if (current.version !== version) throw new Error('Version conflict: il modello è stato cambiato altrove, ricarica.')
   const updated = checked(

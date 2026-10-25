@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { agencyBaseSlides, DEFAULT_AGENCY_SETTINGS, DEFAULT_AGENCY_SLIDES, normalizeAgencySettings } from '../src/lib/agency'
-import { applyVars, DEFAULT_DECK_TEMPLATE, TOURISM_COMPANY_TEMPLATE, normalizeTemplate } from '../src/lib/tourism-deck'
+import { applyVars, TOURISM_COMPANY_TEMPLATE, normalizeTemplate } from '../src/lib/tourism-deck'
+import { GENERIC } from './deck-template-fixture'
 import { defaultQuoteTemplate, normalizeQuoteTemplate, proposalText, quoteCompletionIssues, quoteDraftFromTemplate } from '../src/lib/commercial-proposal'
 
 test('Agency ha una base commerciale personalizzabile senza contaminare altri clienti', () => {
@@ -20,7 +21,7 @@ test('Agency ha una base commerciale personalizzabile senza contaminare altri cl
 
 test('i due contratti e i modelli salvati sono separati e le vecchie basi restano leggibili', () => {
   assert.notEqual(defaultQuoteTemplate('agency').contract_terms, defaultQuoteTemplate('tourism').contract_terms)
-  const template = normalizeTemplate({ ...DEFAULT_DECK_TEMPLATE, quote_template: { ...defaultQuoteTemplate('tourism'), contract_terms: 'Accordo approvato per {{ente}}' } })
+  const template = normalizeTemplate({ ...GENERIC, quote_template: { ...defaultQuoteTemplate('tourism'), contract_terms: 'Accordo approvato per {{ente}}' } })
   assert.equal(template.quote_template?.contract_terms, 'Accordo approvato per {{ente}}')
   const slides = applyVars(template, { ente: 'Ente Alfa', destinazione: 'Alfa' })
   assert.match(slides[0].title, /Ente Alfa/)

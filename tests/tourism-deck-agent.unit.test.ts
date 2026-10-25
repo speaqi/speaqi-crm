@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
 import test, { afterEach, beforeEach } from 'node:test'
 import { DEFAULT_DECK_TEMPLATE, DECK_TODO } from '../src/lib/tourism-deck'
+import { GENERIC } from './deck-template-fixture'
 import { buildAgentRequest, parseAgentResponse, runDeckAgent, type DeckAgentArgs } from '../src/lib/server/tourism-deck-agent'
 
 const PHOTO = '33333333-3333-4333-8333-333333333333'
 const args = (over: Partial<DeckAgentArgs> = {}): DeckAgentArgs => ({
-  template: DEFAULT_DECK_TEMPLATE,
+  template: GENERIC,
   input: { destinazione: 'Capri', ente: 'Capri Tourism' },
   notes: 'Isola famosa per i Faraglioni. Visitatori da Stati Uniti e Giappone.',
   materials: {
@@ -32,7 +33,7 @@ test('la richiesta porta testo, documenti, PDF e foto, e dice che sono dati', ()
   assert.equal(body.text.format.strict, true)
   // Ogni slide del modello è nel brief, con la sua istruzione.
   const brief = JSON.parse((user[0].text as string).replace('BRIEF (JSON):\n', ''))
-  assert.equal(brief.slide.length, DEFAULT_DECK_TEMPLATE.slides.length)
+  assert.equal(brief.slide.length, GENERIC.slides.length)
   assert.equal(brief.slide[0].testo_attuale.title, 'La mappa perfetta per Capri Tourism')
   assert.equal(brief.foto[0].id, PHOTO)
 })
@@ -58,7 +59,7 @@ test('la risposta si fonde, un importo inventato e una foto estranea vengono fer
   const method = r.slides.find((s) => s.id === 'metodo')!
   assert.equal(method.note, `Offerta Destinazioni: ${DECK_TODO}/mese`)
   assert.equal(method.image_asset_id, null)
-  assert.equal(method.items.length, 5)
+  assert.equal(method.items.length, GENERIC.slides.find((s) => s.id === 'metodo')!.items.length)
   assert.ok(r.warnings.some((w) => /99/.test(w.message)))
   assert.ok(r.warnings.some((w) => w.slide === '*' && /PDF/.test(w.message)))
   assert.deepEqual(r.missing, ['il referente'])
@@ -84,5 +85,20 @@ test('un 429 si ritenta una volta', async () => {
   }) as typeof fetch
   const r = await runDeckAgent(args(), fetcher)
   assert.equal(calls, 2)
-  assert.equal(r.slides.length, DEFAULT_DECK_TEMPLATE.slides.length)
+  assert.equal(r.slides.length, GENERIC.slides.length)
+})
+
+test('con la base destinazioni le slide fisse arrivano segnate e restano identiche', async () => {
+  const body = buildAgentRequest(args({ template: DEFAULT_DECK_TEMPLATE, input: { destinazione: 'Bergamo', ente: 'Visit Bergamo' } }), 'm')
+  const brief = JSON.parse(((body.input[1].content as Record<string, unknown>[])[0].text as string).replace('BRIEF (JSON):\n', ''))
+  const fixed = brief.slide.filter((s: { testo_fisso?: boolean }) => s.testo_fisso).map((s: { id: string }) => s.id)
+  assert.ok(fixed.includes('requisiti') && fixed.includes('cover') && !fixed.includes('partenza'))
+  const fetcher = (async () => reply([
+    { id: 'requisiti', title: 'Basta una presenza', body: '', note: '', items: [], image_asset_id: null },
+    { id: 'cover', title: 'Bergamo, finalmente', body: '', note: '', items: [], image_asset_id: PHOTO }
+  ])) as unknown as typeof fetch
+  const r = await runDeckAgent(args({ template: DEFAULT_DECK_TEMPLATE, input: { destinazione: 'Bergamo', ente: 'Visit Bergamo' } }), fetcher)
+  assert.equal(r.slides.find((s) => s.id === 'requisiti')!.title, 'Chi può candidarsi.')
+  assert.equal(r.slides[0].title, DEFAULT_DECK_TEMPLATE.slides[0].title)
+  assert.equal(r.slides[0].image_asset_id, PHOTO)
 })

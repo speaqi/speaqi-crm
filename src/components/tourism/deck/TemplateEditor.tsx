@@ -125,8 +125,8 @@ export default function TemplateEditor({ onClose }: { onClose: () => void }) {
             ))}
           </div>
           <div className={s.actions}>
-            <button type="button" className={s.secondary} disabled={template.slides.length >= 12} onClick={() => edit({ ...template, slides: [...template.slides, newSlide(template.slides.length + 1)] })}>+ Aggiungi slide</button>
-            <button type="button" className={s.secondary} onClick={() => confirm('Ripristinare la proposta destinazioni di base? Non si salva finché non premi Salva.') && edit(structuredClone(DEFAULT_DECK_TEMPLATE))}>Ripristina la proposta di base</button>
+            <button type="button" className={s.secondary} disabled={template.slides.length >= 16} onClick={() => edit({ ...template, slides: [...template.slides, newSlide(template.slides.length + 1)] })}>+ Aggiungi slide</button>
+            <button type="button" className={s.secondary} onClick={() => confirm('Ripristinare la presentazione base delle destinazioni (ottobre 2026)? Non si salva finché non premi Salva.') && edit(structuredClone(DEFAULT_DECK_TEMPLATE))}>Ripristina la presentazione base</button>
             <button type="button" className={s.primary} disabled={busy || !dirty} onClick={save}>{busy ? 'Salvo…' : 'Salva il modello'}</button>
           </div>
         </>

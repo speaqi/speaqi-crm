@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test, mock } from 'node:test'
-import { DEFAULT_DECK_TEMPLATE, applyVars } from '../src/lib/tourism-deck'
+import { applyVars } from '../src/lib/tourism-deck'
+import { GENERIC } from './deck-template-fixture'
 import { presentationQueue, deckPlaceholders, presentationFixes } from '../src/lib/office/presentations'
 import { presentationsHandler, presentationEntities } from '../src/lib/server/office-agents/presentations'
 import { createDeck, setApproval } from '../src/lib/server/tourism-decks'
@@ -10,7 +11,7 @@ import { FakeSupabase } from './fake-supabase'
 import { MODEL_URL, modelReply } from './model-reply'
 
 const ENTITY='11111111-1111-4111-8111-111111111111',DEST='22222222-2222-4222-8222-222222222222'
-const slides=applyVars(DEFAULT_DECK_TEMPLATE,{destinazione:'Marsiglia',ente:'Ente Marsiglia'})
+const slides=applyVars(GENERIC,{destinazione:'Marsiglia',ente:'Ente Marsiglia'})
 test('presentazioni: coda validata e deduplicata, agente spento con 300 centesimi a settimana',()=>{
   assert.deepEqual(presentationQueue([ENTITY,{entity_id:ENTITY}]),[{entity_id:ENTITY}])
   assert.throws(()=>presentationQueue([{entity_id:'x'}]),/UUID/)
@@ -38,7 +39,7 @@ function fixture(){
   const order:string[]=[]
   const db=new FakeSupabase({tourism_entities:[{id:ENTITY,user_id:'owner',kind:'organization',name:'Ente Marsiglia',country_code:'FR',status:'VERIFIED',details:{}},
     {id:DEST,user_id:'owner',kind:'place',name:'Marsiglia',country_code:'FR',status:'VERIFIED',details:{}}],tourism_evidence:[],
-    tourism_deck_templates:[{user_id:'owner',is_default:true,version:1,content:DEFAULT_DECK_TEMPLATE}],office_presentation_tasks:[],tourism_decks:[],office_agent_outputs:[]}, {
+    tourism_deck_templates:[{user_id:'owner',is_default:true,version:1,content:GENERIC}],office_presentation_tasks:[],tourism_decks:[],office_agent_outputs:[]}, {
     claim_office_presentation(args){order.push('claim');const old=db.tables.office_presentation_tasks[0];if(old)return{claimed:false,task:old}
       const task={id:'task',user_id:'owner',state:'claimed',email_prepared_at:null};db.tables.office_presentation_tasks.push(task);return{claimed:true,task}},
     finish_office_presentation(){order.push('finish');db.tables.office_presentation_tasks[0].state='ready';return'output'},

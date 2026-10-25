@@ -154,7 +154,7 @@ async function main() {
     const tpl = page.getByRole('dialog', { name: 'Modello della presentazione' })
     await tpl.getByText('Copertina').first().waitFor()
     assert.equal(await tpl.getByLabel('Tipo di slide').count(), DEFAULT_DECK_TEMPLATE.slides.length)
-    await tpl.getByLabel('Titolo (il messaggio della slide)').first().fill('{{destinazione}}: la guida che parla ogni lingua')
+    await tpl.getByLabel('Titolo (il messaggio della slide; a capo dove vuoi)').first().fill('{{destinazione}}: la guida che parla ogni lingua')
     await tpl.getByText('Preventivo e contratto Tourism di base', { exact: true }).click()
     await tpl.getByLabel('Contratto di base').fill('Accordo Tourism approvato per {{ente}}')
     await tpl.getByRole('button', { name: '＋ Voce riutilizzabile' }).click()
@@ -180,18 +180,15 @@ async function main() {
     assert.match(posted, /brief\.txt/)
     assert.match(posted, /Visitatori dal Giappone/)
 
-    // 4. L'editor: non si approva con [DA VERIFICARE] in pagina.
+    // 4. L'editor: la base destinazioni non lascia nulla da completare, quindi si approva subito.
     await page.getByRole('heading', { name: 'Capri · Capri Tourism' }).waitFor({ timeout: 30000 })
-    await page.getByText('da completare', { exact: false }).first().waitFor()
-    assert.equal(await page.getByRole('button', { name: 'Approva', exact: true }).isDisabled(), true)
+    assert.equal(await page.getByText('da completare', { exact: false }).count(), 0)
+    assert.equal(await page.getByRole('button', { name: 'Approva', exact: true }).isDisabled(), false)
     await page.waitForTimeout(800)
     await page.screenshot({ path: output + '/editor-draft.png', fullPage: true })
 
-    // 5. Completa i segnaposto, salva e approva: compare il link da condividere.
-    for (const el of await page.locator('input:not([readonly]), textarea').all()) {
-      const value = await el.inputValue().catch(() => '')
-      if (/\[DA VERIFICARE/.test(value)) await el.fill(value.replace(/\[DA VERIFICARE[^\]]*\]/g, 'Massimo Morgante, info@speaqi.com'))
-    }
+    // 5. Una correzione a mano si salva prima di approvare: compare il link da condividere.
+    await page.getByLabel('Titolo (il messaggio della slide; a capo dove vuoi)').first().fill('Capri, nella lingua di chi arriva')
     await page.getByRole('button', { name: 'Approva', exact: true }).click()
     await page.getByText('Link da condividere').waitFor()
     assert.match(await page.locator('input[readonly]').inputValue(), /\/presentazione\/a{64}$/)
