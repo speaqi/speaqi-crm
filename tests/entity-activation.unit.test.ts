@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { cityForEntity, crmErrorText, siteCandidates, siteMatchesEntity, websiteFromText } from '../src/lib/office/entity-activation'
+import { cityForEntity, crmErrorText, entitySearchPattern, pickOrderEntity, siteCandidates, siteMatchesEntity, websiteFromText } from '../src/lib/office/entity-activation'
 import { activateEntityForOrder } from '../src/lib/server/office-entity-activation'
 import { BudgetExceeded, type AgentContext } from '../src/lib/server/office-agents'
 
@@ -70,4 +70,23 @@ test('senza sito trovato o senza budget non scrive niente e chiede il sito', asy
     { model: nothing as any, fetchPage })
   assert.equal(given.ok, true)
   assert.equal(admin.calls[0].args.p_payload.website, 'https://visitbergamo.example')
+})
+
+test('l’ente di un ordine: l’archiviato non conta, «Visit Bergamo» trova «VisitBergamo», nel dubbio nessuno', () => {
+  // Il caso del 25 ottobre: il doppione archiviato veniva scelto al posto di quello verificato.
+  const archived = { name: 'VISIT BERGAMO', status: 'NEEDS_REVIEW', disabled: true }
+  const good = { name: 'VisitBergamo', status: 'VERIFIED', disabled: false }
+  assert.equal(pickOrderEntity([archived, good], 'Visit Bergamo'), good)
+  assert.equal(entitySearchPattern('Visit Bergamo'), '%Visit%Bergamo%')
+  // Due enti vivi con lo stesso nome: vince l’unico verificato; due verificati, nessuno.
+  const twin = { name: 'Visit Bergamo', status: 'UNVERIFIED', disabled: false }
+  assert.equal(pickOrderEntity([twin, good], 'visit bergamo'), good)
+  assert.equal(pickOrderEntity([{ ...twin, status: 'VERIFIED' }, good], 'visit bergamo'), null)
+  // Un nome che non coincide con nessuno vale solo se il risultato è uno.
+  const incoming = { name: 'Incoming BERGAMO - ITALY', status: 'UNVERIFIED', disabled: false }
+  assert.equal(pickOrderEntity([incoming], 'Bergamo'), incoming)
+  assert.equal(pickOrderEntity([incoming, good], 'Bergamo'), null)
+  // Un alias vale come il nome; doppioni e inattivi mai.
+  assert.equal(pickOrderEntity([{ name: 'Agenzia turistica', aliases: ['Visit Bergamo'], status: 'VERIFIED' }], 'VisitBergamo')?.name, 'Agenzia turistica')
+  assert.equal(pickOrderEntity([{ name: 'VisitBergamo', status: 'DUPLICATE' }], 'VisitBergamo'), null)
 })
