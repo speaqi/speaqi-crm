@@ -813,18 +813,27 @@ async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrder
 async function createDirectorTasks(admin: Admin, userId: string, order: DirectorOrderRow, items: DirectorTaskItem[]): Promise<DirectorTaskOutcome[]> {
   const note = [order.source === 'telegram' ? 'Dal Direttore, su Telegram.' : 'Dal Direttore.', order.text.slice(0, 1000)].filter(Boolean).join('\n\n')
   const outcomes: DirectorTaskOutcome[] = []
+  let firstError: unknown = null
   for (const [index, item] of items.entries()) {
     const key = `director-order:${order.id}:${index}`
     const due = directorTaskDue(item)
     let task: { id: string; calendar_event_id: string | null } | null = null
-    const inserted = await admin.from('tasks').insert({
-      user_id: userId, contact_id: null, type: 'todo', title: item.title, note,
-      due_date: due, priority: 'medium', area: 'speaqi', progress_state: 'todo', progress_percent: 0, status: 'pending',
-      idempotency_key: key,
-    }).select('id,calendar_event_id').maybeSingle()
-    if (inserted.error && (inserted.error as { code?: string }).code !== '23505') throw inserted.error
-    task = inserted.data || (checked(await admin.from('tasks').select('id,calendar_event_id').eq('user_id', userId)
-      .eq('idempotency_key', key).maybeSingle()) as typeof task)
+    // Una voce che non si salva non ferma le altre: si dice nella risposta, e rilavorando l'ordine
+    // le righe già scritte si ritrovano dalla chiave.
+    try {
+      const inserted = await admin.from('tasks').insert({
+        user_id: userId, contact_id: null, type: 'todo', title: item.title, note,
+        due_date: due, priority: 'medium', area: 'speaqi', progress_state: 'todo', progress_percent: 0, status: 'pending',
+        idempotency_key: key,
+      }).select('id,calendar_event_id').maybeSingle()
+      if (inserted.error && (inserted.error as { code?: string }).code !== '23505') throw inserted.error
+      task = inserted.data || (checked(await admin.from('tasks').select('id,calendar_event_id').eq('user_id', userId)
+        .eq('idempotency_key', key).maybeSingle()) as typeof task)
+    } catch (error) {
+      firstError ??= error
+      outcomes.push({ ...item, calendar: 'not_saved' })
+      continue
+    }
     if (!due) { outcomes.push({ ...item, calendar: 'no_date' }); continue }
     if (task?.calendar_event_id) { outcomes.push({ ...item, calendar: 'already' }); continue }
     try {
@@ -832,6 +841,7 @@ async function createDirectorTasks(admin: Admin, userId: string, order: Director
         summary: `CRM · ${item.title}`,
         description: ['Attività pianificata in Speaqi CRM', note].join('\n\n'),
         startAt: due,
+        allDay: !item.time,
         durationMinutes: item.minutes ?? 30,
       })
       if (!event) { outcomes.push({ ...item, calendar: 'not_connected' }); continue }
@@ -847,6 +857,8 @@ async function createDirectorTasks(admin: Admin, userId: string, order: Director
       outcomes.push({ ...item, calendar: 'failed' })
     }
   }
+  // Nessuna salvata: è un errore vero, l'ordine lo riporta. Altrimenti la risposta dice quali mancano.
+  if (firstError && outcomes.every((o) => o.calendar === 'not_saved')) throw firstError
   return outcomes
 }
 

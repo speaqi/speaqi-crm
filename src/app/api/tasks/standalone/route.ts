@@ -50,6 +50,13 @@ async function resolveBoardColumnId(
   return { id: data.id as string }
 }
 
+function sameInstant(a: unknown, b: unknown) {
+  if (!a && !b) return true
+  const left = Date.parse(String(a || ''))
+  const right = Date.parse(String(b || ''))
+  return Number.isFinite(left) && left === right
+}
+
 function calendarEventForTask(task: { title?: string | null; note?: string | null; due_date?: string | null }) {
   return {
     summary: `CRM · ${task.title || 'Attività'}`,
@@ -337,7 +344,8 @@ export async function PATCH(request: NextRequest) {
           auth.workspaceUserId,
           task.calendar_event_id,
           calendarEventForTask(task),
-          { keepTiming: body.due_date === undefined }
+          // Stessa scadenza (anche scritta in un'altra forma) = orario e durata dell'evento restano.
+          { keepTiming: body.due_date === undefined || sameInstant(body.due_date, currentTask.due_date) }
         )
         if (event) await saveCalendarLink(event)
       } catch {

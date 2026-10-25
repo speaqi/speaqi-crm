@@ -611,22 +611,25 @@ export function directorTaskDue(item: DirectorTaskItem) {
   return item.time ? romeDateTimeToIso(item.date, item.time) : item.date
 }
 
-export type DirectorTaskOutcome = DirectorTaskItem & { calendar: 'added' | 'already' | 'no_date' | 'not_connected' | 'failed' }
+export type DirectorTaskOutcome = DirectorTaskItem & { calendar: 'added' | 'already' | 'no_date' | 'not_connected' | 'failed' | 'not_saved' }
 
 /** La risposta al titolare: cosa è nel To Do, cosa è in Calendar, e perché il resto no. */
 export function directorTaskReply(outcomes: DirectorTaskOutcome[], dropped = 0) {
   const when = (o: DirectorTaskItem) => o.date
     ? ` · ${weekdayIt(o.date)} ${o.date.slice(8, 10)}/${o.date.slice(5, 7)}${o.time ? ` alle ${o.time}` : ''}${o.minutes ? ` (${o.minutes} min)` : ''}`
     : ''
-  const mark = (o: DirectorTaskOutcome) => o.calendar === 'added' || o.calendar === 'already' ? '📅' : '📝'
-  const lines = [outcomes.length === 1 ? 'Segnato:' : `Segnate ${outcomes.length} cose da fare:`]
+  const mark = (o: DirectorTaskOutcome) => o.calendar === 'added' || o.calendar === 'already' ? '📅' : o.calendar === 'not_saved' ? '⚠️' : '📝'
+  const saved = outcomes.filter((o) => o.calendar !== 'not_saved').length
+  const lines = [saved === 1 ? 'Segnato:' : `Segnate ${saved} cose da fare:`]
   for (const o of outcomes) lines.push(`${mark(o)} ${o.title}${when(o)}`)
   const inCalendar = outcomes.filter((o) => o.calendar === 'added' || o.calendar === 'already').length
   const noDate = outcomes.filter((o) => o.calendar === 'no_date').length
-  if (inCalendar) lines.push('', inCalendar === outcomes.length ? 'Tutto nel To Do e in Google Calendar.' : `In Google Calendar: ${inCalendar}. Le altre sono nel To Do.`)
+  if (inCalendar) lines.push('', inCalendar === saved ? 'Tutto nel To Do e in Google Calendar.' : `In Google Calendar: ${inCalendar}. Le altre sono nel To Do.`)
   if (noDate) lines.push(noDate === 1 ? 'Una è senza giorno: è nel To Do, in Calendar la metto quando mi dici quando.' : `${noDate} sono senza giorno: sono nel To Do, in Calendar le metto quando mi dici quando.`)
   if (outcomes.some((o) => o.calendar === 'not_connected')) lines.push('Google Calendar non è collegato: ricollega Gmail dal CRM (pagina Gmail → Collega) e dai il permesso al calendario. Intanto sono nel To Do.')
   if (outcomes.some((o) => o.calendar === 'failed')) lines.push('Google Calendar non ha risposto per qualcuna: è nel To Do, la aggiungi dal pulsante «Calendar» sulla riga.')
+  const lost = outcomes.length - saved
+  if (lost) lines.push(lost === 1 ? 'Una (⚠️) non sono riuscito a salvarla: riscrivimela.' : `${lost} (⚠️) non sono riuscito a salvarle: riscrivimele.`)
   if (dropped) lines.push(`Ne ho segnate al massimo ${MAX_ORDER_TASKS}: le altre ${dropped} mandamele in un altro messaggio.`)
   return lines.join('\n')
 }

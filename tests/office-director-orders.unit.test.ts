@@ -140,6 +140,14 @@ describe('mappe, presentazioni, attività', () => {
     assert.match(off, /^Segnato:/)
     assert.match(off, /Google Calendar non è collegato/)
     assert.match(directorTaskReply([{ title: 'A', date: '2026-10-26', time: null, minutes: null, calendar: 'added' }]), /Tutto nel To Do e in Google Calendar/)
+    const partial = directorTaskReply([
+      { title: 'A', date: '2026-10-26', time: null, minutes: null, calendar: 'added' },
+      { title: 'B', date: null, time: null, minutes: null, calendar: 'not_saved' },
+    ])
+    assert.match(partial, /^Segnato:/)
+    assert.match(partial, /⚠️ B/)
+    assert.match(partial, /Tutto nel To Do e in Google Calendar/)
+    assert.match(partial, /non sono riuscito a salvarla/)
   })
 
   test('una risposta illeggibile diventa una domanda', () => {
@@ -380,6 +388,12 @@ describe('Google Calendar', () => {
     assert.equal(allDayOf('2026-10-29'), '2026-10-29')
     assert.equal(allDayOf('2026-10-29T00:00:00+00:00'), '2026-10-29')
     assert.equal(allDayOf('2026-10-29T14:00:00.000Z'), null)
+    assert.equal(allDayOf('2026-02-30'), null)
+    assert.equal(allDayOf('2026-13-01'), null)
+    // Un'attività alle 01:00 d'inverno è la mezzanotte UTC: chi crea l'evento dice che ha un orario.
+    const night = calendarEventPayload({ summary: 'x', startAt: '2026-11-10T00:00:00.000Z', allDay: false }) as any
+    assert.equal(night.start.dateTime, '2026-11-10T00:00:00.000Z')
+    assert.deepEqual((calendarEventPayload({ summary: 'x', startAt: '2026-11-10', allDay: true }) as any).start, { date: '2026-11-10' })
     const day = calendarEventPayload({ summary: 'CRM · A', startAt: '2026-10-31' }) as any
     assert.deepEqual(day.start, { date: '2026-10-31' })
     assert.deepEqual(day.end, { date: '2026-11-01' })

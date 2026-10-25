@@ -7,6 +7,8 @@ type CalendarEventInput = {
   description?: string
   startAt: string
   durationMinutes?: number
+  /** Detto da chi crea l'evento; se manca si deduce dalla scadenza (`allDayOf`). */
+  allDay?: boolean
 }
 
 type CalendarEventResponse = {
@@ -52,7 +54,11 @@ async function getCalendarAccess(supabase: any, userId: string) {
  */
 export function allDayOf(startAt: string): string | null {
   const value = String(startAt || '').trim()
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    // Solo un giorno che esiste: il 30 febbraio non si manda a Google.
+    const day = new Date(`${value}T00:00:00Z`)
+    return !Number.isNaN(day.getTime()) && day.toISOString().slice(0, 10) === value ? value : null
+  }
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return null
   return date.getUTCHours() === 0 && date.getUTCMinutes() === 0 && date.getUTCSeconds() === 0 ? date.toISOString().slice(0, 10) : null
@@ -63,7 +69,10 @@ export function allDayOf(startAt: string): string | null {
  * passa da tutto il giorno a un orario (e viceversa) quando cambia la scadenza.
  */
 export function calendarEventPayload(event: CalendarEventInput, options: { patch?: boolean } = {}) {
-  const day = allDayOf(event.startAt)
+  // Chi sa se l'evento ha un orario lo dice: un'attività alle 01:00 d'inverno è la mezzanotte UTC.
+  const day = event.allDay === false ? null
+    : event.allDay === true ? (allDayOf(event.startAt) || new Date(event.startAt).toISOString().slice(0, 10))
+    : allDayOf(event.startAt)
   const base = {
     summary: event.summary,
     description: event.description || '',
