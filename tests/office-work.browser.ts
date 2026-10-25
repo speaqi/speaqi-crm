@@ -38,6 +38,7 @@ async function main() {
       if (!url.pathname.startsWith('/api/')) return route.continue()
       const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
       if (url.pathname === '/api/ufficio/scena') return route.fulfill({ contentType: 'text/html', body: '<html><body>Scena esclusa da questo collaudo del pannello.</body></html>' })
+      if (url.pathname === '/api/ufficio/sblocca') return json({ enabled: false, locked: false })
       if (url.pathname === '/api/office') return json({ agents: Object.values(OFFICE_AGENT_DEFINITIONS).map((agent) => ({ ...agent, enabled: true, user_id: OWNER, spend: { ...zeros, agent_id: agent.id }, last_run: null })),
         runs: [], outputs: [], pending_count: 0, totals: zeros, active_agents: 12 })
       if (url.pathname === '/api/office/director/orders') return json({ orders: [{ id: ORDER, text: 'Costruisci la mappa di Marsiglia', source: 'web', attachments: [], status: 'blocked', reply: 'Manca il link My Maps. Il lavoro resta salvato.', created_at: work.created_at }] })
