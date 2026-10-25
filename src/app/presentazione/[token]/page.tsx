@@ -25,5 +25,5 @@ export default async function PresentationPage({
   const { print } = await searchParams
   const deck = await loadPublicDeck(createServiceRoleClient(), token)
   if (!deck) notFound()
-  return <DeckPlayer mode="full" slides={deck.slides} images={deck.images} destination={deck.destination} printable pdfHref={`/presentazione/${token}/pdf`} autoPrint={print === '1'} quoteHref={deck.quote?.public_token ? `/preventivo?id=${encodeURIComponent(deck.quote.public_token)}` : undefined} />
+  return <DeckPlayer mode="full" slides={deck.slides} images={deck.images} credits={deck.credits} destination={deck.destination} printable pdfHref={`/presentazione/${token}/pdf`} autoPrint={print === '1'} quoteHref={deck.quote?.public_token ? `/preventivo?id=${encodeURIComponent(deck.quote.public_token)}` : undefined} />
 }

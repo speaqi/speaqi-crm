@@ -35,6 +35,7 @@ test('presentazioni: fonti discordanti lasciano il segnaposto segnalato',()=>{
     {id:'b',entity_id:DEST,status:'VERIFIED',fields:['place_count'],source_url:'https://b.example.org',excerpt:'30 luoghi'}]
   assert.equal(presentationFixes(slides,[{id:ENTITY,details:{place_count:28}},{id:DEST,details:{place_count:30}}],evidence).length,0)
 })
+const noPhotos=async()=>({photos:[],note:null})
 function fixture(){
   const order:string[]=[]
   const db=new FakeSupabase({tourism_entities:[{id:ENTITY,user_id:'owner',kind:'organization',name:'Ente Marsiglia',country_code:'FR',status:'VERIFIED',details:{}},
@@ -57,7 +58,7 @@ test('presentazioni: riusa createDeck e generateIntoDeck, riserva prima di OpenA
     const body=JSON.parse(String(init?.body));assert.equal(body.response_format.json_schema.name,'tourism_deck')
     return modelReply(JSON.stringify({slides,missing:[]}),{input_tokens:1000,output_tokens:100})
   })
-  try{const handler=presentationsHandler(f.db,{create:f.create});await handler(f.ctx);await handler(f.ctx)
+  try{const handler=presentationsHandler(f.db,{create:f.create,findPhotos:noPhotos});await handler(f.ctx);await handler(f.ctx)
     assert.equal(fetch.mock.callCount(),1);assert.deepEqual(f.order.slice(0,4),['claim','reserve','provider','settle'])
     assert.equal(f.db.tables.tourism_decks.length,1);assert.equal(f.db.tables.tourism_decks[0].status,'ready');assert.equal(f.db.tables.tourism_decks[0].approved_at,null)
     assert.equal(f.db.tables.email_drafts?.length||0,0)

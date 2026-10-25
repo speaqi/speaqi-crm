@@ -1,14 +1,20 @@
 import { DECK_TODO_PATTERN, type DeckSlide } from '../tourism-deck'
 import { isUuid, safePublicUrl } from '../tourism'
 
-export type PresentationQueueItem = { entity_id: string; destination_id?: string }
+export type PresentationQueueItem = { entity_id: string; destination_id?: string; photos?: string[] }
 export function presentationQueue(raw: unknown): PresentationQueueItem[] {
   if (!Array.isArray(raw) || raw.length > 100) throw new Error('Coda presentazioni: massimo 100 enti')
   const items = raw.map((item) => typeof item === 'string' ? { entity_id: item } : item)
   if (items.some((item) => !item || !isUuid(item.entity_id) || (item.destination_id !== undefined && !isUuid(item.destination_id)))) {
     throw new Error('Coda presentazioni: entity_id e destination_id devono essere UUID')
   }
-  return [...new Map(items.map((item) => [`${item.entity_id}:${item.destination_id || ''}`, item as PresentationQueueItem])).values()]
+  // Le foto mandate al Direttore viaggiano con la voce: solo percorsi del suo bucket, al massimo 8.
+  const clean = items.map((item) => {
+    const photos = Array.isArray(item.photos) ? item.photos.filter((p: unknown) => typeof p === 'string' && /^[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.jpg$/i.test(p)).slice(0, 8) : []
+    const { photos: _photos, ...rest } = item
+    return (photos.length ? { ...rest, photos } : rest) as PresentationQueueItem
+  })
+  return [...new Map(clean.map((item) => [`${item.entity_id}:${item.destination_id || ''}`, item])).values()]
 }
 export type DeckPlaceholder = { slide_id: string; field: string; marker: string; text: string; context: string }
 export function deckPlaceholders(slides: DeckSlide[]): DeckPlaceholder[] {

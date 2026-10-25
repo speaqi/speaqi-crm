@@ -17,6 +17,8 @@ import { sendNotificationText } from './whatsapp'
 import { createServiceRoleClient } from './supabase'
 import { activateEntityForOrder, verifiedDestination, type ActivationEntity } from './office-entity-activation'
 import { entitySearchPattern, pickOrderEntity } from '../office/entity-activation'
+import { DIRECTOR_BUCKET, directorPhotoFiles } from './office-director-photos'
+import { addPhotosToDeck, type DeckRow } from './tourism-decks'
 
 /**
  * Ordini al Direttore. Tre garanzie da non smontare:
@@ -28,7 +30,7 @@ import { entitySearchPattern, pickOrderEntity } from '../office/entity-activatio
  *    se il loro interruttore è acceso.
  */
 
-export const DIRECTOR_BUCKET = 'office-director'
+export { DIRECTOR_BUCKET }
 export const MAX_ORDER_FILES = 4
 export const MAX_ORDER_FILE_BYTES = 8 * 1024 * 1024
 const ORDER_MODEL_OUTPUT_TOKENS = 1500
@@ -225,7 +227,7 @@ async function findEntity(admin: Admin, userId: string, names: Array<string | nu
  * l'ordine del titolare è l'autorizzazione. Si ferma solo per chiedere il sito o la città.
  */
 async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, entity: ActivationEntity,
-  plan: Extract<DirectorOrderPlan, { intent: 'presentation' }>, orderText: string, label: string): Promise<Outcome> {
+  plan: Extract<DirectorOrderPlan, { intent: 'presentation' }>, orderText: string, label: string, photos: string[] = []): Promise<Outcome> {
   let destination = entity.status === 'VERIFIED' ? await verifiedDestination(admin, userId, entity.id) : null
   let note = ''
   if (!destination) {
@@ -234,8 +236,25 @@ async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, 
     destination = activated.placeId
     note = `${activated.note} `
   }
-  const result = await queueForAgent(admin, userId, 'presentations', { key: `presentation:${entity.id}`, entity_id: entity.id, ...(destination ? { destination_id: destination } : {}) })
-  return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `Presentazione per ${label}: ${note}${queueSentence(result)}` }
+  if (photos.length) {
+    // Le foto mandate col comando sono della presentazione: se esiste già, ci vanno adesso.
+    const existing = checked(await admin.from('tourism_decks').select('*').eq('user_id', userId).eq('entity_id', entity.id)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle()) as DeckRow | null
+    if (existing) {
+      const files = await directorPhotoFiles(admin, userId, photos)
+      const { deck, added, skipped } = await addPhotosToDeck(admin, admin, existing, files)
+      const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+      const extra = skipped ? ` ${skipped === 1 ? 'Una foto è rimasta fuori' : `${skipped} foto sono rimaste fuori`}: la presentazione ne tiene al massimo 8.` : ''
+      const review = existing.status === 'approved' && added ? ' Era approvata: è tornata in revisione, riapprovala dopo averla guardata.' : ''
+      return { status: added ? 'done' : 'failed', outputs: [], queued: [], reply: added
+        ? `Presentazione per ${label}: ${note}ho aggiunto ${added === 1 ? 'la foto' : `${added} foto`} a «${deck.title}», al posto di quelle di esempio.${review}${extra} ${base}/tourism/presentazioni/${deck.id}`
+        : `Presentazione per ${label}: non sono riuscito ad aggiungere le foto a «${existing.title}».${extra}` }
+    }
+  }
+  const result = await queueForAgent(admin, userId, 'presentations', { key: `presentation:${entity.id}`, entity_id: entity.id,
+    ...(destination ? { destination_id: destination } : {}), ...(photos.length ? { photos } : {}) })
+  const withPhotos = photos.length ? ` Le ${photos.length === 1 ? 'foto che mi hai mandato andrà' : `${photos.length} foto che mi hai mandato andranno`} nella presentazione.` : ''
+  return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `Presentazione per ${label}: ${note}${queueSentence(result)}${withPhotos}` }
 }
 
 async function findDuplicates(admin: Admin, userId: string, contact: Record<string, string | null>) {
@@ -319,14 +338,15 @@ async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrder
   }
   if (plan.intent === 'presentation') {
     const entity = await findEntity(admin, userId, [plan.target])
-    if (entity) return presentationFor(admin, ctx, userId, entity, plan, order.text, entity.name)
+    const photos = (order.attachments || []).map((a) => a.path)
+    if (entity) return presentationFor(admin, ctx, userId, entity, plan, order.text, entity.name, photos)
     const pattern = searchPattern(plan.target)
     const contacts = pattern ? checked(await admin.from('contacts').select('id,name,company').eq('user_id', userId)
       .or(`name.ilike.${pattern},company.ilike.${pattern}`).limit(3)) as Array<{ id: string; name: string; company: string | null }> : []
     if (contacts.length === 1) {
       // Il contatto di un ente del catalogo: la presentazione è quella dell'ente.
       const owner = contacts[0].company ? await findEntity(admin, userId, [contacts[0].company]) : null
-      if (owner) return presentationFor(admin, ctx, userId, owner, plan, order.text, `${owner.name} (${contacts[0].name})`)
+      if (owner) return presentationFor(admin, ctx, userId, owner, plan, order.text, `${owner.name} (${contacts[0].name})`, photos)
       const result = await queueForAgent(admin, userId, 'agency', { key: `agency:contact:${contacts[0].id}`, contact_id: contacts[0].id, brief: plan.brief || order.text })
       return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `${contacts[0].name} non è un ente del catalogo Tourism, quindi è un lavoro da agenzia. ${queueSentence(result)}` }
     }
