@@ -5,6 +5,8 @@ Scrivendo «cosa posso chiederti?» il Direttore risponde con questo elenco.
 
 Le proposte da decidere (nuovi contatti, partner trovati) arrivano su Telegram una per una con **«✅ Approva» e «✖️ Rifiuta»**: il tocco vale come il clic nell’Ufficio, con le stesse regole. Scrivere «sì» in chat non approva niente.
 
+**Quando ti fa una domanda, rispondi e basta.** Se gli manca un dato (il sito, la città o il paese di un ente) te lo chiede, e la tua risposta («ecco il sito venezuela.com.ve», «Caracas», «Romania») riprende l’ordine da dove si era fermato. Su Telegram arriva al Direttore anche senza scrivere «Direttore». Vale per un giorno, e solo per l’ultima domanda: se nel frattempo gli hai mandato un altro ordine, ripeti la richiesta intera.
+
 Regola fissa: il Direttore **non invia** email, fatture allo SDI o pubblicazioni, e **non lavora su Napoli**. Quando serve un tuo clic te lo dice, con il link.
 
 ## Contatti e partner
@@ -13,7 +15,7 @@ Regola fissa: il Direttore **non invia** email, fatture allo SDI o pubblicazioni
 |---|---|
 | «Nuovo contatto: Mario Rossi, Hotel Laguna, info@hotellaguna.it» o la foto di un bigliettino | Proposta in «Aspetta te» con i dati letti, la riga da cui vengono e i possibili doppioni. Approvando entra nei contatti con l’opportunità giusta. |
 | «Trovami 5 partner per la mappa di Venezia» | Cerca prima nel catalogo Tourism (DMC, tour operator, agenzie, hotel, compagnie che nominano la città), poi sul web per quelli che mancano: vale solo un sito letto che nomina l’azienda, email solo del suo dominio. Ognuno è una proposta «Nuovo contatto» di tipo partner. Salta chi è già nei contatti o già proposto. Massimo 10. |
-| «Aggiungi Venezuela Tourism a Tourism Intelligence e ai contatti» | Ritrova l’ente o lo crea (paese e tipo letti dall’ordine), cerca il sito, scrive le prove, lo verifica e lo porta nel CRM. Se non trova il sito te lo chiede. |
+| «Aggiungi Venezuela Tourism a Tourism Intelligence e ai contatti» | Ritrova l’ente o lo crea (paese e tipo letti dall’ordine), cerca il sito, scrive le prove, lo verifica e lo porta nel CRM. Se non trova il sito te lo chiede. Con «…e poi fammi la presentazione» prepara anche quella. Dal bigliettino di una persona prende l’ente, non il nome della persona. |
 
 ## Presentazioni
 

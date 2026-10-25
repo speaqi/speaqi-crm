@@ -312,7 +312,7 @@ describe('i cinque comandi nuovi', async () => {
   test('aggiungi ente: paese ISO, tipo dal catalogo, sito solo se scritto', () => {
     assert.deepEqual(interpretDirectorOrder(answer({ intent: 'add_entity', target: 'Venezuela Tourism', country_code: 've', entity_type: 'nto', city: 'Venezuela' }),
       { text: 'Aggiungimi Venezuela Tourism ai contatti', today: TODAY }),
-      { intent: 'add_entity', name: 'Venezuela Tourism', country_code: 'VE', type_code: 'nto', city: 'Venezuela', website: null })
+      { intent: 'add_entity', name: 'Venezuela Tourism', country_code: 'VE', type_code: 'nto', city: 'Venezuela', website: null, presentation: false })
     const withSite = interpretDirectorOrder(answer({ intent: 'add_entity', target: 'Visit Lima', country_code: 'PE', entity_type: 'boh' }), { text: 'aggiungi Visit Lima, sito visitlima.pe', today: TODAY })
     assert.equal(withSite.intent === 'add_entity' && withSite.type_code, 'other')
     assert.equal(withSite.intent === 'add_entity' && withSite.website, 'https://visitlima.pe')
@@ -407,5 +407,51 @@ describe('Google Calendar', () => {
     assert.equal('date' in timed.start, false)
     assert.equal((calendarEventPayload({ summary: 'x', startAt: '2026-10-29T09:00:00.000Z' }, { patch: true }) as any).start.date, null)
     assert.equal((calendarEventPayload({ summary: 'x', startAt: '2026-10-29' }, { patch: true }) as any).start.dateTime, null)
+  })
+})
+
+describe('il Direttore riprende la domanda che ha fatto', async () => {
+  const { directorFollowUp, organizationName, readAwaiting } = await import('../src/lib/office/director-orders')
+  const site = { need: 'site' as const, resume: 'presentazione per Tourism Ministry Venezuela' }
+
+  test('«ecco il sito …» completa l’ordine con le parole che il Direttore aveva chiesto', () => {
+    assert.equal(directorFollowUp(site, 'ecco il sito https://venezuela.com.ve/'), 'presentazione per Tourism Ministry Venezuela, sito https://venezuela.com.ve')
+    assert.equal(directorFollowUp(site, 'venezuela.com.ve'), 'presentazione per Tourism Ministry Venezuela, sito https://venezuela.com.ve')
+    assert.equal(directorFollowUp(site, 'aggiungi questo sito: www.venezuela.com.ve'), 'presentazione per Tourism Ministry Venezuela, sito https://www.venezuela.com.ve')
+    // Senza il dato, o con un altro lavoro, è un ordine nuovo.
+    assert.equal(directorFollowUp(site, 'non lo so'), null)
+    assert.equal(directorFollowUp(site, 'presentazione per Visit Lima, sito visitlima.pe'), null)
+    assert.equal(directorFollowUp(null, 'venezuela.com.ve'), null)
+  })
+
+  test('città e paese: risposte brevi, senza le parole di contorno', () => {
+    assert.equal(directorFollowUp({ need: 'city', resume: 'presentazione per Ente X' }, 'la città è Caracas.'), 'presentazione per Ente X, città Caracas')
+    assert.equal(directorFollowUp({ need: 'country', resume: 'presentazione per Ente X, Sibiu' }, 'è in Romania'), 'presentazione per Ente X, Sibiu, paese Romania')
+    assert.equal(directorFollowUp({ need: 'city', resume: 'presentazione per Ente X' }, 'domani alle 10 ricordami di chiamare Rossi'), null)
+    assert.equal(directorFollowUp({ need: 'city', resume: 'presentazione per Ente X' }, 'stato'), null)
+  })
+
+  test('la domanda salvata si rilegge solo nella forma nota', () => {
+    assert.deepEqual(readAwaiting({ intent: 'add_entity', awaiting: site }), site)
+    assert.equal(readAwaiting({ awaiting: { need: 'email', resume: 'x' } }), null)
+    assert.equal(readAwaiting({ awaiting: { need: 'site', resume: '' } }), null)
+    assert.equal(readAwaiting(null), null)
+  })
+
+  test('in chat una domanda si risponde lì, senza il rimando all’Ufficio', () => {
+    const reply = telegramDirectorReply({ status: 'waiting_you', reply: 'Mandami il sito.', interpretation: { awaiting: site } }, 'https://crm.speaqi.com')
+    assert.match(reply, /Rispondimi qui\.$/)
+    assert.doesNotMatch(reply, /ufficio/)
+  })
+
+  test('il nome dell’ente non tiene la persona che lo rappresenta', () => {
+    assert.equal(organizationName('Gustavo Cardenas Tourism Ministry Venezuela', 'Gustavo Cardenas'), 'Tourism Ministry Venezuela')
+    assert.equal(organizationName('Tourism Ministry Venezuela, Gustavo Cardenas', 'Gustavo Cárdenas'), 'Tourism Ministry Venezuela')
+    assert.equal(organizationName('Visit Lima', 'Lima'), 'Visit Lima')
+    assert.equal(organizationName('Mario Rossi', 'Mario Rossi'), 'Mario Rossi')
+    const plan = interpretDirectorOrder(answer({ intent: 'add_entity', target: 'Gustavo Cardenas Tourism Ministry Venezuela', country_code: 'VE', entity_type: 'nto',
+      contact: { ...empty, name: 'Gustavo Cardenas' }, then_presentation: true }), { text: 'aggiungi il Venezuela e poi fammi la presentazione', today: TODAY })
+    assert.equal(plan.intent === 'add_entity' && plan.name, 'Tourism Ministry Venezuela')
+    assert.equal(plan.intent === 'add_entity' && plan.presentation, true)
   })
 })
