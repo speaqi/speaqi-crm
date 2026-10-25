@@ -87,6 +87,7 @@ const CRM_ERRORS: Array<[RegExp, string]> = [
   [/Possible CRM matches require review/i, 'c’è un possibile doppione nel CRM: confermalo dalla scheda dell’ente'],
   [/country mismatch/i, 'nel CRM c’è un contatto con lo stesso nome ma un altro paese: controllalo dalla scheda'],
   [/Email already used/i, 'l’email è già di un altro contatto del CRM'],
+  [/already linked to another CRM contact/i, 'l’ente è già collegato a un altro contatto del CRM: controllalo dalla scheda'],
 ]
 
 /** Il motivo per cui l'ente non è entrato nei contatti, in italiano. */

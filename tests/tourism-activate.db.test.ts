@@ -16,7 +16,7 @@ const activate = (payload: Record<string, unknown>, owner = OWNER, entity = ORG)
 before(async () => {
   await resetOfficeDatabase(DB, ['20261017205455_tourism_intelligence.sql', '20261017214525_tourism_acquisition_matching.sql',
     '20261018185155_tourism_site_research.sql', '20261019051155_tourism_sitemap_targeting.sql', '20261024150000_tourism_activate.sql',
-    '20261025080000_tourism_activate_coverage.sql'])
+    '20261025080000_tourism_activate_coverage.sql', '20261025150000_tourism_activate_link_contact.sql'])
   await sql(`alter table contacts add column if not exists company text, add column if not exists country text,
     add column if not exists marketing_eligibility text not null default 'review';
     insert into auth.users(id) values('${OWNER}'),('${OTHER}')`)
@@ -72,6 +72,24 @@ test('il CRM che rifiuta non annulla la verifica: torna come motivo', async () =
   assert.match(String(r.crm_error), /Ambiguous/)
   assert.equal(r.contact_id, null)
   assert.equal(await scalar(`select status from tourism_entities where id='${ORG}'`), 'VERIFIED')
+})
+
+test('il contatto che c’è già si collega, senza crearne un altro (caso Sibiu)', async () => {
+  const contact = await scalar(`insert into contacts(user_id,name,company,email,status) values('${OWNER}','Simina Manea','VISIT BERGAMO','simina@visitbergamo.example','New') returning id`)
+  const r = await activate({ origin: 'director', city: 'Bergamo', contact_id: contact })
+  assert.equal(r.contact_id, contact); assert.equal(r.contact_linked, true); assert.equal(r.contact_created, false); assert.equal(r.crm_error, null)
+  assert.equal(await scalar(`select contact_id from tourism_crm_links where entity_id='${ORG}'`), contact)
+  assert.equal(await scalar(`select count(*) from contacts where user_id='${OWNER}'`), '1')
+  assert.equal(await scalar(`select count(*) from activities where contact_id='${contact}' and content like 'Collegato all''ente%'`), '1')
+  // Rifarlo non duplica niente; un altro contatto non ruba il collegamento.
+  const again = await activate({ origin: 'director', contact_id: contact })
+  assert.equal(again.contact_linked, false); assert.equal(again.contact_id, contact)
+  const other = await scalar(`insert into contacts(user_id,name,company,status) values('${OWNER}','Altro','X','New') returning id`)
+  assert.match(String((await activate({ origin: 'director', contact_id: other })).crm_error), /already linked/)
+  // Un contatto di un altro workspace o un id storto non passano.
+  const foreign = await scalar(`insert into contacts(user_id,name,status) values('${OTHER}','Estraneo','New') returning id`)
+  assert.match(String(await error(`select public.tourism_activate('${OWNER}','${ORG}','{"origin":"director","contact_id":"${foreign}"}'::jsonb)`)), /Contatto non trovato/)
+  assert.match(String(await error(`select public.tourism_activate('${OWNER}','${ORG}','{"origin":"director","contact_id":"x"}'::jsonb)`)), /Contatto non valido/)
 })
 
 test('Napoli fuori per il Direttore, ente di un altro workspace, versione cambiata, permessi', async () => {

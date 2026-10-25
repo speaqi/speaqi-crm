@@ -238,11 +238,11 @@ async function findEntity(admin: Admin, userId: string, names: Array<string | nu
  * l'ordine del titolare è l'autorizzazione. Si ferma solo per chiedere il sito o la città.
  */
 async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, entity: ActivationEntity,
-  plan: Extract<DirectorOrderPlan, { intent: 'presentation' }>, orderText: string, label: string, photos: string[] = []): Promise<Outcome> {
+  plan: Extract<DirectorOrderPlan, { intent: 'presentation' }>, orderText: string, label: string, photos: string[] = [], contactId: string | null = null): Promise<Outcome> {
   let destination = entity.status === 'VERIFIED' ? await verifiedDestination(admin, userId, entity.id) : null
   let note = ''
   if (!destination) {
-    const activated = await activateEntityForOrder(admin, ctx, userId, entity, { orderText, proposedCity: plan.city })
+    const activated = await activateEntityForOrder(admin, ctx, userId, entity, { orderText, proposedCity: plan.city, contactId })
     if (!activated.ok) return { status: 'waiting_you', outputs: [], queued: [], reply: activated.reply }
     destination = activated.placeId
     note = `${activated.note} `
@@ -366,7 +366,7 @@ async function presentationTarget(admin: Admin, ctx: AgentContext, order: Direct
   if (contact?.company) {
     // Il contatto di un ente del catalogo: la presentazione è quella dell'ente.
     const owner = await findEntity(admin, userId, [contact.company])
-    if (owner) return presentationFor(admin, ctx, userId, owner, plan, order.text, `${owner.name} (${contact.name})`, photos)
+    if (owner) return presentationFor(admin, ctx, userId, owner, plan, order.text, `${owner.name} (${contact.name})`, photos, contact.id)
   }
   if (orgName && (looksLikeTourismBody(orgName) || plan.type_code)) {
     // Un ente del turismo che non è ancora nel catalogo: il Direttore lo aggiunge e lo attiva, poi la presentazione.
@@ -374,7 +374,7 @@ async function presentationTarget(admin: Admin, ctx: AgentContext, order: Direct
     if (!country) return { status: 'waiting_you', outputs: [], queued: [], reply: `${orgName} non è ancora in Tourism Intelligence e non so di quale paese è. Scrivimi «presentazione per ${orgName}, ${plan.city || 'città'}, paese …» e lo aggiungo io.` }
     const found = await ensureCatalogEntity(admin, userId, order.id, { name: orgName, country_code: country, type_code: plan.type_code || 'dmo', website: websiteFromText(order.text) })
     if ('reply' in found) return { status: 'waiting_you', outputs: [], queued: [], reply: found.reply }
-    const outcome = await presentationFor(admin, ctx, userId, found.entity, plan, order.text, `${found.entity.name}${contact ? ` (${contact.name})` : ''}`, photos)
+    const outcome = await presentationFor(admin, ctx, userId, found.entity, plan, order.text, `${found.entity.name}${contact ? ` (${contact.name})` : ''}`, photos, contact?.id || null)
     return found.created ? { ...outcome, reply: `Ho aggiunto ${found.entity.name} a Tourism Intelligence. ${outcome.reply}` } : outcome
   }
   if (contact) {
@@ -590,7 +590,9 @@ async function addEntity(admin: Admin, ctx: AgentContext, order: DirectorOrderRo
   const crm = checked(await admin.from('tourism_crm_links').select('contact_id').eq('user_id', userId).eq('entity_id', entity.id).limit(1).maybeSingle())
   if (entity.status === 'VERIFIED' && crm) return { status: 'done', outputs: [], queued: [], reply: `${entity.name} è già in Tourism Intelligence, verificato e nei contatti. ${link}` }
   const city = plan.city || (DESTINATION_TYPES.includes(plan.type_code) || plan.type_code === 'ministry' ? countryName(plan.country_code) : null)
-  const activated = await activateEntityForOrder(admin, ctx, userId, entity, { orderText: `${order.text}\n${city || ''}`, proposedCity: city })
+  // Un contatto del CRM con l'organizzazione dell'ente (uno solo) si collega, invece di crearne un altro.
+  const contact = crm ? null : await contactOfOrganization(admin, userId, entity.name)
+  const activated = await activateEntityForOrder(admin, ctx, userId, entity, { orderText: `${order.text}\n${city || ''}`, proposedCity: city, contactId: contact?.id || null })
   const first = created ? `Ho aggiunto ${entity.name} a Tourism Intelligence.` : `${entity.name} era già in Tourism Intelligence.`
   if (!activated.ok) return { status: 'waiting_you', outputs: [], queued: [], reply: `${first} ${activated.reply} ${link}` }
   return { status: 'done', outputs: [], queued: [], reply: `${first} ${activated.note} ${link}` }
@@ -617,6 +619,15 @@ async function ensureCatalogEntity(admin: Admin, userId: string, orderId: string
   if (!same) return { reply: `Non sono riuscito ad aggiungere ${input.name} al catalogo.` }
   if (same.disabled || same.status === 'INACTIVE' || same.status === 'DUPLICATE') return { reply: `${same.name} c’è già nel catalogo ma è archiviato: riattivalo dalla scheda Tourism.` }
   return { entity: same, created: false }
+}
+
+/** L'unico contatto del CRM che lavora per quell'organizzazione (stessa azienda, spazi e maiuscole a parte). */
+async function contactOfOrganization(admin: Admin, userId: string, organization: string) {
+  const pattern = searchPattern(organization)
+  if (!pattern) return null
+  const rows = (checked(await admin.from('contacts').select('id,name,company').eq('user_id', userId).ilike('company', pattern).limit(5)) || []) as Array<{ id: string; name: string; company: string | null }>
+  const same = rows.filter((row) => row.company && compactName(row.company) === compactName(organization))
+  return same.length === 1 ? same[0] : null
 }
 
 /** Il paese di un contatto del CRM come codice ISO, se si riconosce. */
