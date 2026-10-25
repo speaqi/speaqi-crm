@@ -969,7 +969,10 @@ Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script 
   spento; budget iniziali 30/210/930 centesimi giorno/settimana/mese.
   Gestione in `/ufficio/agenti`. La scena `/ufficio` non è modificata.
 - `settings.feeds` è una lista di massimo 20 URL pubblici (RSS, Atom o pagine
-  con data esplicita); nasce vuota, da configurare dal titolare. I concorrenti
+  con data esplicita). Vuota vale `DEFAULT_NEWS_FEEDS` (`src/lib/office/news.ts`,
+  scelte il 25/10/2026 su richiesta del titolare: stampa turistica italiana e
+  internazionale, musei, crociere, AI); una fonte che non risponde finisce negli
+  avvisi del rapporto e non ferma la rassegna. Scritta a mano, vince sulle predefinite. I concorrenti
   predefiniti sono STQRY, Cuseum, SmartGuide, VoiceMap, Locatify e si possono
   cambiare in `settings.competitors`. Nessun nuovo segreto o feed inventato.
 - Il fetch riusa `fetchResearchPage` con controllo degli indirizzi privati,
@@ -1311,6 +1314,7 @@ Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script 
   - **`add_entity`** («aggiungi Venezuela Tourism a Tourism Intelligence e ai contatti»): ritrova l'ente o lo inserisce (paese ISO e tipo dal modello, validati; sito solo se scritto nell'ordine), poi `activateEntityForOrder`. Per un ente nazionale la «città» è il paese (`countryName`).
   - **Più presentazioni** (`targets`, al massimo 5, Napoli tolta) e **«preparami 5 presentazioni di destinazioni»** (`count` senza nomi → `autoDestinationPresentations`: enti dmo/nto/cvb/rto con un sito e senza deck, prima la priorità, solo con una città leggibile dal nome o già verificati, fino a tre tentativi per posto). L'agente Presentazioni ora genera fino a `settings.max_per_run` deck per corsa (default 5, era 2 fisso).
   - **Presentazione partner** (`audience: 'partner'`, `partnerPresentation`): base `PARTNER_DECK_TEMPLATE` (`partner-2026-10`: QR con commissione, codici a tempo, vetrina, portale, condizioni da `{{prezzo}}`), scelta per deck con `input.modello = 'partner'` (`templateForDeck`, anche dal modulo «Crea la presentazione» → «Per chi è»). La genera il Direttore nel suo budget (`officeDeckAgent`), id fisso per ordine e nome; le condizioni restano `[DA VERIFICARE]` e bloccano l'approvazione finché il titolare non le scrive.
+  - **Presentazione per un ente che non c'è** («la presentazione di Sibiu, il contatto è Simina Manea, Sibiu County Tourism Association»): il target è l'organizzazione, non la persona; se l'organizzazione (scritta o del contatto) non è nel catalogo e ha un nome da ente del turismo (`looksLikeTourismBody`) o il modello ne dà il tipo, `presentationTarget` la aggiunge (`ensureCatalogEntity`, la stessa di `add_entity`) e la attiva. Il paese: dall'ordine, dal contatto o dal dominio nazionale dell'email (`emailCountry`, `.ro` → RO, i domini generici no); senza, lo chiede. Prima andava all'agente Agenzia, che non è installato.
   - Il link `/tourism?entity=<id>` apre la scheda dell'ente. Migration `20261025140000_office_director_intents_more.sql` (vincolo con le tre intenzioni nuove), prima del codice.
 - **Telegram** (`/api/integrations/telegram/webhook`): va al Direttore un messaggio che comincia con `/direttore` o «Direttore», **ogni foto** (al To Do non serve) o tutto se `office_agents.settings.telegram_mode = 'director'` del Direttore (`telegramDirectorRoute`). Il vocale si trascrive prima. Restano le garanzie del bot: 200 sempre, `update_id` unico prima del lavoro, chat fuori elenco ignorate. Risposta immediata «Ricevuto, ci lavoro», poi quella del Direttore con il link a `/ufficio/agenti` quando serve un clic: un «sì» in chat non approva niente.
 - Migration **`20261024090000_office_director_orders.sql`**, prima del codice. Nessuna env nuova (`APP_BASE_URL` per il link in chat). La conversazione dal vivo (API Realtime) non è fatta: è il passo dopo, dietro un interruttore.

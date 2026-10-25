@@ -4,6 +4,27 @@ import { safePublicUrl } from '../tourism'
 export type NewsArticle={url:string;title:string;published_at:string;excerpt:string;feed_url:string}
 export type NewsItem=NewsArticle&{summary:string;why:string}
 export const NEWS_COMPETITORS=['STQRY','Cuseum','SmartGuide','VoiceMap','Locatify']
+/**
+ * Fonti di partenza, scelte dal titolare il 25/10/2026: stampa di settore italiana e
+ * internazionale, musei, crociere e AI. Valgono solo finché settings.feeds è vuoto;
+ * una fonte che non risponde finisce negli avvisi del rapporto, non ferma la rassegna.
+ */
+export const DEFAULT_NEWS_FEEDS=[
+  'https://www.travelquotidiano.com/feed/',
+  'https://www.lagenziadiviaggimag.it/feed/',
+  'https://www.guidaviaggi.it/feed/',
+  'https://www.turismoitalianews.it/feed/',
+  'https://skift.com/feed/',
+  'https://www.phocuswire.com/RSS/All-News',
+  'https://www.traveldailynews.com/feed/',
+  'https://www.travelandtourworld.com/feed/',
+  'https://www.eturbonews.com/feed/',
+  'https://www.tourism-review.com/rss/news.xml',
+  'https://www.museumnext.com/feed/',
+  'https://www.cruiseindustrynews.com/feed/',
+  'https://openai.com/news/rss.xml',
+  'https://blog.google/technology/ai/rss/',
+]
 
 export function newsUrl(raw:unknown,base?:string):string|null {
   if(typeof raw!=='string') return null

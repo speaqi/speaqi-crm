@@ -234,7 +234,7 @@ describe('i cinque comandi nuovi', async () => {
 
   test('«preparami 5 presentazioni di destinazioni»: un numero senza nomi lo scelgo io', () => {
     const plan = interpretDirectorOrder(answer({ intent: 'presentation', targets: [], count: 9 }), { text: 'preparami 5 presentazioni di destinazioni', today: TODAY })
-    assert.deepEqual(plan, { intent: 'presentation', targets: [], count: 5, audience: 'destinazione', brief: null, city: null, skipped: [] })
+    assert.deepEqual(plan, { intent: 'presentation', targets: [], count: 5, audience: 'destinazione', brief: null, city: null, skipped: [], country_code: null, type_code: null })
     // Per un partner il numero da solo non basta: serve il nome.
     assert.equal(interpretDirectorOrder(answer({ intent: 'presentation', targets: [], count: 3, audience: 'partner' }), { text: '', today: TODAY }).intent, 'unknown')
   })
@@ -288,5 +288,41 @@ describe('i cinque comandi nuovi', async () => {
   test('lo schema chiede i campi nuovi', () => {
     for (const field of ['targets', 'count', 'audience', 'country_code', 'entity_type']) assert.ok((DIRECTOR_ORDER_SCHEMA.required as readonly string[]).includes(field), field)
     assert.ok(directorOrderPrompt('x', 0, TODAY).includes('find_partners'))
+  })
+})
+
+describe('Sibiu: l’ente che non c’è si aggiunge', async () => {
+  const { emailCountry } = await import('../src/lib/server/office-director-orders')
+  const { looksLikeTourismBody } = await import('../src/lib/office/director-orders')
+
+  test('il paese dal dominio nazionale dell’email, non dai domini generici', () => {
+    assert.equal(emailCountry('simina.manea@sibiu-turism.ro'), 'RO')
+    assert.equal(emailCountry('info@visit.co.uk'), 'GB')
+    assert.equal(emailCountry('mario@gmail.com'), null)
+    assert.equal(emailCountry('team@startup.io'), null)
+    assert.equal(emailCountry(null), null)
+  })
+
+  test('l’organizzazione del contatto è un ente del turismo, non un lavoro da agenzia', () => {
+    assert.ok(looksLikeTourismBody('Sibiu County Tourism Association'))
+    assert.ok(!looksLikeTourismBody('Pasticceria Rossi'))
+  })
+
+  test('la presentazione porta paese e tipo dell’ente, validati', () => {
+    const plan = interpretDirectorOrder(answer({ intent: 'presentation', targets: ['Sibiu County Tourism Association'], city: 'Sibiu', country_code: 'ro', entity_type: 'dmo' }), { text: '', today: TODAY })
+    assert.equal(plan.intent === 'presentation' && plan.country_code, 'RO')
+    assert.equal(plan.intent === 'presentation' && plan.type_code, 'dmo')
+    const bad = interpretDirectorOrder(answer({ intent: 'presentation', targets: ['X'], country_code: 'Romania', entity_type: 'boh' }), { text: '', today: TODAY })
+    assert.equal(bad.intent === 'presentation' && bad.country_code, null)
+    assert.equal(bad.intent === 'presentation' && bad.type_code, null)
+  })
+})
+
+describe('Osservatorio: fonti di partenza', async () => {
+  const { DEFAULT_NEWS_FEEDS, newsUrl } = await import('../src/lib/office/news')
+  test('al massimo 20, tutte URL pubbliche valide e senza doppioni', () => {
+    assert.ok(DEFAULT_NEWS_FEEDS.length > 0 && DEFAULT_NEWS_FEEDS.length <= 20)
+    assert.ok(DEFAULT_NEWS_FEEDS.every((u) => newsUrl(u) === u))
+    assert.equal(new Set(DEFAULT_NEWS_FEEDS).size, DEFAULT_NEWS_FEEDS.length)
   })
 })

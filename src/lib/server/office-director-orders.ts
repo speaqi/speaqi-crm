@@ -17,13 +17,13 @@ import { officeRomeDay } from '../office/finance'
 import {
   CONTACT_CATEGORY_LABELS, DIRECTOR_ORDER_SCHEMA, contactNextStep, directorOrderPrompt, directorStatusLines,
   directorEventsReply, directorInvoiceReply, directorQuoteLabel, interpretDirectorOrder, queuedWorkReport, quoteIsInvoiceable,
-  directorHelpText, emailFromSite, parsePartnerSearch, partnerSearchPrompt, PARTNER_SEARCH_SCHEMA, PARTNER_TYPE_CODES,
+  directorHelpText, emailFromSite, looksLikeTourismBody, parsePartnerSearch, partnerSearchPrompt, PARTNER_SEARCH_SCHEMA, PARTNER_TYPE_CODES,
   type DirectorEventRow, type DirectorInvoiceQuote, type DirectorOrderPlan, type QueuedWork,
 } from '../office/director-orders'
 import { sendNotificationText } from './whatsapp'
 import { createServiceRoleClient } from './supabase'
 import { activateEntityForOrder, verifiedDestination, type ActivationEntity } from './office-entity-activation'
-import { cityForEntity, compactName, entitySearchPattern, pickOrderEntity, siteMatchesEntity } from '../office/entity-activation'
+import { cityForEntity, compactName, entitySearchPattern, pickOrderEntity, siteMatchesEntity, websiteFromText } from '../office/entity-activation'
 import { DIRECTOR_BUCKET, directorPhotoFiles } from './office-director-photos'
 import { addPhotosToDeck, createDeck, generateIntoDeck, type DeckRow } from './tourism-decks'
 
@@ -356,18 +356,34 @@ async function presentationTarget(admin: Admin, ctx: AgentContext, order: Direct
   const entity = await findEntity(admin, userId, [target])
   if (entity) return presentationFor(admin, ctx, userId, entity, plan, order.text, entity.name, photos)
   const pattern = searchPattern(target)
-  const contacts = pattern ? checked(await admin.from('contacts').select('id,name,company').eq('user_id', userId)
-    .or(`name.ilike.${pattern},company.ilike.${pattern}`).limit(3)) as Array<{ id: string; name: string; company: string | null }> : []
-  if (contacts.length === 1) {
+  const contacts = pattern ? checked(await admin.from('contacts').select('id,name,company,country,email').eq('user_id', userId)
+    .or(`name.ilike.${pattern},company.ilike.${pattern}`).limit(3)) as Array<{ id: string; name: string; company: string | null; country: string | null; email: string | null }> : []
+  // Fra più schede dello stesso ente basta che dicano la stessa organizzazione.
+  const companies = [...new Set(contacts.map((c) => c.company && compactName(c.company)).filter(Boolean))]
+  const contact = contacts.length === 1 || (contacts.length > 1 && companies.length === 1 && contacts.every((c) => c.company)) ? contacts[0] : null
+  // L'ente da presentare: l'organizzazione del contatto, oppure il nome scritto.
+  const orgName = contact?.company || (contacts.length ? null : target)
+  if (contact?.company) {
     // Il contatto di un ente del catalogo: la presentazione è quella dell'ente.
-    const owner = contacts[0].company ? await findEntity(admin, userId, [contacts[0].company]) : null
-    if (owner) return presentationFor(admin, ctx, userId, owner, plan, order.text, `${owner.name} (${contacts[0].name})`, photos)
-    const result = await queueForAgent(admin, userId, 'agency', { key: `agency:contact:${contacts[0].id}`, contact_id: contacts[0].id, brief: plan.brief || order.text })
-    return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `${contacts[0].name} non è un ente del catalogo Tourism, quindi è un lavoro da agenzia. ${queueSentence(result)}` }
+    const owner = await findEntity(admin, userId, [contact.company])
+    if (owner) return presentationFor(admin, ctx, userId, owner, plan, order.text, `${owner.name} (${contact.name})`, photos)
+  }
+  if (orgName && (looksLikeTourismBody(orgName) || plan.type_code)) {
+    // Un ente del turismo che non è ancora nel catalogo: il Direttore lo aggiunge e lo attiva, poi la presentazione.
+    const country = plan.country_code || countryCode(contact?.country) || emailCountry(contact?.email)
+    if (!country) return { status: 'waiting_you', outputs: [], queued: [], reply: `${orgName} non è ancora in Tourism Intelligence e non so di quale paese è. Scrivimi «presentazione per ${orgName}, ${plan.city || 'città'}, paese …» e lo aggiungo io.` }
+    const found = await ensureCatalogEntity(admin, userId, order.id, { name: orgName, country_code: country, type_code: plan.type_code || 'dmo', website: websiteFromText(order.text) })
+    if ('reply' in found) return { status: 'waiting_you', outputs: [], queued: [], reply: found.reply }
+    const outcome = await presentationFor(admin, ctx, userId, found.entity, plan, order.text, `${found.entity.name}${contact ? ` (${contact.name})` : ''}`, photos)
+    return found.created ? { ...outcome, reply: `Ho aggiunto ${found.entity.name} a Tourism Intelligence. ${outcome.reply}` } : outcome
+  }
+  if (contact) {
+    const result = await queueForAgent(admin, userId, 'agency', { key: `agency:contact:${contact.id}`, contact_id: contact.id, brief: plan.brief || order.text })
+    return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `${contact.name} non è un ente del turismo, quindi è un lavoro da agenzia. ${queueSentence(result)}` }
   }
   return { status: 'failed', outputs: [], queued: [], reply: contacts.length
     ? `Ho trovato più contatti per «${target}» (${contacts.map((c) => c.name).join(', ')}): dimmi quale.`
-    : `Non trovo «${target}» né fra gli enti del catalogo Tourism né fra i contatti. Se è nuovo, scrivimi «aggiungi ${target} a Tourism Intelligence» oppure mandami il contatto.` }
+    : `Non trovo «${target}» né fra gli enti del catalogo Tourism né fra i contatti. Se è un ente del turismo, scrivimi «aggiungi ${target} a Tourism Intelligence»; se è un cliente, mandami il contatto.` }
 }
 
 /** Un UUID fisso per (ordine, nome): rielaborare lo stesso ordine ritrova la stessa presentazione. */
@@ -566,25 +582,9 @@ async function findPartners(admin: Admin, ctx: AgentContext, order: DirectorOrde
  */
 async function addEntity(admin: Admin, ctx: AgentContext, order: DirectorOrderRow, plan: Extract<DirectorOrderPlan, { intent: 'add_entity' }>): Promise<Outcome> {
   const userId = order.user_id
-  let entity = await findEntity(admin, userId, [plan.name])
-  let created = false
-  if (!entity) {
-    const row = { user_id: userId, kind: 'organization', name: plan.name, country_code: plan.country_code, type_code: plan.type_code,
-      website: plan.website, details: { acquisition: { source: 'office_director', order_id: order.id } } }
-    const inserted = await admin.from('tourism_entities').insert(row).select('id,name,kind,status,website,email,phone,country_code,type_code,aliases,disabled,version').single()
-    if (inserted.error && (inserted.error as { code?: string }).code === '23505') {
-      // Stesso nome e paese già nel catalogo (magari archiviato): si riusa quello.
-      entity = checked(await admin.from('tourism_entities').select('id,name,kind,status,website,email,phone,country_code,type_code,aliases,disabled,version')
-        .eq('user_id', userId).eq('kind', 'organization').eq('country_code', plan.country_code).eq('name_key', nameKey(plan.name)).maybeSingle())
-      if (entity?.disabled || entity?.status === 'INACTIVE' || entity?.status === 'DUPLICATE') {
-        return { status: 'waiting_you', outputs: [], queued: [], reply: `${entity.name} c’è già nel catalogo ma è archiviato: riattivalo dalla scheda Tourism.` }
-      }
-    } else {
-      entity = checked(inserted)
-      created = true
-    }
-  }
-  if (!entity) return { status: 'failed', outputs: [], queued: [], reply: `Non sono riuscito ad aggiungere ${plan.name} al catalogo.` }
+  const found = await ensureCatalogEntity(admin, userId, order.id, plan)
+  if ('reply' in found) return { status: 'waiting_you', outputs: [], queued: [], reply: found.reply }
+  const { entity, created } = found
   const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
   const link = `${base}/tourism?entity=${entity.id}`
   const crm = checked(await admin.from('tourism_crm_links').select('contact_id').eq('user_id', userId).eq('entity_id', entity.id).limit(1).maybeSingle())
@@ -594,6 +594,52 @@ async function addEntity(admin: Admin, ctx: AgentContext, order: DirectorOrderRo
   const first = created ? `Ho aggiunto ${entity.name} a Tourism Intelligence.` : `${entity.name} era già in Tourism Intelligence.`
   if (!activated.ok) return { status: 'waiting_you', outputs: [], queued: [], reply: `${first} ${activated.reply} ${link}` }
   return { status: 'done', outputs: [], queued: [], reply: `${first} ${activated.note} ${link}` }
+}
+
+const ENTITY_COLUMNS = 'id,name,kind,status,website,email,phone,country_code,type_code,aliases,disabled,version'
+
+/**
+ * L'ente nel catalogo Tourism: ritrovato per nome, oppure inserito non verificato
+ * (lo verifica poi l'attivazione, con le prove del sito). Un archiviato non si riusa.
+ */
+async function ensureCatalogEntity(admin: Admin, userId: string, orderId: string,
+  input: { name: string; country_code: string; type_code: string; website: string | null }): Promise<{ entity: ActivationEntity; created: boolean } | { reply: string }> {
+  const existing = await findEntity(admin, userId, [input.name])
+  if (existing) return { entity: existing, created: false }
+  const row = { user_id: userId, kind: 'organization', name: input.name, country_code: input.country_code, type_code: input.type_code,
+    website: input.website, details: { acquisition: { source: 'office_director', order_id: orderId } } }
+  const inserted = await admin.from('tourism_entities').insert(row).select(ENTITY_COLUMNS).single()
+  if (!inserted.error) return { entity: inserted.data, created: true }
+  if ((inserted.error as { code?: string }).code !== '23505') throw inserted.error
+  // Stesso nome e paese già nel catalogo (magari archiviato): si riusa quello.
+  const same = checked(await admin.from('tourism_entities').select(ENTITY_COLUMNS).eq('user_id', userId).eq('kind', 'organization')
+    .eq('country_code', input.country_code).eq('name_key', nameKey(input.name)).maybeSingle()) as ActivationEntity | null
+  if (!same) return { reply: `Non sono riuscito ad aggiungere ${input.name} al catalogo.` }
+  if (same.disabled || same.status === 'INACTIVE' || same.status === 'DUPLICATE') return { reply: `${same.name} c’è già nel catalogo ma è archiviato: riattivalo dalla scheda Tourism.` }
+  return { entity: same, created: false }
+}
+
+/** Il paese di un contatto del CRM come codice ISO, se si riconosce. */
+function countryCode(value: string | null | undefined): string | null {
+  const text = (value || '').trim()
+  if (/^[A-Za-z]{2}$/.test(text)) return text.toUpperCase()
+  if (!text) return null
+  const names = new Intl.DisplayNames(['it'], { type: 'region' })
+  const english = new Intl.DisplayNames(['en'], { type: 'region' })
+  const wanted = nameKey(text)
+  for (let a = 65; a <= 90; a++) for (let b = 65; b <= 90; b++) {
+    const code = String.fromCharCode(a, b)
+    try { if ([names.of(code), english.of(code)].some((n) => n && n !== code && nameKey(n) === wanted)) return code } catch { /* codice inesistente */ }
+  }
+  return null
+}
+
+/** Il paese dal dominio nazionale dell'email («@sibiu-turism.ro» → RO). I domini generici non dicono niente. */
+export function emailCountry(email: string | null | undefined): string | null {
+  const tld = /@[^@\s]+\.([a-z]{2})$/i.exec((email || '').trim())?.[1]?.toUpperCase()
+  if (!tld || ['EU', 'IO', 'AI', 'CO', 'ME', 'TV', 'FM', 'LY', 'AC', 'TO', 'GG', 'SH', 'WS', 'CC', 'NU'].includes(tld)) return null
+  const code = tld === 'UK' ? 'GB' : tld
+  try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(code) !== code ? code : null } catch { return null }
 }
 
 function countryName(code: string) {

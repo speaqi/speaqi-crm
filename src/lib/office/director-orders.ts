@@ -28,7 +28,8 @@ export type DirectorOrderPlan =
       category: ContactCategory; category_reason: string; brief: string | null; card_text: string | null }
   | { intent: 'build_map'; city: string; slug: string; source: string | null }
   | { intent: 'check_map'; city: string; slug: string }
-  | { intent: 'presentation'; targets: string[]; count: number | null; audience: PresentationAudience; brief: string | null; city: string | null; skipped: string[] }
+  | { intent: 'presentation'; targets: string[]; count: number | null; audience: PresentationAudience; brief: string | null; city: string | null; skipped: string[]
+      country_code: string | null; type_code: string | null }
   | { intent: 'find_partners'; city: string; count: number; brief: string | null }
   | { intent: 'add_entity'; name: string; country_code: string; type_code: string; city: string | null; website: string | null }
   | { intent: 'help' }
@@ -76,7 +77,7 @@ export function directorOrderPrompt(text: string, images: number, today: string)
     '  category: destinazione = ente del turismo, DMO, comune, consorzio, regione; partner = hotel, agenzia viaggi, tour operator, compagnia di navigazione, chi distribuisce le guide; agenzia = cliente che vuole un sito, branding, SEO, software, AI, marketing; cliente_mappe = attività che vuole comparire in una mappa; dubbio = non si capisce.',
     '- build_map: costruire una mappa di una città (di solito da una Google My Maps). city = la città, map_link = il link solo se c’è nel testo.',
     '- check_map: controllare la qualità della mappa di una città. city = la città.',
-    '- presentation: preparare una o più presentazioni per enti, destinazioni, partner o clienti, oppure mandare foto per una presentazione («foto per la presentazione di Bibione»). targets = i nomi come scritti, uno per voce (al massimo 5); count = quante presentazioni chiede se dice un numero senza nomi («preparami 5 presentazioni di destinazioni»), altrimenti null; audience = partner se sono per un hotel, un’agenzia, un tour operator, una compagnia o un altro partner che distribuisce le guide, destinazione se per un ente del turismo, una DMO, un comune; brief = cosa chiede; city = la città o il territorio se è detto o è nel nome («Visit Bergamo» → Bergamo; per un partner, la città della guida che gli proponiamo). Foto di luoghi mandate con un ordine di presentazione sono foto per le slide, non un contatto.',
+    '- presentation: preparare una o più presentazioni per enti, destinazioni, partner o clienti, oppure mandare foto per una presentazione («foto per la presentazione di Bibione»). targets = i nomi degli enti o delle aziende come scritti, uno per voce (al massimo 5): se l’ordine nomina una persona e la sua organizzazione («Simina Manea, Sibiu County Tourism Association») il target è l’organizzazione, non la persona; count = quante presentazioni chiede se dice un numero senza nomi («preparami 5 presentazioni di destinazioni»), altrimenti null; audience = partner se sono per un hotel, un’agenzia, un tour operator, una compagnia o un altro partner che distribuisce le guide, destinazione se per un ente del turismo, una DMO, un comune; brief = cosa chiede; city = la città o il territorio se è detto o è nel nome («Visit Bergamo» → Bergamo, «Sibiu County Tourism Association» → Sibiu; per un partner, la città della guida che gli proponiamo); country_code ed entity_type dell’ente se li sai (servono ad aggiungerlo a Tourism Intelligence se non c’è). Foto di luoghi mandate con un ordine di presentazione sono foto per le slide, non un contatto.',
     '- find_partners: trovare potenziali partner (hotel, agenzie, tour operator, compagnie, chi può distribuire le guide) per la mappa o la guida di una città. city = la città, count = quanti ne chiede (null se non lo dice), brief = che tipo di partner, se è detto.',
     '- add_entity: aggiungere un ente (ente del turismo, ufficio nazionale, DMO, comune, operatore) a Tourism Intelligence e ai contatti. target = il nome come scritto, country_code = il codice ISO a due lettere del paese (Venezuela → VE), entity_type = il tipo (nto = ufficio nazionale del turismo, rto = regionale, dmo, cvb = convention bureau, municipality = comune, tour_operator, travel_agency, cruise_line, ferry_operator…), city = la città o il territorio che l’ente promuove (per un ente nazionale, il paese).',
     '- help: chiede cosa può chiederti, quali comandi esistono, come funzioni.',
@@ -137,6 +138,9 @@ function cleanField(field: ContactField, raw: unknown): string | null {
 
 const DESTINATION_HINT = /\b(turism\w*|touris\w*|visit\s?\w+|dmo|convention bureau|comune|municipio|municipality|ayuntamiento|mairie|city of|consorzio|pro loco|regione|provincia|ente del turismo|office de tourisme|apt|gal)\b/
 const PARTNER_HINT = /\b(hotel|hôtel|albergo|resort|b&b|bed and breakfast|agenzia viaggi|agenzia di viaggi|travel|tour operator|tour operators|crocier\w*|cruise\w*|ferr\w*|traghett\w*|navigazione|dmc|transfer|ncc)\b/
+
+/** Un nome da ente del turismo o da amministrazione: la sua presentazione è Tourism, non agenzia. */
+export const looksLikeTourismBody = (name: string) => DESTINATION_HINT.test(name.toLowerCase())
 
 /** Il modello propone il tipo, il codice lo controlla con regole scritte. */
 export function decideCategory(proposed: unknown, contact: DirectorContact, brief: string | null): { category: ContactCategory; reason: string } {
@@ -199,12 +203,14 @@ export function interpretDirectorOrder(parsed: unknown, input: { text: string; t
     const count = Number.isInteger(raw.count) && raw.count > 0 ? Math.min(MAX_ORDER_PRESENTATIONS, raw.count) : null
     if (!targets.length) {
       if (skipped.length) return { intent: 'unknown', question: 'Napoli resta fuori dal lavoro degli agenti. Per quale altro ente preparo la presentazione?' }
-      if (count && audience === 'destinazione') return { intent, targets: [], count, audience, brief: str(raw.brief, 1000), city: null, skipped }
+      if (count && audience === 'destinazione') return { intent, targets: [], count, audience, brief: str(raw.brief, 1000), city: null, skipped, country_code: null, type_code: null }
       return { intent: 'unknown', question: audience === 'partner'
         ? 'Per quale partner preparo la presentazione? Scrivimi il nome e la città della guida (es. «presentazione partner per Hotel Laguna, Venezia»).'
         : 'Per chi devo preparare la presentazione?' }
     }
-    return { intent, targets, count: null, audience, brief: str(raw.brief, 1000), city, skipped }
+    const code = typeof raw.country_code === 'string' ? raw.country_code.trim().toUpperCase() : ''
+    return { intent, targets, count: null, audience, brief: str(raw.brief, 1000), city, skipped,
+      country_code: /^[A-Z]{2}$/.test(code) ? code : null, type_code: DIRECTOR_ENTITY_TYPES.includes(raw.entity_type) ? raw.entity_type as string : null }
   }
   if (intent === 'find_partners') {
     const city = str(raw.city, 80)
