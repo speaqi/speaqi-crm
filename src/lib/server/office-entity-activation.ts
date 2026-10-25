@@ -9,7 +9,8 @@ type Admin = any
 export type ActivationEntity = EnrichOrg & { version?: number }
 export type ActivationResult =
   | { ok: true; placeId: string | null; contactId: string | null; note: string }
-  | { ok: false; reply: string }
+  /** `need`: il dato che serve al titolare per riprendere (sito o città); `resume`: la frase da completare. */
+  | { ok: false; reply: string; need?: 'site' | 'city'; resume?: string }
 
 const checked = (result: any) => { if (result.error) throw result.error; return result.data }
 const host = (url: string) => new URL(url).hostname.replace(/^www\./, '')
@@ -37,11 +38,13 @@ async function findWebsite(ctx: AgentContext, entity: ActivationEntity, city: st
  * contatto nel CRM). Si ferma solo per chiedere ciò che non può trovare: il sito o la città.
  */
 export async function activateEntityForOrder(admin: Admin, ctx: AgentContext, userId: string, entity: ActivationEntity,
-  input: { orderText: string; proposedCity: string | null },
+  input: { orderText: string; proposedCity: string | null; contactId?: string | null; resume?: string },
   deps: { model?: typeof callModel; fetchPage?: ResearchFetch } = {}): Promise<ActivationResult> {
   const model = deps.model || callModel
+  // La frase che il titolare completa, e che il Direttore riprende quando arriva la risposta.
+  const resume = input.resume || `presentazione per ${entity.name}`
   const city = cityForEntity({ proposed: input.proposedCity, entityName: entity.name, aliases: entity.aliases, orderText: input.orderText })
-  if (!city) return { ok: false, reply: `${entity.name} non è ancora attivo e non capisco di quale città sia l’ente. Scrivimi «presentazione per ${entity.name}, città …» e lo attivo io.` }
+  if (!city) return { ok: false, need: 'city', resume, reply: `${entity.name} non è ancora attivo e non capisco di quale città sia l’ente. Scrivimi la città (o «${resume}, città …») e lo attivo io.` }
 
   const notes: string[] = []
   let website = entity.website || websiteFromText(input.orderText)
@@ -52,11 +55,11 @@ export async function activateEntityForOrder(admin: Admin, ctx: AgentContext, us
       const found = await findWebsite(ctx, entity, city, { model, fetchPage: deps.fetchPage })
       if (found) { website = found.site; pages = found.pages; newSite = found.site; notes.push(`ho trovato il sito ${host(found.site)}`) }
     } catch (error) {
-      if (error instanceof BudgetExceeded) return { ok: false, reply: `Per attivare ${entity.name} devo cercarne il sito, ma il budget di oggi del Direttore è finito. Mandami il sito («presentazione per ${entity.name}, sito …») e riparto.` }
+      if (error instanceof BudgetExceeded) return { ok: false, need: 'site', resume, reply: `Per attivare ${entity.name} devo cercarne il sito, ma il budget di oggi del Direttore è finito. Mandami il sito e riparto da qui.` }
       notes.push(`la ricerca del sito non è riuscita (${errorMessage(error, 'errore')})`)
     }
   } else if (newSite) notes.push(`ho aggiunto il sito ${host(newSite)}`)
-  if (!website) return { ok: false, reply: `${entity.name} non è ancora attivo e non ho trovato il suo sito. Mandamelo («presentazione per ${entity.name}, sito …») e lo attivo io.` }
+  if (!website) return { ok: false, need: 'site', resume, reply: `${entity.name} non è ancora attivo e non ho trovato il suo sito. Mandamelo qui (basta l’indirizzo) e riprendo da dove mi sono fermato.` }
 
   // Il sito si legge per prendere email, telefono e le frasi che fanno da prova.
   let parts: ReturnType<typeof validateEnrichment>['parts'] | null = null
@@ -76,15 +79,16 @@ export async function activateEntityForOrder(admin: Admin, ctx: AgentContext, us
   }
 
   const result = checked(await admin.rpc('tourism_activate', { p_user_id: userId, p_entity_id: entity.id, p_payload: {
-    origin: 'director', city, website: newSite,
+    origin: 'director', city, website: newSite, ...(input.contactId ? { contact_id: input.contactId } : {}),
     email: parts?.fill.email || null, phone: parts?.fill.phone || null,
     identity: parts?.identity || null,
     coverage: parts?.coverage ? { source_url: parts.coverage.source_url, quote: parts.coverage.quote, relation: parts.coverage.relation } : null,
-  } })) as { place_id: string | null; contact_id: string | null; contact_created: boolean; crm_error: string | null; filled: string[] }
+  } })) as { place_id: string | null; contact_id: string | null; contact_created: boolean; contact_linked?: boolean; crm_error: string | null; filled: string[] }
   if (result.filled?.includes('email')) notes.push(`ho aggiunto l’email ${parts?.fill.email}`)
   else if (!entity.email) notes.push('email non trovata sul sito')
   const crm = crmErrorText(result.crm_error)
-  notes.push(crm ? `non l’ho aggiunto ai contatti: ${crm}` : result.contact_created ? 'l’ho aggiunto ai contatti' : 'era già nei contatti')
+  notes.push(crm ? `non l’ho aggiunto ai contatti: ${crm}` : result.contact_created ? 'l’ho aggiunto ai contatti'
+    : result.contact_linked ? 'l’ho collegato al contatto che c’era già' : 'era già nei contatti')
   return { ok: true, placeId: result.place_id, contactId: result.contact_id, note: `Ho attivato ${entity.name} (${city}): ${notes.join(', ')}.` }
 }
 

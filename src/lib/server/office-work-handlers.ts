@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import type { OfficeWorkItem, OfficeWorkSpec, WorkOutcome } from '../office-work'
-import { DIRECTOR_ORDER_SCHEMA, directorOrderPrompt, interpretDirectorOrder, type DirectorOrderPlan } from '../office/director-orders'
+import { DIRECTOR_ORDER_SCHEMA, directorFollowUp, directorOrderPrompt, interpretDirectorOrder, type DirectorOrderPlan } from '../office/director-orders'
 import { officeRomeDay } from '../office/finance'
 import { officeMapSlot } from '../office/maps'
 import { officeIsNaples } from '../office/director'
 import { cityForEntity, websiteFromText } from '../office/entity-activation'
 import { callModel, officeModelKey, type AgentContext, type AgentHandler } from './office-agents'
-import { executePlan, findEntity, orderImages, type DirectorOrderRow } from './office-director-orders'
+import { DESTINATION_TYPES, ensureCatalogEntity, executePlan, findEntity, orderImages, pendingDirectorQuestion, type DirectorOrderRow } from './office-director-orders'
 import { officeAgentHandler } from './office-agents/registry'
 import { myMapsHandler } from './office-agents/mymaps'
 import { mapsQualityHandler } from './office-agents/maps-quality'
@@ -50,6 +50,29 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
   const text = typeof work.payload.text === 'string' ? work.payload.text : order.text
   const currentOrder = { ...order, text }
   const now = deps.now?.() || new Date()
+  if (!work.checkpoint?.plan && !order.attachments?.length && order.created_at) {
+    const pending = await pendingDirectorQuestion(admin, work.user_id, { source: order.source,
+      chatId: order.telegram_chat_id, before: order.created_at, now })
+    const resumedText = pending && directorFollowUp(pending.awaiting, text)
+    if (resumedText) {
+      const verification = pending.awaiting.need === 'site' && websiteFromText(text)
+        ? checked(await admin.from('office_work_items').select('id,revision').eq('user_id', work.user_id)
+          .eq('order_id', pending.id).eq('action', 'verify_tourism_entity').eq('status', 'blocked').maybeSingle()) : null
+      const previous = verification || checked(await admin.from('office_work_items').select('id,revision').eq('user_id', work.user_id)
+        .eq('order_id', pending.id).eq('action', 'interpret_order').eq('status', 'blocked').maybeSingle())
+      if (previous) {
+        const resumed = checked(await admin.rpc('office_work_owner_action', { p_user_id: work.user_id, p_work_id: previous.id,
+          p_action: 'update_payload', p_patch: { expected_revision: previous.revision,
+            payload: verification ? { website: websiteFromText(text) } : { text: resumedText } } }))
+        if (!resumed?.work) return blockedWork('Il lavoro della domanda è cambiato.', 'Aggiorna il lavoro originale prima di riprendere.', 'Titolare', 'revision_conflict')
+        checked(await admin.from('office_director_orders').update({ interpretation: { resumed_from: pending.id, resumed_work_id: previous.id } })
+          .eq('id', order.id).eq('user_id', work.user_id))
+        return { status: 'succeeded', phase: 'result_saved', close_plan: true,
+          result: { resumed_order_id: pending.id, resumed_work_id: previous.id },
+          result_summary: 'Risposta collegata al lavoro originale: il Direttore riprende da lì.' }
+      }
+    }
+  }
   let plan: DirectorOrderPlan
   const saved = work.checkpoint?.payload_version === work.payload_version ? work.checkpoint?.plan : null
   if (saved) plan = saved as DirectorOrderPlan
@@ -77,27 +100,67 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
   let children: OfficeWorkSpec[] = []
   if (plan.intent === 'build_map') children = [child('mymaps_builder', 'import_mymaps', { slug: plan.slug, city: plan.city, source: plan.source }, 'map')]
   if (plan.intent === 'check_map') children = [child('maps_quality', 'check_map', { slug: plan.slug, city: plan.city }, 'quality')]
-  if (plan.intent === 'presentation') {
-    const entity = await findEntity(admin, work.user_id, [plan.target])
-    if (!entity) return blockedWork(`Non trovo un ente univoco per «${plan.target}» nel catalogo Tourism.`, 'Indica l’ente del catalogo o collega il contatto all’ente, poi riprendi questo lavoro.', 'Titolare', 'entity_missing')
-    const city = typeof work.payload.city === 'string' ? work.payload.city : cityForEntity({ proposed: plan.city || null,
-      entityName: entity.name, orderText: text })
-    if (officeIsNaples(entity.name, city)) return blockedWork('Napoli è esclusa dal lavoro degli agenti.', 'Scegli una destinazione diversa nello stesso incarico.', 'Titolare', 'protected_destination')
-    // Anche un'etichetta VERIFIED priva di prove non aggira la verifica puntuale.
-    const verifyId = randomUUID()
-    const verify: OfficeWorkSpec = { ...child('entity_enricher', 'verify_tourism_entity', {
-      entity_id: entity.id, city, website: websiteFromText(text) || entity.website || null, order_text: text,
-    }, 'verify'), id: verifyId }
-    const presentation: OfficeWorkSpec = { ...child('presentations', 'prepare_presentation', { entity_id: entity.id, city }, 'presentation'),
-      status: 'waiting', depends_on: [verifyId] }
-    children = [verify, presentation]
+  if (plan.intent === 'presentation' && plan.audience !== 'partner') {
+    let targets = plan.targets
+    if (!targets.length && plan.count) {
+      const decks = checked(await admin.from('tourism_decks').select('entity_id').eq('user_id', work.user_id)) || []
+      const done = new Set(decks.map((deck: any) => deck.entity_id))
+      const candidates = checked(await admin.from('tourism_entities').select('id,name,website,aliases,type_code,status,outreach_priority')
+        .eq('user_id', work.user_id).eq('kind', 'organization').eq('disabled', false)
+        .in('type_code', DESTINATION_TYPES)
+        .in('status', ['VERIFIED', 'UNVERIFIED', 'NEEDS_REVIEW'])
+        .order('outreach_priority', { ascending: true }).limit(200)) || []
+      targets = candidates.filter((entity: any) => !done.has(entity.id) && entity.website && !officeIsNaples(entity.name)
+        && cityForEntity({ proposed: null, entityName: entity.name, aliases: entity.aliases, orderText: '' }))
+        .slice(0, plan.count).map((entity: any) => entity.name)
+      if (!targets.length) return blockedWork('Non trovo destinazioni con fonte e città da proporre.', 'Indica un ente e la destinazione nello stesso lavoro.', 'Titolare', 'entity_missing')
+    }
+    for (const [index, target] of targets.entries()) {
+      let entity = await findEntity(admin, work.user_id, [target])
+      if (!entity && plan.country_code) {
+        await checkpoint(admin, work, { phase: 'effect_started' })
+        const found = await ensureCatalogEntity(admin, work.user_id, order.id, { name: target,
+          country_code: plan.country_code, type_code: plan.type_code || 'dmo', website: null })
+        if ('entity' in found) entity = { ...found.entity, kind: 'organization' }
+        await checkpoint(admin, work, { phase: 'planned' })
+      }
+      if (!entity) {
+        checked(await admin.from('office_director_orders').update({ interpretation: { ...plan,
+          awaiting: { need: 'country', resume: `presentazione per ${target}${plan.city ? `, ${plan.city}` : ''}` } } })
+          .eq('id', order.id).eq('user_id', work.user_id))
+        return blockedWork(`Non trovo un ente univoco per «${target}» nel catalogo Tourism. Specifica il paese per aggiungerlo.`, 'Rispondi con il paese oppure indica l’ente del catalogo nello stesso lavoro.', 'Titolare', 'entity_missing')
+      }
+      const city = typeof work.payload.city === 'string' ? work.payload.city : cityForEntity({ proposed: plan.city || null,
+        entityName: entity.name, orderText: text })
+      if (!city) {
+        checked(await admin.from('office_director_orders').update({ interpretation: { ...plan,
+          awaiting: { need: 'city', resume: `presentazione per ${target}` } } }).eq('id', order.id).eq('user_id', work.user_id))
+        return blockedWork('Per quale città preparo la presentazione?', 'Rispondi con la città oppure completa il testo dello stesso lavoro.', 'Titolare', 'needs_information')
+      }
+      if (officeIsNaples(entity.name, city)) return blockedWork('Napoli è esclusa dal lavoro degli agenti.', 'Scegli una destinazione diversa nello stesso incarico.', 'Titolare', 'protected_destination')
+      // Anche un'etichetta VERIFIED priva di prove non aggira la verifica puntuale.
+      const verifyId = randomUUID()
+      const verify: OfficeWorkSpec = { ...child('entity_enricher', 'verify_tourism_entity', {
+        entity_id: entity.id, city, website: websiteFromText(text) || entity.website || null, order_text: text,
+      }, `verify:${index}`), id: verifyId }
+      const presentation: OfficeWorkSpec = { ...child('presentations', 'prepare_presentation', { entity_id: entity.id, city,
+        ...(targets.length === 1 ? { photos: (order.attachments || []).map((item) => item.path) } : {}) }, `presentation:${index}`),
+        status: 'waiting', depends_on: [verifyId] }
+      children.push(verify, presentation)
+    }
   }
   if (children.length) return { status: 'succeeded', phase: 'result_saved', close_plan: true, children,
     result: { intent: plan.intent, assigned: children.map((item) => ({ agent: item.agent_id, action: item.action })) },
     result_summary: 'Ordine compreso. I lavori sono registrati e verranno seguiti fino al risultato.' }
 
   // Riutilizza risposte deterministiche, To Do idempotenti e proposta contatto, senza vecchi avvii.
+  await checkpoint(admin, work, { phase: 'effect_started' })
   const outcome = await executePlan(admin, ctx, currentOrder, plan, now)
+  if (outcome.status === 'waiting_you' && !outcome.outputs.length) {
+    if (outcome.awaiting) checked(await admin.from('office_director_orders').update({ interpretation: { ...plan, awaiting: outcome.awaiting } })
+      .eq('id', order.id).eq('user_id', work.user_id))
+    return { ...blockedWork(outcome.reply, 'Rispondi alla domanda del Direttore oppure completa il testo dello stesso lavoro.', 'Titolare', 'needs_information'), phase: 'result_saved' }
+  }
   if (outcome.status === 'waiting_you') return { status: 'waiting_owner', phase: 'result_saved', close_plan: true,
     output_ids: outcome.outputs, approval_output_id: outcome.outputs[0] || null, result_summary: outcome.reply,
     reason: outcome.reply, reason_code: 'approval_required', required_action: 'Leggi e decidi la proposta collegata.', responsible: 'Titolare', next_check_at: null }

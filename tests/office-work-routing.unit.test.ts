@@ -8,6 +8,7 @@ import type { AgentContext, callModel } from '../src/lib/server/office-agents'
 import type { OfficeWorkItem } from '../src/lib/office-work'
 import { FakeSupabase } from './fake-supabase'
 import { officeMapSlot } from '../src/lib/office/maps'
+import { decideOfficeOutput } from '../src/lib/server/office-output-decision'
 
 const OWNER = '11111111-1111-4111-8111-111111111111'
 const ORDER = '22222222-2222-4222-8222-222222222222'
@@ -23,6 +24,69 @@ function work(patch: Partial<OfficeWorkItem> = {}): OfficeWorkItem {
     lease_token: ORDER, lease_until: '2026-10-25T12:01:30Z', attempt_count: 1, max_attempts: 5, last_run_id: null,
     revision: 1, created_at: '2026-10-25T12:00:00Z', updated_at: '2026-10-25T12:00:00Z', ...patch }
 }
+
+test('merge comandi: più destinazioni generano verifiche e presentazioni dipendenti distinte', async () => {
+  const db = new FakeSupabase({ office_director_orders: [{ id: ORDER, user_id: OWNER, text: 'presentazioni Marsiglia e Lione', attachments: [] }],
+    tourism_entities: ['Marsiglia', 'Lione'].map((name, index) => ({ id: `entity-${index}`, user_id: OWNER, kind: 'organization',
+      name: `Visit ${name}`, disabled: false, status: 'UNVERIFIED', website: null })) }, { office_work_transition: () => ({}) })
+  const answer = await interpretOrderWork(context(), work({ checkpoint: { payload_version: 1, plan: { intent: 'presentation',
+    targets: ['Visit Marsiglia', 'Visit Lione'], audience: 'destinazione', city: null, count: null, skipped: [] } } }), db)
+  assert.equal(answer.status, 'succeeded')
+  assert.equal(answer.children?.length, 4)
+  assert.equal(answer.children![1].depends_on![0], answer.children![0].id)
+  assert.equal(answer.children![3].depends_on![0], answer.children![2].id)
+  assert.notEqual(answer.children![0].source_key, answer.children![2].source_key)
+})
+
+test('merge domande: la risposta corregge il lavoro originale senza una nuova interpretazione a pagamento', async () => {
+  const before = process.env.OFFICE_WORKER_ENABLED
+  process.env.OFFICE_WORKER_ENABLED = 'true'
+  const previous = '33333333-3333-4333-8333-333333333333'
+  const db = new FakeSupabase({ office_director_orders: [
+    { id: previous, user_id: OWNER, source: 'web', status: 'blocked', created_at: '2026-10-25T10:00:00Z', updated_at: '2026-10-25T10:00:00Z',
+      interpretation: { awaiting: { need: 'country', resume: 'presentazione per Visit Marseille' } } },
+    { id: ORDER, user_id: OWNER, source: 'web', status: 'received', text: 'Francia', created_at: '2026-10-25T10:01:00Z', attachments: [] }],
+    office_work_items: [{ id: 'original-work', user_id: OWNER, order_id: previous, action: 'interpret_order', status: 'blocked', revision: 3 }],
+  }, { office_work_owner_action: ({ p_work_id, p_patch }) => {
+    assert.equal(p_work_id, 'original-work')
+    assert.equal(p_patch.expected_revision, 3)
+    assert.match(p_patch.payload.text, /Visit Marseille.*Francia/)
+    return { work: { id: p_work_id, status: 'ready' } }
+  } })
+  try {
+    const result = await interpretOrderWork(context(), work(), db, { now: () => new Date('2026-10-25T10:02:00Z') })
+    assert.equal(result.status, 'succeeded')
+    assert.equal(result.result?.resumed_work_id, 'original-work')
+    assert.equal(db.calls.length, 1)
+    db.tables.office_director_orders.find((row) => row.id === ORDER)!.status = 'done'
+    const second = '44444444-4444-4444-8444-444444444444'
+    db.tables.office_director_orders.push({ id: second, user_id: OWNER, source: 'web', status: 'received', text: 'Francia',
+      created_at: '2026-10-25T10:03:00Z', attachments: [] })
+    const another = await interpretOrderWork(context(), work({ order_id: second }), db, { now: () => new Date('2026-10-25T10:04:00Z') })
+    assert.equal(another.result?.resumed_work_id, 'original-work')
+  } finally { if (before === undefined) delete process.env.OFFICE_WORKER_ENABLED; else process.env.OFFICE_WORKER_ENABLED = before }
+})
+
+test('merge Telegram: il servizio comune delle decisioni usa la transazione dei lavori', async () => {
+  const before = process.env.OFFICE_WORKER_ENABLED
+  process.env.OFFICE_WORKER_ENABLED = 'true'
+  const db = new FakeSupabase({}, { office_work_decide_output: () => ({ output: { id: 'proposal', status: 'rejected' } }) })
+  try {
+    assert.equal((await decideOfficeOutput(db, OWNER, 'proposal', 'rejected')).ok, true)
+    assert.deepEqual(db.calls.map((call) => call.rpc), ['office_work_decide_output'])
+  } finally { if (before === undefined) delete process.env.OFFICE_WORKER_ENABLED; else process.env.OFFICE_WORKER_ENABLED = before }
+})
+
+test('merge comandi: una domanda senza proposta resta correggibile e non attende un’approvazione inesistente', async () => {
+  const db = new FakeSupabase({ office_director_orders: [{ id: ORDER, user_id: OWNER, text: 'presentazione partner per Hotel', attachments: [] }] },
+    { office_work_transition: () => ({}) })
+  const result = await interpretOrderWork(context(), work({ checkpoint: { payload_version: 1, plan: { intent: 'presentation',
+    targets: ['Hotel'], audience: 'partner', city: null, count: null, skipped: [] } } }), db)
+  assert.equal(result.status, 'blocked')
+  assert.equal(result.phase, 'result_saved')
+  assert.equal(result.reason_code, 'needs_information')
+  assert.equal(result.approval_output_id, undefined)
+})
 
 test('schema non ancora applicato: ordine salvato e riprendibile senza lavoro volatile', async () => {
   const before = process.env.OFFICE_WORKER_ENABLED

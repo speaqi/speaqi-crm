@@ -1,8 +1,8 @@
 import { TourismInputError } from '../tourism'
 import { DECK_BUCKET } from './tourism-deck-assets'
-import type { DeckRow } from './tourism-decks'
+import { deckRenderKey, type DeckRow } from './tourism-decks'
 
-// PDF di una presentazione approvata: Chromium apre la pagina pubblica e la stampa,
+// PDF di una presentazione (approvata o ancora in revisione): Chromium apre la pagina pubblica e la stampa,
 // una pagina 16:9 per slide. Chromium è quello di @sparticuz/chromium (un binario
 // autonomo, niente apt: sull'immagine Ubuntu di Railway `apt chromium` è solo uno
 // stub di snap). Un PDF per versione si salva su Storage: si genera una volta sola.
@@ -56,13 +56,22 @@ async function doRender(url: string): Promise<Buffer> {
 
 export const deckPdfPath = (row: Pick<DeckRow, 'user_id' | 'id' | 'version'>) => `${row.user_id}/${row.id}/deck-v${row.version}.pdf`
 
-/** La pagina che Chromium stampa: quella pubblica, sullo stesso server (sempre raggiungibile, anche dietro il dominio). */
-export const internalDeckUrl = (token: string) => `http://127.0.0.1:${process.env.PORT || 3000}/presentazione/${token}`
+/**
+ * La pagina che Chromium stampa: quella pubblica, sullo stesso server (sempre raggiungibile,
+ * anche dietro il dominio). Una bozza si apre solo con la chiave di render della sua versione.
+ */
+export function internalDeckUrl(row: Pick<DeckRow, 'public_token' | 'status' | 'version'>) {
+  const base = `http://127.0.0.1:${process.env.PORT || 3000}/presentazione/${row.public_token}`
+  if (row.status === 'approved') return base
+  const key = deckRenderKey(row.public_token, row.version)
+  if (!key) throw new TourismInputError('Per scaricare in PDF una presentazione non approvata serve AGENCY_RENDER_SECRET (o SUPABASE_SERVICE_ROLE_KEY) sul server. In alternativa approvala.')
+  return `${base}?render=${key}`
+}
 
 const inflight = new Map<string, Promise<Buffer>>()
 
 /**
- * Il PDF della versione approvata: dalla cache su Storage, o generato e salvato.
+ * Il PDF di una versione: dalla cache su Storage, o generato e salvato.
  * Una richiesta sola per file anche con cento aperture insieme; una modifica alla
  * presentazione (versione nuova) fa nascere un file nuovo e toglie i vecchi.
  */
@@ -71,14 +80,15 @@ export function getOrCreateDeckPdf(
   row: DeckRow,
   render: (url: string) => Promise<Buffer> = renderPdf
 ): Promise<Buffer> {
-  if (row.status !== 'approved') return Promise.reject(new TourismInputError('Approva la presentazione prima di generare il PDF'))
+  // Anche una bozza: il PDF è di chi lavora, il link pubblico resta chiuso finché non si approva.
+  if (row.status === 'generating') return Promise.reject(new TourismInputError('L’agente sta ancora lavorando alla presentazione: riprova tra poco'))
   const path = deckPdfPath(row)
   const pending = inflight.get(path)
   if (pending) return pending
   const job = (async () => {
     const cached = await service.storage.from(DECK_BUCKET).download(path)
     if (cached.data && !cached.error) return Buffer.from(await cached.data.arrayBuffer())
-    const pdf = await render(internalDeckUrl(row.public_token))
+    const pdf = await render(internalDeckUrl(row))
     if (pdf.subarray(0, 4).toString() !== '%PDF') throw new Error('Il PDF generato non è valido')
     const up = await service.storage.from(DECK_BUCKET).upload(path, pdf, { contentType: 'application/pdf', upsert: true })
     if (up.error) throw up.error

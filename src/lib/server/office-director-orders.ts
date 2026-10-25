@@ -1,5 +1,11 @@
-import { randomUUID } from 'node:crypto'
-import { callModel, runAgent, type AgentContext } from './office-agents'
+import { createHash, randomUUID } from 'node:crypto'
+import { BudgetExceeded, callModel, runAgent, type AgentContext } from './office-agents'
+import { officeIsNaples } from '../office/director'
+import { EXONYMS, nameKey } from '../office/entity-enricher'
+import { TOURISM_TYPES } from '../tourism'
+import { readEntitySite } from './office-agents/entity-enricher'
+import { officeDeckAgent } from './office-agents/presentations'
+import { sendDeckToTelegram } from './office-deck-telegram'
 import { officeAgentHandler } from './office-agents/registry'
 import { officeRows } from './office-read'
 import { createLeadFromInput } from './lead-ops'
@@ -7,16 +13,27 @@ import { loadDirectorPlan } from './opportunities'
 import { directorPlanBrief } from '../office/director-plan'
 import { photoForModel, sniffUpload, safeFileName } from './tourism-deck-assets'
 import { errorMessage } from './http'
-import { normalizeForSearch, searchPattern } from '../command-center'
+import { searchPattern } from '../command-center'
 import { officeRomeDay } from '../office/finance'
 import {
   CONTACT_CATEGORY_LABELS, DIRECTOR_ORDER_SCHEMA, contactNextStep, directorOrderPrompt, directorStatusLines,
-  directorEventsReply, interpretDirectorOrder, queuedWorkReport, type DirectorEventRow, type DirectorOrderPlan, type QueuedWork,
+  directorEventsReply, directorInvoiceReply, directorQuoteLabel, interpretDirectorOrder, queuedWorkReport, quoteIsInvoiceable,
+  directorHelpText, emailFromSite, looksLikeTourismBody, parsePartnerSearch, partnerSearchPrompt, PARTNER_SEARCH_SCHEMA, PARTNER_TYPE_CODES,
+  directorTaskDue, directorTaskReply, directorFollowUp, readAwaiting, AWAITING_TTL_MS,
+  type DirectorAwaiting, type DirectorEventRow, type DirectorInvoiceQuote, type DirectorOrderPlan, type DirectorTaskItem, type DirectorTaskOutcome, type QueuedWork,
 } from '../office/director-orders'
+import { addTaskToCalendar } from './gcal'
 import { sendNotificationText } from './whatsapp'
 import { createServiceRoleClient } from './supabase'
 import { activateEntityForOrder, verifiedDestination, type ActivationEntity } from './office-entity-activation'
 import { enqueueOfficeWork, missingWorkSchema, officeWorkEnabled, QUEUE_WORK_ACTION } from './office-work-routing'
+import { cityForEntity, compactName, entitySearchPattern, pickOrderEntity, siteMatchesEntity, websiteFromText } from '../office/entity-activation'
+import { DIRECTOR_BUCKET, directorPhotoFiles } from './office-director-photos'
+import { addPhotosToDeck, createDeck, generateIntoDeck, type DeckRow } from './tourism-decks'
+
+const TOURISM_TYPE_LABEL = (code: string | null) => (code && (TOURISM_TYPES as Record<string, string>)[code])
+  || (code === 'accommodation' ? 'Struttura ricettiva' : code === 'transport' ? 'Trasporti' : 'Operatore')
+import { createInvoiceDraftFromQuote, invoiceProblems, loadInvoiceSettings } from './invoices'
 
 /**
  * Ordini al Direttore. Tre garanzie da non smontare:
@@ -28,7 +45,7 @@ import { enqueueOfficeWork, missingWorkSchema, officeWorkEnabled, QUEUE_WORK_ACT
  *    se il loro interruttore è acceso.
  */
 
-export const DIRECTOR_BUCKET = 'office-director'
+export { DIRECTOR_BUCKET }
 export const MAX_ORDER_FILES = 4
 export const MAX_ORDER_FILE_BYTES = 8 * 1024 * 1024
 const ORDER_MODEL_OUTPUT_TOKENS = 1500
@@ -219,14 +236,14 @@ export async function reportQueuedWork(admin: Admin, userId: string, orderId: st
 
 export async function findEntity(admin: Admin, userId: string, names: Array<string | null>) {
   for (const name of names) {
-    const pattern = name ? searchPattern(name) : null
+    const pattern = name ? entitySearchPattern(name) : null
     if (!pattern) continue
+    // Archiviati e doppioni fuori già dalla query: altrimenti occupano i posti del limite.
     const { data, error } = await admin.from('tourism_entities').select('id,name,kind,status,website,email,phone,country_code,type_code,aliases,disabled,version').eq('user_id', userId)
-      .eq('kind', 'organization').ilike('name', pattern).limit(5)
+      .eq('kind', 'organization').eq('disabled', false).not('status', 'in', '(INACTIVE,DUPLICATE)').ilike('name', pattern).limit(10)
     if (error) throw error
-    const exact = (data || []).filter((row: { name: string }) => normalizeForSearch(row.name) === normalizeForSearch(name!))
-    const pick = exact.length === 1 ? exact[0] : (data || []).length === 1 ? data[0] : null
-    if (pick) return pick as ActivationEntity & { kind: string }
+    const pick = pickOrderEntity((data || []) as Array<ActivationEntity & { kind: string }>, name!)
+    if (pick) return pick
   }
   return null
 }
@@ -237,17 +254,451 @@ export async function findEntity(admin: Admin, userId: string, names: Array<stri
  * l'ordine del titolare è l'autorizzazione. Si ferma solo per chiedere il sito o la città.
  */
 async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, entity: ActivationEntity,
-  plan: Extract<DirectorOrderPlan, { intent: 'presentation' }>, orderText: string, label: string): Promise<Outcome> {
+  plan: Extract<DirectorOrderPlan, { intent: 'presentation' }>, orderText: string, label: string, photos: string[] = [], contactId: string | null = null): Promise<Outcome> {
   let destination = entity.status === 'VERIFIED' ? await verifiedDestination(admin, userId, entity.id) : null
   let note = ''
   if (!destination) {
-    const activated = await activateEntityForOrder(admin, ctx, userId, entity, { orderText, proposedCity: plan.city })
-    if (!activated.ok) return { status: 'waiting_you', outputs: [], queued: [], reply: activated.reply }
+    const activated = await activateEntityForOrder(admin, ctx, userId, entity, { orderText, proposedCity: plan.city, contactId })
+    if (!activated.ok) return { status: 'waiting_you', outputs: [], queued: [], reply: activated.reply, awaiting: awaitingOf(activated) }
     destination = activated.placeId
     note = `${activated.note} `
   }
-  const result = await queueForAgent(admin, userId, 'presentations', { key: `presentation:${entity.id}`, entity_id: entity.id, ...(destination ? { destination_id: destination } : {}) })
-  return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `Presentazione per ${label}: ${note}${queueSentence(result)}` }
+  if (!photos.length) {
+    // C'è già una presentazione pronta per questo ente: non si rifà, si manda.
+    const ready = checked(await admin.from('tourism_decks').select('*').eq('user_id', userId).eq('entity_id', entity.id)
+      .in('status', ['ready', 'approved', 'failed']).order('updated_at', { ascending: false }).limit(1).maybeSingle()) as DeckRow | null
+    if (ready) {
+      const sent = await sendDeckToTelegram(admin, ready)
+      const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+      return { status: 'done', outputs: [], queued: [], reply: `Presentazione per ${label}: c’è già, «${ready.title}»${sent.pdf ? ', te l’ho mandata qui in PDF' : ''}. ${note}Per rifarla da capo usa «Rigenera» nell’editor: ${base}/tourism/presentazioni/${ready.id}` }
+    }
+  }
+  if (photos.length) {
+    // Le foto mandate col comando sono della presentazione: se esiste già, ci vanno adesso.
+    const existing = checked(await admin.from('tourism_decks').select('*').eq('user_id', userId).eq('entity_id', entity.id)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle()) as DeckRow | null
+    if (existing) {
+      const files = await directorPhotoFiles(admin, userId, photos)
+      const { deck, added, skipped } = await addPhotosToDeck(admin, admin, existing, files)
+      const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+      const extra = skipped ? ` ${skipped === 1 ? 'Una foto è rimasta fuori' : `${skipped} foto sono rimaste fuori`}: la presentazione ne tiene al massimo 8.` : ''
+      const review = existing.status === 'approved' && added ? ' Era approvata: è tornata in revisione, riapprovala dopo averla guardata.' : ''
+      return { status: added ? 'done' : 'failed', outputs: [], queued: [], reply: added
+        ? `Presentazione per ${label}: ${note}ho aggiunto ${added === 1 ? 'la foto' : `${added} foto`} a «${deck.title}», al posto di quelle di esempio.${review}${extra} ${base}/tourism/presentazioni/${deck.id}`
+        : `Presentazione per ${label}: non sono riuscito ad aggiungere le foto a «${existing.title}».${extra}` }
+    }
+  }
+  const result = await queueForAgent(admin, userId, 'presentations', { key: `presentation:${entity.id}`, entity_id: entity.id,
+    ...(destination ? { destination_id: destination } : {}), ...(photos.length ? { photos } : {}) })
+  const withPhotos = photos.length ? ` Le ${photos.length === 1 ? 'foto che mi hai mandato andrà' : `${photos.length} foto che mi hai mandato andranno`} nella presentazione.` : ''
+  return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `Presentazione per ${label}: ${note}${queueSentence(result)}${withPhotos}${result.enabled && result.reason !== 'agent_missing' ? ' Quando è pronta ti arriva qui in PDF, con il pulsante per approvarla.' : ''}` }
+}
+
+/**
+ * «Fammi la fattura per …» e «SNAV ha approvato, fai la fattura»: prepara la bozza dal
+ * preventivo, come «Genera fattura» nella scheda. Se l'ordine dice che il cliente ha approvato,
+ * prima segna il preventivo come accettato (solo da bozza o inviato). Non lo segna mai pagato
+ * e non invia niente allo SDI: quello resta un clic in Fatture.
+ */
+export async function invoiceFor(admin: Admin, userId: string, plan: Extract<DirectorOrderPlan, { intent: 'invoice' }>): Promise<Outcome> {
+  const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+  const columns = 'id,quote_number,customer_name,customer_company,total_amount,status,payment_state,billing_interval,contact_id'
+  const waiting = async () => (checked(await admin.from('quotes').select(columns).eq('user_id', userId).in('status', ['sent', 'accepted'])
+    .order('created_at', { ascending: false }).limit(5)) || []) as DirectorInvoiceQuote[]
+  let quotes: DirectorInvoiceQuote[]
+  if (plan.quote_number) {
+    quotes = checked(await admin.from('quotes').select(columns).eq('user_id', userId).ilike('quote_number', plan.quote_number).limit(2)) || []
+  } else {
+    const pattern = searchPattern(plan.customer || '')
+    const found = pattern ? (checked(await admin.from('quotes').select(columns).eq('user_id', userId).neq('status', 'cancelled')
+      .or(`customer_name.ilike.${pattern},customer_company.ilike.${pattern}`).order('created_at', { ascending: false }).limit(10)) || []) as DirectorInvoiceQuote[] : []
+    // Fra più preventivi dello stesso cliente conta quello da fatturare (o, per un'approvazione, quello in attesa).
+    const open = found.filter((q) => (plan.approved ? ['draft', 'sent'].includes(q.status) : false) || quoteIsInvoiceable(q))
+    quotes = open.length ? open : found
+  }
+  const what = plan.quote_number || `«${plan.customer}»`
+  if (!quotes.length) {
+    // Un nome capito male (un vocale: «snob» per SNAV) non deve finire nel vuoto: si mostra cosa è in attesa.
+    const pending = await waiting()
+    return { status: 'waiting_you', outputs: [], queued: [], reply: pending.length
+      ? `Non trovo il preventivo ${what}. Quelli in attesa sono:\n${pending.map((q) => `• ${directorQuoteLabel(q)}`).join('\n')}\nRiscrivimi il numero di quello giusto.`
+      : `Non trovo il preventivo ${what}. Controlla in Preventivi: ${base}/preventivi` }
+  }
+  if (quotes.length > 1) return { status: 'waiting_you', outputs: [], queued: [], reply: `Per ${what} ci sono più preventivi:\n${quotes.slice(0, 5).map((q) => `• ${directorQuoteLabel(q)}`).join('\n')}\nScrivimi il numero di quello da fatturare.` }
+  let quote = quotes[0]
+  if (quote.billing_interval === 'year' && quote.status !== 'paid' && quote.payment_state !== 'paid') {
+    // Un abbonamento si paga con carta e la bozza nasce dal pagamento: farla prima la raddoppierebbe.
+    return { status: 'waiting_you', outputs: [], queued: [], reply: `${directorQuoteLabel(quote)} è un abbonamento con carta: la bozza della fattura si prepara da sola quando arriva il pagamento.` }
+  }
+  let approvedNow = false
+  if (plan.approved && ['draft', 'sent'].includes(quote.status)) {
+    const now = new Date().toISOString()
+    // Il filtro di un UPDATE su PostgREST vale anche per la risposta (la riga non è più «sent»):
+    // si rilegge e si riconosce la propria scrittura dalla data.
+    checked(await admin.from('quotes').update({ status: 'accepted', accepted_at: now }).eq('user_id', userId).eq('id', quote.id).in('status', ['draft', 'sent']))
+    const reread = checked(await admin.from('quotes').select(`${columns},accepted_at`).eq('user_id', userId).eq('id', quote.id).single()) as DirectorInvoiceQuote & { accepted_at: string | null }
+    const previous = quote.status
+    quote = reread
+    if (reread.status === 'accepted' && reread.accepted_at && Date.parse(reread.accepted_at) === Date.parse(now)) {
+      approvedNow = true
+      if (quote.contact_id) {
+        await admin.from('activities').insert({ user_id: userId, contact_id: quote.contact_id, type: 'system',
+          content: `Preventivo ${quote.quote_number}: stato ${previous} -> accepted (approvazione del cliente comunicata al Direttore).`,
+          metadata: { quote_id: quote.id, previous_status: previous, next_status: 'accepted', source: 'director' } })
+      }
+    }
+  }
+  if (!quoteIsInvoiceable(quote)) {
+    const state = quote.status === 'sent' ? 'inviato, non ancora approvato' : quote.status === 'draft' ? 'in bozza' : quote.status === 'cancelled' ? 'annullato' : quote.status
+    return { status: 'waiting_you', outputs: [], queued: [], reply: [
+      `Il preventivo ${directorQuoteLabel(quote)} risulta ${state}: la fattura si fa quando il cliente l’ha approvato.`,
+      quote.status === 'cancelled' ? '' : `Quando ti dà l’ok scrivimi «${quote.customer_company || quote.customer_name || 'il cliente'} ha approvato ${quote.quote_number}, fai la fattura».`,
+    ].filter(Boolean).join('\n') }
+  }
+  const { invoice, created } = await createInvoiceDraftFromQuote(admin, userId, quote.id)
+  const { settings } = await loadInvoiceSettings(admin, userId)
+  const draft = invoice.status === 'draft'
+  return { status: 'done', outputs: [], queued: [], reply: directorInvoiceReply({
+    quote, created, invoiceStatus: invoice.status, numero: invoice.numero || null, approvedNow,
+    problems: draft ? invoiceProblems(invoice, settings) : [], warnings: draft && Array.isArray(invoice.warnings) ? invoice.warnings : [],
+    link: `${base}/fatture?invoice=${invoice.id}`,
+  }) }
+}
+
+type PresentationPlan = Extract<DirectorOrderPlan, { intent: 'presentation' }>
+
+/** Più esiti in una risposta sola: aspetta te se uno lo chiede, fallito solo se tutti falliscono. */
+function combineOutcomes(outcomes: Outcome[], footer = ''): Outcome {
+  if (outcomes.length === 1 && !footer) return outcomes[0]
+  // Si riprende solo una domanda per volta: con due in sospeso, la risposta non saprebbe a quale va.
+  const asking = outcomes.filter((o) => o.awaiting)
+  const status: Outcome['status'] = outcomes.some((o) => o.status === 'waiting_you') ? 'waiting_you'
+    : outcomes.length && outcomes.every((o) => o.status === 'failed') ? 'failed' : 'done'
+  return { status, outputs: outcomes.flatMap((o) => o.outputs), queued: outcomes.flatMap((o) => o.queued),
+    reply: [...outcomes.map((o) => `• ${o.reply}`), footer].filter(Boolean).join('\n'), ...(asking.length === 1 ? { awaiting: asking[0].awaiting } : {}) }
+}
+
+/** La domanda dell'attivazione, nella forma che l'ordine salva. */
+function awaitingOf(result: { need?: 'site' | 'city'; resume?: string }): DirectorAwaiting | undefined {
+  return result.need && result.resume ? { need: result.need, resume: result.resume } : undefined
+}
+
+/** La presentazione di un nome: ente del catalogo, contatto di un ente, oppure lavoro da agenzia. */
+async function presentationTarget(admin: Admin, ctx: AgentContext, order: DirectorOrderRow, plan: PresentationPlan, target: string, photos: string[]): Promise<Outcome> {
+  const userId = order.user_id
+  const entity = await findEntity(admin, userId, [target])
+  if (entity) return presentationFor(admin, ctx, userId, entity, plan, order.text, entity.name, photos)
+  const pattern = searchPattern(target)
+  const contacts = pattern ? checked(await admin.from('contacts').select('id,name,company,country,email').eq('user_id', userId)
+    .or(`name.ilike.${pattern},company.ilike.${pattern}`).limit(3)) as Array<{ id: string; name: string; company: string | null; country: string | null; email: string | null }> : []
+  // Fra più schede dello stesso ente basta che dicano la stessa organizzazione.
+  const companies = [...new Set(contacts.map((c) => c.company && compactName(c.company)).filter(Boolean))]
+  const contact = contacts.length === 1 || (contacts.length > 1 && companies.length === 1 && contacts.every((c) => c.company)) ? contacts[0] : null
+  // L'ente da presentare: l'organizzazione del contatto, oppure il nome scritto.
+  const orgName = contact?.company || (contacts.length ? null : target)
+  if (contact?.company) {
+    // Il contatto di un ente del catalogo: la presentazione è quella dell'ente.
+    const owner = await findEntity(admin, userId, [contact.company])
+    if (owner) return presentationFor(admin, ctx, userId, owner, plan, order.text, `${owner.name} (${contact.name})`, photos, contact.id)
+  }
+  if (orgName && (looksLikeTourismBody(orgName) || plan.type_code)) {
+    // Un ente del turismo che non è ancora nel catalogo: il Direttore lo aggiunge e lo attiva, poi la presentazione.
+    const country = plan.country_code || countryCode(contact?.country) || emailCountry(contact?.email)
+    if (!country) return { status: 'waiting_you', outputs: [], queued: [], reply: `${orgName} non è ancora in Tourism Intelligence e non so di quale paese è. Scrivimi il paese e lo aggiungo io.`,
+      awaiting: { need: 'country', resume: `presentazione per ${orgName}${plan.city ? `, ${plan.city}` : ''}` } }
+    const found = await ensureCatalogEntity(admin, userId, order.id, { name: orgName, country_code: country, type_code: plan.type_code || 'dmo', website: websiteFromText(order.text) })
+    if ('reply' in found) return { status: 'waiting_you', outputs: [], queued: [], reply: found.reply }
+    const outcome = await presentationFor(admin, ctx, userId, found.entity, plan, order.text, `${found.entity.name}${contact ? ` (${contact.name})` : ''}`, photos, contact?.id || null)
+    return found.created ? { ...outcome, reply: `Ho aggiunto ${found.entity.name} a Tourism Intelligence. ${outcome.reply}` } : outcome
+  }
+  if (contact) {
+    const result = await queueForAgent(admin, userId, 'agency', { key: `agency:contact:${contact.id}`, contact_id: contact.id, brief: plan.brief || order.text })
+    return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `${contact.name} non è un ente del turismo, quindi è un lavoro da agenzia. ${queueSentence(result)}` }
+  }
+  return { status: 'failed', outputs: [], queued: [], reply: contacts.length
+    ? `Ho trovato più contatti per «${target}» (${contacts.map((c) => c.name).join(', ')}): dimmi quale.`
+    : `Non trovo «${target}» né fra gli enti del catalogo Tourism né fra i contatti. Se è un ente del turismo, scrivimi «aggiungi ${target} a Tourism Intelligence»; se è un cliente, mandami il contatto.` }
+}
+
+/** Un UUID fisso per (ordine, nome): rielaborare lo stesso ordine ritrova la stessa presentazione. */
+function stableId(seed: string) {
+  const h = createHash('sha256').update(seed).digest('hex')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${(8 + (parseInt(h[16], 16) & 3)).toString(16)}${h.slice(17, 20)}-${h.slice(20, 32)}`
+}
+
+/**
+ * Presentazione per un partner (hotel, agenzia, compagnia): base Partner, città della guida
+ * dall'ordine. La fa il Direttore subito, nel suo budget; le condizioni restano
+ * [DA VERIFICARE] finché il titolare non le scrive, quindi non si approva da sola.
+ */
+async function partnerPresentation(admin: Admin, ctx: AgentContext, order: DirectorOrderRow, plan: PresentationPlan, target: string): Promise<Outcome> {
+  const userId = order.user_id
+  const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+  const entity = await findEntity(admin, userId, [target])
+  const name = entity?.name || target
+  const city = plan.city
+  if (!city) return { status: 'waiting_you', outputs: [], queued: [], reply: `Per quale città è la guida che proponi a ${name}? Scrivimi «presentazione partner per ${name}, guida di …».` }
+  if (officeIsNaples(city)) return { status: 'failed', outputs: [], queued: [], reply: 'Napoli resta fuori dal lavoro degli agenti.' }
+  if (entity) {
+    const existing = checked(await admin.from('tourism_decks').select('id,title').eq('user_id', userId).eq('entity_id', entity.id)
+      .eq('input->>modello', 'partner').ilike('destination', city).limit(1).maybeSingle()) as { id: string; title: string } | null
+    if (existing) return { status: 'done', outputs: [], queued: [], reply: `${name}: la presentazione partner per ${city} c’è già, «${existing.title}». ${base}/tourism/presentazioni/${existing.id}` }
+  }
+  const id = stableId(`partner-deck:${order.id}:${nameKey(name)}`)
+  let deck = checked(await admin.from('tourism_decks').select('*').eq('user_id', userId).eq('id', id).maybeSingle()) as DeckRow | null
+  if (!deck) {
+    const notes = [entity ? `Partner nel catalogo Tourism: ${entity.name}${entity.website ? `, sito ${entity.website}` : ''}.` : `Partner: ${name}.`,
+      plan.brief ? `Richiesta del titolare: ${plan.brief}` : '', `Ordine: ${order.text.slice(0, 1500)}`].filter(Boolean).join('\n')
+    deck = await createDeck(admin, userId, { entity_id: entity?.id || null, destination: city, notes,
+      input: { destinazione: city, ente: name, paese: entity?.country_code || '', modello: 'partner' } }, id)
+  }
+  let generated = deck.status !== 'draft'
+  if (!generated) {
+    try {
+      deck = await generateIntoDeck(admin, admin, deck, undefined, officeDeckAgent(ctx))
+      generated = true
+    } catch (error) {
+      if (error instanceof BudgetExceeded) throw error
+      console.error('[direttore] presentazione partner non generata', errorMessage(error, ''))
+    }
+  }
+  const link = `${base}/tourism/presentazioni/${deck.id}`
+  const telegram = generated ? await sendDeckToTelegram(admin, deck) : { ok: false, pdf: false }
+  const onTelegram = telegram.pdf ? ' Il PDF della bozza te l’ho mandato qui su Telegram.' : ''
+  return { status: 'done', outputs: [], queued: [], reply: generated
+    ? `${name}: presentazione partner per la guida di ${city} pronta da rivedere.${onTelegram} Le condizioni (commissione, prezzo dei codici) restano [DA VERIFICARE]: scrivile nell’editor, poi approvala. ${link}`
+    : `${name}: ho preparato la presentazione partner per ${city} con il testo di base, ma l’adattamento non è riuscito. Puoi rivederla e rigenerarla da qui: ${link}` }
+}
+
+export const DESTINATION_TYPES = ['dmo', 'nto', 'cvb', 'rto']
+
+/**
+ * «Preparami 5 presentazioni di destinazioni»: il Direttore sceglie lui, fra gli enti del
+ * turismo con un sito che non hanno ancora una presentazione, prima quelli con priorità.
+ * Ognuno passa dall'attivazione (sito, prove, contatto nel CRM) e va alla coda Presentazioni.
+ */
+async function autoDestinationPresentations(admin: Admin, ctx: AgentContext, order: DirectorOrderRow, plan: PresentationPlan): Promise<Outcome> {
+  const userId = order.user_id
+  const wanted = plan.count || 1
+  const [decks, rows] = await Promise.all([
+    officeRows<{ entity_id: string | null }>(admin, userId, 'tourism_decks', 'id,entity_id'),
+    admin.from('tourism_entities').select('id,name,kind,status,website,email,phone,country_code,type_code,aliases,disabled,version,outreach_priority')
+      .eq('user_id', userId).eq('kind', 'organization').eq('disabled', false).in('type_code', DESTINATION_TYPES)
+      .in('status', ['VERIFIED', 'UNVERIFIED', 'NEEDS_REVIEW']).not('website', 'is', null)
+      .order('outreach_priority', { ascending: true, nullsFirst: false }).order('name').limit(200),
+  ])
+  if (rows.error) throw rows.error
+  const done = new Set(decks.map((d) => d.entity_id).filter(Boolean))
+  const candidates = ((rows.data || []) as Array<ActivationEntity & { outreach_priority: number | null }>)
+    .filter((e) => !done.has(e.id) && !officeIsNaples(e.name))
+    // Si attiva solo chi ha una città leggibile dal nome («Visit Bergamo»): gli altri si fermerebbero a chiederla.
+    .filter((e) => e.status === 'VERIFIED' || cityForEntity({ proposed: null, entityName: e.name, aliases: e.aliases, orderText: '' }))
+    // A parità di priorità prima chi è già verificato: costa meno attivarlo.
+    .sort((a, b) => (a.outreach_priority ?? 9) - (b.outreach_priority ?? 9) || Number(b.status === 'VERIFIED') - Number(a.status === 'VERIFIED'))
+  if (!candidates.length) return { status: 'failed', outputs: [], queued: [], reply: 'Non trovo enti del turismo con un sito e senza presentazione nel catalogo. Dimmi tu per chi.' }
+  const outcomes: Outcome[] = []
+  const skipped: string[] = []
+  let queued = 0
+  for (const entity of candidates.slice(0, wanted * 3)) {
+    if (queued >= wanted) break
+    try {
+      const outcome = await presentationFor(admin, ctx, userId, entity, plan, order.text, entity.name)
+      if (outcome.status === 'waiting_you' || outcome.status === 'failed') { skipped.push(`${entity.name}: ${outcome.reply.split('. ')[0]}`); continue }
+      outcomes.push(outcome)
+      queued++
+    } catch (error) {
+      if (error instanceof BudgetExceeded) { skipped.push('budget di oggi del Direttore finito: mi sono fermato'); break }
+      skipped.push(`${entity.name}: ${errorMessage(error, 'errore')}`)
+    }
+  }
+  const header = `Ho scelto ${queued} ${queued === 1 ? 'destinazione' : 'destinazioni'} su ${wanted} fra quelle senza presentazione:`
+  const footer = skipped.length ? `Saltate: ${skipped.slice(0, 5).join('; ')}.` : ''
+  const result = combineOutcomes(outcomes, footer)
+  return { ...result, status: queued ? 'done' : 'failed', reply: queued ? `${header}\n${result.reply}` : `Non sono riuscito a preparare presentazioni. ${footer}` }
+}
+
+const PARTNER_DB_TYPES = [...PARTNER_TYPE_CODES, 'accommodation', 'transport']
+
+/**
+ * «Trovami 5 partner per Venezia»: prima il catalogo (operatori che nominano la città),
+ * poi il web per quelli che mancano. Ognuno diventa una proposta «Nuovo contatto»
+ * di tipo partner: nel CRM entra solo con il clic del titolare.
+ */
+async function findPartners(admin: Admin, ctx: AgentContext, order: DirectorOrderRow, plan: Extract<DirectorOrderPlan, { intent: 'find_partners' }>): Promise<Outcome> {
+  const userId = order.user_id
+  const names = [plan.city, ...(EXONYMS[nameKey(plan.city)] || [])]
+  const patterns = names.map((n) => `%${n.replace(/[%_,()*\\]/g, ' ').trim()}%`)
+  const filters = patterns.flatMap((p) => [`name.ilike.${p}`, `details->>description.ilike.${p}`, `details->>hq_city.ilike.${p}`]).join(',')
+  const [rows, pending] = await Promise.all([
+    admin.from('tourism_entities').select('id,name,type_code,status,website,email,phone,country_code,details')
+      .eq('user_id', userId).eq('kind', 'organization').eq('disabled', false).in('type_code', PARTNER_DB_TYPES)
+      .not('status', 'in', '(INACTIVE,DUPLICATE)').or(filters).limit(80),
+    admin.from('office_agent_outputs').select('body').eq('user_id', userId).eq('agent_id', 'director').eq('status', 'pending')
+      .eq('body->>action', 'create_contact').limit(200),
+  ])
+  if (rows.error) throw rows.error
+  const proposed = new Set(((pending.data || []) as Array<{ body: any }>).map((o) => compactName(String(o.body?.contact?.company || o.body?.contact?.name || ''))))
+  const seen = new Set<string>()
+  type Pick = { name: string; website: string | null; email: string | null; phone: string | null; country: string | null; kind: string; why: string; source: string; entity_id: string | null }
+  const picks: Pick[] = []
+  const consider = async (pick: Pick) => {
+    const key = compactName(pick.name)
+    const host = pick.website ? new URL(pick.website).hostname.replace(/^www\./, '') : null
+    if (!key || seen.has(key) || (host && seen.has(host)) || proposed.has(key)) return false
+    const dup = await findDuplicates(admin, userId, { company: pick.name, email: pick.email, phone: null })
+    if (dup.length) return false
+    seen.add(key); if (host) seen.add(host)
+    picks.push(pick)
+    return true
+  }
+  const catalog = ((rows.data || []) as any[])
+    // Prima chi ha un recapito, poi chi ha la città nel nome.
+    .sort((a, b) => Number(!!b.email) - Number(!!a.email) || Number(!!b.website) - Number(!!a.website)
+      || Number(names.some((n) => nameKey(b.name).includes(nameKey(n)))) - Number(names.some((n) => nameKey(a.name).includes(nameKey(n)))))
+  const linked = catalog.length ? new Set(((checked(await admin.from('tourism_crm_links').select('entity_id').eq('user_id', userId)
+    .in('entity_id', catalog.map((e) => e.id))) || []) as Array<{ entity_id: string }>).map((l) => l.entity_id)) : new Set<string>()
+  for (const e of catalog) {
+    if (picks.length >= plan.count) break
+    if (linked.has(e.id)) continue
+    await consider({ name: e.name, website: e.website || null, email: e.email || null, phone: e.phone || null, country: e.country_code || null,
+      kind: TOURISM_TYPE_LABEL(e.type_code), why: String(e.details?.description || '').slice(0, 200), source: 'Catalogo Tourism Intelligence', entity_id: e.id })
+  }
+  const notes: string[] = []
+  if (picks.length < plan.count) {
+    try {
+      const missing = plan.count - picks.length
+      const answer = await callModel(ctx, { model: ctx.agent.model, maxOutputTokens: 1200, webSearch: { maxResults: 8 },
+        input: partnerSearchPrompt({ city: plan.city, count: missing + 3, brief: plan.brief, exclude: picks.map((p) => p.name) }),
+        jsonSchema: { name: 'partner_search', schema: PARTNER_SEARCH_SCHEMA as unknown as Record<string, unknown> } })
+      let parsed: unknown = null
+      try { parsed = JSON.parse(answer.text) } catch { /* Risposta illeggibile: restano quelli del catalogo. */ }
+      for (const candidate of parsePartnerSearch(parsed)) {
+        if (picks.length >= plan.count) break
+        // Il sito proposto dal modello vale solo se la pagina letta nomina davvero l'azienda.
+        let pages: Array<{ text: string }> = []
+        try { pages = await readEntitySite(candidate.website) } catch { continue }
+        if (!siteMatchesEntity(candidate.website, pages.map((p) => p.text).join('\n'), candidate.name)) continue
+        await consider({ ...candidate, email: emailFromSite(candidate.website, pages.map((p) => p.text)), phone: null, country: null,
+          source: `Ricerca web, sito letto: ${candidate.website}`, entity_id: null })
+      }
+    } catch (error) {
+      if (error instanceof BudgetExceeded) notes.push('la ricerca sul web si è fermata: budget di oggi del Direttore finito')
+      else notes.push(`la ricerca sul web non è riuscita (${errorMessage(error, 'errore')})`)
+    }
+  }
+  if (!picks.length) return { status: 'failed', outputs: [], queued: [], reply: `Non ho trovato partner nuovi per ${plan.city}${notes.length ? `: ${notes.join(', ')}` : ''}.` }
+  const outputs: string[] = []
+  for (const [i, p] of picks.entries()) {
+    const contact = { name: null, role: null, company: p.name, email: p.email, phone: p.phone, website: p.website, city: plan.city, country: p.country }
+    outputs.push(await ctx.addOutput({
+      kind: 'proposal', key: `order:${order.id}:partner:${i}`, title: `Partner per ${plan.city}: ${p.name}`,
+      target_table: 'office_director_orders', target_id: order.id,
+      body: {
+        action: 'create_contact', order_id: order.id, contact, evidence: { company: p.source, ...(p.email ? { email: p.source } : {}) },
+        category: 'partner', tipo: CONTACT_CATEGORY_LABELS.partner, perche: `${p.kind}${p.why ? ` · ${p.why}` : ''}`,
+        brief: `Potenziale partner per la guida di ${plan.city}.`, card_text: null, scartati: [],
+        entity_id: p.entity_id, ente_nel_catalogo: p.entity_id ? p.name : null, possibili_doppioni: [], duplicate_ids: [],
+        dopo_il_clic: contactNextStep('partner'),
+      },
+    }))
+  }
+  const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+  const list = picks.map((p) => `• ${p.name} (${p.kind})${p.email ? ` · ${p.email}` : p.website ? ` · ${p.website.replace(/^https:\/\//, '')}` : ''}`).join('\n')
+  const short = picks.length < plan.count ? ` Ne ho trovati ${picks.length} su ${plan.count}.` : ''
+  return { status: 'waiting_you', outputs, queued: [], reply: [
+    `Partner per ${plan.city}: te li propongo in «Aspetta te», uno per uno. Approvando entrano nei contatti con un’opportunità di distribuzione.${short}`,
+    list, notes.length ? `Nota: ${notes.join(', ')}.` : '', `${base}/ufficio`,
+  ].filter(Boolean).join('\n') }
+}
+
+/**
+ * «Aggiungi Venezuela Tourism a Tourism Intelligence e ai contatti»: l'ente si ritrova nel
+ * catalogo o si crea (non verificato), poi l'attivazione cerca il sito, scrive le prove,
+ * lo verifica e lo porta nel CRM. Il titolare che lo chiede è l'autorizzazione.
+ */
+async function addEntity(admin: Admin, ctx: AgentContext, order: DirectorOrderRow, plan: Extract<DirectorOrderPlan, { intent: 'add_entity' }>): Promise<Outcome> {
+  const userId = order.user_id
+  const found = await ensureCatalogEntity(admin, userId, order.id, plan)
+  if ('reply' in found) return { status: 'waiting_you', outputs: [], queued: [], reply: found.reply }
+  const { entity, created } = found
+  const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+  const link = `${base}/tourism?entity=${entity.id}`
+  const crm = checked(await admin.from('tourism_crm_links').select('contact_id').eq('user_id', userId).eq('entity_id', entity.id).limit(1).maybeSingle())
+  if (entity.status === 'VERIFIED' && crm) return { status: 'done', outputs: [], queued: [], reply: `${entity.name} è già in Tourism Intelligence, verificato e nei contatti. ${link}` }
+  const city = plan.city || (DESTINATION_TYPES.includes(plan.type_code) || plan.type_code === 'ministry' ? countryName(plan.country_code) : null)
+  // Un contatto del CRM con l'organizzazione dell'ente (uno solo) si collega, invece di crearne un altro.
+  const contact = crm ? null : await contactOfOrganization(admin, userId, entity.name)
+  // Alla risposta del titolare si riparte da qui: con la presentazione, se l'aveva chiesta.
+  const resume = plan.presentation ? `presentazione per ${entity.name}` : `aggiungi ${entity.name} a Tourism Intelligence e ai contatti`
+  const activated = await activateEntityForOrder(admin, ctx, userId, entity, { orderText: `${order.text}\n${city || ''}`, proposedCity: city, contactId: contact?.id || null, resume })
+  const first = created ? `Ho aggiunto ${entity.name} a Tourism Intelligence.` : `${entity.name} era già in Tourism Intelligence.`
+  if (!activated.ok) return { status: 'waiting_you', outputs: [], queued: [], reply: `${first} ${activated.reply} ${link}`, awaiting: awaitingOf(activated) }
+  if (!plan.presentation) return { status: 'done', outputs: [], queued: [], reply: `${first} ${activated.note} ${link}` }
+  // «…e poi fammi la presentazione»: l'ente è attivo, la presentazione parte subito.
+  const fresh = await findEntity(admin, userId, [entity.name]) || { ...entity, status: 'VERIFIED' }
+  const deckPlan: PresentationPlan = { intent: 'presentation', targets: [entity.name], count: null, audience: 'destinazione', brief: null,
+    city, skipped: [], country_code: entity.country_code, type_code: entity.type_code }
+  const deck = await presentationFor(admin, ctx, userId, fresh, deckPlan, order.text, entity.name, [], contact?.id || activated.contactId)
+  return { ...deck, reply: `${first} ${activated.note} ${link}\n${deck.reply}` }
+}
+
+const ENTITY_COLUMNS = 'id,name,kind,status,website,email,phone,country_code,type_code,aliases,disabled,version'
+
+/**
+ * L'ente nel catalogo Tourism: ritrovato per nome, oppure inserito non verificato
+ * (lo verifica poi l'attivazione, con le prove del sito). Un archiviato non si riusa.
+ */
+export async function ensureCatalogEntity(admin: Admin, userId: string, orderId: string,
+  input: { name: string; country_code: string; type_code: string; website: string | null }): Promise<{ entity: ActivationEntity; created: boolean } | { reply: string }> {
+  const existing = await findEntity(admin, userId, [input.name])
+  if (existing) return { entity: existing, created: false }
+  const row = { user_id: userId, kind: 'organization', name: input.name, country_code: input.country_code, type_code: input.type_code,
+    website: input.website, details: { acquisition: { source: 'office_director', order_id: orderId } } }
+  const inserted = await admin.from('tourism_entities').insert(row).select(ENTITY_COLUMNS).single()
+  if (!inserted.error) return { entity: inserted.data, created: true }
+  if ((inserted.error as { code?: string }).code !== '23505') throw inserted.error
+  // Stesso nome e paese già nel catalogo (magari archiviato): si riusa quello.
+  const same = checked(await admin.from('tourism_entities').select(ENTITY_COLUMNS).eq('user_id', userId).eq('kind', 'organization')
+    .eq('country_code', input.country_code).eq('name_key', nameKey(input.name)).maybeSingle()) as ActivationEntity | null
+  if (!same) return { reply: `Non sono riuscito ad aggiungere ${input.name} al catalogo.` }
+  if (same.disabled || same.status === 'INACTIVE' || same.status === 'DUPLICATE') return { reply: `${same.name} c’è già nel catalogo ma è archiviato: riattivalo dalla scheda Tourism.` }
+  return { entity: same, created: false }
+}
+
+/** L'unico contatto del CRM che lavora per quell'organizzazione (stessa azienda, spazi e maiuscole a parte). */
+async function contactOfOrganization(admin: Admin, userId: string, organization: string) {
+  const pattern = searchPattern(organization)
+  if (!pattern) return null
+  const rows = (checked(await admin.from('contacts').select('id,name,company').eq('user_id', userId).ilike('company', pattern).limit(5)) || []) as Array<{ id: string; name: string; company: string | null }>
+  const same = rows.filter((row) => row.company && compactName(row.company) === compactName(organization))
+  return same.length === 1 ? same[0] : null
+}
+
+/** Il paese di un contatto del CRM come codice ISO, se si riconosce. */
+function countryCode(value: string | null | undefined): string | null {
+  const text = (value || '').trim()
+  if (/^[A-Za-z]{2}$/.test(text)) return text.toUpperCase()
+  if (!text) return null
+  const names = new Intl.DisplayNames(['it'], { type: 'region' })
+  const english = new Intl.DisplayNames(['en'], { type: 'region' })
+  const wanted = nameKey(text)
+  for (let a = 65; a <= 90; a++) for (let b = 65; b <= 90; b++) {
+    const code = String.fromCharCode(a, b)
+    try { if ([names.of(code), english.of(code)].some((n) => n && n !== code && nameKey(n) === wanted)) return code } catch { /* codice inesistente */ }
+  }
+  return null
+}
+
+/** Il paese dal dominio nazionale dell'email («@sibiu-turism.ro» → RO). I domini generici non dicono niente. */
+export function emailCountry(email: string | null | undefined): string | null {
+  const tld = /@[^@\s]+\.([a-z]{2})$/i.exec((email || '').trim())?.[1]?.toUpperCase()
+  if (!tld || ['EU', 'IO', 'AI', 'CO', 'ME', 'TV', 'FM', 'LY', 'AC', 'TO', 'GG', 'SH', 'WS', 'CC', 'NU'].includes(tld)) return null
+  const code = tld === 'UK' ? 'GB' : tld
+  try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(code) !== code ? code : null } catch { return null }
+}
+
+function countryName(code: string) {
+  try { return new Intl.DisplayNames(['it'], { type: 'region' }).of(code) || null } catch { return null }
 }
 
 async function findDuplicates(admin: Admin, userId: string, contact: Record<string, string | null>) {
@@ -293,7 +744,8 @@ async function statusReport(admin: Admin, userId: string, now: Date) {
   }, { brief: true })
 }
 
-type Outcome = { status: DirectorOrderRow['status']; reply: string; outputs: string[]; queued: QueueResult[] }
+/** `awaiting`: il dato che il Direttore ha chiesto al titolare, per riprendere l'ordine quando arriva. */
+type Outcome = { status: DirectorOrderRow['status']; reply: string; outputs: string[]; queued: QueueResult[]; awaiting?: DirectorAwaiting }
 
 /** Esegue il piano già validato. Scrive solo uscite, To Do e code. */
 export async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrderRow, plan: DirectorOrderPlan, now: Date): Promise<Outcome> {
@@ -330,21 +782,29 @@ export async function executePlan(admin: Admin, ctx: AgentContext, order: Direct
     return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `Controllo della mappa di ${plan.city}: ${queueSentence(result)}` }
   }
   if (plan.intent === 'presentation') {
-    const entity = await findEntity(admin, userId, [plan.target])
-    if (entity) return presentationFor(admin, ctx, userId, entity, plan, order.text, entity.name)
-    const pattern = searchPattern(plan.target)
-    const contacts = pattern ? checked(await admin.from('contacts').select('id,name,company').eq('user_id', userId)
-      .or(`name.ilike.${pattern},company.ilike.${pattern}`).limit(3)) as Array<{ id: string; name: string; company: string | null }> : []
-    if (contacts.length === 1) {
-      // Il contatto di un ente del catalogo: la presentazione è quella dell'ente.
-      const owner = contacts[0].company ? await findEntity(admin, userId, [contacts[0].company]) : null
-      if (owner) return presentationFor(admin, ctx, userId, owner, plan, order.text, `${owner.name} (${contacts[0].name})`)
-      const result = await queueForAgent(admin, userId, 'agency', { key: `agency:contact:${contacts[0].id}`, contact_id: contacts[0].id, brief: plan.brief || order.text })
-      return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `${contacts[0].name} non è un ente del catalogo Tourism, quindi è un lavoro da agenzia. ${queueSentence(result)}` }
+    const photos = (order.attachments || []).map((a) => a.path)
+    if (!plan.targets.length) return autoDestinationPresentations(admin, ctx, order, plan)
+    const outcomes: Outcome[] = []
+    // Le foto mandate con l'ordine vanno alla presentazione nominata, non a tutte.
+    for (const target of plan.targets) {
+      const one = photos.length && plan.targets.length === 1 ? photos : []
+      try {
+        outcomes.push(plan.audience === 'partner'
+          ? await partnerPresentation(admin, ctx, order, plan, target)
+          : await presentationTarget(admin, ctx, order, plan, target, one))
+      } catch (error) {
+        if (error instanceof BudgetExceeded) { outcomes.push({ status: 'failed', outputs: [], queued: [], reply: `${target}: il budget di oggi del Direttore è finito, rimandamelo domani o alza il budget.` }); break }
+        outcomes.push({ status: 'failed', outputs: [], queued: [], reply: `${target}: non ci sono riuscito (${errorMessage(error, 'errore')}).` })
+      }
     }
-    return { status: 'failed', outputs: [], queued: [], reply: contacts.length
-      ? `Ho trovato più contatti per «${plan.target}» (${contacts.map((c) => c.name).join(', ')}): dimmi quale.`
-      : `Non trovo «${plan.target}» né fra gli enti del catalogo Tourism né fra i contatti. Se è nuovo, mandami prima il contatto.` }
+    const skipped = plan.skipped.length ? 'Napoli l’ho lasciata fuori: resta fuori dal lavoro degli agenti.' : ''
+    return combineOutcomes(outcomes, skipped)
+  }
+  if (plan.intent === 'find_partners') return findPartners(admin, ctx, order, plan)
+  if (plan.intent === 'add_entity') return addEntity(admin, ctx, order, plan)
+  if (plan.intent === 'help') {
+    const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+    return { status: 'done', outputs: [], queued: [], reply: directorHelpText(base) }
   }
   if (plan.intent === 'events') {
     const today = officeRomeDay(now)
@@ -359,14 +819,10 @@ export async function executePlan(admin: Admin, ctx: AgentContext, order: Direct
     return { status: 'done', outputs: [], queued: [], reply: directorEventsReply((events.data || []) as DirectorEventRow[],
       { installed: !!scout.data, enabled: !!scout.data?.enabled, sources }) }
   }
+  if (plan.intent === 'invoice') return invoiceFor(admin, userId, plan)
   if (plan.intent === 'task') {
-    const { error } = await admin.from('tasks').insert({
-      user_id: userId, contact_id: null, type: 'todo', title: plan.title, note: order.text.slice(0, 1000) || null,
-      due_date: plan.due_date, priority: 'medium', area: 'speaqi', progress_state: 'todo', progress_percent: 0, status: 'pending',
-      idempotency_key: `director-order:${order.id}`,
-    })
-    if (error && (error as { code?: string }).code !== '23505') throw error
-    return { status: 'done', outputs: [], queued: [], reply: `Segnato nel To Do: «${plan.title}»${plan.due_date ? ` per il ${plan.due_date.slice(8, 10)}/${plan.due_date.slice(5, 7)}` : ''}.` }
+    const outcomes = await createDirectorTasks(admin, userId, order, plan.items)
+    return { status: 'done', outputs: [], queued: [], reply: directorTaskReply(outcomes, plan.dropped) }
   }
   if (plan.intent === 'status') {
     // Corta apposta: arriva anche su Telegram. Il dettaglio sta nell'Ufficio.
@@ -374,7 +830,92 @@ export async function executePlan(admin: Admin, ctx: AgentContext, order: Direct
     const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
     return { status: 'done', outputs: [], queued: [], reply: ['Il piano di oggi', ...directorPlanBrief(plan), '', 'La situazione', ...status, '', `Tutto il dettaglio nell’Ufficio: ${base}/ufficio`].join('\n') }
   }
-  return { status: 'failed', outputs: [], queued: [], reply: plan.question }
+  if (plan.intent === 'unknown') return { status: 'failed', outputs: [], queued: [], reply: plan.question }
+  return { status: 'failed', outputs: [], queued: [], reply: 'Non ho capito cosa devo fare. Scrivimi «cosa posso chiederti?» per l’elenco dei comandi.' }
+}
+
+/**
+ * Le cose da fare di un ordine: nel To Do, e in Google Calendar quelle con un giorno.
+ * Una per riga con la sua chiave (`director-order:<ordine>:<n>`), quindi un ordine rilavorato
+ * ritrova le righe e non le raddoppia; un evento già creato non si ricrea. Calendar che non
+ * risponde non toglie niente al To Do: lo si dice nella risposta.
+ */
+async function createDirectorTasks(admin: Admin, userId: string, order: DirectorOrderRow, items: DirectorTaskItem[]): Promise<DirectorTaskOutcome[]> {
+  const note = [order.source === 'telegram' ? 'Dal Direttore, su Telegram.' : 'Dal Direttore.', order.text.slice(0, 1000)].filter(Boolean).join('\n\n')
+  const outcomes: DirectorTaskOutcome[] = []
+  let firstError: unknown = null
+  for (const [index, item] of items.entries()) {
+    const key = `director-order:${order.id}:${index}`
+    const due = directorTaskDue(item)
+    let task: { id: string; calendar_event_id: string | null } | null = null
+    // Una voce che non si salva non ferma le altre: si dice nella risposta, e rilavorando l'ordine
+    // le righe già scritte si ritrovano dalla chiave.
+    try {
+      const inserted = await admin.from('tasks').insert({
+        user_id: userId, contact_id: null, type: 'todo', title: item.title, note,
+        due_date: due, priority: 'medium', area: 'speaqi', progress_state: 'todo', progress_percent: 0, status: 'pending',
+        idempotency_key: key,
+      }).select('id,calendar_event_id').maybeSingle()
+      if (inserted.error && (inserted.error as { code?: string }).code !== '23505') throw inserted.error
+      task = inserted.data || (checked(await admin.from('tasks').select('id,calendar_event_id').eq('user_id', userId)
+        .eq('idempotency_key', key).maybeSingle()) as typeof task)
+    } catch (error) {
+      firstError ??= error
+      outcomes.push({ ...item, calendar: 'not_saved' })
+      continue
+    }
+    if (!due) { outcomes.push({ ...item, calendar: 'no_date' }); continue }
+    if (task?.calendar_event_id) { outcomes.push({ ...item, calendar: 'already' }); continue }
+    try {
+      const event = await addTaskToCalendar(admin, userId, {
+        summary: `CRM · ${item.title}`,
+        description: ['Attività pianificata in Speaqi CRM', note].join('\n\n'),
+        startAt: due,
+        allDay: !item.time,
+        durationMinutes: item.minutes ?? 30,
+      })
+      if (!event) { outcomes.push({ ...item, calendar: 'not_connected' }); continue }
+      if (task) {
+        const saved = await admin.from('tasks').update({
+          calendar_event_id: event.id, calendar_event_link: event.htmlLink, calendar_synced_at: new Date().toISOString(),
+        }).eq('user_id', userId).eq('id', task.id)
+        if (saved.error) console.error('[direttore] evento Calendar non legato al task', { task: task.id, message: saved.error.message })
+      }
+      outcomes.push({ ...item, calendar: 'added' })
+    } catch (error) {
+      console.error('[direttore] Google Calendar non ha risposto', { order: order.id, message: errorMessage(error, '').slice(0, 300) })
+      outcomes.push({ ...item, calendar: 'failed' })
+    }
+  }
+  // Nessuna salvata: è un errore vero, l'ordine lo riporta. Altrimenti la risposta dice quali mancano.
+  if (firstError && outcomes.every((o) => o.calendar === 'not_saved')) throw firstError
+  return outcomes
+}
+
+/**
+ * L'ultimo ordine dalla stessa parte (stessa chat Telegram, o la pagina) prima di `before`,
+ * se aspetta una risposta del titolare da meno di un giorno. Solo l'ultimo: una domanda
+ * superata da un altro ordine non si riprende più.
+ */
+export async function pendingDirectorQuestion(admin: Admin, userId: string,
+  where: { source: DirectorOrderRow['source']; chatId: string | null; before: string; now?: Date }): Promise<{ id: string; awaiting: DirectorAwaiting } | null> {
+  let query = admin.from('office_director_orders').select('id,status,interpretation,updated_at').eq('user_id', userId)
+    .eq('source', where.source).lt('created_at', where.before)
+  if (where.source === 'telegram') query = where.chatId ? query.eq('telegram_chat_id', where.chatId) : query.is('telegram_chat_id', null)
+  let { data, error } = await query.order('created_at', { ascending: false }).limit(1).maybeSingle()
+  // Una risposta breve può essere la ricevuta di ripresa dello stesso lavoro.
+  // La domanda successiva resta sul suo ordine originale, senza creare catene.
+  if (!error && data?.status === 'done' && officeWorkEnabled() && typeof data.interpretation?.resumed_from === 'string') {
+    let original = admin.from('office_director_orders').select('id,status,interpretation,updated_at')
+      .eq('user_id', userId).eq('id', data.interpretation.resumed_from).eq('source', where.source)
+    if (where.source === 'telegram') original = where.chatId ? original.eq('telegram_chat_id', where.chatId) : original.is('telegram_chat_id', null)
+    const resumed = await original.maybeSingle()
+    data = resumed.data; error = resumed.error
+  }
+  if (error || !data || (data.status !== 'waiting_you' && !(officeWorkEnabled() && data.status === 'blocked'))) return null
+  if ((where.now || new Date()).getTime() - new Date(data.updated_at).getTime() > AWAITING_TTL_MS) return null
+  const awaiting = readAwaiting(data.interpretation)
+  return awaiting ? { id: data.id, awaiting } : null
 }
 
 export async function processDirectorOrder(admin: Admin, userId: string, orderId: string, options: { now?: () => Date } = {}): Promise<DirectorOrderRow> {
@@ -400,16 +941,22 @@ export async function processDirectorOrder(admin: Admin, userId: string, orderId
   const now = options.now?.() || new Date()
   let outcome: Outcome | null = null
   let plan: DirectorOrderPlan | null = null
+  // La risposta a una domanda del Direttore («ecco il sito …») riprende l'ordine rimasto in
+  // sospeso, con le parole che il Direttore aveva chiesto: non è un ordine nuovo senza contesto.
+  const pending = order.attachments?.length ? null
+    : await pendingDirectorQuestion(admin, userId, { source: order.source, chatId: order.telegram_chat_id, before: order.created_at, now })
+  const resumedText = pending ? directorFollowUp(pending.awaiting, order.text) : null
+  const work: DirectorOrderRow = resumedText ? { ...order, text: resumedText } : order
   const handler = async (ctx: AgentContext) => {
-    const images = await orderImages(admin, order)
+    const images = await orderImages(admin, work)
     const model = typeof ctx.agent.settings?.model === 'string' ? ctx.agent.settings.model : ctx.agent.model
     const today = officeRomeDay(now)
-    const answer = await callModel(ctx, { model, input: directorOrderPrompt(order.text, images.length, today), images,
+    const answer = await callModel(ctx, { model, input: directorOrderPrompt(work.text, images.length, today), images,
       maxOutputTokens: ORDER_MODEL_OUTPUT_TOKENS, jsonSchema: { name: 'director_order', schema: DIRECTOR_ORDER_SCHEMA as unknown as Record<string, unknown> } })
     let parsed: unknown = null
     try { parsed = JSON.parse(answer.text) } catch { /* Risposta illeggibile: diventa "non ho capito". */ }
-    plan = interpretDirectorOrder(parsed, { text: order.text, today, images: images.length })
-    outcome = await executePlan(admin, ctx, order, plan, now)
+    plan = interpretDirectorOrder(parsed, { text: work.text, today, images: images.length })
+    outcome = await executePlan(admin, ctx, work, plan, now)
     return { summary: `Ordine: ${outcome.reply.split('\n')[0].slice(0, 300)}` }
   }
   const result = await runAgentWhenFree('director', handler, { userId, key: `order:${order.id}` })
@@ -417,7 +964,15 @@ export async function processDirectorOrder(admin: Admin, userId: string, orderId
   const patch: Record<string, unknown> = { run_id: result.run?.id || null }
   if (done) {
     Object.assign(patch, { status: done.status, reply: done.reply, intent: (plan as DirectorOrderPlan | null)?.intent || null,
-      interpretation: plan, output_ids: done.outputs, queued: done.queued, error: null })
+      interpretation: { ...(plan as DirectorOrderPlan | null || {}),
+        ...(done.status === 'waiting_you' && done.awaiting ? { awaiting: done.awaiting } : {}),
+        ...(resumedText && pending ? { resumed_from: pending.id, resumed_text: resumedText } : {}) },
+      output_ids: done.outputs, queued: done.queued, error: null })
+    if (resumedText && pending) {
+      // L'ordine di prima non aspetta più te: la sua domanda ha avuto risposta qui.
+      await admin.from('office_director_orders').update({ status: 'done' })
+        .eq('id', pending.id).eq('user_id', userId).eq('status', 'waiting_you')
+    }
     void reportQueuedWork(admin, userId, order.id, 'Esito del lavoro', startQueuedAgents(userId, done.queued, `order:${order.id}`))
   } else if (result.skipped) {
     Object.assign(patch, { status: 'failed', reply: result.skipped === 'disabled'
@@ -427,7 +982,15 @@ export async function processDirectorOrder(admin: Admin, userId: string, orderId
   } else {
     Object.assign(patch, { status: 'failed', reply: `Non ci sono riuscito: ${result.error || 'errore sconosciuto'}.`, error: result.error || 'errore' })
   }
-  return checked(await admin.from('office_director_orders').update(patch).eq('id', order.id).eq('user_id', userId).select('*').single())
+  const save = () => admin.from('office_director_orders').update(patch).eq('id', order.id).eq('user_id', userId).select('*').single()
+  let saved = await save()
+  // Un'intenzione più nuova del vincolo sul database (migration non ancora applicata) non deve
+  // lasciare l'ordine «in lavorazione» per sempre: si salva senza, l'interpretazione resta.
+  if (saved.error && (saved.error as { code?: string }).code === '23514' && patch.intent) {
+    patch.intent = null
+    saved = await save()
+  }
+  return checked(saved)
 }
 
 const OPPORTUNITY_BY_CATEGORY: Record<string, { pipeline: string; role: string; next_step: string } | undefined> = {

@@ -173,6 +173,9 @@ async function executeClaimedWork(work: OfficeWorkItem, userId: string, store: O
             required_action: 'Verificare l’errore e riprendere questo lavoro dopo la correzione', responsible: work.agent_id, next_check_at: null }
     }
     if (!outcome) outcome = blocked('reconciliation_required', 'La corsa è terminata senza un risultato verificabile del lavoro', work.agent_id)
+    if (runId && await store.uncertainRun(runId)) {
+      outcome = blocked('reconciliation_required', 'La corsa conserva una riserva senza saldo: verificare la ricevuta prima di proseguire', work.agent_id)
+    }
     if (outcome.status === 'succeeded' && !Object.keys(outcome.result || {}).length) {
       outcome = blocked('reconciliation_required', 'Il lavoro dichiara successo ma manca un riferimento verificabile al risultato', work.agent_id)
     }

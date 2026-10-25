@@ -422,8 +422,15 @@ export default function TourismWorkspace() {
   }, [reload])
   useEffect(() => {
     // /fiere e i link «?tab=…» aprono direttamente la scheda richiesta (dopo l'idratazione).
-    const wanted = new URLSearchParams(window.location.search).get('tab')
+    const params = new URLSearchParams(window.location.search)
+    const wanted = params.get('tab')
     if (wanted && ['overview', 'directory', 'explorer', 'discovery', 'research', 'decks', 'fiere'].includes(wanted)) setTab(wanted)
+    // Il link «?entity=<id>» (dal Direttore, da Telegram) apre la scheda dell'ente.
+    const entity = params.get('entity')
+    if (entity && /^[0-9a-f-]{36}$/i.test(entity)) {
+      setTab('directory')
+      setDetailId(entity)
+    }
   }, [])
   useEffect(() => {
     let live = true

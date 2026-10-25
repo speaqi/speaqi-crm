@@ -1,5 +1,7 @@
 # Ufficio — rapporto di verifica, 25 ottobre 2026
 
+**Aggiornamento del rilascio:** dopo l'integrazione di main fino alla #86, suite applicativa **680 casi: 679 superati, 1 saltato, 0 errori**. Build e controllo tipi superati. La migration è stata applicata al database di produzione e verificata con un accodamento idempotente in rollback; attivazione e osservazione del worker su Railway sono separate. Dettagli nella [ricevuta del rilascio](UFFICIO-RELEASE-2026-10-25.md). I conteggi sotto documentano il collaudo della base precedente e non vanno sommati a questo totale.
+
 ## Ambito ed evidenza
 
 Il controllo distingue tre livelli: logica applicativa con servizi simulati, transazioni/lock su PostgreSQL isolato, comportamento del deploy reale. Un test verde al primo livello non attesta automaticamente gli altri due. Nessun messaggio, pubblicazione, generazione a pagamento o modifica dei dati di produzione viene autorizzato dal collaudo.

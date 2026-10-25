@@ -64,11 +64,22 @@ function fakeRunner(mode?: string) {
 }
 const options = { enabled: true, admin: {}, heartbeatMs: 0, deliverNotifications: false, now: () => NOW }
 
+test('una sintesi riuscita non chiude il lavoro se il servizio lascia una riserva incerta', async () => {
+  const db = fakeStore(); const runner = fakeRunner()
+  db.store.uncertainRun = async () => true
+  await runOfficeWorker(OWNER, { ...options, store: db.store, run: runner.run,
+    execute: async () => ({ status: 'succeeded', result: { report_id: 'report' }, result_summary: 'Rapporto pronto' }) })
+  assert.equal(db.rows[0].status, 'blocked')
+  assert.equal(db.rows[0].reason_code, 'reconciliation_required')
+})
+
 test('azioni chiuse, identificativi e payload impediscono deleghe libere e Napoli', () => {
   assert.throws(() => officeWorkSpec({ agent_id: 'director', action: 'send_email', source_key: 'bad' }), /non ammesso/)
   assert.throws(() => officeWorkSpec({ agent_id: 'director', action: 'interpret_order', source_key: '' }), /Chiave/)
   assert.throws(() => validateWorkPayload('director', 'interpret_order', { enabled: true }), /Campo/)
   assert.throws(() => validateWorkPayload('presentations', 'prepare_presentation', { entity_id: 'foreign' }), /Identificativo/)
+  assert.throws(() => validateWorkPayload('presentations', 'prepare_presentation', { photos: ['../other.jpg'] }), /Foto/)
+  assert.doesNotThrow(() => validateWorkPayload('presentations', 'prepare_presentation', { entity_id: ID, photos: [`${OWNER}/${ID}/${ID}.jpg`] }))
   for (const slug of ['napolimap', 'naples', '%6eapoli']) assert.throws(() => validateWorkPayload('mymaps_builder', 'import_mymaps', { city: slug }), /Napoli/)
   assert.equal(officeWorkSpec({ agent_id: 'mymaps_builder', action: 'import_mymaps', source_key: 'map:1', payload: { slug: 'marsiglia' } }).payload?.slug, 'marsiglia')
 })

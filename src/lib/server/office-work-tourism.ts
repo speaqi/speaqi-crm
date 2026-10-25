@@ -6,7 +6,7 @@ import {
   type EnrichOrg, type EnrichPage, type ModelEnrichment,
 } from '../office/entity-enricher'
 import { safePublicUrl } from '../tourism'
-import { DECK_SLIDE_KINDS, countTodo, type DeckSlide } from '../tourism-deck'
+import { DECK_SLIDE_KINDS, MAX_DECK_SLIDES, countTodo, type DeckSlide } from '../tourism-deck'
 import { callModel, officeModelKey, type AgentContext, type AgentHandler } from './office-agents'
 import { readEntitySite } from './office-agents/entity-enricher'
 import { presentationEntities, presentationsHandler } from './office-agents/presentations'
@@ -61,6 +61,15 @@ export async function verifyTourismWork(ctx: AgentContext, work: OfficeWorkItem,
     return blocked('work_owner_mismatch', 'Il lavoro non appartiene a questa corsa.', 'Controlla il collegamento fra lavoro e agente.')
   }
   const userId = work.user_id
+  const askWebsite = async (outcome: WorkOutcome) => {
+    if (work.order_id) {
+      const order = checked(await admin.from('office_director_orders').select('interpretation').eq('user_id', userId).eq('id', work.order_id).maybeSingle())
+      checked(await admin.from('office_director_orders').update({ interpretation: { ...(order?.interpretation || {}),
+        awaiting: { need: 'site', resume: text(work.payload.order_text) || `presentazione per ${text(work.payload.entity_id)}` } } })
+        .eq('user_id', userId).eq('id', work.order_id))
+    }
+    return outcome
+  }
   const entityId = text(work.payload.entity_id)
   if (!entityId) return blocked('entity_missing', 'Manca l’ente da verificare.', 'Collega l’ente del catalogo a questo lavoro.')
   const entity = checked(await admin.from('tourism_entities').select('*').eq('user_id', userId).eq('id', entityId).maybeSingle()) as EnrichOrg | null
@@ -116,12 +125,12 @@ export async function verifyTourismWork(ctx: AgentContext, work: OfficeWorkItem,
         break
       } catch { /* Un candidato pubblico indisponibile non autorizza a inventare prove. */ }
     }
-    if (!website) return blocked('official_website_missing', 'Non ho trovato una fonte ufficiale leggibile per l’ente.',
-      'Aggiungi il sito ufficiale a questo lavoro; Arricchimento riprenderà la verifica.', 'Arricchimento enti / titolare')
+    if (!website) return askWebsite(blocked('official_website_missing', 'Non ho trovato una fonte ufficiale leggibile per l’ente.',
+      'Aggiungi il sito ufficiale a questo lavoro; Arricchimento riprenderà la verifica.', 'Arricchimento enti / titolare'))
   }
   if (!pages.length) {
     try { pages = savedPages(await readSite(website)) }
-    catch { return blocked('website_unreadable', 'Il sito ufficiale non si riesce a leggere.', 'Controlla il sito o indica una fonte ufficiale accessibile nello stesso lavoro.', 'Arricchimento enti / titolare') }
+    catch { return askWebsite(blocked('website_unreadable', 'Il sito ufficiale non si riesce a leggere.', 'Controlla il sito o indica una fonte ufficiale accessibile nello stesso lavoro.', 'Arricchimento enti / titolare')) }
   }
   if (!siteMatchesEntity(website, pages.map((page) => page.text).join('\n'), entity.name)) {
     return blocked('website_identity_mismatch', 'Le pagine lette non identificano l’ente richiesto.', 'Controlla e correggi il sito dell’ente prima di riprendere.')
@@ -163,7 +172,7 @@ export async function verifyTourismWork(ctx: AgentContext, work: OfficeWorkItem,
 }
 
 function validReadyDeck(deck: any): deck is { id: string; status: string; slides: DeckSlide[]; version: number } {
-  if (!deck || !['ready', 'approved'].includes(deck.status) || !Array.isArray(deck.slides) || !deck.slides.length || deck.slides.length > 12) return false
+  if (!deck || !['ready', 'approved'].includes(deck.status) || !Array.isArray(deck.slides) || !deck.slides.length || deck.slides.length > MAX_DECK_SLIDES) return false
   const ids = new Set<string>()
   return deck.slides.every((slide: any) => {
     if (!slide || typeof slide.id !== 'string' || !slide.id || ids.has(slide.id) || !DECK_SLIDE_KINDS.includes(slide.kind)
@@ -221,7 +230,8 @@ export async function preparePresentationWork(ctx: AgentContext, work: OfficeWor
     const persist = checkpointWriter(admin, work, deps)
     await persist('effect_started', { entity_id: entityId, destination_id: destinationId, stage: 'prepare_presentation' })
     const scopedCtx: AgentContext = { ...ctx, agent: Object.freeze({ ...ctx.agent,
-      settings: { ...ctx.agent.settings, queue: [{ entity_id: entityId, destination_id: destinationId }] } }) }
+      settings: { ...ctx.agent.settings, queue: [{ entity_id: entityId, destination_id: destinationId,
+        ...(Array.isArray(work.payload.photos) ? { photos: work.payload.photos } : {}) }] } }) }
     await (deps.present || ((client) => presentationsHandler(client)))(scopedPresentations(admin, entityId, destinationId))(scopedCtx)
     deck = await deckFor(await task())
   }

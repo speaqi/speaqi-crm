@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
 import test, { afterEach, beforeEach } from 'node:test'
 import sharp from 'sharp'
-import { DECK_TODO, DECK_TODO_PATTERN, applyVars, DEFAULT_DECK_TEMPLATE, type DeckSlide } from '../src/lib/tourism-deck'
+import { DECK_TODO, DECK_TODO_PATTERN, DESTINATIONS_BASE, applyVars, DEFAULT_DECK_TEMPLATE, type DeckSlide } from '../src/lib/tourism-deck'
+import { GENERIC } from './deck-template-fixture'
 
 // I numeri del territorio restano da verificare nel modello: per approvare li si scrive.
 const completed = (slides: DeckSlide[]) => slides.map((s) => JSON.parse(JSON.stringify(s).replace(DECK_TODO_PATTERN, '12')) as DeckSlide)
-import { addAssets, createDeck, deleteDeck, generateIntoDeck, loadDeck, loadPublicDeck, saveDeckEdits, setApproval, type DeckRow } from '../src/lib/server/tourism-decks'
+import { addAssets, addPhotosToDeck, createDeck, deckRenderKey, getTemplate, saveTemplate, deleteDeck, generateIntoDeck, loadDeck, loadPublicDeck, saveDeckEdits, setApproval, type DeckRow } from '../src/lib/server/tourism-decks'
 
 type Row = Record<string, any>
 
@@ -91,11 +92,37 @@ const fields = { destination: 'Capri', entity_id: null, notes: 'Isola dei Faragl
 const png = () => sharp({ create: { width: 20, height: 20, channels: 3, background: '#2b6' } }).png().toBuffer()
 const provider = (slides: unknown[]) => (async () => ({ ok: true, status: 200, json: async () => ({ output_text: JSON.stringify({ slides, missing: [] }) }) })) as unknown as typeof fetch
 
-test('createDeck parte dal modello con i segnaposto riempiti', async () => {
+/** Un modello salvato dal proprietario, con segnaposto e slide libere. */
+const seedGeneric = () => db.tables.tourism_deck_templates.push({ user_id: USER, is_default: true, version: 1, content: GENERIC })
+
+test('createDeck parte dalla base destinazioni con il nome riempito', async () => {
   const row = await createDeck(db, USER, fields)
   assert.equal(row.status, 'draft')
-  assert.equal(row.slides[0].title, 'La mappa perfetta per Capri Tourism')
+  assert.equal(row.slides[0].kicker, 'Speaqi Guides per Capri')
+  assert.equal(row.slides.length, 14)
   assert.equal(db.tables.tourism_deck_templates.length, 1)
+  assert.equal(db.tables.tourism_deck_templates[0].content.base, DESTINATIONS_BASE)
+})
+
+test('un modello salvato prima della base destinazioni si sostituisce una volta; uno salvato dopo resta', async () => {
+  db.tables.tourism_deck_templates.push({ user_id: USER, is_default: true, version: 1, content: { version: 1, vars: {}, slides: [{ id: 'cover', kind: 'cover', title: '{{destinazione}}, nella lingua di ogni visitatore' }] } })
+  const row = await createDeck(db, USER, fields)
+  assert.equal(row.slides[0].kicker, 'Speaqi Guides per Capri')
+  assert.equal(db.tables.tourism_deck_templates[0].version, 2)
+  assert.equal(db.tables.tourism_deck_templates[0].content.base, DESTINATIONS_BASE)
+  db.tables.tourism_deck_templates[0].content = GENERIC
+  const again = await createDeck(db, USER, fields)
+  assert.equal(again.slides[0].title, 'La mappa perfetta per Capri Tourism')
+  assert.equal(db.tables.tourism_deck_templates[0].version, 2)
+})
+
+test('un modello salvato a mano senza base non viene poi sostituito', async () => {
+  db.tables.tourism_deck_templates.push({ user_id: USER, is_default: true, version: 3, content: DEFAULT_DECK_TEMPLATE })
+  const { version } = await getTemplate(db, USER)
+  const { base: _base, ...withoutBase } = GENERIC
+  const saved = await saveTemplate(db, USER, withoutBase, version)
+  assert.equal(saved.template.base, 'personalizzato')
+  assert.equal((await getTemplate(db, USER)).template.slides[0].title, GENERIC.slides[0].title)
 })
 
 test('un ente non del proprietario si rifiuta', async () => {
@@ -122,6 +149,7 @@ test('foto e documenti si salvano e si registrano', async () => {
 })
 
 test('l’agente legge note e documenti e il deck diventa pronto', async () => {
+  seedGeneric()
   const row = await createDeck(db, USER, fields)
   const [photo] = await addAssets(db, db, row, [{ name: 'a.png', buffer: await png() }, { name: 'brief.txt', buffer: Buffer.from('Visitatori dal Giappone') }])
   let sent = ''
@@ -179,6 +207,7 @@ test('una foto non del deck sparisce dalle slide salvate', async () => {
 })
 
 test('non si approva con [DA VERIFICARE] ancora in pagina', async () => {
+  seedGeneric()
   const row = await createDeck(db, USER, fields)
   await assert.rejects(setApproval(db, row, true), /Restano \d+ \[DA VERIFICARE\]/)
   assert.ok(row.slides.some((s) => JSON.stringify(s).includes(DECK_TODO)))
@@ -188,6 +217,17 @@ test('la vista pubblica mostra solo ciò che è approvato, con token valido', as
   const row = await createDeck(db, USER, fields)
   assert.equal(await loadPublicDeck(db, 'zz'), null)
   assert.equal(await loadPublicDeck(db, row.public_token), null)
+  // Una bozza si apre solo con la chiave di render della sua versione (il PDF del server).
+  const oldKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'segreto-di-prova'
+  try {
+    assert.equal(await loadPublicDeck(db, row.public_token, 'f'.repeat(64)), null)
+    assert.equal((await loadPublicDeck(db, row.public_token, deckRenderKey(row.public_token, row.version)))?.destination, 'Capri')
+    assert.equal(await loadPublicDeck(db, row.public_token, deckRenderKey(row.public_token, row.version + 1)), null)
+  } finally {
+    if (oldKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = oldKey
+  }
   const full = completed(applyVars(DEFAULT_DECK_TEMPLATE, { destinazione: 'Capri', ente: 'X', prezzo: 'almeno 100.000 accessi', contatto: 'a@b.it' }))
   const saved = await saveDeckEdits(db, row, { version: 1, slides: full })
   await setApproval(db, saved, true)
@@ -211,4 +251,58 @@ test('cancellare un deck toglie foto, documenti e PDF generati', async () => {
   await deleteDeck(db, db, row)
   assert.deepEqual([...db.files.keys()], ['altro-utente/altro-deck/deck-v1.pdf'])
   assert.equal(db.tables.tourism_decks.length, 0)
+})
+
+const jpegOf = (background: string) => sharp({ create: { width: 64, height: 40, channels: 3, background } }).jpeg().toBuffer()
+const finder = (names: string[]) => async (_d: string, count: number) => ({
+  photos: await Promise.all(names.slice(0, count).map(async (name, i) => ({ name, buffer: await jpegOf(['#123', '#456', '#789', '#abc'][i]), credit: `Foto: Autore ${i} · CC BY 4.0 · Wikimedia Commons`, source_url: `https://commons.wikimedia.org/wiki/File:${name}` }))),
+  note: names.length < count ? 'Su Wikimedia Commons ho trovato solo poche foto.' : null
+})
+const photoIds = (deck: DeckRow) => deck.slides.filter((s) => ['cover', 'partenza', 'proposta'].includes(s.art || '')).map((s) => s.image_asset_id)
+
+test('la base destinazioni prende tre foto diverse della città, con credito', async () => {
+  const row = await createDeck(db, USER, { ...fields, destination: 'Bibione', input: { destinazione: 'Bibione', ente: 'Bibione Turismo' } })
+  globalThis.fetch = provider([])
+  const deck = await generateIntoDeck(db, db, row, undefined, undefined, finder(['a.jpg', 'b.jpg', 'c.jpg']))
+  const ids = photoIds(deck)
+  assert.equal(new Set(ids).size, 3)
+  assert.ok(ids.every(Boolean))
+  assert.equal(deck.assets.filter((a) => a.source === 'wikimedia').length, 3)
+  assert.ok(deck.assets.every((a) => a.credit?.includes('Wikimedia')))
+  // Rigenerare non riscarica: le foto ci sono già.
+  let asked = 0
+  const again = await generateIntoDeck(db, db, deck, undefined, undefined, async (d, n) => (asked++, finder([])(d, n)))
+  assert.equal(asked, 0)
+  assert.deepEqual(photoIds(again), ids)
+  const pub = await loadPublicDeck(db, (await setApproval(db, again, true)).public_token)
+  assert.equal(Object.keys(pub!.credits).length, 3)
+})
+
+test('trovate poche foto: il motivo finisce negli avvisi, le altre slide restano di esempio', async () => {
+  const row = await createDeck(db, USER, { ...fields, destination: 'Bibione' })
+  globalThis.fetch = provider([])
+  const deck = await generateIntoDeck(db, db, row, undefined, undefined, finder(['a.jpg']))
+  assert.equal(photoIds(deck).filter(Boolean).length, 1)
+  assert.ok(deck.warnings.some((w) => /poche foto/.test(w.message)))
+})
+
+test('foto da Telegram dopo: prendono il posto di quelle di Commons, una volta sola, e tolgono l’approvazione', async () => {
+  const row = await createDeck(db, USER, { ...fields, destination: 'Bibione' })
+  globalThis.fetch = provider([])
+  let deck = await generateIntoDeck(db, db, row, undefined, undefined, finder(['a.jpg', 'b.jpg', 'c.jpg']))
+  deck = await setApproval(db, deck, true)
+  const files = [
+    { name: 'telegram-1.jpg', buffer: await jpegOf('#f00'), source: 'telegram' as const, source_url: 'office-director:u/o/1.jpg' },
+    { name: 'telegram-2.jpg', buffer: await jpegOf('#0f0'), source: 'telegram' as const, source_url: 'office-director:u/o/2.jpg' }
+  ]
+  const first = await addPhotosToDeck(db, db, deck, files)
+  assert.equal(first.added, 2)
+  assert.equal(first.deck.status, 'ready')
+  const telegram = new Set(first.deck.assets.filter((a) => a.source === 'telegram').map((a) => a.id))
+  const ids = photoIds(first.deck)
+  assert.ok(telegram.has(ids[0]!) && telegram.has(ids[1]!))
+  assert.equal(new Set(ids).size, 3)
+  const again = await addPhotosToDeck(db, db, first.deck, files)
+  assert.equal(again.added, 0)
+  assert.equal(again.deck.assets.filter((a) => a.source === 'telegram').length, 2)
 })

@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 import { sendQuoteContractAcceptanceEmail } from '@/lib/email'
 import { errorMessage } from '@/lib/server/http'
-import { createPublicServerClient } from '@/lib/server/supabase'
+import { createPublicServerClient, createServiceRoleClient } from '@/lib/server/supabase'
+import { invoiceOnAcceptance } from '@/lib/server/quote-acceptance-invoice'
 
 function parseRpcJsonb(data: unknown): unknown {
   if (data == null) return null
@@ -74,6 +75,8 @@ export async function POST(request: NextRequest) {
       }
       return Response.json({ error: 'Operazione non riuscita' }, { status: 400 })
     }
+
+    if (row.already !== true) void invoiceOnAcceptance(createServiceRoleClient(), { publicToken: token }, 'firma')
 
     const publicUrl = absolutePublicUrl(request, token)
     // Invia solo se c’è stata una scrittura utile (already=true = già completo, nessuna email duplicata)

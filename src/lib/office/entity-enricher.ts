@@ -25,7 +25,7 @@ export type EnrichPage = { url: string; text: string }
 export type Evidence = { source_url: string; quote: string }
 
 /** Nomi locali o inglesi delle città che il catalogo scrive in italiano (fatti, non stime). */
-const EXONYMS: Record<string, string[]> = {
+export const EXONYMS: Record<string, string[]> = {
   barcellona: ['Barcelona'], marsiglia: ['Marseille'], atene: ['Athens', 'Athina'], londra: ['London'], copenaghen: ['Copenhagen', 'Kobenhavn'],
   genova: ['Genoa'], lisbona: ['Lisbon', 'Lisboa'], siviglia: ['Sevilla', 'Seville'], cadice: ['Cadiz'], spalato: ['Split'], venezia: ['Venice'],
   firenze: ['Florence'], roma: ['Rome'], nizza: ['Nice'], amburgo: ['Hamburg'], stoccolma: ['Stockholm'], 'san pietroburgo': ['Saint Petersburg'],

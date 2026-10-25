@@ -87,10 +87,38 @@ const CRM_ERRORS: Array<[RegExp, string]> = [
   [/Possible CRM matches require review/i, 'c’è un possibile doppione nel CRM: confermalo dalla scheda dell’ente'],
   [/country mismatch/i, 'nel CRM c’è un contatto con lo stesso nome ma un altro paese: controllalo dalla scheda'],
   [/Email already used/i, 'l’email è già di un altro contatto del CRM'],
+  [/already linked to another CRM contact/i, 'l’ente è già collegato a un altro contatto del CRM: controllalo dalla scheda'],
 ]
 
 /** Il motivo per cui l'ente non è entrato nei contatti, in italiano. */
 export function crmErrorText(error: string | null | undefined): string | null {
   if (!error) return null
   return CRM_ERRORS.find(([pattern]) => pattern.test(error))?.[1] || `il CRM ha risposto: ${error}`
+}
+
+/** Il nome senza spazi né segni: «Visit Bergamo» e «VisitBergamo» sono lo stesso ente. */
+export const compactName = (name: string) =>
+  name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '')
+
+/** Ricerca nel catalogo con le parole in ordine e qualunque cosa in mezzo: trova anche il nome scritto attaccato. */
+export function entitySearchPattern(name: string): string | null {
+  const words = name.replace(/[%_,()*\\]/g, ' ').split(/\s+/).filter(Boolean).slice(0, 8)
+  return words.join(' ').length >= 2 ? `%${words.join('%')}%` : null
+}
+
+type CandidateEntity = { name: string; aliases?: string[] | null; status: string; disabled?: boolean | null }
+
+/**
+ * L'ente nominato in un ordine, fra quelli trovati nel catalogo. Archiviati e doppioni non
+ * contano. Vale il nome (o un alias) uguale a quello scritto, spazi a parte; fra più enti con
+ * quel nome vince l'unico verificato. Se resta un dubbio, nessuno: meglio chiedere che sbagliare ente.
+ */
+export function pickOrderEntity<T extends CandidateEntity>(rows: T[], name: string): T | null {
+  const live = rows.filter((row) => !row.disabled && row.status !== 'INACTIVE' && row.status !== 'DUPLICATE')
+  const wanted = compactName(name)
+  const exact = live.filter((row) => [row.name, ...(row.aliases || [])].some((n) => compactName(n) === wanted))
+  const pool = exact.length ? exact : live
+  if (pool.length === 1) return pool[0]
+  const verified = pool.filter((row) => row.status === 'VERIFIED')
+  return exact.length && verified.length === 1 ? verified[0] : null
 }

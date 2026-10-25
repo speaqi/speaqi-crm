@@ -54,6 +54,7 @@ export default function DeckEditor({ id }: { id: string }) {
   }, [deck?.status, busy, load])
 
   const images = useMemo(() => Object.fromEntries((deck?.assets || []).filter((a) => a.url).map((a) => [a.id, a.url as string])), [deck])
+  const credits = useMemo(() => Object.fromEntries((deck?.assets || []).filter((a) => a.credit).map((a) => [a.id, a.credit as string])), [deck])
   const photos = (deck?.assets || []).filter((a) => a.kind === 'photo')
   const todo = countTodo(slides)
 
@@ -172,9 +173,15 @@ export default function DeckEditor({ id }: { id: string }) {
               <button className={s.secondary} onClick={downloadPdf} disabled={!!busy}>{busy === 'pdf' ? <><span className={e.spin} /> Preparo il PDF…</> : 'Scarica il PDF'}</button>
             </>
           ) : (
-            <button className={s.primary} onClick={() => approve(true)} disabled={!!busy || generating || todo > 0} title={todo ? `Restano ${todo} [DA VERIFICARE]` : undefined}>
-              {busy === 'approve' ? 'Approvo…' : 'Approva'}
-            </button>
+            <>
+              {/* Il PDF si scarica anche prima di approvare: il link pubblico invece resta chiuso. */}
+              <button className={s.secondary} onClick={downloadPdf} disabled={!!busy || generating || dirty} title={dirty ? 'Salva prima le modifiche' : undefined}>
+                {busy === 'pdf' ? <><span className={e.spin} /> Preparo il PDF…</> : 'Scarica il PDF'}
+              </button>
+              <button className={s.primary} onClick={() => approve(true)} disabled={!!busy || generating || todo > 0} title={todo ? `Restano ${todo} [DA VERIFICARE]` : undefined}>
+                {busy === 'approve' ? 'Approvo…' : 'Approva'}
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -268,7 +275,7 @@ export default function DeckEditor({ id }: { id: string }) {
         </div>
 
         <div className={`${e.col} ${e.sticky}`}>
-          <DeckPlayer slides={slides} images={images} destination={deck.destination} index={index} onIndexChange={setIndex} />
+          <DeckPlayer slides={slides} images={images} credits={credits} destination={deck.destination} index={index} onIndexChange={setIndex} />
           <span className={e.help}>Anteprima in tempo reale: è quello che vede chi riceve il link. In PDF ogni slide è una pagina 16:9.</span>
         </div>
       </div>

@@ -49,7 +49,7 @@ export type WorkPatch = Omit<Partial<WorkOutcome>, 'children'> & { children?: Of
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const PAYLOAD_FIELDS = new Set(['order_id', 'entity_id', 'destination_id', 'place_id', 'contact_id', 'map_id', 'map_slug', 'slug', 'city',
   'source', 'website', 'target', 'brief', 'title', 'text', 'due_date', 'proposal_id', 'source_output_id', 'slot', 'approved',
-  'queue_entry', 'settings', 'action_key', 'target_table', 'target_id', 'include', 'audio', 'proposed_city', 'order_text'])
+  'queue_entry', 'settings', 'action_key', 'target_table', 'target_id', 'include', 'audio', 'proposed_city', 'order_text', 'photos'])
 /** Il validatore impedisce deleghe libere e protegge i campi di controllo dal payload. */
 export function validateWorkPayload(agentId: string, action: string, raw: unknown): Record<string, unknown> {
   if (!validWorkAction(agentId, action)) throw new Error('Azione o agente non ammesso per un lavoro')
@@ -57,6 +57,8 @@ export function validateWorkPayload(agentId: string, action: string, raw: unknow
   const payload = raw as Record<string, unknown>
   for (const [key, value] of Object.entries(payload)) {
     if (!PAYLOAD_FIELDS.has(key)) throw new Error(`Campo del lavoro non ammesso: ${key}`)
+    if (key === 'photos' && (action !== 'prepare_presentation' || !Array.isArray(value) || value.length > 8
+      || value.some((path) => typeof path !== 'string' || !/^[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.jpg$/i.test(path)))) throw new Error('Foto del lavoro non valide')
     if (['order_id', 'entity_id', 'destination_id', 'place_id', 'contact_id', 'map_id', 'proposal_id', 'source_output_id'].includes(key)
       && value !== null && (typeof value !== 'string' || !UUID.test(value))) throw new Error(`Identificativo non valido: ${key}`)
     if (['source', 'website'].includes(key) && value !== null && (typeof value !== 'string' || value.length > 2000)) throw new Error(`Fonte non valida: ${key}`)

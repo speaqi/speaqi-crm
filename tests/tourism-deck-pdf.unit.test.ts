@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { deckPdfPath, getOrCreateDeckPdf, internalDeckUrl, pdfFileName } from '../src/lib/server/tourism-deck-pdf'
-import type { DeckRow } from '../src/lib/server/tourism-decks'
+import { validDeckRenderKey, type DeckRow } from '../src/lib/server/tourism-decks'
 
 const TOKEN = 'a'.repeat(64)
 const row = (over: Partial<DeckRow> = {}) =>
@@ -23,15 +23,31 @@ function storage() {
   return { files, service }
 }
 
-test('si genera solo una presentazione approvata', async () => {
+test('una bozza si stampa con la chiave di render della sua versione; mentre l’agente lavora no', async () => {
   const { service } = storage()
-  await assert.rejects(getOrCreateDeckPdf(service, row({ status: 'ready' }), async () => PDF), /Approva la presentazione/)
+  const old = process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'segreto-di-prova'
+  try {
+    let seen = ''
+    await getOrCreateDeckPdf(service, row({ status: 'ready' }), async (url) => { seen = url; return PDF })
+    const key = new URL(seen).searchParams.get('render')!
+    assert.equal(seen, `http://127.0.0.1:${process.env.PORT || 3000}/presentazione/${TOKEN}?render=${key}`)
+    assert.equal(validDeckRenderKey(TOKEN, 3, key), true)
+    // Una modifica (versione nuova) o un altro deck non si aprono con la stessa chiave.
+    assert.equal(validDeckRenderKey(TOKEN, 4, key), false)
+    assert.equal(validDeckRenderKey('b'.repeat(64), 3, key), false)
+    assert.equal(validDeckRenderKey(TOKEN, 3, 'x'), false)
+    await assert.rejects(getOrCreateDeckPdf(service, row({ status: 'generating' }), async () => PDF), /sta ancora lavorando/)
+  } finally {
+    if (old === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = old
+  }
 })
 
 test('il PDF si genera una volta e poi si serve dalla cache', async () => {
   const { service, files } = storage()
   let renders = 0
-  const render = async (url: string) => { renders++; assert.equal(url, internalDeckUrl(TOKEN)); return PDF }
+  const render = async (url: string) => { renders++; assert.equal(url, internalDeckUrl(row())); return PDF }
   assert.deepEqual(await getOrCreateDeckPdf(service, row(), render), PDF)
   assert.deepEqual(await getOrCreateDeckPdf(service, row(), render), PDF)
   assert.equal(renders, 1)

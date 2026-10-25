@@ -4,11 +4,29 @@ import { deckPlaceholders, presentationFixes, presentationQueue, type Presentati
 import { callModel, type AgentHandler } from '../office-agents'
 import { createServiceRoleClient } from '../supabase'
 import { officeRows } from '../office-read'
-import { createDeck, generateIntoDeck, type DeckRow } from '../tourism-decks'
+import { addPhotosToDeck, createDeck, generateIntoDeck, type DeckRow, type PhotoFinder } from '../tourism-decks'
+import { directorPhotoFiles } from '../office-director-photos'
 import { buildAgentRequest, validateDeckAgentResult } from '../tourism-deck-agent'
 import { addOfficeOutputOnce } from './shared'
+import { sendDeckToTelegram } from '../office-deck-telegram'
 
 const checked = (result: any) => { if (result.error) throw result.error; return result.data }
+
+/** L'agente delle slide che passa dal budget dell'ufficio (riserva prima, saldo dopo), senza retry. */
+export function officeDeckAgent(ctx: Parameters<AgentHandler>[0], model: typeof callModel = callModel) {
+  return async (args: Parameters<typeof buildAgentRequest>[0]) => {
+    const request = buildAgentRequest(args, ctx.agent.model)
+    const result = await model(ctx, { model: ctx.agent.model, input: JSON.stringify(request.input), maxOutputTokens: request.max_output_tokens,
+      jsonSchema: { name: 'tourism_deck', schema: request.text.format.schema } })
+    return validateDeckAgentResult(args, { output_text: result.text }, ctx.agent.model)
+  }
+}
+
+/** Generazioni per corsa: ognuna costa una chiamata, il tetto lo decide il titolare (settings.max_per_run). */
+export function presentationsPerRun(settings: Record<string, unknown> | null | undefined) {
+  const raw = Number(settings?.max_per_run)
+  return Number.isInteger(raw) && raw >= 1 ? Math.min(10, raw) : 5
+}
 export async function presentationEntities(admin: any, userId: string, item: PresentationQueueItem) {
   const entity = checked(await admin.from('tourism_entities').select('*').eq('user_id', userId).eq('id', item.entity_id).maybeSingle())
   if (!entity || entity.kind !== 'organization' || entity.status !== 'VERIFIED' || entity.disabled) throw new Error('Ente non verificato o disabilitato')
@@ -28,7 +46,7 @@ export async function presentationEntities(admin: any, userId: string, item: Pre
 }
 
 export function presentationsHandler(admin: any, options: {
-  model?: typeof callModel; create?: typeof createDeck; generate?: typeof generateIntoDeck
+  model?: typeof callModel; create?: typeof createDeck; generate?: typeof generateIntoDeck; findPhotos?: PhotoFinder
 } = {}): AgentHandler {
   return async (ctx) => {
     const userId = ctx.agent.user_id
@@ -46,6 +64,7 @@ export function presentationsHandler(admin: any, options: {
       })
     }
     let generated = 0; let warnings = 0; let spentAttempts = 0
+    const perRun = presentationsPerRun(ctx.agent.settings)
     for (const item of queue) {
       let source: Awaited<ReturnType<typeof presentationEntities>>
       try { source = await presentationEntities(admin, userId, item) }
@@ -68,23 +87,25 @@ export function presentationsHandler(admin: any, options: {
           input: { destinazione: destination.name, ente: entity.name, paese: destination.country_code || entity.country_code,
             prezzo: '', contatto: '[DA VERIFICARE]' }
         }, claim.task.id)
+        // Le foto mandate al Direttore con l'ordine vanno nei materiali prima della generazione.
+        if (item.photos?.length) deck = (await addPhotosToDeck(admin, admin, deck, await directorPhotoFiles(admin, userId, item.photos))).deck
         let providerError: unknown
+        // La pipeline esistente prepara il brief e valida le slide; solo il
+        // trasporto del modello passa dal budget dell'ufficio, senza retry.
+        const agent = officeDeckAgent(ctx, options.model || callModel)
         deck = await (options.generate || generateIntoDeck)(admin, admin, deck, undefined, async (args) => {
-          try {
-            // La pipeline esistente prepara il brief e valida le slide; solo il
-            // trasporto del modello passa dal budget dell'ufficio, senza retry.
-            const request = buildAgentRequest(args, ctx.agent.model)
-            const result = await (options.model || callModel)(ctx, { model: ctx.agent.model, input: JSON.stringify(request.input), maxOutputTokens: request.max_output_tokens,
-              jsonSchema: { name: 'tourism_deck', schema: request.text.format.schema } })
-            return validateDeckAgentResult(args, { output_text: result.text }, ctx.agent.model)
-          } catch (error) { providerError = error; throw error }
-        })
+          try { return await agent(args) } catch (error) { providerError = error; throw error }
+        }, options.findPhotos)
         spentAttempts++
         if (providerError) {
           checked(await admin.rpc('finish_office_presentation', { p_run_id: ctx.runId, p_task_id: claim.task.id,
             p_report: { message: 'Generazione non conclusa: verificare deck e riserva prima di riprovare. Nessun retry automatico.', error: deck.error } }))
           throw providerError
         }
+      }
+      else if (deck && item.photos?.length) {
+        // Presentazione già fatta: le foto arrivate dopo si aggiungono (una volta sola), senza rigenerare.
+        deck = (await addPhotosToDeck(admin, admin, deck, await directorPhotoFiles(admin, userId, item.photos))).deck
       }
       if (!deck || !['ready', 'failed', 'approved'].includes(deck.status)) {
         warnings++; ctx.log(`Presentazione ${claim.task.id}: tentativo da riconciliare, nessuna nuova spesa.`); continue
@@ -98,8 +119,15 @@ export function presentationsHandler(admin: any, options: {
       checked(await admin.rpc('finish_office_presentation', { p_run_id: ctx.runId, p_task_id: claim.task.id, p_report: {
         placeholders, fixes_proposed: fixes.length, warnings: deck.warnings, message: 'Rivedi e approva in Tourism. L’approvazione di questo rapporto non approva la presentazione.'
       } }))
-      if (claim.claimed) generated++
-      if (spentAttempts >= 2) break
+      if (claim.claimed) {
+        generated++
+        // Appena pronta, la bozza arriva su Telegram in PDF (settings.telegram_pdf=false la spegne).
+        if (ctx.agent.settings?.telegram_pdf !== false) {
+          const sent = await sendDeckToTelegram(admin, deck)
+          if (!sent.ok && sent.error !== 'Telegram non configurato') ctx.log(`Presentazione ${deck.id}: non inviata su Telegram (${sent.error}).`)
+        }
+      }
+      if (spentAttempts >= perRun) break
     }
     return { summary: `Presentazioni: ${generated} preparate, ${warnings} segnalazioni; nessuna approvazione o invio automatico.` }
   }

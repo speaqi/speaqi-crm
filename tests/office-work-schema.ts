@@ -2,7 +2,7 @@ import { EVENTS_SCHEMA_MIGRATIONS } from './office-events-schema'
 import { resetOfficeDatabase } from './office-schema'
 
 /** Migrazioni applicative originali: soltanto il confine Auth viene simulato. */
-export const OFFICE_WORK_SCHEMA_MIGRATION = '20261025061329_office_persistent_work.sql'
+export const OFFICE_WORK_SCHEMA_MIGRATION = '20261025172333_office_persistent_work.sql'
 export async function resetWorkDatabase(database: string) {
   return resetOfficeDatabase(database, [
     ...EVENTS_SCHEMA_MIGRATIONS,

@@ -37,6 +37,7 @@ export default function DeckWizard({
   const [contatto, setContatto] = useState('')
   const [notes, setNotes] = useState(entity?.website ? `Sito: ${entity.website}\n` : '')
   const [files, setFiles] = useState<File[]>([])
+  const [modello, setModello] = useState<'destinazione' | 'partner'>('destinazione')
   const [generate, setGenerate] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -67,6 +68,7 @@ export default function DeckWizard({
       fd.set('prezzo', prezzo)
       fd.set('contatto', contatto)
       fd.set('notes', notes)
+      fd.set('modello', modello)
       fd.set('generate', generate ? '1' : '0')
       if (picked) fd.set('entity_id', picked.id)
       for (const f of files) fd.append('files', f)
@@ -95,16 +97,31 @@ export default function DeckWizard({
             {picked && <small className={s.muted}>Collegato a {picked.name}</small>}
           </div>
         )}
+        <label>
+          Per chi è
+          <select value={modello} onChange={(ev) => setModello(ev.target.value === 'partner' ? 'partner' : 'destinazione')}>
+            <option value="destinazione">Una destinazione (ente del turismo, DMO, comune)</option>
+            <option value="partner">Un partner (hotel, agenzia, compagnia, tour operator)</option>
+          </select>
+          {modello === 'partner' && (
+            <small className={s.muted}>Base Partner: QR e link con commissione, codici a tempo, vetrina. Le condizioni restano <code>[DA VERIFICARE]</code> finché non le scrivi in «Condizioni».</small>
+          )}
+        </label>
         <div className={s.formGrid}>
           <label>Destinazione *<input required value={destinazione} maxLength={200} onChange={(ev) => setDestinazione(ev.target.value)} placeholder="Es. Costiera Amalfitana" /></label>
-          <label>Ente destinatario<input value={ente} maxLength={200} onChange={(ev) => setEnte(ev.target.value)} placeholder="DMC o DMO a cui la mandi" /></label>
+          <label>Ente destinatario<input value={ente} maxLength={200} onChange={(ev) => setEnte(ev.target.value)} placeholder={modello === 'partner' ? 'Hotel, agenzia, compagnia…' : 'DMC o DMO a cui la mandi'} /></label>
           <label>Paese<input value={paese} maxLength={100} onChange={(ev) => setPaese(ev.target.value)} /></label>
-          <label>Contatto Speaqi in chiusura<input value={contatto} maxLength={300} onChange={(ev) => setContatto(ev.target.value)} placeholder="Nome, email, telefono" /></label>
         </div>
-        <label>
-          Condizioni (la mappa è gratuita)
-          <input value={prezzo} maxLength={300} onChange={(ev) => setPrezzo(ev.target.value)} placeholder="Vuoto = almeno 100.000 accessi all’anno e distribuzione dei QR" />
-        </label>
+        <details open={modello === 'partner'}>
+          <summary className={s.muted}>{modello === 'partner' ? 'Condizioni per il partner' : 'Solo per la base aziende: contatto e condizioni'}</summary>
+          <p className={s.muted}>{modello === 'partner'
+            ? 'Scrivi commissione, prezzo dei codici e durata come li proponi: finiscono nella slide «Condizioni». Vuoto resta [DA VERIFICARE] e non si approva.'
+            : 'La presentazione delle destinazioni ha già contatti e condizioni scritti dentro: questi campi servono solo se il modello è la base aziende.'}</p>
+          <div className={s.formGrid}>
+            <label>Contatto Speaqi in chiusura<input value={contatto} maxLength={300} onChange={(ev) => setContatto(ev.target.value)} placeholder="Nome, email, telefono" /></label>
+            <label>Condizioni<input value={prezzo} maxLength={300} onChange={(ev) => setPrezzo(ev.target.value)} /></label>
+          </div>
+        </details>
         <label>
           Informazioni sulla destinazione
           <textarea value={notes} maxLength={30000} onChange={(ev) => setNotes(ev.target.value)} rows={7} placeholder="Incolla appunti, una mail, il testo del sito: luoghi, lingue dei visitatori, cosa conta per loro…" />

@@ -6,13 +6,77 @@ export const DECK_TODO = '[DA VERIFICARE]'
 /** Ogni segnaposto da completare, anche con la nota ("[DA VERIFICARE per questo ente]"). */
 export const DECK_TODO_PATTERN = /\[DA VERIFICARE[^\]]{0,80}\]/g
 
-export const DECK_SLIDE_KINDS = ['cover', 'statement', 'cards', 'steps', 'closing'] as const
+export const DECK_SLIDE_KINDS = ['cover', 'statement', 'list', 'cards', 'steps', 'languages', 'showcase', 'figures', 'compare', 'demo', 'media', 'closing'] as const
 export type DeckSlideKind = (typeof DECK_SLIDE_KINDS)[number]
+
+/** Sfondo della slide; vuoto = quello del tipo. */
+export const DECK_TONES = ['light', 'dark', 'deep', 'accent'] as const
+export type DeckTone = (typeof DECK_TONES)[number]
+
+/** Icone disegnate dalla pagina (tratto, stile lucide): solo queste, mai un indirizzo. */
+export const DECK_ICONS = ['star', 'zap', 'clock', 'globe', 'users', 'shield', 'chat', 'send'] as const
+export type DeckIcon = (typeof DECK_ICONS)[number]
+
+/**
+ * Immagini fisse della proposta destinazioni, ritagliate dalla presentazione di riferimento
+ * (ottobre 2026) e servite da public/deck/destinazioni. Una slide le nomina per chiave:
+ * nessun indirizzo libero entra nel modello.
+ */
+export const DECK_ART = {
+  cover: '/deck/destinazioni/cover.webp',
+  partenza: '/deck/destinazioni/partenza.webp',
+  proposta: '/deck/destinazioni/proposta.webp',
+  lingue: '/deck/destinazioni/lingue.webp',
+  telefoni: '/deck/destinazioni/telefoni.webp',
+  azione: '/deck/destinazioni/azione.webp',
+  'qr-napoli': '/deck/destinazioni/qr-napoli.png',
+  'qr-destinazioni': '/deck/destinazioni/qr-destinazioni.png'
+} as const
+export type DeckArt = keyof typeof DECK_ART
+/** Foto di esempio generate con AI: la pagina lo dice quando non c'è una foto della destinazione. */
+export const DECK_AI_ART: readonly DeckArt[] = ['cover']
+/** Le immagini fisse che sono foto di un luogo: vanno sostituite con foto della destinazione. */
+export const DECK_PHOTO_ART: readonly DeckArt[] = ['cover', 'partenza', 'proposta']
+
+/** Le slide che vogliono una foto della destinazione, nell'ordine in cui la ricevono. */
+export const photoSlots = (slides: DeckSlide[]) =>
+  slides.filter((s) => (s.art ? DECK_PHOTO_ART.includes(s.art) : s.kind === 'cover'))
+
+/**
+ * Una foto della destinazione per ogni slide che ne vuole una, mai la stessa due volte.
+ * Una scelta già fatta (dall'agente o a mano) resta, se la foto esiste e non è ripetuta;
+ * gli spazi vuoti prendono le foto non ancora usate, nell'ordine dato (prima quelle
+ * caricate da chi lavora, poi quelle trovate). Senza foto resta l'immagine di esempio.
+ */
+export function assignPhotos(slides: DeckSlide[], photoIds: string[]): DeckSlide[] {
+  const known = new Set(photoIds)
+  const used = new Set<string>()
+  const slots = new Set(photoSlots(slides).map((s) => s.id))
+  const kept = slides.map((s) => {
+    const id = s.image_asset_id
+    if (!id || !known.has(id) || used.has(id)) return id ? { ...s, image_asset_id: null } : s
+    used.add(id)
+    return s
+  })
+  const free = photoIds.filter((id) => !used.has(id))
+  return kept.map((s) => {
+    if (!slots.has(s.id) || s.image_asset_id || !free.length) return s
+    return { ...s, image_asset_id: free.shift()! }
+  })
+}
 
 export const DECK_STATUSES = ['draft', 'generating', 'ready', 'approved', 'failed'] as const
 export type DeckStatus = (typeof DECK_STATUSES)[number]
 
-export type DeckItem = { title: string; text: string }
+export type DeckItem = {
+  title: string
+  text: string
+  /** Numero grande (figure, catalogo) o etichetta sopra il titolo (schede). */
+  value?: string
+  icon?: DeckIcon
+  /** Scheda evidenziata (arancione o blu, secondo lo sfondo). */
+  highlight?: boolean
+}
 export type DeckSlide = {
   id: string
   kind: DeckSlideKind
@@ -25,9 +89,22 @@ export type DeckSlide = {
   image_asset_id: string | null
   /** Istruzione per l'agente: cosa si personalizza in questa slide. Non si mostra al cliente. */
   hint: string
+  /** Etichetta maiuscola sopra il titolo. */
+  kicker?: string
+  /** Riga piccola in basso a sinistra (fonte, condizioni). */
+  footnote?: string
+  tone?: DeckTone
+  /** Immagine fissa del modello; una foto caricata (image_asset_id) la sostituisce. */
+  art?: DeckArt
+  /** QR fisso del modello. */
+  qr?: DeckArt
+  /** Testi fissi: l'agente sceglie al più la foto, le parole restano quelle del modello. */
+  fixed?: boolean
 }
 export type DeckTemplate = {
   version: 1
+  /** Quale base è: un modello salvato senza base è precedente all'ottobre 2026 e si sostituisce. */
+  base?: string
   /** Valori di partenza dei segnaposto {{nome}}. */
   vars: Record<string, string>
   slides: DeckSlide[]
@@ -36,9 +113,14 @@ export type DeckTemplate = {
 
 export const DECK_VAR_NAMES = ['destinazione', 'ente', 'paese', 'prezzo', 'contatto'] as const
 export type DeckVarName = (typeof DECK_VAR_NAMES)[number]
-export type DeckInput = Partial<Record<DeckVarName, string>>
+/** Per chi è la presentazione: un ente (base salvata dal titolare) o un partner che distribuisce le guide. */
+export const DECK_MODELS = ['destinazione', 'partner'] as const
+export type DeckModel = (typeof DECK_MODELS)[number]
+export type DeckInput = Partial<Record<DeckVarName, string>> & { modello?: DeckModel }
+export const deckModel = (input: DeckInput | null | undefined): DeckModel => (input?.modello === 'partner' ? 'partner' : 'destinazione')
 
-const LIMITS = { slides: 12, items: 6, title: 160, body: 700, note: 300, itemTitle: 80, itemText: 260, hint: 500, varValue: 300 }
+export const MAX_DECK_SLIDES = 16
+const LIMITS = { slides: MAX_DECK_SLIDES, items: 6, kicker: 80, footnote: 200, itemValue: 40, title: 160, body: 700, note: 300, itemTitle: 80, itemText: 260, hint: 500, varValue: 300 }
 
 const slide = (s: Partial<DeckSlide> & Pick<DeckSlide, 'id' | 'kind' | 'title'>): DeckSlide => ({
   body: '',
@@ -49,146 +131,367 @@ const slide = (s: Partial<DeckSlide> & Pick<DeckSlide, 'id' | 'kind' | 'title'>)
   ...s
 })
 
+/** Base destinazioni: la presentazione «Speaqi Guides · Destinazioni» di ottobre 2026. */
+export const DESTINATIONS_BASE = 'destinazioni-2026-10'
+
 /**
- * La proposta base per le destinazioni ("Speaqi — Proposta destinazioni",
- * ottobre 2026): la mappa è gratuita per l'ente, che in cambio garantisce
- * almeno 100.000 accessi all'anno e la distribuisce (QR nei luoghi, sulle
- * mappe, sul sito e sui social). Dodici slide nello stesso ordine della
- * presentazione di riferimento: apertura, territorio, problema, risposta,
- * prova, contenuti, lingue, visitatore, metodo, prezzo, area riservata, demo.
- * Nessuna funzione, tempo o prezzo che non stia lì: il resto è [DA VERIFICARE].
+ * La presentazione base per le destinazioni («Speaqi Guides · Destinazioni», ottobre 2026):
+ * quattordici slide, gli stessi testi del PDF di riferimento. La mappa è gratuita per le
+ * destinazioni selezionate; la destinazione distribuisce, Speaqi costruisce e aggiorna.
+ * Della destinazione entrano il nome (segnaposto) e le foto: copertina, punto di partenza
+ * e proposta. Le altre slide sono fisse (`fixed`): l'agente non può riscriverle.
  */
 export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
   version: 1,
-  vars: {
-    prezzo:
-      'in cambio garantite almeno 100.000 accessi all’anno: QR in ogni luogo, sulle mappe e sui materiali, link sul sito e sui social. A pagamento, su richiesta: Concierge personalizzato e sezione eventi.',
-    contatto: DECK_TODO
-  },
+  base: DESTINATIONS_BASE,
+  vars: {},
   slides: [
     slide({
       id: 'cover',
       kind: 'cover',
-      title: 'La mappa perfetta per {{ente}}',
-      body: 'Costruita da Speaqi. Distribuita insieme a voi, fino a 50 lingue.',
-      hint: 'Il titolo porta il nome dell’ente. Come foto scegli una schermata della mappa o la foto più rappresentativa della destinazione, se ce n’è una.'
+      kicker: 'Speaqi Guides per {{destinazione}}',
+      title: 'Il tuo territorio.\nUna mappa.\nMolto più da vivere.',
+      body: 'Una mappa digitale multilingua del tuo territorio, gratuita per le destinazioni selezionate.',
+      art: 'cover',
+      fixed: true,
+      hint: 'Scegli come foto la più rappresentativa della destinazione (un panorama, il centro storico), se ce n’è una. I testi non cambiano.'
     }),
     slide({
-      id: 'territorio',
-      kind: 'cards',
-      title: 'Tutto {{destinazione}} in una mappa sola',
+      id: 'partenza',
+      kind: 'list',
+      tone: 'light',
+      kicker: 'Il punto di partenza',
+      title: 'I visitatori arrivano.\nLe informazioni sono sparse.',
       items: [
-        { title: 'Luoghi da vedere', text: '[DA VERIFICARE: quanti] luoghi, dai monumenti ai panorami.' },
-        { title: 'Itinerari', text: '[DA VERIFICARE: quanti] itinerari, a piedi, a tema, di mezza giornata o più giorni.' },
-        { title: 'Strutture e servizi', text: '[DA VERIFICARE: quanti] fra dove dormire, dove mangiare e servizi utili.' }
+        { title: 'Tante lingue', text: 'visitatori da tutto il mondo, ognuno con la sua' },
+        { title: 'Tanti canali', text: 'sito, infopoint, strutture ricettive, operatori' },
+        { title: 'Nessuna mappa comune', text: 'ognuno racconta il territorio a modo suo' }
       ],
-      hint: 'Metti i tre numeri del territorio solo se stanno nei materiali o nei luoghi approvati. Se un numero non è noto, sostituisci il segnaposto con una frase qualitativa sulla destinazione, senza cifre.'
+      art: 'partenza',
+      hint: 'Tieni i tre titoli. Nel testo sotto puoi dire da dove arrivano i visitatori di {{destinazione}} e quali canali ha l’ente, solo se lo dicono i materiali o la scheda dell’ente; altrimenti lascia il testo com’è. Come foto, una via o una piazza della destinazione con visitatori, se c’è.'
     }),
     slide({
-      id: 'problema',
-      kind: 'statement',
-      title: 'Oggi il visitatore scopre {{destinazione}} a pezzi.',
-      body: 'Google Maps, Tripadvisor, Instagram, TikTok, brochure, blog e il sito dell’ente: sette fonti diverse, in lingue diverse, con informazioni che non si parlano. Nessuna parla per voi.',
-      hint: 'Puoi adattare l’elenco delle fonti a quelle che i materiali citano per questa destinazione. Chiudi sempre con «Nessuna parla per voi».'
-    }),
-    slide({
-      id: 'soluzione',
-      kind: 'statement',
-      title: 'Una mappa. Tutto il territorio. Ogni lingua.',
-      body: 'Speaqi crea la guida digitale ufficiale di {{destinazione}}: la voce della destinazione, nella lingua di chi la visita. Si apre da un link o da un QR Code, senza app.',
-      hint: 'Mantieni il titolo. Nel corpo nessuna funzione in più.'
-    }),
-    slide({
-      id: 'prova',
-      kind: 'cards',
-      title: 'Prima del resto, provate una mappa vera',
-      body: 'Aprite il link o scansionate il QR. È gratis, senza app.',
+      id: 'proposta',
+      kind: 'list',
+      tone: 'dark',
+      kicker: 'La proposta',
+      title: 'Una mappa del tuo territorio, nel telefono di ogni visitatore.',
       items: [
-        { title: 'Napoli', text: 'guides.speaqi.com/napoli' },
-        { title: 'Roma', text: 'guides.speaqi.com/roma' },
-        { title: 'E altre', text: 'guides.speaqi.com' }
+        { title: 'Luoghi, percorsi, punti di interesse', text: 'in un’unica esperienza digitale', icon: 'star' },
+        { title: 'Si apre da link o QR', text: 'nessuna app da scaricare', icon: 'zap' },
+        { title: 'Prima e durante il soggiorno', text: 'sul telefono del visitatore', icon: 'clock' }
       ],
-      hint: 'Lascia le mappe reali di Speaqi così come sono: sono la prova. Non inventare altri link.'
+      art: 'proposta',
+      fixed: true,
+      hint: 'Testi fissi. Come foto, un luogo simbolo della destinazione, se c’è.'
     }),
     slide({
-      id: 'contenuti',
+      id: 'cosa-ottieni',
       kind: 'cards',
-      title: 'Tutto quello che il visitatore cerca, in un posto solo',
+      kicker: 'Cosa ottieni',
+      title: 'Cosa ottiene {{destinazione}}.',
       items: [
-        { title: 'Luoghi da vedere', text: 'Monumenti, musei, piazze, panorami.' },
-        { title: 'Itinerari', text: 'A piedi, a tema, di mezza giornata o più giorni.' },
-        { title: 'Esperienze', text: 'Cultura, natura, eventi, enogastronomia.' },
-        { title: 'Dove dormire', text: 'Hotel, B&B, agriturismi.' },
-        { title: 'Dove mangiare', text: 'Ristoranti, trattorie, prodotti tipici.' },
-        { title: 'Servizi utili', text: 'Infopoint, trasporti, parcheggi.' }
+        { title: 'Una mappa del territorio', text: 'luoghi, percorsi e punti di interesse', icon: 'star' },
+        { title: 'Accoglienza multilingua', text: 'senza una guida per ogni lingua', icon: 'globe' },
+        { title: 'Aggiornamenti curati insieme', text: 'con modalità concordate', icon: 'clock' },
+        { title: 'Un riferimento per la rete', text: 'infopoint, strutture e operatori', icon: 'users' },
+        { title: 'Dal telefono, senza app', text: 'con link o QR Code', icon: 'zap' },
+        { title: 'Una collaborazione continuativa', text: 'nel perimetro concordato', icon: 'shield', highlight: true }
       ],
-      note: 'Ogni luogo ha la sua audio guida e può avere un video girato sul posto.',
-      hint: 'Mantieni le sei categorie. Negli esempi puoi citare luoghi o esperienze di questa destinazione solo se compaiono nei materiali.'
+      fixed: true
     }),
     slide({
       id: 'lingue',
-      kind: 'statement',
-      title: 'Fino a 50 lingue. Le prime 10 sono incluse, con audio.',
-      body: 'Le dieci lingue si scelgono sui mercati di {{destinazione}}: per esempio italiano, inglese, spagnolo, francese, tedesco, portoghese, russo, giapponese, cinese e polacco. Le altre, fino a 50, su richiesta.',
-      hint: 'Se i materiali dicono da quali paesi arrivano i visitatori, scegli le dieci lingue su quelli e togli «per esempio». Altrimenti lascia l’elenco d’esempio.'
+      kind: 'languages',
+      kicker: 'Multilingua',
+      title: 'Una sola mappa, nella lingua di ogni visitatore.',
+      note: 'Accoglienza multilingua',
+      body: 'Per i visitatori dall’estero, senza una guida separata per ogni lingua.',
+      art: 'lingue',
+      fixed: true
     }),
     slide({
-      id: 'visitatore',
+      id: 'catalogo',
+      kind: 'showcase',
+      kicker: 'Esempi dal catalogo Speaqi',
+      title: 'Le mappe sono già online.',
+      items: [
+        { title: 'Napoli', value: '488', text: 'luoghi da esplorare', highlight: true },
+        { title: 'Roma', value: '441', text: 'luoghi da esplorare' },
+        { title: 'Lisbona', value: '116', text: 'luoghi da esplorare' },
+        { title: 'Pompei', value: '112', text: 'luoghi da esplorare' },
+        { title: 'Capri', value: '104', text: 'luoghi da esplorare' }
+      ],
+      footnote: 'Fonte: guides.speaqi.com, ottobre 2026.',
+      fixed: true
+    }),
+    slide({
+      id: 'provala',
+      kind: 'demo',
+      tone: 'accent',
+      kicker: 'Provala adesso',
+      title: 'Apri la mappa\ndi Napoli.',
+      body: 'Inquadra il QR dal telefono',
+      note: 'guides.speaqi.com/maps/napolimap',
+      art: 'telefoni',
+      qr: 'qr-napoli',
+      fixed: true
+    }),
+    slide({
+      id: 'in-azione',
+      kind: 'media',
+      kicker: 'Speaqi Guides in azione',
+      title: 'Speaqi Guides in azione',
+      art: 'azione',
+      fixed: true
+    }),
+    slide({
+      id: 'collaborazione',
+      kind: 'compare',
+      kicker: 'Il modello di collaborazione',
+      title: 'Tu distribuisci. Noi costruiamo la mappa.',
+      items: [
+        { title: 'La destinazione', text: 'Distribuisce le guide Speaqi nei canali concordati\nCoinvolge la rete locale\nIndica un referente e fornisce le informazioni sul territorio' },
+        { title: 'Speaqi', text: 'Realizza la mappa multilingua\nLa aggiorna nel perimetro concordato\nAccompagna l’evoluzione del progetto', highlight: true }
+      ],
+      note: 'Per le destinazioni selezionate, la mappa è gratuita.',
+      footnote: 'Durata, perimetro e continuità dell’offerta gratuita sono definiti nell’accordo.',
+      fixed: true
+    }),
+    slide({
+      id: 'requisiti',
+      kind: 'figures',
+      tone: 'deep',
+      kicker: 'I requisiti minimi',
+      title: 'Chi può candidarsi.',
+      items: [
+        { value: '250.000', title: 'presenze turistiche all’anno', text: 'pernottamenti documentabili' },
+        { value: '2', title: 'canali di distribuzione attivi', text: 'per esempio sito e infopoint' },
+        { value: '1', title: 'referente dedicato', text: 'per tutta la collaborazione' }
+      ],
+      note: 'In più: un ente che rappresenta il territorio (ente del turismo, DMO, DMC, comune, consorzio o rete territoriale) e un piano di distribuzione continuativo.',
+      fixed: true
+    }),
+    slide({
+      id: 'come-si-parte',
       kind: 'steps',
-      title: 'Dal QR alla visita, in quattro passi',
+      kicker: 'Come si parte',
+      title: 'Tre passi. Candidarsi non costa nulla.',
       items: [
-        { title: 'Scansiona', text: 'Un QR Code o un link. Nessuna app da scaricare.' },
-        { title: 'È già nella sua lingua', text: 'La mappa si apre nella lingua del telefono. Nessuna scelta da fare.' },
-        { title: 'Esplora', text: '«Sono qui» mostra cosa c’è intorno, a due passi.' },
-        { title: 'Chiede all’AI Concierge', text: 'Risponde solo con le informazioni approvate dall’ente.' }
+        { title: 'Candidi la destinazione', text: 'Destinazione, canali e piano di distribuzione. Nessun pagamento, nessun obbligo di acquisto.' },
+        { title: 'Definiamo la collaborazione', text: 'Distribuzione, contenuti, aggiornamenti, durata e perimetro gratuito.' },
+        { title: 'La mappa va online e cresce', text: 'Tu attivi i canali. Noi costruiamo e aggiorniamo la mappa con il tuo referente.', highlight: true }
       ],
-      hint: 'Mantieni i quattro passi così come sono.'
+      fixed: true
     }),
     slide({
-      id: 'metodo',
-      kind: 'steps',
-      title: 'La custodiamo noi. Voi la provate.',
-      items: [
-        { title: 'Analisi', text: 'Partiamo dai dati che avete già, a cominciare dal vostro sito.' },
-        { title: 'Costruzione', text: 'La costruiamo noi: testi, lingue e audio.' },
-        { title: 'Approvazione', text: 'Voi la provate e la approvate prima di pubblicare.' },
-        { title: 'Pubblicazione', text: 'La mappa va online, con i QR Code pronti.' },
-        { title: 'Aggiornamento', text: 'La custodiamo e la manteniamo noi, nel tempo.' }
-      ],
-      hint: 'Non promettere tempi di consegna. Non parlare di white label.'
-    }),
-    slide({
-      id: 'prezzo',
+      id: 'servizi',
       kind: 'cards',
-      title: 'La mappa è gratuita.',
+      tone: 'dark',
+      kicker: 'Servizi opzionali',
+      title: 'Se vuoi andare oltre la mappa.',
       items: [
-        { title: '500 punti di interesse', text: 'I luoghi del territorio, ognuno con la sua scheda.' },
-        { title: '10 lingue, con audio', text: 'Scelte sui mercati della destinazione.' },
-        { title: '10 itinerari', text: 'Pronti da seguire, sulla mappa.' },
-        { title: 'AI Concierge', text: 'Risponde solo con le informazioni approvate.' },
-        { title: 'QR Code pronti', text: 'Per i luoghi, le mappe e i materiali.' },
-        { title: 'Area riservata', text: 'Con le statistiche degli accessi.' }
+        { value: 'Assistente AI', title: 'iConcierge', text: 'Risponde ai visitatori usando i contenuti della destinazione.', highlight: true },
+        { value: 'Eventi', title: 'Festival ed eventi', text: 'Contenuti dedicati agli eventi del territorio.' },
+        { value: 'Contenuti', title: 'Testi, audio e video', text: 'Contenuti editoriali multilingua, perimetro definito per progetto.' }
       ],
-      note: 'In cambio: {{prezzo}}',
-      hint: 'Non cambiare le condizioni nella nota: usa solo quelle indicate dall’utente. Non aggiungere il video di presentazione fra gli inclusi finché non è confermato. Nessun importo in euro.'
+      note: 'Su proposta separata. Non servono per ricevere la mappa gratuita.',
+      fixed: true
     }),
     slide({
-      id: 'area-riservata',
+      id: 'domande',
       kind: 'cards',
-      title: 'Seguite tutto, in chiaro',
+      kicker: 'Domande frequenti',
+      title: 'Le risposte che ci chiedono più spesso.',
       items: [
-        { title: 'Statistiche degli accessi', text: 'Sempre visibili nell’area riservata di {{ente}}.' },
-        { title: 'Report condiviso', text: 'Lo stesso report lo vediamo noi e lo vedete voi.' },
-        { title: 'Regole scritte', text: 'Che cosa è un «accesso» lo scriviamo nel contratto.' }
+        { title: 'La mappa è davvero gratuita?', text: 'Sì, per le destinazioni selezionate, con l’accordo di collaborazione. Candidarsi non garantisce l’ammissione.' },
+        { title: 'Dobbiamo vendere le guide?', text: 'No. Il tuo ruolo è distribuire e promuovere le guide Speaqi nei canali concordati.' },
+        { title: 'Quali guide distribuiamo?', text: 'Le definiamo insieme nell’accordo, in base ai tuoi visitatori e ai tuoi canali.' },
+        { title: 'Chi cura contenuti e aggiornamenti?', text: 'Speaqi crea e aggiorna la mappa; il tuo referente fornisce le informazioni locali.' }
       ],
-      hint: 'Mantieni le tre voci. Non mostrare numeri di accessi inventati.'
+      fixed: true
     }),
     slide({
-      id: 'demo',
+      id: 'chiusura',
       kind: 'closing',
-      title: 'Guardate la mappa di {{ente}}',
-      body: 'Provate la demo, definiamo insieme le soglie e partiamo con la mappa. {{contatto}}',
-      hint: 'Chiusura breve. Non inventare link della demo o contatti: usa solo quelli indicati.'
+      title: 'Hai il territorio. Hai i canali.\nFacciamo la mappa di {{destinazione}}.',
+      body: 'Massimo Morgante',
+      note: 'Founder & CEO, Speaqi',
+      items: [
+        { title: '389 6868 162', text: '', icon: 'chat' },
+        { title: 'info@speaqi.com', text: '', icon: 'send' },
+        { title: 'guides.speaqi.com/destinations', text: '', icon: 'globe' }
+      ],
+      qr: 'qr-destinazioni',
+      footnote: 'Candida la tua destinazione',
+      fixed: true
+    })
+  ]
+}
+
+/** Base partner: hotel, agenzie, compagnie e chi porta le guide Speaqi ai propri ospiti. */
+export const PARTNER_BASE = 'partner-2026-10'
+
+/**
+ * La presentazione per un potenziale partner (ottobre 2026). Usa solo ciò che il programma
+ * partner di Speaqi offre già: QR col nome del partner (guides.speaqi.com/go/…), codici a
+ * tempo per gli ospiti pagati a consumo, vetrina col marchio del partner e portale con i
+ * numeri aggregati. Commissione e prezzi non si scrivono qui: stanno in {{prezzo}}, che
+ * resta [DA VERIFICARE] finché non li scrive il titolare, quindi non si approva senza.
+ */
+export const PARTNER_DECK_TEMPLATE: DeckTemplate = {
+  version: 1,
+  base: PARTNER_BASE,
+  vars: {},
+  slides: [
+    slide({
+      id: 'cover',
+      kind: 'cover',
+      kicker: 'Speaqi Guides per {{ente}}',
+      title: 'La guida della città,\nofferta ai vostri ospiti.',
+      body: 'Una mappa digitale multilingua di {{destinazione}}, da dare a chi arriva da voi. Con il vostro nome.',
+      art: 'cover',
+      hint: 'Adatta «ospiti» a chi serve il partner: ospiti per un hotel, passeggeri per una compagnia di navigazione o di trasporto, clienti per un’agenzia o un tour operator. Come foto, la più rappresentativa di {{destinazione}}.'
+    }),
+    slide({
+      id: 'partenza',
+      kind: 'list',
+      tone: 'light',
+      kicker: 'Il punto di partenza',
+      title: 'Chi arriva chiede sempre\nla stessa cosa: cosa vedere?',
+      items: [
+        { title: 'Tante lingue', text: 'ospiti da tutto il mondo, ognuno con la sua' },
+        { title: 'Poco tempo', text: 'una giornata o un pomeriggio per scoprire la città' },
+        { title: 'Tante domande', text: 'alla reception, in agenzia, a bordo' }
+      ],
+      art: 'partenza',
+      hint: 'Tieni i tre titoli. Adatta i testi al tipo di partner (reception, banco, bordo, agenzia) solo con ciò che dicono la scheda o i materiali. Come foto, una via o una piazza di {{destinazione}}.'
+    }),
+    slide({
+      id: 'proposta',
+      kind: 'list',
+      tone: 'dark',
+      kicker: 'La proposta',
+      title: 'Una guida di {{destinazione}} nel telefono di ogni ospite.',
+      items: [
+        { title: 'Luoghi, percorsi e racconti audio', text: 'in un’unica mappa', icon: 'star' },
+        { title: 'Si apre da QR o link', text: 'nessuna app da scaricare', icon: 'zap' },
+        { title: 'Con il vostro nome', text: '«Offerto da {{ente}}» quando l’ospite apre la guida', icon: 'shield' }
+      ],
+      art: 'proposta',
+      fixed: true,
+      hint: 'Testi fissi. Come foto, un luogo simbolo di {{destinazione}}.'
+    }),
+    slide({
+      id: 'lingue',
+      kind: 'languages',
+      kicker: 'Multilingua',
+      title: 'Una sola guida, nella lingua di ogni ospite.',
+      note: 'Accoglienza multilingua',
+      body: 'Ognuno la apre nella sua lingua, senza chiedere a nessuno.',
+      art: 'lingue',
+      fixed: true
+    }),
+    slide({
+      id: 'catalogo',
+      kind: 'showcase',
+      kicker: 'Esempi dal catalogo Speaqi',
+      title: 'Le guide sono già online.',
+      items: [
+        { title: 'Napoli', value: '488', text: 'luoghi da esplorare', highlight: true },
+        { title: 'Roma', value: '441', text: 'luoghi da esplorare' },
+        { title: 'Lisbona', value: '116', text: 'luoghi da esplorare' },
+        { title: 'Pompei', value: '112', text: 'luoghi da esplorare' },
+        { title: 'Capri', value: '104', text: 'luoghi da esplorare' }
+      ],
+      footnote: 'Fonte: guides.speaqi.com, ottobre 2026.',
+      fixed: true
+    }),
+    slide({
+      id: 'modi',
+      kind: 'cards',
+      kicker: 'Come collaboriamo',
+      title: 'Tre modi di lavorare insieme.\nScegliete il vostro.',
+      items: [
+        { value: 'QR e link', title: 'Il vostro QR', text: 'In reception, in camera, al banco o a bordo. Chi compra la guida dal vostro QR genera una commissione per voi.', icon: 'zap' },
+        { value: 'Codici', title: 'Codici per i vostri ospiti', text: 'Lotti di codici che aprono le guide per le ore che decidete. Si paga solo quello che viene attivato.', icon: 'users', highlight: true },
+        { value: 'Vetrina', title: 'Il vostro catalogo', text: 'Le guide Speaqi con il vostro marchio: «{{ente}} by Speaqi».', icon: 'globe' }
+      ],
+      fixed: true,
+      hint: 'Testi fissi: sono i tre modi che Speaqi offre oggi.'
+    }),
+    slide({
+      id: 'ospite',
+      kind: 'steps',
+      kicker: 'Per l’ospite',
+      title: 'Dal QR alla città, in pochi secondi.',
+      items: [
+        { title: 'Inquadra il QR', text: 'O apre il link che gli date. Nessuna app da scaricare.' },
+        { title: 'Sceglie la lingua', text: 'La guida si apre nella sua lingua, con il vostro nome.' },
+        { title: 'Esplora', text: 'Luoghi, percorsi e racconti audio, prima e durante la visita.', highlight: true }
+      ],
+      fixed: true
+    }),
+    slide({
+      id: 'numeri',
+      kind: 'cards',
+      tone: 'dark',
+      kicker: 'I vostri numeri',
+      title: 'Vedete quello che succede.',
+      items: [
+        { title: 'Scansioni e aperture', text: 'quante persone arrivano alla guida dal vostro QR o dai vostri codici', icon: 'zap' },
+        { title: 'Acquisti e attivazioni', text: 'quello su cui si calcolano commissioni e fatture', icon: 'shield' },
+        { title: 'Lingue e orari', text: 'chi sono i vostri ospiti e quando escono a visitare', icon: 'globe' }
+      ],
+      note: 'In un portale riservato, con un link che vi diamo noi. Esportabile in PDF e CSV.',
+      footnote: 'Solo numeri aggregati: nessun dato personale dei vostri ospiti.',
+      fixed: true
+    }),
+    slide({
+      id: 'provala',
+      kind: 'demo',
+      tone: 'accent',
+      kicker: 'Provala adesso',
+      title: 'Apri la guida\ndi Napoli.',
+      body: 'Inquadra il QR dal telefono',
+      note: 'guides.speaqi.com/maps/napolimap',
+      art: 'telefoni',
+      qr: 'qr-napoli',
+      fixed: true
+    }),
+    slide({
+      id: 'condizioni',
+      kind: 'statement',
+      kicker: 'Le condizioni',
+      title: 'Condizioni chiare, scritte prima di partire.',
+      body: '{{prezzo}}',
+      note: 'Commissione, prezzo dei codici e durata sono definiti nell’accordo.',
+      hint: 'Solo le condizioni scritte dal titolare nel campo prezzo o nei materiali. Mai una percentuale o un prezzo dedotti.'
+    }),
+    slide({
+      id: 'come-si-parte',
+      kind: 'steps',
+      kicker: 'Come si parte',
+      title: 'Tre passi, e la guida è dai vostri ospiti.',
+      items: [
+        { title: 'Scegliamo il modo', text: 'QR, codici, vetrina o più di uno, secondo i vostri ospiti.' },
+        { title: 'Prepariamo tutto', text: 'Il QR col vostro nome, i codici da stampare o mandare, la vetrina.' },
+        { title: 'Guardate i numeri', text: 'Nel vostro portale, dal primo giorno.', highlight: true }
+      ],
+      fixed: true
+    }),
+    slide({
+      id: 'chiusura',
+      kind: 'closing',
+      title: 'Avete gli ospiti.\nNoi la guida di {{destinazione}}.',
+      body: 'Massimo Morgante',
+      note: 'Founder & CEO, Speaqi',
+      items: [
+        { title: '389 6868 162', text: '', icon: 'chat' },
+        { title: 'info@speaqi.com', text: '', icon: 'send' },
+        { title: 'guides.speaqi.com', text: '', icon: 'globe' }
+      ],
+      fixed: true
     })
   ]
 }
@@ -196,6 +499,7 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
 /** Base Tourism per aziende: stessi strumenti, senza impegni di partnership impliciti. */
 export const TOURISM_COMPANY_TEMPLATE: DeckTemplate = {
   version: 1,
+  base: 'aziende-2026-10',
   vars: { contatto: DECK_TODO, prezzo: 'Importi, durata, eventuali servizi e condizioni sono indicati nel preventivo e nel contratto collegati.' },
   slides: [
     slide({ id: 'cover', kind: 'cover', title: '{{ente}}, nella lingua di chi vi sceglie', body: 'Una proposta Speaqi Tourism per {{destinazione}}.', hint: 'Personalizza la promessa sul destinatario e sul suo pubblico. Non promettere risultati numerici.' }),
@@ -248,17 +552,28 @@ const slugId = (value: unknown, fallback: string) => {
   return id || fallback
 }
 
+const pick = <T extends string>(list: readonly T[], value: unknown): T | undefined =>
+  list.includes(value as T) ? (value as T) : undefined
+
+export function normalizeItem(raw: unknown): DeckItem {
+  const i = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const item: DeckItem = { title: clip(i.title, LIMITS.itemTitle), text: clip(i.text, LIMITS.itemText) }
+  const value = clip(i.value, LIMITS.itemValue)
+  if (value) item.value = value
+  const icon = pick(DECK_ICONS, i.icon)
+  if (icon) item.icon = icon
+  if (i.highlight === true) item.highlight = true
+  return item
+}
+
 export function normalizeSlide(raw: unknown, index: number): DeckSlide {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   const kind = DECK_SLIDE_KINDS.includes(r.kind as DeckSlideKind) ? (r.kind as DeckSlideKind) : 'statement'
   const items = (Array.isArray(r.items) ? r.items : [])
     .slice(0, LIMITS.items)
-    .map((item) => {
-      const i = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>
-      return { title: clip(i.title, LIMITS.itemTitle), text: clip(i.text, LIMITS.itemText) }
-    })
-    .filter((item) => item.title || item.text)
-  return {
+    .map(normalizeItem)
+    .filter((item) => item.title || item.text || item.value)
+  const out: DeckSlide = {
     id: slugId(r.id, `slide-${index + 1}`),
     kind,
     title: clip(r.title, LIMITS.title),
@@ -268,6 +583,18 @@ export function normalizeSlide(raw: unknown, index: number): DeckSlide {
     image_asset_id: typeof r.image_asset_id === 'string' && /^[0-9a-f-]{36}$/i.test(r.image_asset_id) ? r.image_asset_id : null,
     hint: clip(r.hint, LIMITS.hint)
   }
+  const kicker = clip(r.kicker, LIMITS.kicker)
+  if (kicker) out.kicker = kicker
+  const footnote = clip(r.footnote, LIMITS.footnote)
+  if (footnote) out.footnote = footnote
+  const tone = pick(DECK_TONES, r.tone)
+  if (tone) out.tone = tone
+  const art = Object.hasOwn(DECK_ART, String(r.art)) ? (r.art as DeckArt) : undefined
+  if (art) out.art = art
+  const qr = Object.hasOwn(DECK_ART, String(r.qr)) ? (r.qr as DeckArt) : undefined
+  if (qr) out.qr = qr
+  if (r.fixed === true) out.fixed = true
+  return out
 }
 
 /** Legge un modello o un deck da JSON: scarta il superfluo, rende unici gli id, non lancia. */
@@ -289,7 +616,8 @@ export function normalizeTemplate(raw: unknown): DeckTemplate {
     }
   }
   if (!slides.length) return structuredClone(DEFAULT_DECK_TEMPLATE)
-  return { version: 1, vars, slides, quote_template: normalizeQuoteTemplate(r.quote_template, 'tourism') }
+  const base = typeof r.base === 'string' && /^[a-z0-9-]{1,40}$/.test(r.base) ? r.base : undefined
+  return { version: 1, ...(base ? { base } : {}), vars, slides, quote_template: normalizeQuoteTemplate(r.quote_template, 'tourism') }
 }
 
 /** Valori dei segnaposto: input dell'utente, poi i valori di partenza del modello, poi [DA VERIFICARE]. */
@@ -314,11 +642,20 @@ export function applyVars(template: DeckTemplate, input: DeckInput): DeckSlide[]
     title: fill(s.title),
     body: fill(s.body),
     note: fill(s.note),
-    items: s.items.map((i) => ({ title: fill(i.title), text: fill(i.text) }))
+    ...(s.kicker ? { kicker: fill(s.kicker) } : {}),
+    ...(s.footnote ? { footnote: fill(s.footnote) } : {}),
+    items: s.items.map((i) => ({ ...i, title: fill(i.title), text: fill(i.text) }))
   }))
 }
 
-const slideStrings = (s: DeckSlide) => [s.title, s.body, s.note, ...s.items.flatMap((i) => [i.title, i.text])]
+const slideStrings = (s: DeckSlide) => [
+  s.kicker || '',
+  s.title,
+  s.body,
+  s.note,
+  s.footnote || '',
+  ...s.items.flatMap((i) => [i.value || '', i.title, i.text])
+]
 
 export function countTodo(slides: DeckSlide[]) {
   return slides.reduce((sum, s) => sum + slideStrings(s).reduce((n, text) => n + (text.match(DECK_TODO_PATTERN)?.length || 0), 0), 0)
@@ -378,7 +715,7 @@ export function guardGenerated(
     title: guard(s.title, s.id),
     body: guard(s.body, s.id),
     note: guard(s.note, s.id),
-    items: s.items.map((i) => ({ title: guard(i.title, s.id), text: guard(i.text, s.id) })),
+    items: s.items.map((i) => ({ ...i, title: guard(i.title, s.id), text: guard(i.text, s.id) })),
     image_asset_id: s.image_asset_id && assetIds.includes(s.image_asset_id) ? s.image_asset_id : null
   }))
   return { slides: result, warnings }
@@ -398,6 +735,9 @@ export function mergeGenerated(base: DeckSlide[], generated: unknown): DeckSlide
   return base.map((b) => {
     const g = byId.get(b.id)
     if (!g) return b
+    const image_asset_id = typeof g.image_asset_id === 'string' ? g.image_asset_id : b.image_asset_id
+    // Una slide fissa resta parola per parola quella del modello: l'agente sceglie al più la foto.
+    if (b.fixed) return { ...b, image_asset_id }
     const title = clip(g.title, LIMITS.title)
     const body = clip(g.body, LIMITS.body)
     const note = clip(g.note, LIMITS.note)
@@ -410,8 +750,8 @@ export function mergeGenerated(base: DeckSlide[], generated: unknown): DeckSlide
       body: b.body ? body || b.body : body,
       note: b.note ? note || b.note : note,
       // Il numero delle voci lo decide il modello della slide, non l'agente.
-      items: b.items.length ? b.items.map((bi, idx) => ({ title: items[idx]?.title || bi.title, text: items[idx]?.text || bi.text })) : [],
-      image_asset_id: typeof g.image_asset_id === 'string' ? g.image_asset_id : b.image_asset_id
+      items: b.items.length ? b.items.map((bi, idx) => ({ ...bi, title: items[idx]?.title || bi.title, text: items[idx]?.text || bi.text })) : [],
+      image_asset_id
     }
   })
 }
