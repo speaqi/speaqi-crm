@@ -1157,9 +1157,22 @@ function moveCamera(instant = false) {
       .concat(corners(0, bounds.plazaZ, PLAZA * 2, PLAZA * 2, 0, 2))
       .concat(hq ? corners(hq.x, hq.z, HQ.w, HQ.d, TERRACE, TERRACE + hq.top) : [])
   }
-  const pos = target.clone().addScaledVector(dir, fitDistance(target, dir, points, pav ? 0.82 : 0.94) * scale)
+  let pos = target.clone().addScaledVector(dir, fitDistance(target, dir, points, pav ? 0.82 : 0.94) * scale)
+  // Con un agente scelto in un padiglione la camera entra nella stanza: dall'apertura, alle spalle e di lato, guarda lui e il suo schermo.
+  const inside = Boolean(pav && !pav.top && rec)
+  if (inside) {
+    const p = rec.person.position
+    const half = pav.w / 2 - 0.35
+    const eye = new THREE.Vector3(Math.max(-half, Math.min(half, p.x + 0.85)), 1.55, Math.min(pav.d / 2 + 0.4, p.z + 1.9))
+    pos = pav.group.localToWorld(eye)
+    target = pav.group.localToWorld(new THREE.Vector3(p.x, 1.05, p.z - 0.25))
+  }
+  // Dentro la stanza la camera può avvicinarsi e girare liberamente; fuori tornano i limiti della vista d'insieme.
+  controls.minDistance = inside ? 0.8 : 4
+  controls.minAzimuthAngle = inside ? -Infinity : -1.25
+  controls.maxAzimuthAngle = inside ? Infinity : 1.25
   if (instant || reduceMotion) { camera.position.copy(pos); controls.target.copy(target); tween = null; controls.update() }
-  else tween = { start: performance.now(), from: camera.position.clone(), to: pos, fromT: controls.target.clone(), toT: target, dur: 1100 }
+  else tween = { start: performance.now(), from: camera.position.clone(), to: pos, fromT: controls.target.clone(), toT: target, dur: inside ? 1400 : 1100 }
   lastInteraction = performance.now()
   dirty = true
 }
