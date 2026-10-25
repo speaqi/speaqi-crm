@@ -291,6 +291,8 @@ async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, 
     if (existing) {
       const files = await directorPhotoFiles(admin, userId, photos)
       const { deck, added, skipped } = await addPhotosToDeck(admin, admin, existing, files)
+      // Una presentazione rimasta a metà, con le foto nuove dentro, si rifà: le foto da sole non bastano.
+      if (deck.status === 'failed') return retryFailedDeck(admin, ctx, deck, label, note)
       const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
       const extra = skipped ? ` ${skipped === 1 ? 'Una foto è rimasta fuori' : `${skipped} foto sono rimaste fuori`}: la presentazione ne tiene al massimo 8.` : ''
       const review = existing.status === 'approved' && added ? ' Era approvata: è tornata in revisione, riapprovala dopo averla guardata.' : ''
@@ -404,16 +406,18 @@ async function retryFailedDeck(admin: Admin, ctx: AgentContext, failed: DeckRow,
   const link = `${base}/tourism/presentazioni/${failed.id}`
   let deck = failed
   try {
-    deck = await generateIntoDeck(admin, admin, failed, undefined, officeDeckAgent(ctx))
+    deck = await generateIntoDeck(admin, admin, failed, undefined, officeDeckAgent(ctx), undefined, { onlyIfUnchanged: true })
   } catch (error) {
     if (error instanceof BudgetExceeded) return { status: 'failed', outputs: [], queued: [], reply: `Presentazione per ${label}: per rifarla serve budget e quello di oggi del Direttore è finito. Riprova domani o usa «Rigenera» nell’editor: ${link}` }
     return { status: 'failed', outputs: [], queued: [], reply: `Presentazione per ${label}: ho riprovato a generarla ma non ci sono riuscito (${errorMessage(error, 'errore')}). Puoi usare «Rigenera» nell’editor: ${link}` }
   }
   if (deck.status !== 'ready') return { status: 'failed', outputs: [], queued: [], reply: `Presentazione per ${label}: ho riprovato ma non è riuscita (${deck.error || 'motivo non indicato'}). ${link}` }
   // Il compito dell'agente Presentazioni segue il deck: pronto, come se l'avesse fatta lui.
-  await admin.from('office_presentation_tasks').update({ state: 'ready' }).eq('id', deck.id).eq('state', 'failed')
+  const task = await admin.from('office_presentation_tasks').update({ state: 'ready' }).eq('id', deck.id).eq('state', 'failed')
+  // Il deck è rifatto comunque; se il compito resta «failed» la bozza email dell'ufficio non parte, e va detto.
+  const taskNote = task.error ? ` (Non ho aggiornato il compito dell’agente Presentazioni: ${task.error.message}. La bozza email dopo l’approvazione potrebbe non prepararsi da sola.)` : ''
   const sent = await sendDeckToTelegram(admin, deck)
-  return { status: 'done', outputs: [], queued: [], reply: `Presentazione per ${label}: ${note}l’avevo lasciata a metà, l’ho rifatta adesso${sent.pdf ? ' e te l’ho mandata qui in PDF' : ''}. ${link}` }
+  return { status: 'done', outputs: [], queued: [], reply: `Presentazione per ${label}: ${note}l’avevo lasciata a metà, l’ho rifatta adesso${sent.pdf ? ' e te l’ho mandata qui in PDF' : ''}. ${link}${taskNote}` }
 }
 
 /** La presentazione di un nome: ente del catalogo, contatto di un ente, oppure lavoro da agenzia. */

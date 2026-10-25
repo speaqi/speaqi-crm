@@ -231,8 +231,9 @@ export function interpretDirectorOrder(parsed: unknown, input: { text: string; t
   }
   if (intent === 'find_partners') {
     const city = str(raw.city, 80)
-    if (!city) return { intent: 'unknown', question: 'Per quale città cerco i partner?', awaiting: { need: 'target', resume: `trovami partner per {}` } }
     const count = Number.isInteger(raw.count) && raw.count > 0 ? Math.min(MAX_ORDER_PARTNERS, raw.count) : 5
+    // Il numero chiesto resta nella frase da riprendere: «trovami 10 partner» non torna a 5.
+    if (!city) return { intent: 'unknown', question: 'Per quale città cerco i partner?', awaiting: { need: 'target', resume: `trovami ${count} partner per {}` } }
     return { intent, city, count, brief: str(raw.brief, 300) }
   }
   if (intent === 'add_entity') {
@@ -376,6 +377,12 @@ export const AWAITING_TTL_MS = 24 * 3600_000
 
 const NEW_COMMAND = /\b(presentazion\w*|aggiung\w*|trova\w*|mappa|mappe|fattur\w*|ricorda\w*|stato|partner|contatt\w*|preventiv\w*|segna|prepara\w*|controlla\w*)\b/i
 
+/**
+ * Per la risposta a «per chi?» conta come comincia: «presentazione per X», «trovami…» sono ordini
+ * nuovi, mentre «Hotel Partner, Venezia» è un nome che contiene una parola di comando.
+ */
+const COMMAND_START = /^(\/?direttore\b|presentazion|aggiung|trova|fammi|fai\b|prepara|crea\b|controlla|segna\b|ricorda|rinomina|mandami|dimmi|fattur|preventiv|stato\b|mappa\b|mappe\b)/i
+
 const OTHER_WORK = /\b(presentazion\w*|partner|fattur\w*|mappa|mappe|preventiv\w*|ricorda\w*)\b/i
 
 export function readAwaiting(value: unknown): DirectorAwaiting | null {
@@ -406,8 +413,9 @@ export function directorFollowUp(awaiting: DirectorAwaiting | null, text: string
   }
   if (awaiting.need === 'target') {
     // «Ministerio del Turismo de Venezuela» dopo «Per chi devo preparare la presentazione?».
-    if (NEW_COMMAND.test(answer) || answer.length > 160 || answer.split(/\s+/).length > 14) return null
+    if (answer.length > 160 || answer.split(/\s+/).length > 14) return null
     const target = answer.replace(new RegExp(`^(ecco|allora|ok|sì|si|per|a|è)(?=[\\s,:.!-]|$)[\\s,:.!-]*`, 'i'), '').replace(/[.!?]+$/, '').trim()
+    if (COMMAND_START.test(target)) return null
     return target.length >= 2 ? awaiting.resume.replace('{}', target) : null
   }
   if (websiteFromText(answer) || NEW_COMMAND.test(answer) || answer.length > 80 || answer.split(/\s+/).length > 8) return null

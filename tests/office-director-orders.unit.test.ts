@@ -491,13 +491,20 @@ describe('domande «per chi?» e foto della presentazione', async () => {
     // Un altro lavoro, o un messaggio lungo, resta un ordine a sé.
     assert.equal(directorFollowUp(awaiting, 'trovami 5 partner per Venezia'), null)
     assert.equal(directorFollowUp(awaiting, 'x'.repeat(200)), null)
+    assert.equal(directorFollowUp(awaiting, 'presentazione per Visit Lima'), null)
+    // Una parola di comando dentro un nome non lo rende un ordine nuovo.
+    assert.equal(directorFollowUp(awaiting, 'Hotel Partner, Venezia'), 'presentazione per Hotel Partner, Venezia')
+    assert.equal(directorFollowUp(awaiting, 'Comune di Mappano'), 'presentazione per Comune di Mappano')
     // Una domanda «per chi» senza il posto dove mettere la risposta non vale.
     assert.equal(readAwaiting({ awaiting: { need: 'target', resume: 'presentazione per' } }), null)
   })
 
   test('anche partner, ente da aggiungere e fattura aspettano la risposta', () => {
     const partners = interpretDirectorOrder(answer({ intent: 'find_partners' }), { text: '', today: TODAY })
-    assert.equal(partners.intent === 'unknown' && directorFollowUp(partners.awaiting ?? null, 'Venezia'), 'trovami partner per Venezia')
+    assert.equal(partners.intent === 'unknown' && directorFollowUp(partners.awaiting ?? null, 'Venezia'), 'trovami 5 partner per Venezia')
+    // Il numero chiesto resta: «trovami 10 partner» ripreso non torna a 5.
+    const ten = interpretDirectorOrder(answer({ intent: 'find_partners', count: 10 }), { text: '', today: TODAY })
+    assert.equal(ten.intent === 'unknown' && directorFollowUp(ten.awaiting ?? null, 'Venezia'), 'trovami 10 partner per Venezia')
     const country = interpretDirectorOrder(answer({ intent: 'add_entity', target: 'Visit Lima' }), { text: '', today: TODAY })
     assert.equal(country.intent === 'unknown' && directorFollowUp(country.awaiting ?? null, 'Perù'), 'aggiungi Visit Lima a Tourism Intelligence e ai contatti, paese Perù')
     const invoice = interpretDirectorOrder(answer({ intent: 'invoice' }), { text: 'fammi una fattura', today: TODAY })

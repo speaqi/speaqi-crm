@@ -375,7 +375,8 @@ export const deckPhotoIds = (assets: DeckAsset[]) => {
  * si può sempre correggere a mano.
  */
 export async function generateIntoDeck(sb: Sb, service: Sb, row: DeckRow, instruction?: string,
-  agent: (args: DeckAgentArgs) => Promise<DeckAgentResult> = runDeckAgent, findPhotos: PhotoFinder = findDestinationPhotos): Promise<DeckRow> {
+  agent: (args: DeckAgentArgs) => Promise<DeckAgentResult> = runDeckAgent, findPhotos: PhotoFinder = findDestinationPhotos,
+  options: { onlyIfUnchanged?: boolean } = {}): Promise<DeckRow> {
   const stale = new Date(Date.now() - GENERATING_STALE_MS).toISOString()
   // Due UPDATE condizionali, non un `.or()`: con PostgREST il filtro `or` di un UPDATE vale
   // anche per la risposta (la riga è già "generating"), e con select('id') la colonna
@@ -386,9 +387,15 @@ export async function generateIntoDeck(sb: Sb, service: Sb, row: DeckRow, instru
       .update({ status: 'generating', error: null, approved_at: null, updated_at: new Date().toISOString() })
       .eq('user_id', row.user_id)
       .eq('id', row.id)
-  let claimed = checked(await claim().neq('status', 'generating').select('id').maybeSingle())
-  if (!claimed.data) claimed = checked(await claim().eq('status', 'generating').lt('updated_at', stale).select('id').maybeSingle())
-  if (!claimed.data) throw new Error('Generazione già in corso per questa presentazione (already running)')
+  if (options.onlyIfUnchanged) {
+    // Si rigenera la riga letta, non una modificata nel frattempo (editor, foto): stesso stato e stessa versione.
+    const same = checked(await claim().eq('status', row.status).eq('version', row.version).select('id').maybeSingle())
+    if (!same.data) throw new Error('la presentazione è cambiata nel frattempo')
+  } else {
+    let claimed = checked(await claim().neq('status', 'generating').select('id').maybeSingle())
+    if (!claimed.data) claimed = checked(await claim().eq('status', 'generating').lt('updated_at', stale).select('id').maybeSingle())
+    if (!claimed.data) throw new Error('Generazione già in corso per questa presentazione (already running)')
+  }
   try {
     const template = await templateForDeck(sb, row.user_id, row.input)
     const photoNote = await addDestinationPhotos(sb, service, row, template, findPhotos)
