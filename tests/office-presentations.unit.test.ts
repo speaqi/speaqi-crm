@@ -68,7 +68,7 @@ test('presentazioni: timeout non ripaga e non approva; la pipeline conserva fail
 })
 test('presentazioni: Napoli, altri workspace e destinazione ambigua non avviano generazioni',async()=>{
   const f=fixture();await assert.rejects(presentationEntities(f.db,'other',{entity_id:ENTITY,destination_id:DEST}),/non verificato/)
-  await assert.rejects(presentationEntities(f.db,'owner',{entity_id:ENTITY}),/destination_id/)
+  await assert.rejects(presentationEntities(f.db,'owner',{entity_id:ENTITY}),/Nessuna destinazione unica/)
   f.db.tables.tourism_entities[1].name='Napoli';await presentationsHandler(f.db,{create:f.create})(f.ctx)
   assert.equal(f.db.calls.some((c)=>c.rpc==='claim_office_presentation'),false)
   assert.equal(f.db.tables.tourism_decks.length,0)

@@ -211,10 +211,13 @@ export function validateEnrichment(input: { org: EnrichOrg; target: EnrichTarget
   if (!identityOk) missing.push('frase che identifica l’ente')
   if (!coverage) missing.push('frase che lega l’ente alla città')
   if (!fill.email && !fill.phone && !org.email && !org.phone) missing.push('un recapito d’ufficio (email o telefono)')
-  if (missing.length) return { ready: false as const, missing, rejected, kept }
+  // I pezzi validi servono anche quando la proposta non è completa: il Direttore,
+  // su ordine del titolare, attiva l'ente con quello che ha trovato.
+  const parts = { identity: identityOk ? identity : null, coverage, fill, evidence }
+  if (missing.length) return { ready: false as const, missing, rejected, kept, parts }
   const proposal: EnrichmentProposal = { action: 'enrich_entity', entity_id: org.id, entity_name: org.name, country: org.country_code, city: target.city,
     place_id: target.place_id, fill, evidence: { identity: identity!, coverage: coverage!, ...evidence }, decision_maker: decisionMaker }
-  return { ready: true as const, proposal, rejected, kept }
+  return { ready: true as const, proposal, rejected, kept, parts }
 }
 
 /** Le pagine utili sono poche: la home e al più due pagine di contatti o di presentazione. */

@@ -14,11 +14,11 @@ export async function presentationEntities(admin: any, userId: string, item: Pre
   if (!entity || entity.kind !== 'organization' || entity.status !== 'VERIFIED' || entity.disabled) throw new Error('Ente non verificato o disabilitato')
   let destinationId = item.destination_id
   if (!destinationId) {
-    const relations = checked(await admin.from('tourism_relations').select('to_id,evidence_id').eq('user_id', userId).eq('from_id', entity.id).eq('relation', 'COVERS').limit(100)) || []
+    const relations = checked(await admin.from('tourism_relations').select('to_id,evidence_id').eq('user_id', userId).eq('from_id', entity.id).in('relation', ['COVERS', 'MANAGES', 'PROMOTES']).limit(100)) || []
     const ids = [...new Set<string>(relations.map((r: any) => r.evidence_id))]
     const evidence = ids.length ? checked(await admin.from('tourism_evidence').select('id').eq('user_id', userId).eq('status', 'VERIFIED').in('id', ids)) || [] : []
     const destinations = [...new Set<string>(relations.filter((r: any) => evidence.some((e: any) => e.id === r.evidence_id)).map((r: any) => r.to_id))]
-    if (destinations.length !== 1) throw new Error('Specifica destination_id: nessuna destinazione unica con copertura verificata')
+    if (destinations.length !== 1) throw new Error('Nessuna destinazione unica con un legame verificato (copre, gestisce o promuove): chiedi la presentazione al Direttore, che la attiva')
     destinationId = destinations[0]
   }
   const destination = checked(await admin.from('tourism_entities').select('*').eq('user_id', userId).eq('id', destinationId).maybeSingle())

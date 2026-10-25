@@ -145,17 +145,26 @@ export function creditCostCents(credits: number, usdToEur = 1): number | null {
 
 /** Una chiamata di solo testo (piu' eventuali immagini) via OpenRouter, senza strumenti esterni.
  * Si prenota dal listino prima di spendere; si salda col costo che OpenRouter dichiara. */
+/** Token d'ingresso prenotati per ogni risultato della ricerca web e costo della ricerca (Exa 0,007 $) arrotondato su. */
+export const WEB_RESULT_RESERVE_TOKENS = 1500
+export const WEB_SEARCH_RESERVE_CENTS = 2
+
 export async function callModel(ctx: AgentContext, options: { model: string; input: string; maxOutputTokens: number;
   jsonSchema?: { name: string; schema: Record<string, unknown> }
   /** Immagini come data URL (JPEG/PNG/WebP), gia' ridotte da chi chiama. */
-  images?: string[] }) {
+  images?: string[]
+  /** Ricerca web di OpenRouter (Exa, 0,007 $ a ricerca più i token dei risultati): niente schema JSON insieme. */
+  webSearch?: { maxResults?: number } }) {
   const apiKey = officeModelKey()
   if (!apiKey) throw new Error('OPENROUTER_API_KEY non configurata nelle variabili del CRM')
   const usdToEur = Number(process.env.OFFICE_USD_TO_EUR || '1')
   const images = options.images || []
   if (images.length > 4 || images.some((url) => !/^data:image\/(jpeg|png|webp);base64,/.test(url))) throw new Error('Immagini non valide per il modello')
-  const estimate = estimateModelCost(options.model, options.input, options.maxOutputTokens, usdToEur, images.length * OFFICE_IMAGE_RESERVE_TOKENS)
-  const ledgerId = await ctx.reserve(estimate.cents)
+  const webResults = options.webSearch ? Math.min(10, Math.max(1, options.webSearch.maxResults || 5)) : 0
+  const estimate = estimateModelCost(options.model, options.input, options.maxOutputTokens, usdToEur,
+    images.length * OFFICE_IMAGE_RESERVE_TOKENS + webResults * WEB_RESULT_RESERVE_TOKENS)
+  // La ricerca si paga a parte (Exa): si prenota per eccesso, il saldo è il costo dichiarato da OpenRouter.
+  const ledgerId = await ctx.reserve(estimate.cents + (webResults ? WEB_SEARCH_RESERVE_CENTS : 0))
   // Su timeout, errore HTTP o token assenti, la riserva resta impegnata:
   // una risposta persa potrebbe essere gia' stata fatturata dal fornitore.
   const response = await fetch(OPENROUTER_CHAT_URL, {
@@ -166,6 +175,7 @@ export async function callModel(ctx: AgentContext, options: { model: string; inp
       messages: [{ role: 'user', content: images.length ? [{ type: 'text', text: options.input },
         ...images.map((url) => ({ type: 'image_url', image_url: { url, detail: 'high' } }))] : options.input }],
       // Con uno schema, solo un fornitore che lo rispetta davvero.
+      ...(webResults ? { plugins: [{ id: 'web', engine: 'exa', max_results: webResults }] } : {}),
       ...(options.jsonSchema ? { response_format: { type: 'json_schema', json_schema: { name: options.jsonSchema.name, strict: true, schema: options.jsonSchema.schema } },
         provider: { require_parameters: true } } : {}) }),
   })
@@ -198,5 +208,9 @@ export async function callModel(ctx: AgentContext, options: { model: string; inp
   if (!choice || choice.finish_reason === 'length' || typeof content !== 'string' || (choice.message?.refusal && !content)) {
     throw new Error('Risposta del modello incompleta; costo registrato')
   }
-  return { text: content, costCents: cost, tokensIn, tokensOut }
+  // Con la ricerca web, le pagine citate: chi chiama le controlla prima di fidarsi.
+  const citations: string[] = Array.isArray(choice.message?.annotations)
+    ? choice.message.annotations.filter((a: any) => a?.type === 'url_citation' && typeof a.url_citation?.url === 'string').map((a: any) => a.url_citation.url)
+    : []
+  return { text: content, costCents: cost, tokensIn, tokensOut, citations }
 }
