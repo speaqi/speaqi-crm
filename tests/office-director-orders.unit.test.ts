@@ -219,3 +219,74 @@ describe('fattura di un preventivo', () => {
     assert.doesNotMatch(sent, /Non l’ho inviata/)
   })
 })
+
+describe('i cinque comandi nuovi', async () => {
+  const mod = await import('../src/lib/office/director-orders')
+
+  test('più presentazioni in un ordine, Napoli tolta, al massimo cinque', () => {
+    const plan = interpretDirectorOrder(answer({ intent: 'presentation', targets: ['Visit Bergamo', 'Bibione', 'Comune di Napoli', 'bibione', 'A', 'B', 'C', 'D'] }), { text: '', today: TODAY })
+    assert.equal(plan.intent, 'presentation')
+    if (plan.intent !== 'presentation') return
+    assert.deepEqual(plan.targets, ['Visit Bergamo', 'Bibione', 'A', 'B', 'C'])
+    assert.deepEqual(plan.skipped, ['Comune di Napoli'])
+    assert.equal(plan.audience, 'destinazione')
+  })
+
+  test('«preparami 5 presentazioni di destinazioni»: un numero senza nomi lo scelgo io', () => {
+    const plan = interpretDirectorOrder(answer({ intent: 'presentation', targets: [], count: 9 }), { text: 'preparami 5 presentazioni di destinazioni', today: TODAY })
+    assert.deepEqual(plan, { intent: 'presentation', targets: [], count: 5, audience: 'destinazione', brief: null, city: null, skipped: [] })
+    // Per un partner il numero da solo non basta: serve il nome.
+    assert.equal(interpretDirectorOrder(answer({ intent: 'presentation', targets: [], count: 3, audience: 'partner' }), { text: '', today: TODAY }).intent, 'unknown')
+  })
+
+  test('presentazione partner: il vecchio campo target vale ancora, Napoli come città no', () => {
+    const plan = interpretDirectorOrder(answer({ intent: 'presentation', target: 'Hotel Laguna', audience: 'partner', city: 'Venezia' }), { text: '', today: TODAY })
+    assert.equal(plan.intent === 'presentation' && plan.audience, 'partner')
+    assert.equal(plan.intent === 'presentation' && plan.targets[0], 'Hotel Laguna')
+    assert.equal(interpretDirectorOrder(answer({ intent: 'presentation', target: 'Hotel X', audience: 'partner', city: 'Napoli' }), { text: '', today: TODAY }).intent, 'unknown')
+  })
+
+  test('trova partner: città obbligatoria, cinque di default, al massimo dieci', () => {
+    assert.deepEqual(interpretDirectorOrder(answer({ intent: 'find_partners', city: 'Venezia' }), { text: '', today: TODAY }),
+      { intent: 'find_partners', city: 'Venezia', count: 5, brief: null })
+    assert.equal((interpretDirectorOrder(answer({ intent: 'find_partners', city: 'Venezia', count: 40 }), { text: '', today: TODAY }) as any).count, 10)
+    assert.equal(interpretDirectorOrder(answer({ intent: 'find_partners' }), { text: '', today: TODAY }).intent, 'unknown')
+  })
+
+  test('aggiungi ente: paese ISO, tipo dal catalogo, sito solo se scritto', () => {
+    assert.deepEqual(interpretDirectorOrder(answer({ intent: 'add_entity', target: 'Venezuela Tourism', country_code: 've', entity_type: 'nto', city: 'Venezuela' }),
+      { text: 'Aggiungimi Venezuela Tourism ai contatti', today: TODAY }),
+      { intent: 'add_entity', name: 'Venezuela Tourism', country_code: 'VE', type_code: 'nto', city: 'Venezuela', website: null })
+    const withSite = interpretDirectorOrder(answer({ intent: 'add_entity', target: 'Visit Lima', country_code: 'PE', entity_type: 'boh' }), { text: 'aggiungi Visit Lima, sito visitlima.pe', today: TODAY })
+    assert.equal(withSite.intent === 'add_entity' && withSite.type_code, 'other')
+    assert.equal(withSite.intent === 'add_entity' && withSite.website, 'https://visitlima.pe')
+    assert.equal(interpretDirectorOrder(answer({ intent: 'add_entity', target: 'Visit Lima', country_code: 'Perù' }), { text: '', today: TODAY }).intent, 'unknown')
+  })
+
+  test('aiuto: l’elenco dei comandi lo scrive il codice', () => {
+    assert.deepEqual(interpretDirectorOrder(answer({ intent: 'help' }), { text: 'cosa posso chiederti?', today: TODAY }), { intent: 'help' })
+    const help = mod.directorHelpText('https://crm.speaqi.com')
+    for (const word of ['partner', 'Tourism Intelligence', 'presentazioni', 'fattura', 'Napoli', 'https://crm.speaqi.com/ufficio']) assert.ok(help.includes(word), word)
+  })
+
+  test('partner dal web: valgono nome e sito ufficiale, uno per sito', () => {
+    const list = mod.parsePartnerSearch({ partners: [
+      { name: 'Hotel Laguna', website: 'https://www.hotellaguna.it/it/', kind: 'hotel', why: 'quattro stelle a San Marco' },
+      { name: 'Doppione', website: 'hotellaguna.it', kind: 'hotel', why: '' },
+      { name: 'Su Facebook', website: 'https://facebook.com/xyz', kind: 'hotel', why: '' },
+      { name: '', website: 'https://ok.it', kind: 'x', why: '' },
+    ] })
+    assert.deepEqual(list.map((p) => p.website), ['https://www.hotellaguna.it'])
+  })
+
+  test('email dal sito: solo del suo dominio, prima quelle d’ufficio', () => {
+    const texts = ['Scrivici a mario.rossi@gmail.com o noreply@hotellaguna.it', 'Prenotazioni: booking@hotellaguna.it · direzione@hotellaguna.it']
+    assert.equal(mod.emailFromSite('https://www.hotellaguna.it', texts), 'booking@hotellaguna.it')
+    assert.equal(mod.emailFromSite('https://www.hotellaguna.it', ['info@altrosito.it']), null)
+  })
+
+  test('lo schema chiede i campi nuovi', () => {
+    for (const field of ['targets', 'count', 'audience', 'country_code', 'entity_type']) assert.ok((DIRECTOR_ORDER_SCHEMA.required as readonly string[]).includes(field), field)
+    assert.ok(directorOrderPrompt('x', 0, TODAY).includes('find_partners'))
+  })
+})

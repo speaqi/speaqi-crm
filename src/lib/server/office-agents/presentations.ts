@@ -10,6 +10,22 @@ import { buildAgentRequest, validateDeckAgentResult } from '../tourism-deck-agen
 import { addOfficeOutputOnce } from './shared'
 
 const checked = (result: any) => { if (result.error) throw result.error; return result.data }
+
+/** L'agente delle slide che passa dal budget dell'ufficio (riserva prima, saldo dopo), senza retry. */
+export function officeDeckAgent(ctx: Parameters<AgentHandler>[0], model: typeof callModel = callModel) {
+  return async (args: Parameters<typeof buildAgentRequest>[0]) => {
+    const request = buildAgentRequest(args, ctx.agent.model)
+    const result = await model(ctx, { model: ctx.agent.model, input: JSON.stringify(request.input), maxOutputTokens: request.max_output_tokens,
+      jsonSchema: { name: 'tourism_deck', schema: request.text.format.schema } })
+    return validateDeckAgentResult(args, { output_text: result.text }, ctx.agent.model)
+  }
+}
+
+/** Generazioni per corsa: ognuna costa una chiamata, il tetto lo decide il titolare (settings.max_per_run). */
+export function presentationsPerRun(settings: Record<string, unknown> | null | undefined) {
+  const raw = Number(settings?.max_per_run)
+  return Number.isInteger(raw) && raw >= 1 ? Math.min(10, raw) : 5
+}
 export async function presentationEntities(admin: any, userId: string, item: PresentationQueueItem) {
   const entity = checked(await admin.from('tourism_entities').select('*').eq('user_id', userId).eq('id', item.entity_id).maybeSingle())
   if (!entity || entity.kind !== 'organization' || entity.status !== 'VERIFIED' || entity.disabled) throw new Error('Ente non verificato o disabilitato')
@@ -47,6 +63,7 @@ export function presentationsHandler(admin: any, options: {
       })
     }
     let generated = 0; let warnings = 0; let spentAttempts = 0
+    const perRun = presentationsPerRun(ctx.agent.settings)
     for (const item of queue) {
       let source: Awaited<ReturnType<typeof presentationEntities>>
       try { source = await presentationEntities(admin, userId, item) }
@@ -72,15 +89,11 @@ export function presentationsHandler(admin: any, options: {
         // Le foto mandate al Direttore con l'ordine vanno nei materiali prima della generazione.
         if (item.photos?.length) deck = (await addPhotosToDeck(admin, admin, deck, await directorPhotoFiles(admin, userId, item.photos))).deck
         let providerError: unknown
+        // La pipeline esistente prepara il brief e valida le slide; solo il
+        // trasporto del modello passa dal budget dell'ufficio, senza retry.
+        const agent = officeDeckAgent(ctx, options.model || callModel)
         deck = await (options.generate || generateIntoDeck)(admin, admin, deck, undefined, async (args) => {
-          try {
-            // La pipeline esistente prepara il brief e valida le slide; solo il
-            // trasporto del modello passa dal budget dell'ufficio, senza retry.
-            const request = buildAgentRequest(args, ctx.agent.model)
-            const result = await (options.model || callModel)(ctx, { model: ctx.agent.model, input: JSON.stringify(request.input), maxOutputTokens: request.max_output_tokens,
-              jsonSchema: { name: 'tourism_deck', schema: request.text.format.schema } })
-            return validateDeckAgentResult(args, { output_text: result.text }, ctx.agent.model)
-          } catch (error) { providerError = error; throw error }
+          try { return await agent(args) } catch (error) { providerError = error; throw error }
         }, options.findPhotos)
         spentAttempts++
         if (providerError) {
@@ -106,7 +119,7 @@ export function presentationsHandler(admin: any, options: {
         placeholders, fixes_proposed: fixes.length, warnings: deck.warnings, message: 'Rivedi e approva in Tourism. L’approvazione di questo rapporto non approva la presentazione.'
       } }))
       if (claim.claimed) generated++
-      if (spentAttempts >= 2) break
+      if (spentAttempts >= perRun) break
     }
     return { summary: `Presentazioni: ${generated} preparate, ${warnings} segnalazioni; nessuna approvazione o invio automatico.` }
   }
