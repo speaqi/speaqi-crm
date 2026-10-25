@@ -15,7 +15,8 @@ const activate = (payload: Record<string, unknown>, owner = OWNER, entity = ORG)
 
 before(async () => {
   await resetOfficeDatabase(DB, ['20261017205455_tourism_intelligence.sql', '20261017214525_tourism_acquisition_matching.sql',
-    '20261018185155_tourism_site_research.sql', '20261019051155_tourism_sitemap_targeting.sql', '20261024150000_tourism_activate.sql'])
+    '20261018185155_tourism_site_research.sql', '20261019051155_tourism_sitemap_targeting.sql', '20261024150000_tourism_activate.sql',
+    '20261025080000_tourism_activate_coverage.sql'])
   await sql(`alter table contacts add column if not exists company text, add column if not exists country text,
     add column if not exists marketing_eligibility text not null default 'review';
     insert into auth.users(id) values('${OWNER}'),('${OTHER}')`)
@@ -49,6 +50,20 @@ test('Direttore: un campo già pieno non si sovrascrive; la città crea luogo e 
   assert.equal(await scalar(`select name||'|'||status from tourism_entities where id='${r.place_id}'`), 'Bergamo|VERIFIED')
   assert.equal(await scalar(`select relation from tourism_relations where from_id='${ORG}' and to_id='${r.place_id}'`), 'PROMOTES')
   assert.equal(await scalar(`select count(*) from tourism_evidence e join tourism_relations r on r.evidence_id=e.id where r.from_id='${ORG}' and e.status='VERIFIED'`), '1')
+})
+
+test('Direttore senza frase dal sito sul legame: la prova è l’ordine del titolare, la relazione nasce', async () => {
+  const r = await activate({ origin: 'director', city: 'Bergamo', website: 'https://www.visitbergamo.example',
+    identity: { source_url: 'https://www.visitbergamo.example', quote: 'VisitBergamo, agenzia per il turismo.' } })
+  assert.equal(await scalar(`select relation from tourism_relations where from_id='${ORG}' and to_id='${r.place_id}'`), 'COVERS')
+  assert.equal(await scalar(`select e.excerpt from tourism_evidence e join tourism_relations r on r.evidence_id=e.id where r.from_id='${ORG}'`),
+    'Su ordine del titolare: VISIT BERGAMO racconta Bergamo.')
+  assert.equal(await scalar(`select status from tourism_entities where id='${ORG}'`), 'VERIFIED')
+  // Anche dalla scheda, con la sola città.
+  await sql(`truncate tourism_entities, contacts cascade; insert into tourism_entities(id,user_id,kind,name,country_code,type_code,status)
+    values ('${ORG}','${OWNER}','organization','VISIT BERGAMO','IT','dmo','NEEDS_REVIEW')`)
+  const owner = await activate({ origin: 'owner', city: 'Bergamo' })
+  assert.ok(owner.place_id)
 })
 
 test('il CRM che rifiuta non annulla la verifica: torna come motivo', async () => {

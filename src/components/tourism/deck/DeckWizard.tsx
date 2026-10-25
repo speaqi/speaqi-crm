@@ -99,12 +99,15 @@ export default function DeckWizard({
           <label>Destinazione *<input required value={destinazione} maxLength={200} onChange={(ev) => setDestinazione(ev.target.value)} placeholder="Es. Costiera Amalfitana" /></label>
           <label>Ente destinatario<input value={ente} maxLength={200} onChange={(ev) => setEnte(ev.target.value)} placeholder="DMC o DMO a cui la mandi" /></label>
           <label>Paese<input value={paese} maxLength={100} onChange={(ev) => setPaese(ev.target.value)} /></label>
-          <label>Contatto Speaqi in chiusura<input value={contatto} maxLength={300} onChange={(ev) => setContatto(ev.target.value)} placeholder="Nome, email, telefono" /></label>
         </div>
-        <label>
-          Condizioni (la mappa è gratuita)
-          <input value={prezzo} maxLength={300} onChange={(ev) => setPrezzo(ev.target.value)} placeholder="Vuoto = almeno 100.000 accessi all’anno e distribuzione dei QR" />
-        </label>
+        <details>
+          <summary className={s.muted}>Solo per la base aziende: contatto e condizioni</summary>
+          <p className={s.muted}>La presentazione delle destinazioni ha già contatti e condizioni scritti dentro: questi campi servono solo se il modello è la base aziende.</p>
+          <div className={s.formGrid}>
+            <label>Contatto Speaqi in chiusura<input value={contatto} maxLength={300} onChange={(ev) => setContatto(ev.target.value)} placeholder="Nome, email, telefono" /></label>
+            <label>Condizioni<input value={prezzo} maxLength={300} onChange={(ev) => setPrezzo(ev.target.value)} /></label>
+          </div>
+        </details>
         <label>
           Informazioni sulla destinazione
           <textarea value={notes} maxLength={30000} onChange={(ev) => setNotes(ev.target.value)} rows={7} placeholder="Incolla appunti, una mail, il testo del sito: luoghi, lingue dei visitatori, cosa conta per loro…" />

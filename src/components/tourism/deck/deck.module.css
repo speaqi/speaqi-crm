@@ -24,58 +24,164 @@
 .stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
 
 .slide {
-  position: absolute; inset: 0; padding: 110px 130px; overflow: hidden;
+  position: absolute; inset: 0; padding: 140px 128px 64px; overflow: hidden;
   display: flex; flex-direction: column;
   opacity: 0; visibility: hidden; transition: opacity 260ms ease;
-  font-size: 34px; line-height: 1.45;
+  font-size: 32px; line-height: 1.4;
 }
 .active { opacity: 1; visibility: visible; }
-.light { background: var(--cream); color: var(--navy); }
-.dark { background: var(--navy); color: var(--cream); }
-.slide h1, .slide h2 { font-family: var(--title); font-weight: 400; font-synthesis: none; letter-spacing: -0.02em; line-height: 1.05; margin: 0; }
-.slide h2 { font-size: 78px; max-width: 1500px; }
-.kicker { font-family: var(--body); font-weight: 700; font-size: 26px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--orange); margin-bottom: 26px; }
-.lead { font-size: 40px; max-width: 1200px; margin: 36px 0 0; }
-.dark .muted { color: rgba(250, 247, 237, 0.72); }
-.foot { margin-top: auto; display: flex; justify-content: space-between; align-items: center; font-size: 22px; opacity: 0.72; }
-.foot img { height: 44px; }
+.light { background: var(--cream); color: var(--navy); --kicker: #c2410c; --soft: var(--muted); }
+.dark { background: var(--navy); color: var(--cream); --kicker: var(--orange); --soft: rgba(250, 247, 237, 0.68); }
+.deep { background: #14213a; color: var(--cream); --kicker: var(--orange); --soft: rgba(250, 247, 237, 0.68); }
+.accent { background: var(--orange); color: var(--navy); --kicker: var(--navy); --soft: var(--navy); }
+.slide h1, .slide h2, .slide h3 { font-family: var(--title); font-weight: 400; font-synthesis: none; margin: 0; }
+.slide h1, .slide h2 { letter-spacing: -0.02em; line-height: 1.06; }
+.slide h2 { font-size: 96px; max-width: 1640px; }
+.slide h3 { font-size: 44px; line-height: 1.12; letter-spacing: -0.01em; }
+.kicker { font-family: var(--body); font-weight: 700; font-size: 25px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--kicker); margin-bottom: 22px; }
+.center { text-align: center; }
+.lead { font-size: 36px; max-width: 1200px; margin: 30px 0 0; color: var(--soft); }
+.foot { margin-top: auto; padding-top: 24px; display: flex; justify-content: space-between; align-items: flex-end; gap: 40px; font-size: 22px; color: var(--soft); }
+.foot span:last-child { color: inherit; opacity: 0.9; white-space: nowrap; }
+.light .foot span:last-child, .accent .foot span:last-child { color: var(--navy); }
+.dark .foot span:last-child, .deep .foot span:last-child { color: var(--cream); }
 
 .todo { background: rgba(252, 81, 31, 0.2); outline: 2px dashed var(--orange); outline-offset: 2px; border-radius: 4px; }
 
-.cover { background-size: cover; background-position: center; }
-.cover .shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(29, 45, 68, 0.55) 0%, rgba(29, 45, 68, 0.9) 70%); }
-.cover > * { position: relative; }
-.cover .logo { height: 92px; align-self: flex-start; }
-.cover h1 { font-size: 132px; margin-top: auto; max-width: 1500px; }
-.cover .sub { font-family: var(--title); font-synthesis: none; font-size: 52px; font-weight: 400; margin-top: 32px; color: var(--orange); }
+.iconBox { flex: none; display: inline-grid; place-items: center; width: 72px; height: 72px; border-radius: 16px; background: #ffe7dd; color: #c2410c; }
+.iconBox svg { width: 36px; height: 36px; }
+.dark .iconBox, .deep .iconBox { background: var(--orange); color: #fff; }
 
+/* Copertina: testo a sinistra, foto a destra che sfuma nel blu. */
+.cover { padding: 0; }
+.coverPhoto { position: absolute; top: 0; right: 0; bottom: 0; width: 62%; background-size: cover; background-position: center; }
+.coverShade { position: absolute; inset: 0; background: linear-gradient(90deg, var(--navy) 32%, rgba(29, 45, 68, 0.78) 46%, rgba(29, 45, 68, 0.2) 66%, rgba(29, 45, 68, 0) 80%); }
+.coverText { position: relative; padding: 128px 128px 0; display: flex; flex-direction: column; max-width: 1380px; }
+.cover .logo { height: 64px; align-self: flex-start; margin-bottom: 34px; }
+.cover h1 { font-size: 112px; line-height: 1.04; }
+.cover .sub { font-size: 42px; line-height: 1.3; margin: 40px 0 0; max-width: 880px; font-family: var(--title); font-synthesis: none; color: var(--cream); }
+.credit { position: absolute; left: 128px; bottom: 70px; font-size: 21px; color: rgba(250, 247, 237, 0.8); }
+
+/* Elenco con foto a tutta altezza sulla destra. */
+.withSide { padding-right: 0; }
+.side { position: absolute; top: 0; right: 0; bottom: 0; width: 42%; background-size: cover; background-position: center; }
+.dark .side { width: 48%; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 22%); mask-image: linear-gradient(90deg, transparent 0, #000 22%); }
+.listText { position: relative; width: 50%; display: flex; flex-direction: column; }
+.withSide .listText { width: 50%; }
+.list h2 { font-size: 84px; }
+.rows { display: flex; flex-direction: column; margin-top: 46px; }
+.light .rows { border-top: 3px solid #c2410c; }
+.listItem { display: flex; gap: 30px; align-items: center; }
+.light .listItem { padding: 22px 0 18px; border-bottom: 1px solid var(--line); }
+.light .listItem:last-child { border-bottom: 0; }
+.dark .listItem { padding: 20px 0; }
+.listItem h3 { font-size: 50px; }
+.dark .listItem h3 { font-size: 44px; }
+.listItem p { margin: 8px 0 0; font-weight: 700; font-size: 25px; color: var(--soft); }
+.dark .listText { width: 56%; }
+.dark .listText h2 { font-size: 88px; }
+
+/* Schede e passi. */
+.grid { display: grid; gap: 26px; margin-top: 64px; }
+.card { position: relative; display: flex; flex-direction: column; border-radius: 26px; padding: 38px 36px; background: #fff; border: 1px solid var(--line); min-height: 270px; overflow-wrap: break-word; }
+.card p { font-weight: 700; font-size: 26px; line-height: 1.38; margin: 18px 0 0; color: var(--soft); }
+.cardHead { display: flex; gap: 22px; align-items: flex-start; }
+.cardHead h3 { font-size: 42px; }
+.dark .card, .deep .card { background: #24385a; border-color: rgba(255, 255, 255, 0.06); }
+.card.hl { background: var(--navy); border-color: var(--navy); color: var(--cream); }
+.card.hl p { color: rgba(250, 247, 237, 0.72); }
+.card.hl .iconBox { background: var(--orange); color: #fff; }
+.dark .card.hl, .deep .card.hl, .steps .card.hl { background: var(--orange); border-color: var(--orange); color: var(--navy); }
+.dark .card.hl p, .deep .card.hl p, .steps .card.hl p { color: var(--navy); }
+.compact .card { min-height: 0; }
+.grid:not(.compact) .card { min-height: 380px; }
+.label { font-weight: 700; font-size: 24px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--orange); }
+.labelled .card { justify-content: space-between; min-height: 500px; padding: 42px 42px 48px; }
+.labelled .card .cardHead { margin-top: auto; }
+.labelled .card h3 { font-size: 60px; }
+.card.hl .label { color: var(--navy); }
+.steps .card { min-height: 470px; padding: 42px 46px; }
+.steps .num { font-family: var(--title); font-synthesis: none; font-size: 84px; line-height: 1; color: #c2410c; margin-bottom: 52px; }
+.steps .card.hl .num { color: var(--navy); }
+.steps .card h3 { font-size: 52px; }
+.dense { gap: 20px; }
+.dense .card { padding: 30px; min-height: 360px; }
+.dense .card h3 { font-size: 36px; }
+.afterLine { margin-top: 30px; font-family: var(--title); font-synthesis: none; font-size: 44px; color: var(--cream); }
+.pill { margin-top: 32px; align-self: flex-start; background: var(--orange); color: #fff; font-weight: 700; font-size: 32px; padding: 18px 34px; border-radius: 999px; max-width: 1650px; line-height: 1.25; }
+
+/* Lingue: testo e riquadro a sinistra, le lingue a destra. */
+.langText { position: relative; width: 50%; display: flex; flex-direction: column; flex: 1; }
+.langText h2 { font-size: 96px; }
+.langArt { position: absolute; left: 1094px; top: 120px; height: 790px; width: auto; }
+.box { display: flex; gap: 30px; align-items: center; background: #24385a; border-radius: 24px; padding: 40px 44px; margin-top: auto; }
+.box h3 { font-size: 46px; }
+.box p { margin: 8px 0 0; font-weight: 700; font-size: 27px; line-height: 1.38; color: var(--soft); }
+.langText .box { margin-bottom: 26px; max-width: 960px; }
+
+/* Catalogo: una colonna per mappa, il numero in basso. */
+.showcaseGrid { display: grid; gap: 26px; margin-top: 46px; flex: 1; max-height: 584px; }
+.showcaseCard { display: flex; flex-direction: column; justify-content: space-between; border-radius: 26px; padding: 36px 36px 40px; background: #24385a; border: 1px solid rgba(255, 255, 255, 0.08); }
+.showcaseCard h3 { font-size: 54px; }
+.bigValue { font-family: var(--title); font-synthesis: none; font-size: 128px; line-height: 1; letter-spacing: -0.03em; color: var(--orange); }
+.showcaseCard p { font-weight: 700; font-size: 26px; line-height: 1.35; margin: 16px 0 0; color: var(--cream); }
+.showcaseCard.hl { background: var(--orange); border-color: var(--orange); color: var(--navy); }
+.showcaseCard.hl .bigValue, .showcaseCard.hl p { color: var(--navy); }
+
+/* Figure: numeri grandi con il filetto arancione sopra. */
+.figureRow { display: grid; gap: 58px; margin-top: 110px; }
+.figure { border-top: 4px solid var(--orange); padding-top: 26px; }
+.figure .bigValue { font-size: 132px; }
+.figure h3 { font-family: var(--body); font-weight: 700; font-size: 32px; margin-top: 18px; }
+.figure p { margin: 8px 0 0; font-weight: 700; font-size: 25px; color: var(--soft); }
+.figureRow + .box { margin-top: auto; }
+.figureRow + .box p { margin: 0; color: var(--cream); font-size: 29px; }
+
+/* Confronto: due colonne, chi fa cosa. */
+.compare h2 { font-size: 86px; }
+.compareRow { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 46px; }
+.compareCard { border-radius: 26px; padding: 46px 44px 34px; background: #fff; border: 1px solid var(--line); min-height: 480px; }
+.compareCard.hl { background: var(--navy); border-color: var(--navy); color: var(--cream); }
+.compareLabel { font-weight: 700; font-size: 25px; letter-spacing: 0.16em; text-transform: uppercase; color: #c2410c; padding-bottom: 24px; }
+.compareCard.hl .compareLabel { color: var(--orange); }
+.compareCard p { margin: 0; padding: 22px 0; border-top: 1px solid var(--line); font-weight: 700; font-size: 31px; line-height: 1.3; }
+.compareCard.hl p { border-color: rgba(250, 247, 237, 0.16); }
+.statementLine { margin-top: 30px; padding-left: 30px; border-left: 6px solid var(--orange); font-family: var(--title); font-synthesis: none; font-size: 48px; line-height: 1.2; }
+
+/* Prova: QR e telefoni su arancione. */
+.demoText { position: relative; display: flex; flex-direction: column; width: 52%; }
+.demo h2 { font-size: 118px; }
+.demoQr { display: flex; align-items: center; gap: 36px; margin-top: 64px; }
+.qrCard { flex: none; display: grid; place-items: center; width: 262px; height: 262px; background: #fff; border-radius: 22px; padding: 12px; }
+.qrCard img { width: 100%; height: 100%; object-fit: contain; }
+.demoHint { margin: 0; font-family: var(--title); font-synthesis: none; font-size: 40px; }
+.demoUrl { margin: 22px 0 0; font-weight: 700; font-size: 29px; }
+.demoArt { position: absolute; left: 960px; top: 108px; height: 820px; width: auto; }
+
+/* Il video o la schermata del prodotto, grande e centrata. */
+.media { padding-top: 62px; }
+.mediaArt { display: block; margin: 0 auto; width: 1580px; height: auto; border-radius: 28px; }
+
+/* Chiusura: contatti a sinistra, QR a destra. */
+.closingGrid { display: grid; grid-template-columns: 1fr 500px; gap: 70px; align-items: center; flex: 1; }
+.closing { padding-top: 120px; }
+.logoSmall { height: 60px; display: block; margin-bottom: 28px; }
+.closing h2 { font-size: 72px; }
+.person { margin-top: 56px; font-family: var(--title); font-synthesis: none; font-size: 50px; }
+.role { margin-top: 10px; font-weight: 700; font-size: 26px; color: var(--orange); }
+.contacts { margin-top: 26px; max-width: 1090px; }
+.contact { display: flex; align-items: center; gap: 30px; padding: 20px 0; border-top: 1px solid rgba(250, 247, 237, 0.16); font-family: var(--title); font-synthesis: none; font-size: 50px; }
+.contact .iconBox { width: 72px; height: 72px; background: #24385a; color: var(--orange); }
+.qrPanel { background: var(--cream); border-radius: 30px; padding: 48px 48px 38px; display: flex; flex-direction: column; align-items: center; gap: 24px; color: var(--navy); }
+.qrPanel img { width: 400px; height: 400px; object-fit: contain; }
+.qrPanel strong { font-size: 28px; }
+
+/* Messaggio (modelli precedenti e base aziende). */
 .split { display: grid; grid-template-columns: 1fr; gap: 70px; flex: 1; min-height: 0; }
 .splitImage { grid-template-columns: 1.15fr 0.85fr; }
+.statementText { display: flex; flex-direction: column; justify-content: center; }
 .photo { border-radius: 28px; background-size: cover; background-position: center; min-height: 0; }
-.statement h2 { font-size: 100px; }
-
-.cards { display: grid; gap: 36px; margin-top: 64px; }
-.card { border-radius: 28px; padding: 42px; background: #fff; border: 1px solid var(--line); min-height: 360px; }
-.card .num { font-family: var(--title); font-synthesis: none; font-weight: 400; font-size: 60px; color: var(--orange); line-height: 1; }
-.card h3 { font-family: var(--body); font-weight: 700; font-size: 42px; line-height: 1.1; margin: 20px 0 14px; }
-.card p { font-size: 30px; line-height: 1.4; margin: 0; }
-.dark .card { background: var(--navy-soft); border-color: transparent; }
-.card { overflow-wrap: break-word; }
-.dense { gap: 24px; }
-.dense .card { padding: 30px; min-height: 330px; }
-.dense .card h3 { font-size: 31px; }
-.dense .card p { font-size: 26px; }
-.dense .card .num { font-size: 52px; }
-.compact { gap: 22px; margin-top: 36px; }
-.compact .card { padding: 24px 30px; min-height: 0; }
-.compact .card .num { font-size: 40px; }
-.compact .card h3 { font-size: 34px; margin: 10px 0 8px; }
-.compact .card p { font-size: 26px; }
-
-.note { margin-top: 36px; align-self: flex-start; background: var(--orange); color: #fff; font-family: var(--body); font-weight: 700; font-size: 36px; padding: 20px 36px; border-radius: 999px; max-width: 1650px; line-height: 1.25; }
-
-.closing h2 { font-size: 110px; margin-top: auto; }
-.closing .lead { margin-bottom: auto; }
+.statement h2 { font-size: 96px; }
 
 .controls { position: absolute; right: 14px; bottom: 12px; z-index: 5; display: flex; gap: 6px; align-items: center; background: rgba(15, 24, 38, 0.85); color: #faf7ed; padding: 6px 10px; border-radius: 999px; font: 600 13px var(--body); }
 .controls button { background: transparent; border: 0; color: inherit; font: inherit; font-size: 15px; padding: 4px 10px; border-radius: 999px; cursor: pointer; }

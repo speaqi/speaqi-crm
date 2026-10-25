@@ -7,7 +7,7 @@ import { loadDirectorPlan } from './opportunities'
 import { directorPlanBrief } from '../office/director-plan'
 import { photoForModel, sniffUpload, safeFileName } from './tourism-deck-assets'
 import { errorMessage } from './http'
-import { normalizeForSearch, searchPattern } from '../command-center'
+import { searchPattern } from '../command-center'
 import { officeRomeDay } from '../office/finance'
 import {
   CONTACT_CATEGORY_LABELS, DIRECTOR_ORDER_SCHEMA, contactNextStep, directorOrderPrompt, directorStatusLines,
@@ -16,6 +16,7 @@ import {
 import { sendNotificationText } from './whatsapp'
 import { createServiceRoleClient } from './supabase'
 import { activateEntityForOrder, verifiedDestination, type ActivationEntity } from './office-entity-activation'
+import { entitySearchPattern, pickOrderEntity } from '../office/entity-activation'
 
 /**
  * Ordini al Direttore. Tre garanzie da non smontare:
@@ -206,14 +207,14 @@ export async function reportQueuedWork(admin: Admin, userId: string, orderId: st
 
 async function findEntity(admin: Admin, userId: string, names: Array<string | null>) {
   for (const name of names) {
-    const pattern = name ? searchPattern(name) : null
+    const pattern = name ? entitySearchPattern(name) : null
     if (!pattern) continue
+    // Archiviati e doppioni fuori già dalla query: altrimenti occupano i posti del limite.
     const { data, error } = await admin.from('tourism_entities').select('id,name,kind,status,website,email,phone,country_code,type_code,aliases,disabled,version').eq('user_id', userId)
-      .eq('kind', 'organization').ilike('name', pattern).limit(5)
+      .eq('kind', 'organization').eq('disabled', false).not('status', 'in', '(INACTIVE,DUPLICATE)').ilike('name', pattern).limit(10)
     if (error) throw error
-    const exact = (data || []).filter((row: { name: string }) => normalizeForSearch(row.name) === normalizeForSearch(name!))
-    const pick = exact.length === 1 ? exact[0] : (data || []).length === 1 ? data[0] : null
-    if (pick) return pick as ActivationEntity & { kind: string }
+    const pick = pickOrderEntity((data || []) as Array<ActivationEntity & { kind: string }>, name!)
+    if (pick) return pick
   }
   return null
 }
