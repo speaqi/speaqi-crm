@@ -38,6 +38,11 @@ describe('lucchetto dell’Ufficio', () => {
       assert.doesNotMatch(token, /cavallo/)
       assert.equal(officeUnlocked(request(token), USER), true)
       assert.equal(officeUnlocked(request('x'.repeat(64)), USER), false)
+      // Un cookie copiato scade comunque: l'ora di emissione è firmata.
+      const old = officeLockToken(USER, Date.now() - 31 * 24 * 3600_000)
+      assert.equal(officeUnlocked(request(old), USER), false)
+      const forged = `${Date.now()}.${token.split('.')[1]}`
+      assert.equal(officeUnlocked(request(forged), USER), false)
       // Il cookie di un titolare non apre l'Ufficio di un altro.
       assert.equal(officeUnlocked(request(token), '22222222-2222-4222-8222-222222222222'), false)
     })

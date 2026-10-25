@@ -19,8 +19,10 @@ export function officeLockEnabled() {
   return password().length > 0
 }
 
-export function officeLockToken(userId: string) {
-  return createHmac('sha256', secret()).update(`ufficio:${userId}:${password()}`).digest('hex')
+/** «<emesso>.<hmac>»: l'ora di emissione è firmata, così un cookie copiato scade comunque dopo 30 giorni. */
+export function officeLockToken(userId: string, issuedAt = Date.now()) {
+  const mac = createHmac('sha256', secret()).update(`ufficio:${userId}:${password()}:${issuedAt}`).digest('hex')
+  return `${issuedAt}.${mac}`
 }
 
 function same(left: string, right: string) {
@@ -36,7 +38,11 @@ export function officePasswordMatches(given: string) {
 export function officeUnlocked(request: NextRequest, userId: string) {
   if (!officeLockEnabled()) return true
   const cookie = request.cookies.get(OFFICE_LOCK_COOKIE)?.value || ''
-  return cookie.length > 0 && same(cookie, officeLockToken(userId))
+  const issuedAt = Number(cookie.split('.')[0])
+  if (!Number.isSafeInteger(issuedAt) || issuedAt <= 0) return false
+  const age = Date.now() - issuedAt
+  if (age < -60_000 || age > OFFICE_LOCK_DAYS * 24 * 3600_000) return false
+  return same(cookie, officeLockToken(userId, issuedAt))
 }
 
 export function officeLockedResponse() {

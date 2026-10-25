@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
   if (!officeLockEnabled()) return Response.json({ locked: false })
   if (officeLockBlocked(auth.userId)) return Response.json({ error: 'Troppi tentativi: riprova fra un quarto d’ora.' }, { status: 429 })
   const body = await request.json().catch(() => null) as { password?: unknown } | null
-  const given = typeof body?.password === 'string' ? body.password.slice(0, 200) : ''
+  const given = typeof body?.password === 'string' ? body.password : ''
   if (!officePasswordMatches(given)) {
     noteOfficeLockFailure(auth.userId)
     return Response.json({ error: 'Password sbagliata.' }, { status: 401 })
