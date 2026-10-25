@@ -6,7 +6,7 @@ import { GENERIC } from './deck-template-fixture'
 
 // I numeri del territorio restano da verificare nel modello: per approvare li si scrive.
 const completed = (slides: DeckSlide[]) => slides.map((s) => JSON.parse(JSON.stringify(s).replace(DECK_TODO_PATTERN, '12')) as DeckSlide)
-import { addAssets, addPhotosToDeck, createDeck, getTemplate, saveTemplate, deleteDeck, generateIntoDeck, loadDeck, loadPublicDeck, saveDeckEdits, setApproval, type DeckRow } from '../src/lib/server/tourism-decks'
+import { addAssets, addPhotosToDeck, createDeck, deckRenderKey, getTemplate, saveTemplate, deleteDeck, generateIntoDeck, loadDeck, loadPublicDeck, saveDeckEdits, setApproval, type DeckRow } from '../src/lib/server/tourism-decks'
 
 type Row = Record<string, any>
 
@@ -217,6 +217,17 @@ test('la vista pubblica mostra solo ciò che è approvato, con token valido', as
   const row = await createDeck(db, USER, fields)
   assert.equal(await loadPublicDeck(db, 'zz'), null)
   assert.equal(await loadPublicDeck(db, row.public_token), null)
+  // Una bozza si apre solo con la chiave di render della sua versione (il PDF del server).
+  const oldKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'segreto-di-prova'
+  try {
+    assert.equal(await loadPublicDeck(db, row.public_token, 'f'.repeat(64)), null)
+    assert.equal((await loadPublicDeck(db, row.public_token, deckRenderKey(row.public_token, row.version)))?.destination, 'Capri')
+    assert.equal(await loadPublicDeck(db, row.public_token, deckRenderKey(row.public_token, row.version + 1)), null)
+  } finally {
+    if (oldKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = oldKey
+  }
   const full = completed(applyVars(DEFAULT_DECK_TEMPLATE, { destinazione: 'Capri', ente: 'X', prezzo: 'almeno 100.000 accessi', contatto: 'a@b.it' }))
   const saved = await saveDeckEdits(db, row, { version: 1, slides: full })
   await setApproval(db, saved, true)

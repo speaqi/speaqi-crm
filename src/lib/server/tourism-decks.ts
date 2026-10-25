@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 import { quoteSummary } from '../agency'
 import {
   DEFAULT_DECK_TEMPLATE,
@@ -552,14 +552,36 @@ export async function toView(sb: Sb, service: Sb, row: DeckRow): Promise<DeckVie
 }
 
 /** Solo una presentazione approvata si vede da fuori, a chi ha il token. */
-export async function loadPublicRow(service: Sb, token: string): Promise<DeckRow | null> {
-  if (!/^[0-9a-f]{64}$/.test(token)) return null
-  const { data } = await service.from('tourism_decks').select('*').eq('public_token', token).eq('status', 'approved').maybeSingle()
-  return (data as DeckRow) || null
+/**
+ * Chiave con cui Chromium apre una presentazione non ancora approvata per stamparne il PDF:
+ * vale per quella sola versione (una modifica la invalida) e non la conosce nessun altro,
+ * quindi il link pubblico di una bozza resta chiuso. Stesso segreto di Speaqi Agency.
+ */
+export function deckRenderKey(token: string, version: number) {
+  const secret = process.env.AGENCY_RENDER_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  if (!secret) return ''
+  return createHmac('sha256', secret).update(`tourism-render:${token}:${version}`).digest('hex')
 }
 
-export async function loadPublicDeck(service: Sb, token: string) {
-  const row = await loadPublicRow(service, token)
+export function validDeckRenderKey(token: string, version: number, key: unknown) {
+  const expected = deckRenderKey(token, version)
+  if (!expected || typeof key !== 'string' || key.length !== expected.length) return false
+  return timingSafeEqual(Buffer.from(key), Buffer.from(expected))
+}
+
+/** Solo approvate; una bozza solo con la chiave di render della sua versione (il PDF). */
+export async function loadPublicRow(service: Sb, token: string, render?: string): Promise<DeckRow | null> {
+  if (!/^[0-9a-f]{64}$/.test(token)) return null
+  let query = service.from('tourism_decks').select('*').eq('public_token', token)
+  if (!render) query = query.eq('status', 'approved')
+  const { data } = await query.maybeSingle()
+  const row = (data as DeckRow) || null
+  if (!row || row.status === 'approved') return row
+  return row.status !== 'generating' && validDeckRenderKey(token, row.version, render) ? row : null
+}
+
+export async function loadPublicDeck(service: Sb, token: string, render?: string) {
+  const row = await loadPublicRow(service, token, render)
   if (!row) return null
   const urls = await signedAssetUrls(service, row.assets.filter((a) => row.slides.some((s) => s.image_asset_id === a.id)), PUBLIC_URL_TTL_S)
   const quotes = await deckQuotes(service, row)
