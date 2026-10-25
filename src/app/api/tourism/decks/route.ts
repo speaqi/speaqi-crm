@@ -61,7 +61,8 @@ export async function POST(request: NextRequest) {
         ente: textValue(form.get('ente'), 200),
         paese: textValue(form.get('paese'), 100),
         prezzo: textValue(form.get('prezzo'), 300),
-        contatto: textValue(form.get('contatto'), 300)
+        contatto: textValue(form.get('contatto'), 300),
+        ...(form.get('modello') === 'partner' ? { modello: 'partner' as const } : {})
       }
     })
     if (files.length) await addAssets(auth.supabase, service, created, files)

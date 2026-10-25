@@ -1,5 +1,10 @@
-import { randomUUID } from 'node:crypto'
-import { callModel, runAgent, type AgentContext } from './office-agents'
+import { createHash, randomUUID } from 'node:crypto'
+import { BudgetExceeded, callModel, runAgent, type AgentContext } from './office-agents'
+import { officeIsNaples } from '../office/director'
+import { EXONYMS, nameKey } from '../office/entity-enricher'
+import { TOURISM_TYPES } from '../tourism'
+import { readEntitySite } from './office-agents/entity-enricher'
+import { officeDeckAgent } from './office-agents/presentations'
 import { officeAgentHandler } from './office-agents/registry'
 import { officeRows } from './office-read'
 import { createLeadFromInput } from './lead-ops'
@@ -12,14 +17,18 @@ import { officeRomeDay } from '../office/finance'
 import {
   CONTACT_CATEGORY_LABELS, DIRECTOR_ORDER_SCHEMA, contactNextStep, directorOrderPrompt, directorStatusLines,
   directorEventsReply, directorInvoiceReply, directorQuoteLabel, interpretDirectorOrder, queuedWorkReport, quoteIsInvoiceable,
+  directorHelpText, emailFromSite, looksLikeTourismBody, parsePartnerSearch, partnerSearchPrompt, PARTNER_SEARCH_SCHEMA, PARTNER_TYPE_CODES,
   type DirectorEventRow, type DirectorInvoiceQuote, type DirectorOrderPlan, type QueuedWork,
 } from '../office/director-orders'
 import { sendNotificationText } from './whatsapp'
 import { createServiceRoleClient } from './supabase'
 import { activateEntityForOrder, verifiedDestination, type ActivationEntity } from './office-entity-activation'
-import { entitySearchPattern, pickOrderEntity } from '../office/entity-activation'
+import { cityForEntity, compactName, entitySearchPattern, pickOrderEntity, siteMatchesEntity, websiteFromText } from '../office/entity-activation'
 import { DIRECTOR_BUCKET, directorPhotoFiles } from './office-director-photos'
-import { addPhotosToDeck, type DeckRow } from './tourism-decks'
+import { addPhotosToDeck, createDeck, generateIntoDeck, type DeckRow } from './tourism-decks'
+
+const TOURISM_TYPE_LABEL = (code: string | null) => (code && (TOURISM_TYPES as Record<string, string>)[code])
+  || (code === 'accommodation' ? 'Struttura ricettiva' : code === 'transport' ? 'Trasporti' : 'Operatore')
 import { createInvoiceDraftFromQuote, invoiceProblems, loadInvoiceSettings } from './invoices'
 
 /**
@@ -229,11 +238,11 @@ async function findEntity(admin: Admin, userId: string, names: Array<string | nu
  * l'ordine del titolare è l'autorizzazione. Si ferma solo per chiedere il sito o la città.
  */
 async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, entity: ActivationEntity,
-  plan: Extract<DirectorOrderPlan, { intent: 'presentation' }>, orderText: string, label: string, photos: string[] = []): Promise<Outcome> {
+  plan: Extract<DirectorOrderPlan, { intent: 'presentation' }>, orderText: string, label: string, photos: string[] = [], contactId: string | null = null): Promise<Outcome> {
   let destination = entity.status === 'VERIFIED' ? await verifiedDestination(admin, userId, entity.id) : null
   let note = ''
   if (!destination) {
-    const activated = await activateEntityForOrder(admin, ctx, userId, entity, { orderText, proposedCity: plan.city })
+    const activated = await activateEntityForOrder(admin, ctx, userId, entity, { orderText, proposedCity: plan.city, contactId })
     if (!activated.ok) return { status: 'waiting_you', outputs: [], queued: [], reply: activated.reply }
     destination = activated.placeId
     note = `${activated.note} `
@@ -330,6 +339,324 @@ export async function invoiceFor(admin: Admin, userId: string, plan: Extract<Dir
   }) }
 }
 
+type PresentationPlan = Extract<DirectorOrderPlan, { intent: 'presentation' }>
+
+/** Più esiti in una risposta sola: aspetta te se uno lo chiede, fallito solo se tutti falliscono. */
+function combineOutcomes(outcomes: Outcome[], footer = ''): Outcome {
+  if (outcomes.length === 1 && !footer) return outcomes[0]
+  const status: Outcome['status'] = outcomes.some((o) => o.status === 'waiting_you') ? 'waiting_you'
+    : outcomes.length && outcomes.every((o) => o.status === 'failed') ? 'failed' : 'done'
+  return { status, outputs: outcomes.flatMap((o) => o.outputs), queued: outcomes.flatMap((o) => o.queued),
+    reply: [...outcomes.map((o) => `• ${o.reply}`), footer].filter(Boolean).join('\n') }
+}
+
+/** La presentazione di un nome: ente del catalogo, contatto di un ente, oppure lavoro da agenzia. */
+async function presentationTarget(admin: Admin, ctx: AgentContext, order: DirectorOrderRow, plan: PresentationPlan, target: string, photos: string[]): Promise<Outcome> {
+  const userId = order.user_id
+  const entity = await findEntity(admin, userId, [target])
+  if (entity) return presentationFor(admin, ctx, userId, entity, plan, order.text, entity.name, photos)
+  const pattern = searchPattern(target)
+  const contacts = pattern ? checked(await admin.from('contacts').select('id,name,company,country,email').eq('user_id', userId)
+    .or(`name.ilike.${pattern},company.ilike.${pattern}`).limit(3)) as Array<{ id: string; name: string; company: string | null; country: string | null; email: string | null }> : []
+  // Fra più schede dello stesso ente basta che dicano la stessa organizzazione.
+  const companies = [...new Set(contacts.map((c) => c.company && compactName(c.company)).filter(Boolean))]
+  const contact = contacts.length === 1 || (contacts.length > 1 && companies.length === 1 && contacts.every((c) => c.company)) ? contacts[0] : null
+  // L'ente da presentare: l'organizzazione del contatto, oppure il nome scritto.
+  const orgName = contact?.company || (contacts.length ? null : target)
+  if (contact?.company) {
+    // Il contatto di un ente del catalogo: la presentazione è quella dell'ente.
+    const owner = await findEntity(admin, userId, [contact.company])
+    if (owner) return presentationFor(admin, ctx, userId, owner, plan, order.text, `${owner.name} (${contact.name})`, photos, contact.id)
+  }
+  if (orgName && (looksLikeTourismBody(orgName) || plan.type_code)) {
+    // Un ente del turismo che non è ancora nel catalogo: il Direttore lo aggiunge e lo attiva, poi la presentazione.
+    const country = plan.country_code || countryCode(contact?.country) || emailCountry(contact?.email)
+    if (!country) return { status: 'waiting_you', outputs: [], queued: [], reply: `${orgName} non è ancora in Tourism Intelligence e non so di quale paese è. Scrivimi «presentazione per ${orgName}, ${plan.city || 'città'}, paese …» e lo aggiungo io.` }
+    const found = await ensureCatalogEntity(admin, userId, order.id, { name: orgName, country_code: country, type_code: plan.type_code || 'dmo', website: websiteFromText(order.text) })
+    if ('reply' in found) return { status: 'waiting_you', outputs: [], queued: [], reply: found.reply }
+    const outcome = await presentationFor(admin, ctx, userId, found.entity, plan, order.text, `${found.entity.name}${contact ? ` (${contact.name})` : ''}`, photos, contact?.id || null)
+    return found.created ? { ...outcome, reply: `Ho aggiunto ${found.entity.name} a Tourism Intelligence. ${outcome.reply}` } : outcome
+  }
+  if (contact) {
+    const result = await queueForAgent(admin, userId, 'agency', { key: `agency:contact:${contact.id}`, contact_id: contact.id, brief: plan.brief || order.text })
+    return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `${contact.name} non è un ente del turismo, quindi è un lavoro da agenzia. ${queueSentence(result)}` }
+  }
+  return { status: 'failed', outputs: [], queued: [], reply: contacts.length
+    ? `Ho trovato più contatti per «${target}» (${contacts.map((c) => c.name).join(', ')}): dimmi quale.`
+    : `Non trovo «${target}» né fra gli enti del catalogo Tourism né fra i contatti. Se è un ente del turismo, scrivimi «aggiungi ${target} a Tourism Intelligence»; se è un cliente, mandami il contatto.` }
+}
+
+/** Un UUID fisso per (ordine, nome): rielaborare lo stesso ordine ritrova la stessa presentazione. */
+function stableId(seed: string) {
+  const h = createHash('sha256').update(seed).digest('hex')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${(8 + (parseInt(h[16], 16) & 3)).toString(16)}${h.slice(17, 20)}-${h.slice(20, 32)}`
+}
+
+/**
+ * Presentazione per un partner (hotel, agenzia, compagnia): base Partner, città della guida
+ * dall'ordine. La fa il Direttore subito, nel suo budget; le condizioni restano
+ * [DA VERIFICARE] finché il titolare non le scrive, quindi non si approva da sola.
+ */
+async function partnerPresentation(admin: Admin, ctx: AgentContext, order: DirectorOrderRow, plan: PresentationPlan, target: string): Promise<Outcome> {
+  const userId = order.user_id
+  const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+  const entity = await findEntity(admin, userId, [target])
+  const name = entity?.name || target
+  const city = plan.city
+  if (!city) return { status: 'waiting_you', outputs: [], queued: [], reply: `Per quale città è la guida che proponi a ${name}? Scrivimi «presentazione partner per ${name}, guida di …».` }
+  if (officeIsNaples(city)) return { status: 'failed', outputs: [], queued: [], reply: 'Napoli resta fuori dal lavoro degli agenti.' }
+  if (entity) {
+    const existing = checked(await admin.from('tourism_decks').select('id,title').eq('user_id', userId).eq('entity_id', entity.id)
+      .eq('input->>modello', 'partner').ilike('destination', city).limit(1).maybeSingle()) as { id: string; title: string } | null
+    if (existing) return { status: 'done', outputs: [], queued: [], reply: `${name}: la presentazione partner per ${city} c’è già, «${existing.title}». ${base}/tourism/presentazioni/${existing.id}` }
+  }
+  const id = stableId(`partner-deck:${order.id}:${nameKey(name)}`)
+  let deck = checked(await admin.from('tourism_decks').select('*').eq('user_id', userId).eq('id', id).maybeSingle()) as DeckRow | null
+  if (!deck) {
+    const notes = [entity ? `Partner nel catalogo Tourism: ${entity.name}${entity.website ? `, sito ${entity.website}` : ''}.` : `Partner: ${name}.`,
+      plan.brief ? `Richiesta del titolare: ${plan.brief}` : '', `Ordine: ${order.text.slice(0, 1500)}`].filter(Boolean).join('\n')
+    deck = await createDeck(admin, userId, { entity_id: entity?.id || null, destination: city, notes,
+      input: { destinazione: city, ente: name, paese: entity?.country_code || '', modello: 'partner' } }, id)
+  }
+  let generated = deck.status !== 'draft'
+  if (!generated) {
+    try {
+      deck = await generateIntoDeck(admin, admin, deck, undefined, officeDeckAgent(ctx))
+      generated = true
+    } catch (error) {
+      if (error instanceof BudgetExceeded) throw error
+      console.error('[direttore] presentazione partner non generata', errorMessage(error, ''))
+    }
+  }
+  const link = `${base}/tourism/presentazioni/${deck.id}`
+  return { status: 'done', outputs: [], queued: [], reply: generated
+    ? `${name}: presentazione partner per la guida di ${city} pronta da rivedere. Le condizioni (commissione, prezzo dei codici) restano [DA VERIFICARE]: scrivile nell’editor, poi approvala o scarica il PDF. ${link}`
+    : `${name}: ho preparato la presentazione partner per ${city} con il testo di base, ma l’adattamento non è riuscito. Puoi rivederla e rigenerarla da qui: ${link}` }
+}
+
+const DESTINATION_TYPES = ['dmo', 'nto', 'cvb', 'rto']
+
+/**
+ * «Preparami 5 presentazioni di destinazioni»: il Direttore sceglie lui, fra gli enti del
+ * turismo con un sito che non hanno ancora una presentazione, prima quelli con priorità.
+ * Ognuno passa dall'attivazione (sito, prove, contatto nel CRM) e va alla coda Presentazioni.
+ */
+async function autoDestinationPresentations(admin: Admin, ctx: AgentContext, order: DirectorOrderRow, plan: PresentationPlan): Promise<Outcome> {
+  const userId = order.user_id
+  const wanted = plan.count || 1
+  const [decks, rows] = await Promise.all([
+    officeRows<{ entity_id: string | null }>(admin, userId, 'tourism_decks', 'id,entity_id'),
+    admin.from('tourism_entities').select('id,name,kind,status,website,email,phone,country_code,type_code,aliases,disabled,version,outreach_priority')
+      .eq('user_id', userId).eq('kind', 'organization').eq('disabled', false).in('type_code', DESTINATION_TYPES)
+      .in('status', ['VERIFIED', 'UNVERIFIED', 'NEEDS_REVIEW']).not('website', 'is', null)
+      .order('outreach_priority', { ascending: true, nullsFirst: false }).order('name').limit(200),
+  ])
+  if (rows.error) throw rows.error
+  const done = new Set(decks.map((d) => d.entity_id).filter(Boolean))
+  const candidates = ((rows.data || []) as Array<ActivationEntity & { outreach_priority: number | null }>)
+    .filter((e) => !done.has(e.id) && !officeIsNaples(e.name))
+    // Si attiva solo chi ha una città leggibile dal nome («Visit Bergamo»): gli altri si fermerebbero a chiederla.
+    .filter((e) => e.status === 'VERIFIED' || cityForEntity({ proposed: null, entityName: e.name, aliases: e.aliases, orderText: '' }))
+    // A parità di priorità prima chi è già verificato: costa meno attivarlo.
+    .sort((a, b) => (a.outreach_priority ?? 9) - (b.outreach_priority ?? 9) || Number(b.status === 'VERIFIED') - Number(a.status === 'VERIFIED'))
+  if (!candidates.length) return { status: 'failed', outputs: [], queued: [], reply: 'Non trovo enti del turismo con un sito e senza presentazione nel catalogo. Dimmi tu per chi.' }
+  const outcomes: Outcome[] = []
+  const skipped: string[] = []
+  let queued = 0
+  for (const entity of candidates.slice(0, wanted * 3)) {
+    if (queued >= wanted) break
+    try {
+      const outcome = await presentationFor(admin, ctx, userId, entity, plan, order.text, entity.name)
+      if (outcome.status === 'waiting_you' || outcome.status === 'failed') { skipped.push(`${entity.name}: ${outcome.reply.split('. ')[0]}`); continue }
+      outcomes.push(outcome)
+      queued++
+    } catch (error) {
+      if (error instanceof BudgetExceeded) { skipped.push('budget di oggi del Direttore finito: mi sono fermato'); break }
+      skipped.push(`${entity.name}: ${errorMessage(error, 'errore')}`)
+    }
+  }
+  const header = `Ho scelto ${queued} ${queued === 1 ? 'destinazione' : 'destinazioni'} su ${wanted} fra quelle senza presentazione:`
+  const footer = skipped.length ? `Saltate: ${skipped.slice(0, 5).join('; ')}.` : ''
+  const result = combineOutcomes(outcomes, footer)
+  return { ...result, status: queued ? 'done' : 'failed', reply: queued ? `${header}\n${result.reply}` : `Non sono riuscito a preparare presentazioni. ${footer}` }
+}
+
+const PARTNER_DB_TYPES = [...PARTNER_TYPE_CODES, 'accommodation', 'transport']
+
+/**
+ * «Trovami 5 partner per Venezia»: prima il catalogo (operatori che nominano la città),
+ * poi il web per quelli che mancano. Ognuno diventa una proposta «Nuovo contatto»
+ * di tipo partner: nel CRM entra solo con il clic del titolare.
+ */
+async function findPartners(admin: Admin, ctx: AgentContext, order: DirectorOrderRow, plan: Extract<DirectorOrderPlan, { intent: 'find_partners' }>): Promise<Outcome> {
+  const userId = order.user_id
+  const names = [plan.city, ...(EXONYMS[nameKey(plan.city)] || [])]
+  const patterns = names.map((n) => `%${n.replace(/[%_,()*\\]/g, ' ').trim()}%`)
+  const filters = patterns.flatMap((p) => [`name.ilike.${p}`, `details->>description.ilike.${p}`, `details->>hq_city.ilike.${p}`]).join(',')
+  const [rows, pending] = await Promise.all([
+    admin.from('tourism_entities').select('id,name,type_code,status,website,email,phone,country_code,details')
+      .eq('user_id', userId).eq('kind', 'organization').eq('disabled', false).in('type_code', PARTNER_DB_TYPES)
+      .not('status', 'in', '(INACTIVE,DUPLICATE)').or(filters).limit(80),
+    admin.from('office_agent_outputs').select('body').eq('user_id', userId).eq('agent_id', 'director').eq('status', 'pending')
+      .eq('body->>action', 'create_contact').limit(200),
+  ])
+  if (rows.error) throw rows.error
+  const proposed = new Set(((pending.data || []) as Array<{ body: any }>).map((o) => compactName(String(o.body?.contact?.company || o.body?.contact?.name || ''))))
+  const seen = new Set<string>()
+  type Pick = { name: string; website: string | null; email: string | null; phone: string | null; country: string | null; kind: string; why: string; source: string; entity_id: string | null }
+  const picks: Pick[] = []
+  const consider = async (pick: Pick) => {
+    const key = compactName(pick.name)
+    const host = pick.website ? new URL(pick.website).hostname.replace(/^www\./, '') : null
+    if (!key || seen.has(key) || (host && seen.has(host)) || proposed.has(key)) return false
+    const dup = await findDuplicates(admin, userId, { company: pick.name, email: pick.email, phone: null })
+    if (dup.length) return false
+    seen.add(key); if (host) seen.add(host)
+    picks.push(pick)
+    return true
+  }
+  const catalog = ((rows.data || []) as any[])
+    // Prima chi ha un recapito, poi chi ha la città nel nome.
+    .sort((a, b) => Number(!!b.email) - Number(!!a.email) || Number(!!b.website) - Number(!!a.website)
+      || Number(names.some((n) => nameKey(b.name).includes(nameKey(n)))) - Number(names.some((n) => nameKey(a.name).includes(nameKey(n)))))
+  const linked = catalog.length ? new Set(((checked(await admin.from('tourism_crm_links').select('entity_id').eq('user_id', userId)
+    .in('entity_id', catalog.map((e) => e.id))) || []) as Array<{ entity_id: string }>).map((l) => l.entity_id)) : new Set<string>()
+  for (const e of catalog) {
+    if (picks.length >= plan.count) break
+    if (linked.has(e.id)) continue
+    await consider({ name: e.name, website: e.website || null, email: e.email || null, phone: e.phone || null, country: e.country_code || null,
+      kind: TOURISM_TYPE_LABEL(e.type_code), why: String(e.details?.description || '').slice(0, 200), source: 'Catalogo Tourism Intelligence', entity_id: e.id })
+  }
+  const notes: string[] = []
+  if (picks.length < plan.count) {
+    try {
+      const missing = plan.count - picks.length
+      const answer = await callModel(ctx, { model: ctx.agent.model, maxOutputTokens: 1200, webSearch: { maxResults: 8 },
+        input: partnerSearchPrompt({ city: plan.city, count: missing + 3, brief: plan.brief, exclude: picks.map((p) => p.name) }),
+        jsonSchema: { name: 'partner_search', schema: PARTNER_SEARCH_SCHEMA as unknown as Record<string, unknown> } })
+      let parsed: unknown = null
+      try { parsed = JSON.parse(answer.text) } catch { /* Risposta illeggibile: restano quelli del catalogo. */ }
+      for (const candidate of parsePartnerSearch(parsed)) {
+        if (picks.length >= plan.count) break
+        // Il sito proposto dal modello vale solo se la pagina letta nomina davvero l'azienda.
+        let pages: Array<{ text: string }> = []
+        try { pages = await readEntitySite(candidate.website) } catch { continue }
+        if (!siteMatchesEntity(candidate.website, pages.map((p) => p.text).join('\n'), candidate.name)) continue
+        await consider({ ...candidate, email: emailFromSite(candidate.website, pages.map((p) => p.text)), phone: null, country: null,
+          source: `Ricerca web, sito letto: ${candidate.website}`, entity_id: null })
+      }
+    } catch (error) {
+      if (error instanceof BudgetExceeded) notes.push('la ricerca sul web si è fermata: budget di oggi del Direttore finito')
+      else notes.push(`la ricerca sul web non è riuscita (${errorMessage(error, 'errore')})`)
+    }
+  }
+  if (!picks.length) return { status: 'failed', outputs: [], queued: [], reply: `Non ho trovato partner nuovi per ${plan.city}${notes.length ? `: ${notes.join(', ')}` : ''}.` }
+  const outputs: string[] = []
+  for (const [i, p] of picks.entries()) {
+    const contact = { name: null, role: null, company: p.name, email: p.email, phone: p.phone, website: p.website, city: plan.city, country: p.country }
+    outputs.push(await ctx.addOutput({
+      kind: 'proposal', key: `order:${order.id}:partner:${i}`, title: `Partner per ${plan.city}: ${p.name}`,
+      target_table: 'office_director_orders', target_id: order.id,
+      body: {
+        action: 'create_contact', order_id: order.id, contact, evidence: { company: p.source, ...(p.email ? { email: p.source } : {}) },
+        category: 'partner', tipo: CONTACT_CATEGORY_LABELS.partner, perche: `${p.kind}${p.why ? ` · ${p.why}` : ''}`,
+        brief: `Potenziale partner per la guida di ${plan.city}.`, card_text: null, scartati: [],
+        entity_id: p.entity_id, ente_nel_catalogo: p.entity_id ? p.name : null, possibili_doppioni: [], duplicate_ids: [],
+        dopo_il_clic: contactNextStep('partner'),
+      },
+    }))
+  }
+  const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+  const list = picks.map((p) => `• ${p.name} (${p.kind})${p.email ? ` · ${p.email}` : p.website ? ` · ${p.website.replace(/^https:\/\//, '')}` : ''}`).join('\n')
+  const short = picks.length < plan.count ? ` Ne ho trovati ${picks.length} su ${plan.count}.` : ''
+  return { status: 'waiting_you', outputs, queued: [], reply: [
+    `Partner per ${plan.city}: te li propongo in «Aspetta te», uno per uno. Approvando entrano nei contatti con un’opportunità di distribuzione.${short}`,
+    list, notes.length ? `Nota: ${notes.join(', ')}.` : '', `${base}/ufficio`,
+  ].filter(Boolean).join('\n') }
+}
+
+/**
+ * «Aggiungi Venezuela Tourism a Tourism Intelligence e ai contatti»: l'ente si ritrova nel
+ * catalogo o si crea (non verificato), poi l'attivazione cerca il sito, scrive le prove,
+ * lo verifica e lo porta nel CRM. Il titolare che lo chiede è l'autorizzazione.
+ */
+async function addEntity(admin: Admin, ctx: AgentContext, order: DirectorOrderRow, plan: Extract<DirectorOrderPlan, { intent: 'add_entity' }>): Promise<Outcome> {
+  const userId = order.user_id
+  const found = await ensureCatalogEntity(admin, userId, order.id, plan)
+  if ('reply' in found) return { status: 'waiting_you', outputs: [], queued: [], reply: found.reply }
+  const { entity, created } = found
+  const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+  const link = `${base}/tourism?entity=${entity.id}`
+  const crm = checked(await admin.from('tourism_crm_links').select('contact_id').eq('user_id', userId).eq('entity_id', entity.id).limit(1).maybeSingle())
+  if (entity.status === 'VERIFIED' && crm) return { status: 'done', outputs: [], queued: [], reply: `${entity.name} è già in Tourism Intelligence, verificato e nei contatti. ${link}` }
+  const city = plan.city || (DESTINATION_TYPES.includes(plan.type_code) || plan.type_code === 'ministry' ? countryName(plan.country_code) : null)
+  // Un contatto del CRM con l'organizzazione dell'ente (uno solo) si collega, invece di crearne un altro.
+  const contact = crm ? null : await contactOfOrganization(admin, userId, entity.name)
+  const activated = await activateEntityForOrder(admin, ctx, userId, entity, { orderText: `${order.text}\n${city || ''}`, proposedCity: city, contactId: contact?.id || null })
+  const first = created ? `Ho aggiunto ${entity.name} a Tourism Intelligence.` : `${entity.name} era già in Tourism Intelligence.`
+  if (!activated.ok) return { status: 'waiting_you', outputs: [], queued: [], reply: `${first} ${activated.reply} ${link}` }
+  return { status: 'done', outputs: [], queued: [], reply: `${first} ${activated.note} ${link}` }
+}
+
+const ENTITY_COLUMNS = 'id,name,kind,status,website,email,phone,country_code,type_code,aliases,disabled,version'
+
+/**
+ * L'ente nel catalogo Tourism: ritrovato per nome, oppure inserito non verificato
+ * (lo verifica poi l'attivazione, con le prove del sito). Un archiviato non si riusa.
+ */
+async function ensureCatalogEntity(admin: Admin, userId: string, orderId: string,
+  input: { name: string; country_code: string; type_code: string; website: string | null }): Promise<{ entity: ActivationEntity; created: boolean } | { reply: string }> {
+  const existing = await findEntity(admin, userId, [input.name])
+  if (existing) return { entity: existing, created: false }
+  const row = { user_id: userId, kind: 'organization', name: input.name, country_code: input.country_code, type_code: input.type_code,
+    website: input.website, details: { acquisition: { source: 'office_director', order_id: orderId } } }
+  const inserted = await admin.from('tourism_entities').insert(row).select(ENTITY_COLUMNS).single()
+  if (!inserted.error) return { entity: inserted.data, created: true }
+  if ((inserted.error as { code?: string }).code !== '23505') throw inserted.error
+  // Stesso nome e paese già nel catalogo (magari archiviato): si riusa quello.
+  const same = checked(await admin.from('tourism_entities').select(ENTITY_COLUMNS).eq('user_id', userId).eq('kind', 'organization')
+    .eq('country_code', input.country_code).eq('name_key', nameKey(input.name)).maybeSingle()) as ActivationEntity | null
+  if (!same) return { reply: `Non sono riuscito ad aggiungere ${input.name} al catalogo.` }
+  if (same.disabled || same.status === 'INACTIVE' || same.status === 'DUPLICATE') return { reply: `${same.name} c’è già nel catalogo ma è archiviato: riattivalo dalla scheda Tourism.` }
+  return { entity: same, created: false }
+}
+
+/** L'unico contatto del CRM che lavora per quell'organizzazione (stessa azienda, spazi e maiuscole a parte). */
+async function contactOfOrganization(admin: Admin, userId: string, organization: string) {
+  const pattern = searchPattern(organization)
+  if (!pattern) return null
+  const rows = (checked(await admin.from('contacts').select('id,name,company').eq('user_id', userId).ilike('company', pattern).limit(5)) || []) as Array<{ id: string; name: string; company: string | null }>
+  const same = rows.filter((row) => row.company && compactName(row.company) === compactName(organization))
+  return same.length === 1 ? same[0] : null
+}
+
+/** Il paese di un contatto del CRM come codice ISO, se si riconosce. */
+function countryCode(value: string | null | undefined): string | null {
+  const text = (value || '').trim()
+  if (/^[A-Za-z]{2}$/.test(text)) return text.toUpperCase()
+  if (!text) return null
+  const names = new Intl.DisplayNames(['it'], { type: 'region' })
+  const english = new Intl.DisplayNames(['en'], { type: 'region' })
+  const wanted = nameKey(text)
+  for (let a = 65; a <= 90; a++) for (let b = 65; b <= 90; b++) {
+    const code = String.fromCharCode(a, b)
+    try { if ([names.of(code), english.of(code)].some((n) => n && n !== code && nameKey(n) === wanted)) return code } catch { /* codice inesistente */ }
+  }
+  return null
+}
+
+/** Il paese dal dominio nazionale dell'email («@sibiu-turism.ro» → RO). I domini generici non dicono niente. */
+export function emailCountry(email: string | null | undefined): string | null {
+  const tld = /@[^@\s]+\.([a-z]{2})$/i.exec((email || '').trim())?.[1]?.toUpperCase()
+  if (!tld || ['EU', 'IO', 'AI', 'CO', 'ME', 'TV', 'FM', 'LY', 'AC', 'TO', 'GG', 'SH', 'WS', 'CC', 'NU'].includes(tld)) return null
+  const code = tld === 'UK' ? 'GB' : tld
+  try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(code) !== code ? code : null } catch { return null }
+}
+
+function countryName(code: string) {
+  try { return new Intl.DisplayNames(['it'], { type: 'region' }).of(code) || null } catch { return null }
+}
+
 async function findDuplicates(admin: Admin, userId: string, contact: Record<string, string | null>) {
   const found = new Map<string, { id: string; name: string; email: string | null; phone: string | null; company: string | null }>()
   const add = (rows: any[] | null) => (rows || []).forEach((row) => found.set(row.id, row))
@@ -410,22 +737,29 @@ async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrder
     return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `Controllo della mappa di ${plan.city}: ${queueSentence(result)}` }
   }
   if (plan.intent === 'presentation') {
-    const entity = await findEntity(admin, userId, [plan.target])
     const photos = (order.attachments || []).map((a) => a.path)
-    if (entity) return presentationFor(admin, ctx, userId, entity, plan, order.text, entity.name, photos)
-    const pattern = searchPattern(plan.target)
-    const contacts = pattern ? checked(await admin.from('contacts').select('id,name,company').eq('user_id', userId)
-      .or(`name.ilike.${pattern},company.ilike.${pattern}`).limit(3)) as Array<{ id: string; name: string; company: string | null }> : []
-    if (contacts.length === 1) {
-      // Il contatto di un ente del catalogo: la presentazione è quella dell'ente.
-      const owner = contacts[0].company ? await findEntity(admin, userId, [contacts[0].company]) : null
-      if (owner) return presentationFor(admin, ctx, userId, owner, plan, order.text, `${owner.name} (${contacts[0].name})`, photos)
-      const result = await queueForAgent(admin, userId, 'agency', { key: `agency:contact:${contacts[0].id}`, contact_id: contacts[0].id, brief: plan.brief || order.text })
-      return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `${contacts[0].name} non è un ente del catalogo Tourism, quindi è un lavoro da agenzia. ${queueSentence(result)}` }
+    if (!plan.targets.length) return autoDestinationPresentations(admin, ctx, order, plan)
+    const outcomes: Outcome[] = []
+    // Le foto mandate con l'ordine vanno alla presentazione nominata, non a tutte.
+    for (const target of plan.targets) {
+      const one = photos.length && plan.targets.length === 1 ? photos : []
+      try {
+        outcomes.push(plan.audience === 'partner'
+          ? await partnerPresentation(admin, ctx, order, plan, target)
+          : await presentationTarget(admin, ctx, order, plan, target, one))
+      } catch (error) {
+        if (error instanceof BudgetExceeded) { outcomes.push({ status: 'failed', outputs: [], queued: [], reply: `${target}: il budget di oggi del Direttore è finito, rimandamelo domani o alza il budget.` }); break }
+        outcomes.push({ status: 'failed', outputs: [], queued: [], reply: `${target}: non ci sono riuscito (${errorMessage(error, 'errore')}).` })
+      }
     }
-    return { status: 'failed', outputs: [], queued: [], reply: contacts.length
-      ? `Ho trovato più contatti per «${plan.target}» (${contacts.map((c) => c.name).join(', ')}): dimmi quale.`
-      : `Non trovo «${plan.target}» né fra gli enti del catalogo Tourism né fra i contatti. Se è nuovo, mandami prima il contatto.` }
+    const skipped = plan.skipped.length ? 'Napoli l’ho lasciata fuori: resta fuori dal lavoro degli agenti.' : ''
+    return combineOutcomes(outcomes, skipped)
+  }
+  if (plan.intent === 'find_partners') return findPartners(admin, ctx, order, plan)
+  if (plan.intent === 'add_entity') return addEntity(admin, ctx, order, plan)
+  if (plan.intent === 'help') {
+    const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+    return { status: 'done', outputs: [], queued: [], reply: directorHelpText(base) }
   }
   if (plan.intent === 'events') {
     const today = officeRomeDay(now)
@@ -456,7 +790,8 @@ async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrder
     const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
     return { status: 'done', outputs: [], queued: [], reply: ['Il piano di oggi', ...directorPlanBrief(plan), '', 'La situazione', ...status, '', `Tutto il dettaglio nell’Ufficio: ${base}/ufficio`].join('\n') }
   }
-  return { status: 'failed', outputs: [], queued: [], reply: plan.question }
+  if (plan.intent === 'unknown') return { status: 'failed', outputs: [], queued: [], reply: plan.question }
+  return { status: 'failed', outputs: [], queued: [], reply: 'Non ho capito cosa devo fare. Scrivimi «cosa posso chiederti?» per l’elenco dei comandi.' }
 }
 
 export async function processDirectorOrder(admin: Admin, userId: string, orderId: string, options: { now?: () => Date } = {}): Promise<DirectorOrderRow> {

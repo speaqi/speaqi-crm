@@ -1,4 +1,4 @@
-import { NEWS_COMPETITORS, newsUrl, parseNewsPage, selectNews, validateNewsSummary, type NewsArticle } from '@/lib/office/news'
+import { DEFAULT_NEWS_FEEDS, NEWS_COMPETITORS, newsUrl, parseNewsPage, selectNews, validateNewsSummary, type NewsArticle } from '@/lib/office/news'
 import { officeRomeDay } from '@/lib/office/finance'
 import { callModel, type AgentHandler } from '../office-agents'
 import { fetchResearchPage, type ResearchFetch } from '../tourism-site-crawler'
@@ -12,8 +12,10 @@ export function newsWatchHandler(admin:any,options:{now?:()=>Date;fetchPage?:Res
     if(previous.error) throw previous.error
     if(previous.data?.length) return {summary:'Rassegna già preparata o tentativo da riconciliare: nessuna nuova spesa.'}
     const settings=ctx.agent.settings
-    if(!Array.isArray(settings.feeds)||settings.feeds.length>20) throw new Error('Configura settings.feeds: massimo 20 URL pubblici.')
-    const feeds=settings.feeds.map((value)=>newsUrl(value))
+    if(settings.feeds!==undefined&&settings.feeds!==null&&(!Array.isArray(settings.feeds)||settings.feeds.length>20)) throw new Error('Configura settings.feeds: massimo 20 URL pubblici.')
+    // Senza fonti scelte a mano si parte da quelle predefinite: una lista vuota non è una rassegna.
+    const configured=Array.isArray(settings.feeds)&&settings.feeds.length?settings.feeds:DEFAULT_NEWS_FEEDS
+    const feeds=configured.map((value:unknown)=>newsUrl(value))
     if(feeds.some((feed)=>!feed)) throw new Error('Una fonte notizie non è un URL pubblico valido')
     const competitors=Array.isArray(settings.competitors)?settings.competitors.filter((v):v is string=>typeof v==='string'&&!!v.trim()).slice(0,30):NEWS_COMPETITORS
     const articles:NewsArticle[]=[];const warnings:string[]=[]

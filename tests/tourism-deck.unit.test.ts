@@ -174,3 +174,24 @@ test('resolveVars non lascia mai un valore vuoto', () => {
   assert.equal(v.destinazione, DECK_TODO)
   assert.equal(v.ente, DECK_TODO)
 })
+
+test('base Partner: dodici slide, condizioni da scrivere, contatti di Speaqi in chiusura', async () => {
+  const { PARTNER_DECK_TEMPLATE, PARTNER_BASE, deckModel } = await import('../src/lib/tourism-deck')
+  assert.equal(PARTNER_DECK_TEMPLATE.base, PARTNER_BASE)
+  assert.equal(PARTNER_DECK_TEMPLATE.slides.length, 12)
+  // Passa intatta dalla normalizzazione: è la stessa forma di un modello salvato.
+  assert.deepEqual(normalizeTemplate(PARTNER_DECK_TEMPLATE).slides, PARTNER_DECK_TEMPLATE.slides)
+  for (const s of PARTNER_DECK_TEMPLATE.slides) {
+    for (const key of [s.art, s.qr]) if (key) assert.ok(DECK_ART[key])
+  }
+  // Nessun prezzo o percentuale scritti nel modello: arrivano solo da chi la prepara.
+  assert.ok(!/€|\d+\s?%/.test(JSON.stringify(PARTNER_DECK_TEMPLATE)))
+  const empty = applyVars(PARTNER_DECK_TEMPLATE, { destinazione: 'Venezia', ente: 'Hotel Laguna' })
+  assert.equal(countTodo(empty), 1)
+  const filled = applyVars(PARTNER_DECK_TEMPLATE, { destinazione: 'Venezia', ente: 'Hotel Laguna', prezzo: '20% su ogni guida venduta dal vostro QR' })
+  assert.equal(countTodo(filled), 0)
+  assert.ok(JSON.stringify(filled).includes('Hotel Laguna'))
+  assert.equal(deckModel({ modello: 'partner' }), 'partner')
+  assert.equal(deckModel({}), 'destinazione')
+  assert.equal(deckModel(null), 'destinazione')
+})

@@ -113,7 +113,11 @@ export type DeckTemplate = {
 
 export const DECK_VAR_NAMES = ['destinazione', 'ente', 'paese', 'prezzo', 'contatto'] as const
 export type DeckVarName = (typeof DECK_VAR_NAMES)[number]
-export type DeckInput = Partial<Record<DeckVarName, string>>
+/** Per chi è la presentazione: un ente (base salvata dal titolare) o un partner che distribuisce le guide. */
+export const DECK_MODELS = ['destinazione', 'partner'] as const
+export type DeckModel = (typeof DECK_MODELS)[number]
+export type DeckInput = Partial<Record<DeckVarName, string>> & { modello?: DeckModel }
+export const deckModel = (input: DeckInput | null | undefined): DeckModel => (input?.modello === 'partner' ? 'partner' : 'destinazione')
 
 const LIMITS = { slides: 16, items: 6, kicker: 80, footnote: 200, itemValue: 40, title: 160, body: 700, note: 300, itemTitle: 80, itemText: 260, hint: 500, varValue: 300 }
 
@@ -319,6 +323,173 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
       ],
       qr: 'qr-destinazioni',
       footnote: 'Candida la tua destinazione',
+      fixed: true
+    })
+  ]
+}
+
+/** Base partner: hotel, agenzie, compagnie e chi porta le guide Speaqi ai propri ospiti. */
+export const PARTNER_BASE = 'partner-2026-10'
+
+/**
+ * La presentazione per un potenziale partner (ottobre 2026). Usa solo ciò che il programma
+ * partner di Speaqi offre già: QR col nome del partner (guides.speaqi.com/go/…), codici a
+ * tempo per gli ospiti pagati a consumo, vetrina col marchio del partner e portale con i
+ * numeri aggregati. Commissione e prezzi non si scrivono qui: stanno in {{prezzo}}, che
+ * resta [DA VERIFICARE] finché non li scrive il titolare, quindi non si approva senza.
+ */
+export const PARTNER_DECK_TEMPLATE: DeckTemplate = {
+  version: 1,
+  base: PARTNER_BASE,
+  vars: {},
+  slides: [
+    slide({
+      id: 'cover',
+      kind: 'cover',
+      kicker: 'Speaqi Guides per {{ente}}',
+      title: 'La guida della città,\nofferta ai vostri ospiti.',
+      body: 'Una mappa digitale multilingua di {{destinazione}}, da dare a chi arriva da voi. Con il vostro nome.',
+      art: 'cover',
+      hint: 'Adatta «ospiti» a chi serve il partner: ospiti per un hotel, passeggeri per una compagnia di navigazione o di trasporto, clienti per un’agenzia o un tour operator. Come foto, la più rappresentativa di {{destinazione}}.'
+    }),
+    slide({
+      id: 'partenza',
+      kind: 'list',
+      tone: 'light',
+      kicker: 'Il punto di partenza',
+      title: 'Chi arriva chiede sempre\nla stessa cosa: cosa vedere?',
+      items: [
+        { title: 'Tante lingue', text: 'ospiti da tutto il mondo, ognuno con la sua' },
+        { title: 'Poco tempo', text: 'una giornata o un pomeriggio per scoprire la città' },
+        { title: 'Tante domande', text: 'alla reception, in agenzia, a bordo' }
+      ],
+      art: 'partenza',
+      hint: 'Tieni i tre titoli. Adatta i testi al tipo di partner (reception, banco, bordo, agenzia) solo con ciò che dicono la scheda o i materiali. Come foto, una via o una piazza di {{destinazione}}.'
+    }),
+    slide({
+      id: 'proposta',
+      kind: 'list',
+      tone: 'dark',
+      kicker: 'La proposta',
+      title: 'Una guida di {{destinazione}} nel telefono di ogni ospite.',
+      items: [
+        { title: 'Luoghi, percorsi e racconti audio', text: 'in un’unica mappa', icon: 'star' },
+        { title: 'Si apre da QR o link', text: 'nessuna app da scaricare', icon: 'zap' },
+        { title: 'Con il vostro nome', text: '«Offerto da {{ente}}» quando l’ospite apre la guida', icon: 'shield' }
+      ],
+      art: 'proposta',
+      fixed: true,
+      hint: 'Testi fissi. Come foto, un luogo simbolo di {{destinazione}}.'
+    }),
+    slide({
+      id: 'lingue',
+      kind: 'languages',
+      kicker: 'Multilingua',
+      title: 'Una sola guida, nella lingua di ogni ospite.',
+      note: 'Accoglienza multilingua',
+      body: 'Ognuno la apre nella sua lingua, senza chiedere a nessuno.',
+      art: 'lingue',
+      fixed: true
+    }),
+    slide({
+      id: 'catalogo',
+      kind: 'showcase',
+      kicker: 'Esempi dal catalogo Speaqi',
+      title: 'Le guide sono già online.',
+      items: [
+        { title: 'Napoli', value: '488', text: 'luoghi da esplorare', highlight: true },
+        { title: 'Roma', value: '441', text: 'luoghi da esplorare' },
+        { title: 'Lisbona', value: '116', text: 'luoghi da esplorare' },
+        { title: 'Pompei', value: '112', text: 'luoghi da esplorare' },
+        { title: 'Capri', value: '104', text: 'luoghi da esplorare' }
+      ],
+      footnote: 'Fonte: guides.speaqi.com, ottobre 2026.',
+      fixed: true
+    }),
+    slide({
+      id: 'modi',
+      kind: 'cards',
+      kicker: 'Come collaboriamo',
+      title: 'Tre modi di lavorare insieme.\nScegliete il vostro.',
+      items: [
+        { value: 'QR e link', title: 'Il vostro QR', text: 'In reception, in camera, al banco o a bordo. Chi compra la guida dal vostro QR genera una commissione per voi.', icon: 'zap' },
+        { value: 'Codici', title: 'Codici per i vostri ospiti', text: 'Lotti di codici che aprono le guide per le ore che decidete. Si paga solo quello che viene attivato.', icon: 'users', highlight: true },
+        { value: 'Vetrina', title: 'Il vostro catalogo', text: 'Le guide Speaqi con il vostro marchio: «{{ente}} by Speaqi».', icon: 'globe' }
+      ],
+      fixed: true,
+      hint: 'Testi fissi: sono i tre modi che Speaqi offre oggi.'
+    }),
+    slide({
+      id: 'ospite',
+      kind: 'steps',
+      kicker: 'Per l’ospite',
+      title: 'Dal QR alla città, in pochi secondi.',
+      items: [
+        { title: 'Inquadra il QR', text: 'O apre il link che gli date. Nessuna app da scaricare.' },
+        { title: 'Sceglie la lingua', text: 'La guida si apre nella sua lingua, con il vostro nome.' },
+        { title: 'Esplora', text: 'Luoghi, percorsi e racconti audio, prima e durante la visita.', highlight: true }
+      ],
+      fixed: true
+    }),
+    slide({
+      id: 'numeri',
+      kind: 'cards',
+      tone: 'dark',
+      kicker: 'I vostri numeri',
+      title: 'Vedete quello che succede.',
+      items: [
+        { title: 'Scansioni e aperture', text: 'quante persone arrivano alla guida dal vostro QR o dai vostri codici', icon: 'zap' },
+        { title: 'Acquisti e attivazioni', text: 'quello su cui si calcolano commissioni e fatture', icon: 'shield' },
+        { title: 'Lingue e orari', text: 'chi sono i vostri ospiti e quando escono a visitare', icon: 'globe' }
+      ],
+      note: 'In un portale riservato, con un link che vi diamo noi. Esportabile in PDF e CSV.',
+      footnote: 'Solo numeri aggregati: nessun dato personale dei vostri ospiti.',
+      fixed: true
+    }),
+    slide({
+      id: 'provala',
+      kind: 'demo',
+      tone: 'accent',
+      kicker: 'Provala adesso',
+      title: 'Apri la guida\ndi Napoli.',
+      body: 'Inquadra il QR dal telefono',
+      note: 'guides.speaqi.com/maps/napolimap',
+      art: 'telefoni',
+      qr: 'qr-napoli',
+      fixed: true
+    }),
+    slide({
+      id: 'condizioni',
+      kind: 'statement',
+      kicker: 'Le condizioni',
+      title: 'Condizioni chiare, scritte prima di partire.',
+      body: '{{prezzo}}',
+      note: 'Commissione, prezzo dei codici e durata sono definiti nell’accordo.',
+      hint: 'Solo le condizioni scritte dal titolare nel campo prezzo o nei materiali. Mai una percentuale o un prezzo dedotti.'
+    }),
+    slide({
+      id: 'come-si-parte',
+      kind: 'steps',
+      kicker: 'Come si parte',
+      title: 'Tre passi, e la guida è dai vostri ospiti.',
+      items: [
+        { title: 'Scegliamo il modo', text: 'QR, codici, vetrina o più di uno, secondo i vostri ospiti.' },
+        { title: 'Prepariamo tutto', text: 'Il QR col vostro nome, i codici da stampare o mandare, la vetrina.' },
+        { title: 'Guardate i numeri', text: 'Nel vostro portale, dal primo giorno.', highlight: true }
+      ],
+      fixed: true
+    }),
+    slide({
+      id: 'chiusura',
+      kind: 'closing',
+      title: 'Avete gli ospiti.\nNoi la guida di {{destinazione}}.',
+      body: 'Massimo Morgante',
+      note: 'Founder & CEO, Speaqi',
+      items: [
+        { title: '389 6868 162', text: '', icon: 'chat' },
+        { title: 'info@speaqi.com', text: '', icon: 'send' },
+        { title: 'guides.speaqi.com', text: '', icon: 'globe' }
+      ],
       fixed: true
     })
   ]

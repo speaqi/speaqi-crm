@@ -37,7 +37,7 @@ async function findWebsite(ctx: AgentContext, entity: ActivationEntity, city: st
  * contatto nel CRM). Si ferma solo per chiedere ciò che non può trovare: il sito o la città.
  */
 export async function activateEntityForOrder(admin: Admin, ctx: AgentContext, userId: string, entity: ActivationEntity,
-  input: { orderText: string; proposedCity: string | null },
+  input: { orderText: string; proposedCity: string | null; contactId?: string | null },
   deps: { model?: typeof callModel; fetchPage?: ResearchFetch } = {}): Promise<ActivationResult> {
   const model = deps.model || callModel
   const city = cityForEntity({ proposed: input.proposedCity, entityName: entity.name, aliases: entity.aliases, orderText: input.orderText })
@@ -76,15 +76,16 @@ export async function activateEntityForOrder(admin: Admin, ctx: AgentContext, us
   }
 
   const result = checked(await admin.rpc('tourism_activate', { p_user_id: userId, p_entity_id: entity.id, p_payload: {
-    origin: 'director', city, website: newSite,
+    origin: 'director', city, website: newSite, ...(input.contactId ? { contact_id: input.contactId } : {}),
     email: parts?.fill.email || null, phone: parts?.fill.phone || null,
     identity: parts?.identity || null,
     coverage: parts?.coverage ? { source_url: parts.coverage.source_url, quote: parts.coverage.quote, relation: parts.coverage.relation } : null,
-  } })) as { place_id: string | null; contact_id: string | null; contact_created: boolean; crm_error: string | null; filled: string[] }
+  } })) as { place_id: string | null; contact_id: string | null; contact_created: boolean; contact_linked?: boolean; crm_error: string | null; filled: string[] }
   if (result.filled?.includes('email')) notes.push(`ho aggiunto l’email ${parts?.fill.email}`)
   else if (!entity.email) notes.push('email non trovata sul sito')
   const crm = crmErrorText(result.crm_error)
-  notes.push(crm ? `non l’ho aggiunto ai contatti: ${crm}` : result.contact_created ? 'l’ho aggiunto ai contatti' : 'era già nei contatti')
+  notes.push(crm ? `non l’ho aggiunto ai contatti: ${crm}` : result.contact_created ? 'l’ho aggiunto ai contatti'
+    : result.contact_linked ? 'l’ho collegato al contatto che c’era già' : 'era già nei contatti')
   return { ok: true, placeId: result.place_id, contactId: result.contact_id, note: `Ho attivato ${entity.name} (${city}): ${notes.join(', ')}.` }
 }
 

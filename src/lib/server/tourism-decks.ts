@@ -2,6 +2,8 @@ import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 import { quoteSummary } from '../agency'
 import {
   DEFAULT_DECK_TEMPLATE,
+  PARTNER_DECK_TEMPLATE,
+  deckModel,
   applyVars,
   assignPhotos,
   countTodo,
@@ -117,6 +119,16 @@ export async function loadDeck(sb: Sb, userId: string, id: string): Promise<Deck
   return data as DeckRow
 }
 
+/**
+ * Il modello di un deck: per un partner la base partner (scritta nel codice, uguale per tutti),
+ * per un ente il modello salvato dal titolare. Lo decide il deck, quindi una rigenerazione
+ * non cambia base.
+ */
+export async function templateForDeck(sb: Sb, userId: string, input: DeckInput | null | undefined): Promise<DeckTemplate> {
+  if (deckModel(input) === 'partner') return structuredClone(PARTNER_DECK_TEMPLATE)
+  return (await getTemplate(sb, userId)).template
+}
+
 export type DeckFields = {
   destination: string
   input: DeckInput
@@ -129,7 +141,7 @@ export async function createDeck(sb: Sb, userId: string, fields: DeckFields, id?
     const entity = checked(await sb.from('tourism_entities').select('id').eq('user_id', userId).eq('id', fields.entity_id).maybeSingle())
     if (!entity.data) throw new TourismInputError('Ente non trovato')
   }
-  const { template } = await getTemplate(sb, userId)
+  const template = await templateForDeck(sb, userId, fields.input)
   const slides = applyVars(template, fields.input)
   const ente = fields.input.ente || fields.destination
   const row = checked(
@@ -378,7 +390,7 @@ export async function generateIntoDeck(sb: Sb, service: Sb, row: DeckRow, instru
   if (!claimed.data) claimed = checked(await claim().eq('status', 'generating').lt('updated_at', stale).select('id').maybeSingle())
   if (!claimed.data) throw new Error('Generazione già in corso per questa presentazione (already running)')
   try {
-    const { template } = await getTemplate(sb, row.user_id)
+    const template = await templateForDeck(sb, row.user_id, row.input)
     const photoNote = await addDestinationPhotos(sb, service, row, template, findPhotos)
     const { materials, skipped } = await loadMaterials(service, row)
     const entity = await entityContext(sb, row.user_id, row.entity_id)
