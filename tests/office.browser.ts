@@ -48,6 +48,7 @@ async function main() {
       calls.push({ method, path: url.pathname, body, key: req.headers()['idempotency-key'] })
       const json = (value: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) })
       if (url.pathname === '/api/ufficio/scena') return route.fulfill({ contentType: 'text/html', body: UFFICIO_SCENE_HTML })
+      if (url.pathname === '/api/ufficio/sblocca') return json({ enabled: false, locked: false })
       if (url.pathname === '/api/office') return fail ? json({ error: 'Database di prova non disponibile' }, 500) : json(sceneOverview || overview())
       if (url.pathname === '/api/office/agents/prova' && method === 'PATCH') { agent = { ...agent, ...body }; return json({ agent }) }
       if (url.pathname === '/api/office/agents/prova/run-now') {

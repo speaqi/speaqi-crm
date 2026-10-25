@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { requireWorkspaceOwner } from './owner-auth'
 import { errorMessage } from './http'
+import { officeLockedResponse, officeUnlocked } from './office-lock'
 
 /** Un solo cancello del titolare per tutte le API dell'ufficio. */
 export async function officeOwnerRoute(request: NextRequest,
@@ -8,6 +9,8 @@ export async function officeOwnerRoute(request: NextRequest,
   try {
     const auth = await requireWorkspaceOwner(request)
     if ('error' in auth) return auth.error!
+    // Con UFFICIO_PASSWORD serve anche la password, data una volta dalla pagina dell'Ufficio.
+    if (!officeUnlocked(request, auth.userId)) return officeLockedResponse()
     return await handler(auth)
   } catch (error) {
     return Response.json({ error: errorMessage(error, 'Ufficio non disponibile') }, { status: 500 })
