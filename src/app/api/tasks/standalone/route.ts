@@ -336,7 +336,8 @@ export async function PATCH(request: NextRequest) {
           auth.supabase,
           auth.workspaceUserId,
           task.calendar_event_id,
-          calendarEventForTask(task)
+          calendarEventForTask(task),
+          { keepTiming: body.due_date === undefined }
         )
         if (event) await saveCalendarLink(event)
       } catch {

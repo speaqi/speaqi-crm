@@ -36,8 +36,13 @@ export type DirectorOrderPlan =
   | { intent: 'status' }
   | { intent: 'events' }
   | { intent: 'invoice'; quote_number: string | null; customer: string | null; approved: boolean }
-  | { intent: 'task'; title: string; due_date: string | null }
+  | { intent: 'task'; items: DirectorTaskItem[]; dropped: number }
   | { intent: 'unknown'; question: string }
+
+/** Una cosa da fare letta dall'ordine: data e ora italiane, durata se detta. */
+export type DirectorTaskItem = { title: string; date: string | null; time: string | null; minutes: number | null }
+/** Al massimo dieci cose da fare per ordine: un vocale lungo non deve riempire il calendario. */
+export const MAX_ORDER_TASKS = 10
 
 export const PRESENTATION_AUDIENCES = ['destinazione', 'partner'] as const
 export type PresentationAudience = (typeof PRESENTATION_AUDIENCES)[number]
@@ -51,7 +56,7 @@ const nullableString = { type: ['string', 'null'] }
 export const DIRECTOR_ORDER_SCHEMA = {
   type: 'object', additionalProperties: false,
   required: ['intent', 'card_text', 'contact', 'category', 'category_reason', 'brief', 'city', 'map_link', 'target', 'targets', 'count', 'audience',
-    'country_code', 'entity_type', 'quote_approved', 'task_title', 'task_due', 'question'],
+    'country_code', 'entity_type', 'quote_approved', 'tasks', 'question'],
   properties: {
     intent: { type: 'string', enum: [...DIRECTOR_ORDER_INTENTS] },
     card_text: nullableString,
@@ -63,7 +68,15 @@ export const DIRECTOR_ORDER_SCHEMA = {
     category_reason: nullableString, brief: nullableString, city: nullableString, map_link: nullableString,
     target: nullableString, targets: { type: 'array', items: { type: 'string' } }, count: { type: ['integer', 'null'] },
     audience: { type: ['string', 'null'], enum: [...PRESENTATION_AUDIENCES, null] }, country_code: nullableString,
-    entity_type: { type: ['string', 'null'], enum: [...DIRECTOR_ENTITY_TYPES, null] }, quote_approved: { type: 'boolean' }, task_title: nullableString, task_due: nullableString, question: nullableString,
+    entity_type: { type: ['string', 'null'], enum: [...DIRECTOR_ENTITY_TYPES, null] }, quote_approved: { type: 'boolean' },
+    tasks: {
+      type: 'array',
+      items: {
+        type: 'object', additionalProperties: false, required: ['title', 'date', 'time', 'minutes'],
+        properties: { title: { type: 'string' }, date: nullableString, time: nullableString, minutes: { type: ['integer', 'null'] } },
+      },
+    },
+    question: nullableString,
   },
 } as const
 
@@ -84,7 +97,7 @@ export function directorOrderPrompt(text: string, images: number, today: string)
     '- status: come stanno andando pipeline, trattative, timeline, agenti.',
     '- events: chiede quali fiere, eventi, workshop o bandi ci sono in arrivo ("quali sono le prossime fiere?"). Non è un task: la risposta la dà l’ufficio.',
     '- invoice: fare, preparare o emettere la fattura di un preventivo o di un cliente ("fammi la fattura per PREV-…", "fattura a Rossi"). target = il numero del preventivo o il nome del cliente, come scritto. quote_approved = true se il titolare dice che il cliente ha approvato, accettato o confermato il preventivo ("SNAV ha approvato, fai la fattura"). Non è un task: la bozza la prepara l’ufficio.',
-    '- task: una cosa da fare per il titolare ("ricordami di…", "segna che devo…"), non una domanda. task_title breve, task_due in formato AAAA-MM-GG se è detta una data (oggi è ' + today + ').',
+    '- task: una o più cose da fare, appuntamenti, chiamate o promemoria per il titolare ("ricordami di…", "segna che devo…", "domani alle 15 chiamo Rossi e giovedì riunione con SNAV"), non una domanda. tasks = una voce per ogni cosa da fare (al massimo 10): title breve e chiaro (chi e cosa), date in formato AAAA-MM-GG se è detto un giorno (oggi è ' + today + ', ' + weekdayIt(today) + '; "domani", "giovedì", "il 3" si calcolano da oggi), time in formato HH:MM (24 ore) solo se è detta un’ora, minutes = la durata solo se è detta ("per un’ora" → 60). Un dato non detto è null.',
     '- unknown: non è chiaro. question = cosa ti serve sapere, in una frase.',
     '',
     'Regole:',
@@ -230,11 +243,9 @@ export function interpretDirectorOrder(parsed: unknown, input: { text: string; t
   }
   if (intent === 'help') return { intent }
   if (intent === 'task') {
-    const title = str(raw.task_title, 200)
-    if (!title) return { intent: 'unknown', question: 'Cosa devo segnare da fare?' }
-    const due = typeof raw.task_due === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.task_due) && !Number.isNaN(Date.parse(`${raw.task_due}T00:00:00Z`))
-      && raw.task_due >= input.today && raw.task_due <= `${Number(input.today.slice(0, 4)) + 2}${input.today.slice(4)}` ? raw.task_due : null
-    return { intent, title, due_date: due }
+    const { items, dropped } = directorTaskItems(raw.tasks, input.today)
+    if (!items.length) return { intent: 'unknown', question: 'Cosa devo segnare da fare?' }
+    return { intent, items, dropped }
   }
   if (intent === 'status') return { intent }
   if (intent === 'events') return { intent }
@@ -524,10 +535,98 @@ export function directorHelpText(baseUrl: string) {
     'Situazione e agenda',
     '• «Come stiamo?» → piano di oggi, trattative, preventivi in attesa, agenti e spesa.',
     '• «Quali sono le prossime fiere?» → eventi e bandi trovati dal Ricercatore eventi.',
-    '• «Ricordami di chiamare Rossi venerdì» → attività nel To Do.',
+    '• «Domani alle 15 chiamo Rossi, giovedì alle 10 riunione con SNAV per un’ora» → una attività per ognuna nel To Do e in Google Calendar (quelle con un giorno).',
     '',
     'Le proposte (nuovi contatti, partner) ti arrivano qui con «Approva» e «Rifiuta»: il tocco vale come il clic nell’Ufficio. Scrivere «sì» non approva niente.',
     'Non faccio da solo: invii di email, invii allo SDI, pubblicazioni e lavoro su Napoli.',
     `Tutto il dettaglio: ${baseUrl}/ufficio`,
   ].join('\n')
+}
+
+
+const WEEKDAYS_IT = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato']
+/** Il giorno della settimana di una data AAAA-MM-GG: al modello serve per calcolare «giovedì». */
+export function weekdayIt(date: string) {
+  const day = new Date(`${date}T12:00:00Z`)
+  return Number.isNaN(day.getTime()) ? '' : WEEKDAYS_IT[day.getUTCDay()]
+}
+
+function validDay(value: unknown, today: string): string | null {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const day = new Date(`${value}T00:00:00Z`)
+  // 2026-02-30 diventerebbe il 2 marzo: una data che non esiste non vale.
+  if (Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== value) return null
+  const limit = `${Number(today.slice(0, 4)) + 2}${today.slice(4)}`
+  return value >= today && value <= limit ? value : null
+}
+
+/**
+ * Le cose da fare proposte dal modello: titolo pulito, giorno fra oggi e due anni, ora vera
+ * solo con un giorno, durata fra 5 minuti e 12 ore. I doppioni e le voci oltre la decima si
+ * tolgono (e si contano, così la risposta lo dice).
+ */
+export function directorTaskItems(raw: unknown, today: string): { items: DirectorTaskItem[]; dropped: number } {
+  const list = Array.isArray(raw) ? raw : []
+  const items: DirectorTaskItem[] = []
+  const seen = new Set<string>()
+  let dropped = 0
+  for (const entry of list) {
+    const title = str((entry as any)?.title, 200)
+    if (!title) continue
+    const date = validDay((entry as any)?.date, today)
+    const timeRaw = typeof (entry as any)?.time === 'string' ? (entry as any).time.trim() : ''
+    const time = date && /^([01]\d|2[0-3]):[0-5]\d$/.test(timeRaw) ? timeRaw : null
+    const minutesRaw = Number((entry as any)?.minutes)
+    const minutes = time && Number.isInteger(minutesRaw) && minutesRaw >= 5 && minutesRaw <= 720 ? minutesRaw : null
+    const key = `${flat(title)}|${date || ''}|${time || ''}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    if (items.length >= MAX_ORDER_TASKS) { dropped++; continue }
+    items.push({ title, date, time, minutes })
+  }
+  return { items, dropped }
+}
+
+/** Minuti di scarto fra l'ora di Roma e UTC in quell'istante (60 d'inverno, 120 d'estate). */
+function romeOffsetMinutes(at: Date) {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Rome', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    .formatToParts(at).reduce<Record<string, string>>((acc, p) => { acc[p.type] = p.value; return acc }, {})
+  const local = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute))
+  return Math.round((local - Math.floor(at.getTime() / 60000) * 60000) / 60000)
+}
+
+/** «2026-10-27» alle «15:00» di Roma come istante ISO in UTC, anche a cavallo del cambio d'ora. */
+export function romeDateTimeToIso(date: string, time: string) {
+  const [y, m, d] = date.split('-').map(Number)
+  const [h, mi] = time.split(':').map(Number)
+  const wall = Date.UTC(y, m - 1, d, h, mi)
+  let guess = wall - romeOffsetMinutes(new Date(wall)) * 60000
+  guess = wall - romeOffsetMinutes(new Date(guess)) * 60000
+  return new Date(guess).toISOString()
+}
+
+/** La scadenza da salvare sul task: l'istante con l'ora, altrimenti il giorno (come le attività scritte a mano). */
+export function directorTaskDue(item: DirectorTaskItem) {
+  if (!item.date) return null
+  return item.time ? romeDateTimeToIso(item.date, item.time) : item.date
+}
+
+export type DirectorTaskOutcome = DirectorTaskItem & { calendar: 'added' | 'already' | 'no_date' | 'not_connected' | 'failed' }
+
+/** La risposta al titolare: cosa è nel To Do, cosa è in Calendar, e perché il resto no. */
+export function directorTaskReply(outcomes: DirectorTaskOutcome[], dropped = 0) {
+  const when = (o: DirectorTaskItem) => o.date
+    ? ` · ${weekdayIt(o.date)} ${o.date.slice(8, 10)}/${o.date.slice(5, 7)}${o.time ? ` alle ${o.time}` : ''}${o.minutes ? ` (${o.minutes} min)` : ''}`
+    : ''
+  const mark = (o: DirectorTaskOutcome) => o.calendar === 'added' || o.calendar === 'already' ? '📅' : '📝'
+  const lines = [outcomes.length === 1 ? 'Segnato:' : `Segnate ${outcomes.length} cose da fare:`]
+  for (const o of outcomes) lines.push(`${mark(o)} ${o.title}${when(o)}`)
+  const inCalendar = outcomes.filter((o) => o.calendar === 'added' || o.calendar === 'already').length
+  const noDate = outcomes.filter((o) => o.calendar === 'no_date').length
+  if (inCalendar) lines.push('', inCalendar === outcomes.length ? 'Tutto nel To Do e in Google Calendar.' : `In Google Calendar: ${inCalendar}. Le altre sono nel To Do.`)
+  if (noDate) lines.push(noDate === 1 ? 'Una è senza giorno: è nel To Do, in Calendar la metto quando mi dici quando.' : `${noDate} sono senza giorno: sono nel To Do, in Calendar le metto quando mi dici quando.`)
+  if (outcomes.some((o) => o.calendar === 'not_connected')) lines.push('Google Calendar non è collegato: ricollega Gmail dal CRM (pagina Gmail → Collega) e dai il permesso al calendario. Intanto sono nel To Do.')
+  if (outcomes.some((o) => o.calendar === 'failed')) lines.push('Google Calendar non ha risposto per qualcuna: è nel To Do, la aggiungi dal pulsante «Calendar» sulla riga.')
+  if (dropped) lines.push(`Ne ho segnate al massimo ${MAX_ORDER_TASKS}: le altre ${dropped} mandamele in un altro messaggio.`)
+  return lines.join('\n')
 }

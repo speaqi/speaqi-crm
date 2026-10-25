@@ -50,4 +50,5 @@ La base Partner si sceglie anche a mano: Tourism → Presentazioni → «Crea la
 |---|---|
 | «Come stiamo?» | Piano di oggi, trattative, preventivi in attesa, agenti e spesa della settimana. |
 | «Quali sono le prossime fiere?» | Eventi e bandi trovati dal Ricercatore eventi. |
-| «Ricordami di chiamare Rossi venerdì» | Attività nel To Do con la data. |
+| «Ricordami di chiamare Rossi venerdì» | Attività nel To Do con la data, e in Google Calendar come evento di tutto il giorno. |
+| «Domani alle 15 chiamo Rossi, giovedì alle 10 riunione con SNAV per un'ora, e devo mandare il preventivo a Bibione» | Tre attività nel To Do (al massimo 10 per messaggio). Quelle con un giorno vanno anche in Google Calendar: all'ora detta, con la durata detta (altrimenti 30 minuti), o tutto il giorno se l'ora non c'è. Quella senza giorno resta solo nel To Do. |
