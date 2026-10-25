@@ -232,6 +232,16 @@ async function findEntity(admin: Admin, userId: string, names: Array<string | nu
     const pick = pickOrderEntity((data || []) as Array<ActivationEntity & { kind: string }>, name!)
     if (pick) return pick
   }
+  // Un nome di prima (rinomina) resta solo fra gli alias: lì si cerca uguale, non per pezzi.
+  for (const name of names) {
+    const wanted = name?.trim()
+    if (!wanted) continue
+    const { data, error } = await admin.from('tourism_entities').select('id,name,kind,status,website,email,phone,country_code,type_code,aliases,disabled,version').eq('user_id', userId)
+      .eq('kind', 'organization').eq('disabled', false).not('status', 'in', '(INACTIVE,DUPLICATE)').filter('aliases', 'cs', `{"${wanted.replace(/[\\"]/g, (c) => `\\${c}`)}"}`).limit(10)
+    if (error) throw error
+    const pick = pickOrderEntity((data || []) as Array<ActivationEntity & { kind: string }>, wanted)
+    if (pick) return pick
+  }
   return null
 }
 
@@ -640,14 +650,19 @@ const ENTITY_COLUMNS = 'id,name,kind,status,website,email,phone,country_code,typ
 async function renameEntity(admin: Admin, ctx: AgentContext, order: DirectorOrderRow, plan: Extract<DirectorOrderPlan, { intent: 'rename_entity' }>): Promise<Outcome> {
   const userId = order.user_id
   const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
-  const entity = await findEntity(admin, userId, [plan.from])
-  if (!entity) return { status: 'failed', outputs: [], queued: [], reply: `Non trovo «${plan.from}» fra gli enti di Tourism Intelligence. Scrivimi il nome come lo vedi nella scheda.` }
+  const found = await findEntity(admin, userId, [plan.from])
+  // Si rinomina solo l'ente con quel nome (o alias): «Visit Lima» non deve rinominare «Visit Lima Norte».
+  const entity = found && [found.name, ...(found.aliases || [])].some((n) => compactName(n) === compactName(plan.from)) ? found : null
+  if (!entity) return { status: 'failed', outputs: [], queued: [], reply: found
+    ? `Non trovo un ente che si chiami esattamente «${plan.from}»: il più vicino è «${found.name}». Se è lui, scrivimi «rinomina ${found.name} in ${plan.to}».`
+    : `Non trovo «${plan.from}» fra gli enti di Tourism Intelligence. Scrivimi il nome come lo vedi nella scheda.` }
   if (officeIsNaples(entity.name)) return { status: 'failed', outputs: [], queued: [], reply: 'Gli enti di Napoli restano fuori dal lavoro degli agenti: rinominalo tu dalla scheda Tourism.' }
   const link = `${base}/tourism?entity=${entity.id}`
   let renamed: ActivationEntity = entity
   let first = `${entity.name} si chiama già così.`
   if (nameKey(entity.name) !== nameKey(plan.to)) {
-    const aliases = [...new Set([...(entity.aliases || []), entity.name])].slice(0, 50)
+    // Il nome di prima va in testa: con 50 alias già pieni è l'ultimo vecchio a uscire, non lui.
+    const aliases = [entity.name, ...(entity.aliases || []).filter((a) => compactName(a) !== compactName(entity.name))].slice(0, 50)
     const patch: Record<string, unknown> = { name: plan.to, aliases }
     // Un sito scritto nell'ordine riempie solo un campo vuoto, come l'attivazione.
     if (plan.website && !entity.website) patch.website = plan.website
@@ -667,7 +682,19 @@ async function renameEntity(admin: Admin, ctx: AgentContext, order: DirectorOrde
   const national = renamed.type_code === 'nto' || renamed.type_code === 'ministry'
   const deckPlan: PresentationPlan = { intent: 'presentation', targets: [renamed.name], count: null, audience: 'destinazione', brief: null,
     city: national && renamed.country_code ? countryName(renamed.country_code) : null, skipped: [], country_code: renamed.country_code, type_code: renamed.type_code }
-  const deck = await presentationFor(admin, ctx, userId, renamed, deckPlan, order.text, renamed.name)
+  const photos = (order.attachments || []).map((a) => a.path)
+  if (renamed !== entity) {
+    // Una presentazione fatta col nome di prima non si manda come nuova: si riattiva l'ente e si chiede di rigenerarla.
+    const old = checked(await admin.from('tourism_decks').select('id,title').eq('user_id', userId).eq('entity_id', entity.id)
+      .order('updated_at', { ascending: false }).limit(1).maybeSingle()) as { id: string; title: string } | null
+    if (old) {
+      const activated = await activateEntityForOrder(admin, ctx, userId, renamed, { orderText: order.text, proposedCity: deckPlan.city, resume: `presentazione per ${renamed.name}` })
+      const state = activated.ok ? activated.note : activated.reply
+      return { status: activated.ok ? 'done' : 'waiting_you', outputs: [], queued: [], awaiting: activated.ok ? undefined : awaitingOf(activated),
+        reply: `${first}\n${state}\nC’è già una presentazione fatta col nome di prima, «${old.title}»: aprila e usa «Rigenera» per rifarla con il nome nuovo. ${base}/tourism/presentazioni/${old.id}` }
+    }
+  }
+  const deck = await presentationFor(admin, ctx, userId, renamed, deckPlan, order.text, renamed.name, photos)
   return { ...deck, reply: `${first}\n${deck.reply}` }
 }
 
