@@ -14,9 +14,10 @@
 .meta { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
 .meta small { color: var(--text2); font-size: 12px; }
 .meta span { font-size: 12px; font-weight: 600; }
-.s_received, .s_working { color: var(--accent); }
+.s_received, .s_working, .s_waiting { color: var(--accent); }
 .s_done { color: #2b8a3e; }
-.s_waiting_you { color: #e8590c; }
+.s_waiting_you, .s_blocked { color: #e8590c; }
+.s_cancelled { color: var(--text2); }
 .s_failed { color: #c92a2a; }
 .said { font-size: 13px; color: var(--text2); margin: 6px 0 4px; overflow-wrap: anywhere; }
 .reply { font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { officeOwnerRoute } from '@/lib/server/office-api'
 import { ensureOfficeAgents } from '@/lib/server/office-agents/definitions'
+import { officeWorkEnabled } from '@/lib/server/office-work-routing'
 import {
   MAX_ORDER_FILE_BYTES, MAX_ORDER_FILES, createDirectorOrder, listDirectorOrders, processDirectorOrder, type OrderFile,
 } from '@/lib/server/office-director-orders'
@@ -37,6 +38,11 @@ export async function POST(request: NextRequest) {
       order = await createDirectorOrder(admin, userId, { source: 'web', text, files })
     } catch (error) {
       return Response.json({ error: error instanceof Error ? error.message : 'Ordine non valido' }, { status: 400 })
+    }
+    if (officeWorkEnabled()) {
+      // Registra l'incarico; il lavoro di interpretazione resta al worker persistente.
+      const queued = await processDirectorOrder(admin, userId, order.id)
+      return Response.json({ order: queued }, { status: 202 })
     }
     void processDirectorOrder(admin, userId, order.id)
       .catch((error) => console.error('[direttore] ordine non elaborato', order.id, String((error as Error)?.message || error).slice(0, 300)))

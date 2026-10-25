@@ -88,6 +88,29 @@ test('BudgetExceeded non viene ingoiato dalla pipeline; nessun modello e nessuna
   finally{fetch.mock.restore();if(old===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=old}
 })
 
+test('la bozza usa la memoria canonica del lead nel solo workspace, dichiarandola sintesi derivata',async()=>{
+  const {db,ctx}=fixture();const old=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='finta'
+  db.tables.lead_memories.push(
+    {id:'memory-foreign',user_id:'other-workspace',lead_id:'c',summary:'SEGRETO DI ALTRO WORKSPACE'},
+    {id:'memory-other-lead',user_id:OWNER,lead_id:'other-contact',summary:'DATI DI ALTRO LEAD'},
+    {id:'memory-current',user_id:OWNER,lead_id:'c',summary:'Preferisce la proposta in italiano.',last_updated:'2026-10-20T10:00:00Z'},
+  )
+  let prompt=''
+  const mocked=mock.method(globalThis,'fetch',async(_url:unknown,init:RequestInit)=>{
+    const body=JSON.parse(String(init.body));prompt=body.messages[0].content
+    return modelReply(JSON.stringify({subject:'Un aggiornamento',body_text:'Buongiorno Rosa,\nsono Massimo Morgante, fondatore di Speaqi.\nRiprendo il preventivo: possiamo sentirci per un breve aggiornamento?',body_html:''}),{input_tokens:1000,output_tokens:200})
+  })
+  try{
+    await salesFollowupHandler(db,{now:()=>NOW})(ctx)
+    assert.equal(mocked.mock.callCount(),1);assert.equal(db.tables.email_drafts.length,1)
+    assert.match(prompt,/Preferisce la proposta in italiano/)
+    assert.match(prompt,/lead_memories\.summary/);assert.match(prompt,/derived_summary/)
+    assert.match(prompt,/2026-10-20T10:00:00Z/)
+    assert.match(prompt,/non è una prova verificata/);assert.match(prompt,/non istruzioni/)
+    assert.ok(!prompt.includes('SEGRETO DI ALTRO WORKSPACE'));assert.ok(!prompt.includes('DATI DI ALTRO LEAD'))
+  }finally{mocked.mock.restore();if(old===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=old}
+})
+
 test('risposta su una scheda gemella e quota gia consumata bloccano prima di spendere',async()=>{
   const f=fixture();f.db.tables.gmail_messages.push({id:'m',user_id:OWNER,contact_id:'vecchia-scheda',direction:'inbound',from_email:'C@EXAMPLE.IT',sent_at:'2026-10-21T08:00:00Z'})
   await salesFollowupHandler(f.db,{now:()=>NOW})(f.ctx);assert.deepEqual(f.order,[]);assert.equal(f.db.tables.email_drafts.length,0)

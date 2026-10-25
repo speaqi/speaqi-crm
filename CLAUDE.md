@@ -1,5 +1,14 @@
 # CLAUDE.md — Speaqi CRM
 
+## Ufficio — registro persistente approvato (#78)
+
+- `OFFICE_WORKER_ENABLED=true` passa ordini, avvii e deleghe al registro dei lavori; il valore predefinito è spento. Il job `office-work` usa il pianificatore esistente ogni minuto. Non aggiungere un secondo consumatore delle code.
+- La migration additiva `20261025172333_office_persistent_work.sql` deve precedere l'attivazione. In assenza di schema gli ordini restano salvati e riprendibili; il worker segnala il blocco. Nessun fallback all'esecuzione volatile in questa modalità.
+- Claim, lease, dipendenze, tentativi, revisioni, ricevute ed eventi sopravvivono ai riavvii. Un effetto o una spesa incerti richiedono riconciliazione; non liberare riserve o ritentare alla cieca. Stato della corsa e risultato del lavoro sono distinti.
+- Primo percorso: ordine Tourism → verifica puntuale con fonti → clic del titolare → presentazione valida. La proposta non verifica l'ente prima del clic; preparare il deck non lo approva e non invia email. Napoli resta protetta.
+- Le istruzioni storiche sugli avvii in memoria qui sotto descrivono il percorso precedente, valido soltanto con il flag spento e prima del passaggio. Dopo la migrazione non tornare a consumare le stesse vecchie code.
+- Per ambito, collaudo e rilascio leggere `docs/AI-SYSTEM-AUDIT.md`, `docs/UFFICIO-TEST-REPORT.md`, `docs/UFFICIO-OPERATING-GUIDE.md` e `docs/UFFICIO-RELEASE-2026-10-25.md`. La migration è applicata in produzione; attivazione del worker e verifica del deploy restano distinte.
+
 ## Project Overview
 
 **Speaqi CRM** is a production-grade sales pipeline CRM for lead management, follow-ups, and automation. Built with Next.js 15 + Supabase, deployed on Railway.app.

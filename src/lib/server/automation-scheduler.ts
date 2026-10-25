@@ -8,6 +8,7 @@ import {
 } from '@/lib/automation-schedule'
 import { errorMessage } from '@/lib/server/http'
 import { createServiceRoleClient } from '@/lib/server/supabase'
+import { aggregateAutomationOutcome, type AutomationOutcome } from '@/lib/office-work'
 
 /**
  * Il pianificatore che ha preso il posto di n8n. Gira dentro il processo del
@@ -38,7 +39,7 @@ const ALERT_COOLDOWN_MS = 6 * 60 * 60 * 1000
 const RUN_RETENTION_DAYS = 30
 const UNDEFINED_TABLE = '42P01'
 
-export type StepResult = { path: string; status: number | null; ok: boolean; ms: number; error?: string }
+export type StepResult = { path: string; status: number | null; ok: boolean; ms: number; error?: string; outcome?: AutomationOutcome; reason?: string }
 
 export type SchedulerDeps = {
   baseUrl: string
@@ -46,7 +47,7 @@ export type SchedulerDeps = {
   fetch: typeof fetch
   /** true se questa istanza ha vinto la corsa del minuto. */
   claim: (job: string, slot: string) => Promise<boolean>
-  finish: (job: string, slot: string, result: { ok: boolean; steps: StepResult[]; error: string | null }) => Promise<void>
+  finish: (job: string, slot: string, result: { ok: boolean; steps: StepResult[]; error: string | null; outcome?: AutomationOutcome; reason?: string | null }) => Promise<void>
   alert: (job: string, slot: string, message: string) => Promise<void>
   log?: (message: string) => void
 }
@@ -63,21 +64,33 @@ async function runStep(deps: SchedulerDeps, step: ScheduledJob['steps'][number])
       body: JSON.stringify(step.body || {}),
       signal: AbortSignal.timeout(step.timeoutMs || DEFAULT_STEP_TIMEOUT_MS),
     })
-    const ok = response.ok
+    const payload = await response.json().catch(() => null)
+    const declared = payload?.outcome
+    const outcome: AutomationOutcome = !response.ok ? 'failed'
+      : ['succeeded', 'skipped', 'blocked', 'failed'].includes(declared) ? declared
+        : payload?.run?.status === 'failed' || payload?.error ? 'failed'
+          : payload?.run?.status === 'skipped_budget' || payload?.run?.status === 'partial' ? 'blocked'
+            : payload?.skipped || payload?.run?.status === 'skipped_disabled' ? 'skipped' : 'succeeded'
+    const ok = outcome !== 'failed'
     let error: string | undefined
     if (!ok) {
-      const payload = await response.json().catch(() => null)
-      error = String(payload?.error || payload?.message || `HTTP ${response.status}`).slice(0, 500)
+      error = String(payload?.error || payload?.reason || payload?.run?.error || payload?.message || `HTTP ${response.status}`).slice(0, 500)
     }
-    return { path: step.path, status: response.status, ok, ms: Date.now() - started, error }
+    const reason = String(payload?.reason || payload?.skipped || payload?.run?.summary || '').slice(0, 500) || undefined
+    return { path: step.path, status: response.status, ok, ms: Date.now() - started, error, outcome, reason }
   } catch (error) {
-    return { path: step.path, status: null, ok: false, ms: Date.now() - started, error: errorMessage(error, 'Chiamata fallita') }
+    return { path: step.path, status: null, ok: false, outcome: 'failed', ms: Date.now() - started, error: errorMessage(error, 'Chiamata fallita') }
   }
 }
 
 export async function runJob(deps: SchedulerDeps, job: ScheduledJob, slot: string) {
   if (running.has(job.name)) {
     deps.log?.(`[scheduler] ${job.name}: corsa precedente ancora in corso, salto ${slot}`)
+    // Lo slot nuovo resta visibile anche quando la stessa istanza sta ancora lavorando.
+    // Una prenotazione già presa non si sovrascrive mai.
+    if (await deps.claim(job.name, slot)) await deps.finish(job.name, slot, {
+      ok: true, outcome: 'skipped', reason: 'Corsa precedente ancora in corso', steps: [], error: null,
+    })
     return { skipped: 'running' as const }
   }
   // Il segno va messo prima della prenotazione, che e' asincrona: altrimenti
@@ -93,7 +106,9 @@ export async function runJob(deps: SchedulerDeps, job: ScheduledJob, slot: strin
     const error = failed.length
       ? failed.map((step) => `${step.path}: ${step.error || `HTTP ${step.status}`}`).join(' · ')
       : null
-    await deps.finish(job.name, slot, { ok: !error, steps, error })
+    const outcome = aggregateAutomationOutcome(steps.map((step) => step.outcome || (step.ok ? 'succeeded' : 'failed')))
+    const reason = steps.filter((step) => step.reason).map((step) => step.reason).join(' · ').slice(0, 1000) || null
+    await deps.finish(job.name, slot, { ok: !error, steps, error, outcome, reason })
 
     if (error) {
       deps.log?.(`[scheduler] ${job.name} ${slot} fallito: ${error}`)
@@ -103,7 +118,7 @@ export async function runJob(deps: SchedulerDeps, job: ScheduledJob, slot: strin
         await deps.alert(job.name, slot, error).catch(() => undefined)
       }
     }
-    return { ok: !error, steps }
+    return { ok: !error, steps, outcome }
   } finally {
     running.delete(job.name)
   }
@@ -144,11 +159,19 @@ function supabaseDeps(log: (message: string) => void) {
   const finish: SchedulerDeps['finish'] = async (job, slot, result) => {
     // supabase-js non lancia: l'errore va letto, o una riga resterebbe "in
     // corso" per sempre senza che nessuno lo sappia.
-    const { error: updateError } = await supabase
+    let { error: updateError } = await supabase
       .from('automation_job_runs')
-      .update({ finished_at: new Date().toISOString(), ok: result.ok, steps: result.steps, error: result.error })
+      .update({ finished_at: new Date().toISOString(), ok: result.ok, steps: result.steps, error: result.error,
+        outcome: result.outcome || (result.ok ? 'succeeded' : 'failed'), reason: result.reason || null })
       .eq('job', job)
       .eq('slot', slot)
+    // Deploy del codice prima della migration: conserva almeno il contratto storico.
+    if (updateError && ['42703', 'PGRST204'].includes(updateError.code)) {
+      const fallback = await supabase.from('automation_job_runs')
+        .update({ finished_at: new Date().toISOString(), ok: result.ok, steps: result.steps, error: result.error })
+        .eq('job', job).eq('slot', slot)
+      updateError = fallback.error
+    }
     if (updateError && updateError.code !== UNDEFINED_TABLE) {
       log(`[scheduler] esito ${job} ${slot} non salvato: ${updateError.message}`)
     }

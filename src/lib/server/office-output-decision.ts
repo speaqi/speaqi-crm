@@ -5,6 +5,7 @@ import { sendDeckToTelegram } from './office-deck-telegram'
 import { errorMessage } from './http'
 import { deckApprovable, type TelegramAction } from '../office/telegram-actions'
 import { countTodo } from '../tourism-deck'
+import { missingWorkSchema, officeWorkEnabled } from './office-work-routing'
 
 type Admin = any
 export type OutputDecision = { ok: true; output: unknown; notice?: string; contact_id?: string } | { ok: false; error: string; status: number; extra?: Record<string, unknown> }
@@ -14,6 +15,12 @@ export type OutputDecision = { ok: true; output: unknown; notice?: string; conta
  * pagina e per quello di Telegram: stesse regole, stessa transazione, stessi messaggi.
  */
 export async function decideOfficeOutput(admin: Admin, userId: string, id: string, status: 'approved' | 'rejected'): Promise<OutputDecision> {
+  if (officeWorkEnabled()) {
+    const supported = await admin.from('office_work_items').select('id').limit(0)
+    if (missingWorkSchema(supported.error)) return { ok: false, status: 503,
+      error: 'Aggiornamento dei lavori in corso. La proposta resta da decidere.' }
+    if (supported.error) throw supported.error
+  }
   if (status === 'approved') {
     // Nuovo contatto dal Direttore: lo inserisce il codice del CRM, con le sue regole.
     const contact = await approveDirectorContact(admin, userId, id)
@@ -21,7 +28,7 @@ export async function decideOfficeOutput(admin: Admin, userId: string, id: strin
     if (contact) return { ok: true, output: contact.output, notice: contact.notice, contact_id: contact.contact_id }
   }
   // Decisione e coda interna nella stessa transazione; nessuna azione esterna.
-  const { data, error } = await admin.rpc('decide_office_output', { p_output_id: id, p_user_id: userId, p_status: status })
+  const { data, error } = await admin.rpc(officeWorkEnabled() ? 'office_work_decide_output' : 'decide_office_output', { p_output_id: id, p_user_id: userId, p_status: status })
   if (error) throw error
   if (!data?.output) {
     if (data?.reason === 'merge_failed') {

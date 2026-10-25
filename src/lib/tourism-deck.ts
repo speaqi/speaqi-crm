@@ -119,7 +119,8 @@ export type DeckModel = (typeof DECK_MODELS)[number]
 export type DeckInput = Partial<Record<DeckVarName, string>> & { modello?: DeckModel }
 export const deckModel = (input: DeckInput | null | undefined): DeckModel => (input?.modello === 'partner' ? 'partner' : 'destinazione')
 
-const LIMITS = { slides: 16, items: 6, kicker: 80, footnote: 200, itemValue: 40, title: 160, body: 700, note: 300, itemTitle: 80, itemText: 260, hint: 500, varValue: 300 }
+export const MAX_DECK_SLIDES = 16
+const LIMITS = { slides: MAX_DECK_SLIDES, items: 6, kicker: 80, footnote: 200, itemValue: 40, title: 160, body: 700, note: 300, itemTitle: 80, itemText: 260, hint: 500, varValue: 300 }
 
 const slide = (s: Partial<DeckSlide> & Pick<DeckSlide, 'id' | 'kind' | 'title'>): DeckSlide => ({
   body: '',

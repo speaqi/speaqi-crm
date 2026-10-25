@@ -20,4 +20,3 @@ export const GENERIC = normalizeTemplate({
     { id: 'demo', kind: 'closing', title: 'Guardate la mappa di {{ente}}', body: 'Partiamo. {{contatto}}' }
   ]
 })
-

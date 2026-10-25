@@ -26,6 +26,7 @@ import { addTaskToCalendar } from './gcal'
 import { sendNotificationText } from './whatsapp'
 import { createServiceRoleClient } from './supabase'
 import { activateEntityForOrder, verifiedDestination, type ActivationEntity } from './office-entity-activation'
+import { enqueueOfficeWork, missingWorkSchema, officeWorkEnabled, QUEUE_WORK_ACTION } from './office-work-routing'
 import { cityForEntity, compactName, entitySearchPattern, pickOrderEntity, siteMatchesEntity, websiteFromText } from '../office/entity-activation'
 import { DIRECTOR_BUCKET, directorPhotoFiles } from './office-director-photos'
 import { addPhotosToDeck, createDeck, generateIntoDeck, type DeckRow } from './tourism-decks'
@@ -52,7 +53,7 @@ const ORDER_MODEL_OUTPUT_TOKENS = 1500
 export type DirectorOrderRow = {
   id: string; user_id: string; source: 'web' | 'telegram'; text: string
   attachments: Array<{ path: string; name: string; mime: string; bytes: number }>
-  status: 'received' | 'working' | 'done' | 'waiting_you' | 'failed'; intent: string | null
+  status: 'received' | 'working' | 'done' | 'waiting_you' | 'failed' | 'waiting' | 'blocked' | 'cancelled'; intent: string | null
   interpretation: Record<string, unknown> | null; reply: string | null; output_ids: string[]
   queued: Array<Record<string, unknown>>; telegram_chat_id: string | null; run_id: string | null
   error: string | null; created_at: string; updated_at: string
@@ -95,6 +96,7 @@ export async function createDirectorOrder(admin: Admin, userId: string, input: {
   if (!text && !files.length) throw new Error('Scrivi qualcosa al Direttore o allega una foto')
   const order = checked(await admin.from('office_director_orders').insert({
     user_id: userId, source: input.source, text, telegram_chat_id: input.telegramChatId || null,
+    ...(files.length ? { status: 'working', interpretation: { intake: 'attachments' } } : {}),
   }).select('*').single()) as DirectorOrderRow
   if (!files.length) return order
   try {
@@ -109,7 +111,7 @@ export async function createDirectorOrder(admin: Admin, userId: string, input: {
       if (uploaded.error) throw uploaded.error
       attachments.push({ path, name: file.name, mime: 'image/jpeg', bytes: photo.data.length })
     }
-    return checked(await admin.from('office_director_orders').update({ attachments }).eq('id', order.id).eq('user_id', userId).select('*').single())
+    return checked(await admin.from('office_director_orders').update({ attachments, status: 'received', interpretation: null }).eq('id', order.id).eq('user_id', userId).select('*').single())
   } catch (error) {
     await admin.from('office_director_orders').update({ status: 'failed', error: errorMessage(error, 'Foto non salvate'),
       reply: 'Non sono riuscito a salvare le foto. Riprova.' }).eq('id', order.id)
@@ -122,7 +124,7 @@ export async function listDirectorOrders(admin: Admin, userId: string, limit = 2
     .order('created_at', { ascending: false }).limit(limit)) || []
 }
 
-async function orderImages(admin: Admin, order: DirectorOrderRow): Promise<string[]> {
+export async function orderImages(admin: Admin, order: DirectorOrderRow): Promise<string[]> {
   const images: string[] = []
   for (const attachment of order.attachments || []) {
     const { data, error } = await admin.storage.from(DIRECTOR_BUCKET).download(attachment.path)
@@ -134,6 +136,16 @@ async function orderImages(admin: Admin, order: DirectorOrderRow): Promise<strin
 
 type QueueResult = { agent: string; queued: boolean; enabled: boolean; reason?: string }
 export async function queueForAgent(admin: Admin, userId: string, agentId: string, entry: Record<string, unknown>): Promise<QueueResult> {
+  if (officeWorkEnabled()) {
+    const action = QUEUE_WORK_ACTION[agentId]
+    if (!action) return { agent: agentId, queued: false, enabled: false, reason: 'agent_missing' }
+    const { key, origin: _origin, queued_at: _queuedAt, ...payload } = entry
+    await enqueueOfficeWork(admin, userId, { agent_id: agentId, action, origin: 'approval',
+      order_id: typeof entry.order_id === 'string' ? entry.order_id : null,
+      source_key: `queue:${agentId}:${String(key || '')}`, payload, status: 'ready' })
+    const agent = checked(await admin.from('office_agents').select('enabled').eq('id', agentId).eq('user_id', userId).maybeSingle()) as { enabled: boolean } | null
+    return { agent: agentId, queued: true, enabled: !!agent?.enabled }
+  }
   const { data, error } = await admin.rpc('office_director_queue', { p_user_id: userId, p_agent_id: agentId, p_entry: entry })
   if (error) throw error
   return { agent: agentId, queued: !!data?.queued, enabled: !!data?.enabled, reason: data?.reason }
@@ -173,6 +185,7 @@ export async function runAgentWhenFree(agentId: string, handler: Parameters<type
 
 /** Un agente acceso a cui è appena arrivato lavoro parte subito, in background. */
 export function startQueuedAgents(userId: string, results: QueueResult[], key: string): Promise<QueuedWork[]> {
+  if (officeWorkEnabled()) return Promise.resolve([])
   const started = results.filter((result) => result.enabled && result.reason !== 'agent_missing')
   return Promise.all(started.map(async (result): Promise<QueuedWork | null> => {
     const handler = officeAgentHandler(result.agent)
@@ -221,7 +234,7 @@ export async function reportQueuedWork(admin: Admin, userId: string, orderId: st
   }
 }
 
-async function findEntity(admin: Admin, userId: string, names: Array<string | null>) {
+export async function findEntity(admin: Admin, userId: string, names: Array<string | null>) {
   for (const name of names) {
     const pattern = name ? entitySearchPattern(name) : null
     if (!pattern) continue
@@ -467,7 +480,7 @@ async function partnerPresentation(admin: Admin, ctx: AgentContext, order: Direc
     : `${name}: ho preparato la presentazione partner per ${city} con il testo di base, ma l’adattamento non è riuscito. Puoi rivederla e rigenerarla da qui: ${link}` }
 }
 
-const DESTINATION_TYPES = ['dmo', 'nto', 'cvb', 'rto']
+export const DESTINATION_TYPES = ['dmo', 'nto', 'cvb', 'rto']
 
 /**
  * «Preparami 5 presentazioni di destinazioni»: il Direttore sceglie lui, fra gli enti del
@@ -702,7 +715,7 @@ async function renameEntity(admin: Admin, ctx: AgentContext, order: DirectorOrde
  * L'ente nel catalogo Tourism: ritrovato per nome, oppure inserito non verificato
  * (lo verifica poi l'attivazione, con le prove del sito). Un archiviato non si riusa.
  */
-async function ensureCatalogEntity(admin: Admin, userId: string, orderId: string,
+export async function ensureCatalogEntity(admin: Admin, userId: string, orderId: string,
   input: { name: string; country_code: string; type_code: string; website: string | null }): Promise<{ entity: ActivationEntity; created: boolean } | { reply: string }> {
   const existing = await findEntity(admin, userId, [input.name])
   if (existing) return { entity: existing, created: false }
@@ -802,7 +815,7 @@ async function statusReport(admin: Admin, userId: string, now: Date) {
 type Outcome = { status: DirectorOrderRow['status']; reply: string; outputs: string[]; queued: QueueResult[]; awaiting?: DirectorAwaiting }
 
 /** Esegue il piano già validato. Scrive solo uscite, To Do e code. */
-async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrderRow, plan: DirectorOrderPlan, now: Date): Promise<Outcome> {
+export async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrderRow, plan: DirectorOrderPlan, now: Date): Promise<Outcome> {
   const userId = order.user_id
   if (plan.intent === 'new_contact') {
     const entity = plan.category === 'destinazione' ? await findEntity(admin, userId, [plan.contact.company, plan.contact.name]) : null
@@ -957,8 +970,17 @@ export async function pendingDirectorQuestion(admin: Admin, userId: string,
   let query = admin.from('office_director_orders').select('id,status,interpretation,updated_at').eq('user_id', userId)
     .eq('source', where.source).lt('created_at', where.before)
   if (where.source === 'telegram') query = where.chatId ? query.eq('telegram_chat_id', where.chatId) : query.is('telegram_chat_id', null)
-  const { data, error } = await query.order('created_at', { ascending: false }).limit(1).maybeSingle()
-  if (error || !data || data.status !== 'waiting_you') return null
+  let { data, error } = await query.order('created_at', { ascending: false }).limit(1).maybeSingle()
+  // Una risposta breve può essere la ricevuta di ripresa dello stesso lavoro.
+  // La domanda successiva resta sul suo ordine originale, senza creare catene.
+  if (!error && data?.status === 'done' && officeWorkEnabled() && typeof data.interpretation?.resumed_from === 'string') {
+    let original = admin.from('office_director_orders').select('id,status,interpretation,updated_at')
+      .eq('user_id', userId).eq('id', data.interpretation.resumed_from).eq('source', where.source)
+    if (where.source === 'telegram') original = where.chatId ? original.eq('telegram_chat_id', where.chatId) : original.is('telegram_chat_id', null)
+    const resumed = await original.maybeSingle()
+    data = resumed.data; error = resumed.error
+  }
+  if (error || !data || (data.status !== 'waiting_you' && !(officeWorkEnabled() && data.status === 'blocked'))) return null
   if ((where.now || new Date()).getTime() - new Date(data.updated_at).getTime() > AWAITING_TTL_MS) return null
   const awaiting = readAwaiting(data.interpretation)
   return awaiting ? { id: data.id, awaiting } : null
@@ -967,6 +989,19 @@ export async function pendingDirectorQuestion(admin: Admin, userId: string,
 export async function processDirectorOrder(admin: Admin, userId: string, orderId: string, options: { now?: () => Date } = {}): Promise<DirectorOrderRow> {
   const order = checked(await admin.from('office_director_orders').select('*').eq('id', orderId).eq('user_id', userId).single()) as DirectorOrderRow
   if (order.status !== 'received') return order
+  if (officeWorkEnabled()) {
+    try {
+      await enqueueOfficeWork(admin, userId, { agent_id: 'director', action: 'interpret_order', source_key: `order:${order.id}:interpret`,
+        origin: 'order', order_id: order.id, priority: 80, status: 'ready', payload: { order_id: order.id } })
+    } catch (error) {
+      if (!missingWorkSchema(error)) throw error
+      // Lo schema può arrivare dopo il codice: il turno successivo recupera l'ordine salvato.
+      const reply = 'Ordine salvato. Aggiornamento dell’Ufficio in corso: verrà ripreso automaticamente.'
+      checked(await admin.from('office_director_orders').update({ reply }).eq('id', order.id).eq('user_id', userId))
+      return { ...order, reply }
+    }
+    return { ...order, reply: 'Ordine salvato. Il Direttore lo prende in carico nel prossimo turno, senza bisogno di rimandarlo.' }
+  }
   // Solo chi sposta l'ordine da "ricevuto" a "in lavorazione" lo lavora.
   const taken = checked(await admin.from('office_director_orders').update({ status: 'working' }).eq('id', order.id)
     .eq('user_id', userId).eq('status', 'received').select('id')) as Array<{ id: string }> | null
@@ -1103,7 +1138,8 @@ export async function approveDirectorContact(admin: Admin, userId: string, outpu
   const queued: QueueResult[] = []
   const notes: string[] = []
   if (body.category === 'destinazione') {
-    if (body.entity_id) queued.push(await queueForAgent(admin, userId, 'presentations', { key: `presentation:${body.entity_id}`, entity_id: body.entity_id }))
+    if (body.entity_id) queued.push(await queueForAgent(admin, userId, 'presentations', { key: `presentation:${body.entity_id}`, entity_id: body.entity_id,
+      ...(officeWorkEnabled() ? { order_id: body.order_id || null } : {}) }))
     else notes.push('L’ente non è nel catalogo Tourism: aggiungilo (o fallo trovare all’Arricchimento enti), poi chiedimi la presentazione.')
   }
   if (body.category === 'agenzia') {
@@ -1117,7 +1153,7 @@ export async function approveDirectorContact(admin: Admin, userId: string, outpu
   if (!done.output) return { error: 'Questa proposta è già stata decisa. Aggiorna la pagina.', status: 409 }
   void reportQueuedWork(admin, userId, body.order_id || null, `Esito: ${created!.name}`, startQueuedAgents(userId, queued, `contact:${outputId}`))
   const notice = [`Contatto inserito: ${created!.name}.`, ...notes].join(' ')
-  if (body.order_id) {
+  if (body.order_id && !officeWorkEnabled()) {
     // L'ordine da cui è nato il contatto non aspetta più te.
     await admin.from('office_director_orders').update({ status: 'done', reply: notice })
       .eq('id', body.order_id).eq('user_id', userId).eq('status', 'waiting_you')
@@ -1132,6 +1168,7 @@ export async function approveDirectorContact(admin: Admin, userId: string, outpu
  * e l'esito arriva su Telegram. Senza, il lavoro aspettava il turno successivo.
  */
 export async function startAfterApproval(admin: Admin, userId: string, output: { id: string; agent_id: string; kind: string; title: string; body: any; status: string }) {
+  if (officeWorkEnabled()) return
   if (output.status !== 'approved') return
   const recipient = output.agent_id === 'director' && output.kind === 'proposal' ? String(output.body?.recipient_agent_id || '')
     : output.agent_id === 'entity_enricher' && output.body?.action === 'enrich_entity' ? 'presentations' : ''
