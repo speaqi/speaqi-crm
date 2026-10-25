@@ -16,6 +16,7 @@ Regola fissa: il Direttore **non invia** email, fatture allo SDI o pubblicazioni
 | «Nuovo contatto: Mario Rossi, Hotel Laguna, info@hotellaguna.it» o la foto di un bigliettino | Proposta in «Aspetta te» con i dati letti, la riga da cui vengono e i possibili doppioni. Approvando entra nei contatti con l’opportunità giusta. |
 | «Trovami 5 partner per la mappa di Venezia» | Cerca prima nel catalogo Tourism (DMC, tour operator, agenzie, hotel, compagnie che nominano la città), poi sul web per quelli che mancano: vale solo un sito letto che nomina l’azienda, email solo del suo dominio. Ognuno è una proposta «Nuovo contatto» di tipo partner. Salta chi è già nei contatti o già proposto. Massimo 10. |
 | «Aggiungi Venezuela Tourism a Tourism Intelligence e ai contatti» | Ritrova l’ente o lo crea (paese e tipo letti dall’ordine), cerca il sito, scrive le prove, lo verifica e lo porta nel CRM. Se non trova il sito te lo chiede. Con «…e poi fammi la presentazione» prepara anche quella. Dal bigliettino di una persona prende l’ente, non il nome della persona. |
+| «Rinomina Gustavo Cardenas Tourism Ministry Venezuela in Tourism Ministry Venezuela» | Cambia il nome dell’ente in Tourism Intelligence; il vecchio resta come alias, così lo ritrovi ancora. Con «…e fammi la presentazione, sito …» prepara anche quella. Se l’ente era verificato torna da rivedere (lo riattiva la presentazione). Napoli no. |
 
 ## Presentazioni
 
