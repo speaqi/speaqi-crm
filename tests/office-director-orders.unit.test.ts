@@ -455,3 +455,24 @@ describe('il Direttore riprende la domanda che ha fatto', async () => {
     assert.equal(plan.intent === 'add_entity' && plan.presentation, true)
   })
 })
+
+describe('rinomina un ente', () => {
+  test('nome attuale e nome nuovo, con la presentazione e il sito se li chiede', () => {
+    const plan = interpretDirectorOrder(answer({ intent: 'rename_entity', target: 'Gustavo Cardenas Tourism Ministry Venezuela', new_name: 'Tourism Ministry Venezuela', then_presentation: true }),
+      { text: 'Rinomina Gustavo Cardenas Tourism Ministry Venezuela in Tourism Ministry Venezuela e mi fai la presentazione con sito https://venezuela.com.ve/', today: TODAY })
+    assert.deepEqual(plan, { intent: 'rename_entity', from: 'Gustavo Cardenas Tourism Ministry Venezuela', to: 'Tourism Ministry Venezuela', website: 'https://venezuela.com.ve', presentation: true })
+  })
+
+  test('senza il nome nuovo, uguale, troppo corto o di Napoli si chiede', () => {
+    assert.equal(interpretDirectorOrder(answer({ intent: 'rename_entity', target: 'Visit Lima' }), { text: '', today: TODAY }).intent, 'unknown')
+    assert.equal(interpretDirectorOrder(answer({ intent: 'rename_entity', target: 'Visit Lima', new_name: 'visit  lima' }), { text: '', today: TODAY }).intent, 'unknown')
+    assert.equal(interpretDirectorOrder(answer({ intent: 'rename_entity', target: 'Visit Lima', new_name: 'VL' }), { text: '', today: TODAY }).intent, 'unknown')
+    assert.equal(interpretDirectorOrder(answer({ intent: 'rename_entity', target: 'Comune di Napoli', new_name: 'Napoli Turismo' }), { text: '', today: TODAY }).intent, 'unknown')
+  })
+
+  test('lo schema chiede il nome nuovo e l’elenco dei comandi lo dice', async () => {
+    const { directorHelpText } = await import('../src/lib/office/director-orders')
+    assert.ok((DIRECTOR_ORDER_SCHEMA.required as readonly string[]).includes('new_name'))
+    assert.match(directorHelpText('https://crm.speaqi.com'), /Rinomina X in Y/)
+  })
+})

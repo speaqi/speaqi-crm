@@ -632,6 +632,46 @@ async function addEntity(admin: Admin, ctx: AgentContext, order: DirectorOrderRo
 const ENTITY_COLUMNS = 'id,name,kind,status,website,email,phone,country_code,type_code,aliases,disabled,version'
 
 /**
+ * «Rinomina X in Y»: cambia il nome dell'ente come la scheda Tourism (modifica condizionata
+ * sulla versione), il vecchio nome resta fra gli alias così lo si ritrova ancora. Il catalogo
+ * toglie la verifica a un ente che cambia nome: se lo era, torna da rivedere, e una presentazione
+ * chiesta nello stesso ordine lo riattiva con le prove nuove.
+ */
+async function renameEntity(admin: Admin, ctx: AgentContext, order: DirectorOrderRow, plan: Extract<DirectorOrderPlan, { intent: 'rename_entity' }>): Promise<Outcome> {
+  const userId = order.user_id
+  const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+  const entity = await findEntity(admin, userId, [plan.from])
+  if (!entity) return { status: 'failed', outputs: [], queued: [], reply: `Non trovo «${plan.from}» fra gli enti di Tourism Intelligence. Scrivimi il nome come lo vedi nella scheda.` }
+  if (officeIsNaples(entity.name)) return { status: 'failed', outputs: [], queued: [], reply: 'Gli enti di Napoli restano fuori dal lavoro degli agenti: rinominalo tu dalla scheda Tourism.' }
+  const link = `${base}/tourism?entity=${entity.id}`
+  let renamed: ActivationEntity = entity
+  let first = `${entity.name} si chiama già così.`
+  if (nameKey(entity.name) !== nameKey(plan.to)) {
+    const aliases = [...new Set([...(entity.aliases || []), entity.name])].slice(0, 50)
+    const patch: Record<string, unknown> = { name: plan.to, aliases }
+    // Un sito scritto nell'ordine riempie solo un campo vuoto, come l'attivazione.
+    if (plan.website && !entity.website) patch.website = plan.website
+    const saved = await admin.from('tourism_entities').update(patch).eq('user_id', userId).eq('id', entity.id)
+      .eq('version', entity.version).select(ENTITY_COLUMNS).maybeSingle()
+    if (saved.error) {
+      if ((saved.error as { code?: string }).code === '23505') return { status: 'failed', outputs: [], queued: [], reply: `C’è già un ente che si chiama ${plan.to} nello stesso paese: non rinomino ${entity.name} per non fare un doppione. ${link}` }
+      throw saved.error
+    }
+    if (!saved.data) return { status: 'failed', outputs: [], queued: [], reply: `${entity.name} è stato modificato proprio adesso da un’altra parte: rimandami l’ordine. ${link}` }
+    renamed = saved.data
+    const unverified = entity.status === 'VERIFIED' ? ' Era verificato: con il nome nuovo torna da rivedere.' : ''
+    first = `Ho rinominato «${entity.name}» in «${renamed.name}» (il vecchio nome resta come alias).${unverified}`
+  }
+  if (!plan.presentation) return { status: 'done', outputs: [], queued: [], reply: `${first} ${link}` }
+  // Un ente nazionale promuove il paese: come in add_entity, la «città» della presentazione è il paese.
+  const national = renamed.type_code === 'nto' || renamed.type_code === 'ministry'
+  const deckPlan: PresentationPlan = { intent: 'presentation', targets: [renamed.name], count: null, audience: 'destinazione', brief: null,
+    city: national && renamed.country_code ? countryName(renamed.country_code) : null, skipped: [], country_code: renamed.country_code, type_code: renamed.type_code }
+  const deck = await presentationFor(admin, ctx, userId, renamed, deckPlan, order.text, renamed.name)
+  return { ...deck, reply: `${first}\n${deck.reply}` }
+}
+
+/**
  * L'ente nel catalogo Tourism: ritrovato per nome, oppure inserito non verificato
  * (lo verifica poi l'attivazione, con le prove del sito). Un archiviato non si riusa.
  */
@@ -789,6 +829,7 @@ async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrder
   }
   if (plan.intent === 'find_partners') return findPartners(admin, ctx, order, plan)
   if (plan.intent === 'add_entity') return addEntity(admin, ctx, order, plan)
+  if (plan.intent === 'rename_entity') return renameEntity(admin, ctx, order, plan)
   if (plan.intent === 'help') {
     const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
     return { status: 'done', outputs: [], queued: [], reply: directorHelpText(base) }
