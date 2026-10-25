@@ -260,42 +260,71 @@ async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, 
 }
 
 /**
- * «Fammi la fattura per …»: prepara la bozza dal preventivo, come «Genera fattura» nella
- * scheda. Solo su un preventivo pagato o accettato; non cambia lo stato del preventivo e
- * non invia niente allo SDI: quello resta un clic in Fatture.
+ * «Fammi la fattura per …» e «SNAV ha approvato, fai la fattura»: prepara la bozza dal
+ * preventivo, come «Genera fattura» nella scheda. Se l'ordine dice che il cliente ha approvato,
+ * prima segna il preventivo come accettato (solo da bozza o inviato). Non lo segna mai pagato
+ * e non invia niente allo SDI: quello resta un clic in Fatture.
  */
-async function invoiceFor(admin: Admin, userId: string, plan: Extract<DirectorOrderPlan, { intent: 'invoice' }>): Promise<Outcome> {
+export async function invoiceFor(admin: Admin, userId: string, plan: Extract<DirectorOrderPlan, { intent: 'invoice' }>): Promise<Outcome> {
   const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
-  const columns = 'id,quote_number,customer_name,customer_company,total_amount,status,payment_state'
+  const columns = 'id,quote_number,customer_name,customer_company,total_amount,status,payment_state,billing_interval,contact_id'
+  const waiting = async () => (checked(await admin.from('quotes').select(columns).eq('user_id', userId).in('status', ['sent', 'accepted'])
+    .order('created_at', { ascending: false }).limit(5)) || []) as DirectorInvoiceQuote[]
   let quotes: DirectorInvoiceQuote[]
   if (plan.quote_number) {
     quotes = checked(await admin.from('quotes').select(columns).eq('user_id', userId).ilike('quote_number', plan.quote_number).limit(2)) || []
   } else {
     const pattern = searchPattern(plan.customer || '')
-    if (!pattern) return { status: 'failed', outputs: [], queued: [], reply: 'Per quale cliente faccio la fattura? Scrivimi il numero del preventivo (PREV-…).' }
-    const found = checked(await admin.from('quotes').select(columns).eq('user_id', userId).neq('status', 'cancelled')
-      .or(`customer_name.ilike.${pattern},customer_company.ilike.${pattern}`).order('created_at', { ascending: false }).limit(10)) as DirectorInvoiceQuote[] || []
-    // Fra più preventivi dello stesso cliente conta quello da fatturare.
-    const ready = found.filter(quoteIsInvoiceable)
-    quotes = ready.length ? ready : found
+    const found = pattern ? (checked(await admin.from('quotes').select(columns).eq('user_id', userId).neq('status', 'cancelled')
+      .or(`customer_name.ilike.${pattern},customer_company.ilike.${pattern}`).order('created_at', { ascending: false }).limit(10)) || []) as DirectorInvoiceQuote[] : []
+    // Fra più preventivi dello stesso cliente conta quello da fatturare (o, per un'approvazione, quello in attesa).
+    const open = found.filter((q) => (plan.approved ? ['draft', 'sent'].includes(q.status) : false) || quoteIsInvoiceable(q))
+    quotes = open.length ? open : found
   }
   const what = plan.quote_number || `«${plan.customer}»`
-  if (!quotes.length) return { status: 'failed', outputs: [], queued: [], reply: `Non trovo il preventivo ${what}. Controlla il numero in Preventivi: ${base}/preventivi` }
+  if (!quotes.length) {
+    // Un nome capito male (un vocale: «snob» per SNAV) non deve finire nel vuoto: si mostra cosa è in attesa.
+    const pending = await waiting()
+    return { status: 'waiting_you', outputs: [], queued: [], reply: pending.length
+      ? `Non trovo il preventivo ${what}. Quelli in attesa sono:\n${pending.map((q) => `• ${directorQuoteLabel(q)}`).join('\n')}\nRiscrivimi il numero di quello giusto.`
+      : `Non trovo il preventivo ${what}. Controlla in Preventivi: ${base}/preventivi` }
+  }
   if (quotes.length > 1) return { status: 'waiting_you', outputs: [], queued: [], reply: `Per ${what} ci sono più preventivi:\n${quotes.slice(0, 5).map((q) => `• ${directorQuoteLabel(q)}`).join('\n')}\nScrivimi il numero di quello da fatturare.` }
-  const quote = quotes[0]
+  let quote = quotes[0]
+  if (quote.billing_interval === 'year' && quote.status !== 'paid' && quote.payment_state !== 'paid') {
+    // Un abbonamento si paga con carta e la bozza nasce dal pagamento: farla prima la raddoppierebbe.
+    return { status: 'waiting_you', outputs: [], queued: [], reply: `${directorQuoteLabel(quote)} è un abbonamento con carta: la bozza della fattura si prepara da sola quando arriva il pagamento.` }
+  }
+  let approvedNow = false
+  if (plan.approved && ['draft', 'sent'].includes(quote.status)) {
+    const now = new Date().toISOString()
+    // Il filtro di un UPDATE su PostgREST vale anche per la risposta (la riga non è più «sent»):
+    // si rilegge e si riconosce la propria scrittura dalla data.
+    checked(await admin.from('quotes').update({ status: 'accepted', accepted_at: now }).eq('user_id', userId).eq('id', quote.id).in('status', ['draft', 'sent']))
+    const reread = checked(await admin.from('quotes').select(`${columns},accepted_at`).eq('user_id', userId).eq('id', quote.id).single()) as DirectorInvoiceQuote & { accepted_at: string | null }
+    const previous = quote.status
+    quote = reread
+    if (reread.status === 'accepted' && reread.accepted_at && Date.parse(reread.accepted_at) === Date.parse(now)) {
+      approvedNow = true
+      if (quote.contact_id) {
+        await admin.from('activities').insert({ user_id: userId, contact_id: quote.contact_id, type: 'system',
+          content: `Preventivo ${quote.quote_number}: stato ${previous} -> accepted (approvazione del cliente comunicata al Direttore).`,
+          metadata: { quote_id: quote.id, previous_status: previous, next_status: 'accepted', source: 'director' } })
+      }
+    }
+  }
   if (!quoteIsInvoiceable(quote)) {
-    const state = quote.status === 'sent' ? 'inviato e non ancora pagato' : quote.status === 'draft' ? 'in bozza' : quote.status === 'cancelled' ? 'annullato' : quote.status
+    const state = quote.status === 'sent' ? 'inviato, non ancora approvato' : quote.status === 'draft' ? 'in bozza' : quote.status === 'cancelled' ? 'annullato' : quote.status
     return { status: 'waiting_you', outputs: [], queued: [], reply: [
-      `Il preventivo ${directorQuoteLabel(quote)} risulta ${state}: la fattura si fa sui preventivi pagati o accettati.`,
-      'Se l’hai incassato, segnalo come pagato nella scheda del preventivo e poi riscrivimi «fattura per ' + quote.quote_number + '».',
-      `${base}/preventivi?edit=${quote.id}`,
-    ].join('\n') }
+      `Il preventivo ${directorQuoteLabel(quote)} risulta ${state}: la fattura si fa quando il cliente l’ha approvato.`,
+      quote.status === 'cancelled' ? '' : `Quando ti dà l’ok scrivimi «${quote.customer_company || quote.customer_name || 'il cliente'} ha approvato ${quote.quote_number}, fai la fattura».`,
+    ].filter(Boolean).join('\n') }
   }
   const { invoice, created } = await createInvoiceDraftFromQuote(admin, userId, quote.id)
   const { settings } = await loadInvoiceSettings(admin, userId)
   const draft = invoice.status === 'draft'
   return { status: 'done', outputs: [], queued: [], reply: directorInvoiceReply({
-    quote, created, invoiceStatus: invoice.status, numero: invoice.numero || null,
+    quote, created, invoiceStatus: invoice.status, numero: invoice.numero || null, approvedNow,
     problems: draft ? invoiceProblems(invoice, settings) : [], warnings: draft && Array.isArray(invoice.warnings) ? invoice.warnings : [],
     link: `${base}/fatture?invoice=${invoice.id}`,
   }) }

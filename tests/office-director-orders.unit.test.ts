@@ -188,10 +188,13 @@ describe('fattura di un preventivo', () => {
   test('«fammi la fattura per PREV-…» non è un To Do: il numero si legge dall’ordine', () => {
     const text = 'mi fai fare la fattura per PREV-20260922-1B14FC'
     assert.deepEqual(interpretDirectorOrder(answer({ intent: 'invoice', target: 'PREV-20260922-XXXXXX' }), { text, today: TODAY }),
-      { intent: 'invoice', quote_number: 'PREV-20260922-1B14FC', customer: null })
+      { intent: 'invoice', quote_number: 'PREV-20260922-1B14FC', customer: null, approved: false })
+    // L'approvazione vale solo se l'ordine la dice, non perché il modello la propone.
+    assert.equal((interpretDirectorOrder(answer({ intent: 'invoice', quote_approved: true }), { text: 'snav approvato PREV-20260922-1B14FC, fai la fattura', today: TODAY }) as { approved: boolean }).approved, true)
+    assert.equal((interpretDirectorOrder(answer({ intent: 'invoice', quote_approved: true }), { text, today: TODAY }) as { approved: boolean }).approved, false)
     assert.equal(directorQuoteNumber('fattura per prev-20260922-1b14fc grazie'), 'PREV-20260922-1B14FC')
     assert.deepEqual(interpretDirectorOrder(answer({ intent: 'invoice', target: 'Hotel Rossi' }), { text: 'fattura a Hotel Rossi', today: TODAY }),
-      { intent: 'invoice', quote_number: null, customer: 'Hotel Rossi' })
+      { intent: 'invoice', quote_number: null, customer: 'Hotel Rossi', approved: false })
     assert.equal(interpretDirectorOrder(answer({ intent: 'invoice' }), { text: 'fammi una fattura', today: TODAY }).intent, 'unknown')
     assert.match(directorOrderPrompt('x', 0, TODAY), /- invoice:/)
     assert.ok(DIRECTOR_ORDER_SCHEMA.properties.intent.enum.includes('invoice'))

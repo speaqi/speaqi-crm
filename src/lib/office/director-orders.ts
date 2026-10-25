@@ -29,14 +29,14 @@ export type DirectorOrderPlan =
   | { intent: 'presentation'; target: string; brief: string | null; city: string | null }
   | { intent: 'status' }
   | { intent: 'events' }
-  | { intent: 'invoice'; quote_number: string | null; customer: string | null }
+  | { intent: 'invoice'; quote_number: string | null; customer: string | null; approved: boolean }
   | { intent: 'task'; title: string; due_date: string | null }
   | { intent: 'unknown'; question: string }
 
 const nullableString = { type: ['string', 'null'] }
 export const DIRECTOR_ORDER_SCHEMA = {
   type: 'object', additionalProperties: false,
-  required: ['intent', 'card_text', 'contact', 'category', 'category_reason', 'brief', 'city', 'map_link', 'target', 'task_title', 'task_due', 'question'],
+  required: ['intent', 'card_text', 'contact', 'category', 'category_reason', 'brief', 'city', 'map_link', 'target', 'quote_approved', 'task_title', 'task_due', 'question'],
   properties: {
     intent: { type: 'string', enum: [...DIRECTOR_ORDER_INTENTS] },
     card_text: nullableString,
@@ -46,7 +46,7 @@ export const DIRECTOR_ORDER_SCHEMA = {
     },
     category: { type: ['string', 'null'], enum: [...CONTACT_CATEGORIES, null] },
     category_reason: nullableString, brief: nullableString, city: nullableString, map_link: nullableString,
-    target: nullableString, task_title: nullableString, task_due: nullableString, question: nullableString,
+    target: nullableString, quote_approved: { type: 'boolean' }, task_title: nullableString, task_due: nullableString, question: nullableString,
   },
 } as const
 
@@ -63,7 +63,7 @@ export function directorOrderPrompt(text: string, images: number, today: string)
     '- presentation: preparare una presentazione per un ente, una destinazione o un cliente, oppure mandare foto per una presentazione («foto per la presentazione di Bibione»). target = il nome come scritto, brief = cosa chiede, city = la città o il territorio dell’ente se è detto o è nel nome («Visit Bergamo» → Bergamo). Foto di luoghi mandate con un ordine di presentazione sono foto per le slide, non un contatto.',
     '- status: come stanno andando pipeline, trattative, timeline, agenti.',
     '- events: chiede quali fiere, eventi, workshop o bandi ci sono in arrivo ("quali sono le prossime fiere?"). Non è un task: la risposta la dà l’ufficio.',
-    '- invoice: fare, preparare o emettere la fattura di un preventivo o di un cliente ("fammi la fattura per PREV-…", "fattura a Rossi"). target = il numero del preventivo o il nome del cliente, come scritto. Non è un task: la bozza la prepara l’ufficio.',
+    '- invoice: fare, preparare o emettere la fattura di un preventivo o di un cliente ("fammi la fattura per PREV-…", "fattura a Rossi"). target = il numero del preventivo o il nome del cliente, come scritto. quote_approved = true se il titolare dice che il cliente ha approvato, accettato o confermato il preventivo ("SNAV ha approvato, fai la fattura"). Non è un task: la bozza la prepara l’ufficio.',
     '- task: una cosa da fare per il titolare ("ricordami di…", "segna che devo…"), non una domanda. task_title breve, task_due in formato AAAA-MM-GG se è detta una data (oggi è ' + today + ').',
     '- unknown: non è chiaro. question = cosa ti serve sapere, in una frase.',
     '',
@@ -189,7 +189,9 @@ export function interpretDirectorOrder(parsed: unknown, input: { text: string; t
     const quote_number = directorQuoteNumber(input.text)
     const customer = quote_number ? null : str(raw.target, 120)
     if (!quote_number && !customer) return { intent: 'unknown', question: 'Per quale preventivo o cliente faccio la fattura? Scrivimi il numero (PREV-…) o il nome.' }
-    return { intent, quote_number, customer }
+    // Il preventivo si segna accettato solo se l'ordine lo dice con parole sue, non perché il modello lo pensa.
+    const approved = raw.quote_approved === true && QUOTE_APPROVAL.test(input.text)
+    return { intent, quote_number, customer, approved }
   }
   return { intent: 'unknown', question }
 }
@@ -347,13 +349,15 @@ export function directorEventsReply(events: DirectorEventRow[], scout: { install
   return lines.join('\n')
 }
 
+export const QUOTE_APPROVAL = /\b(approvat\w*|accettat\w*|confermat\w*|firmat\w*|ha firmato|via libera|approved|accepted|signed)\b/i
+
 /** Il numero di un preventivo scritto nell'ordine (PREV-AAAAMMGG-XXXXXX), o null. */
 export function directorQuoteNumber(text: string): string | null {
   const match = text.match(/\bPREV-\d{8}-[A-Z0-9]{4,12}\b/i)
   return match ? match[0].toUpperCase() : null
 }
 
-export type DirectorInvoiceQuote = { id: string; quote_number: string; customer_name: string | null; customer_company: string | null; total_amount: number | string | null; status: string; payment_state: string | null }
+export type DirectorInvoiceQuote = { id: string; quote_number: string; customer_name: string | null; customer_company: string | null; total_amount: number | string | null; status: string; payment_state: string | null; billing_interval?: string | null; contact_id?: string | null }
 
 /** Si fattura un preventivo pagato o accettato: è la stessa regola della pagina Fatture. */
 export const quoteIsInvoiceable = (q: Pick<DirectorInvoiceQuote, 'status' | 'payment_state'>) => q.status === 'paid' || q.payment_state === 'paid' || q.status === 'accepted'
@@ -362,14 +366,15 @@ export const directorQuoteLabel = (q: DirectorInvoiceQuote) => `${q.quote_number
 
 /** La risposta su una bozza di fattura. Nessun invio parte da qui: lo dice sempre. */
 export function directorInvoiceReply(input: {
-  quote: DirectorInvoiceQuote; created: boolean; invoiceStatus: string; numero: string | null; problems: string[]; warnings: string[]; link: string
+  quote: DirectorInvoiceQuote; created: boolean; invoiceStatus: string; numero: string | null; problems: string[]; warnings: string[]; link: string; approvedNow?: boolean
 }): string {
   const { quote } = input
-  const head = input.created
+  const approved = input.approvedNow ? `Preventivo ${quote.quote_number} segnato come accettato.\n` : ''
+  const head = approved + (input.created
     ? `Bozza della fattura pronta per ${directorQuoteLabel(quote)}.`
     : input.invoiceStatus === 'draft'
       ? `La bozza della fattura per ${quote.quote_number} c’era già.`
-      : `La fattura per ${quote.quote_number} esiste già${input.numero ? ` (n. ${input.numero})` : ''}, stato: ${input.invoiceStatus}.`
+      : `La fattura per ${quote.quote_number} esiste già${input.numero ? ` (n. ${input.numero})` : ''}, stato: ${input.invoiceStatus}.`)
   const issues = [...input.problems, ...input.warnings].slice(0, 4)
   const lines = [head]
   if (input.invoiceStatus === 'draft') {
