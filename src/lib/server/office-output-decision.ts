@@ -3,7 +3,8 @@ import { loadDeck, setApproval } from './tourism-decks'
 import { getOrCreateDeckPdf } from './tourism-deck-pdf'
 import { sendDeckToTelegram } from './office-deck-telegram'
 import { errorMessage } from './http'
-import type { TelegramAction } from '../office/telegram-actions'
+import { deckApprovable, type TelegramAction } from '../office/telegram-actions'
+import { countTodo } from '../tourism-deck'
 
 type Admin = any
 export type OutputDecision = { ok: true; output: unknown; notice?: string; contact_id?: string } | { ok: false; error: string; status: number; extra?: Record<string, unknown> }
@@ -50,7 +51,7 @@ export async function handleTelegramAction(admin: Admin, userId: string, action:
   try {
     if (action.kind === 'output') {
       const result = await decideOfficeOutput(admin, userId, action.id, action.status)
-      if (!result.ok) return { text: result.error, done: result.status === 409 && /già decisa/.test(result.error) }
+      if (!result.ok) return { text: result.error, done: result.status === 409 && /già (stata )?decisa/.test(result.error) }
       return { text: result.notice || (action.status === 'approved' ? 'Approvata.' : 'Rifiutata.'), done: true }
     }
     const deck = await loadDeck(admin, userId, action.id)
@@ -59,6 +60,12 @@ export async function handleTelegramAction(admin: Admin, userId: string, action:
       return { text: sent.ok ? 'Te la rimando.' : `Non riesco a mandarla: ${sent.error || 'errore'}`, done: false }
     }
     if (deck.status === 'approved') return { text: 'Era già approvata.', done: true }
+    // Un messaggio vecchio può avere ancora il pulsante: si ricontrolla sulla presentazione di adesso.
+    if (!deckApprovable({ status: deck.status, todo: countTodo(deck.slides || []) })) {
+      return { text: deck.status === 'failed'
+        ? 'L’ultima generazione non è riuscita: controllala e approvala dall’editor.'
+        : 'Non si approva da qui: restano parti da completare nell’editor.', done: false }
+    }
     const approved = await setApproval(admin, deck, true)
     // Come dall'editor: il PDF dell'approvata si prepara subito (il catch non è cosmetico).
     void getOrCreateDeckPdf(admin, approved).catch((e) => console.error('PDF non preparato', { deck: approved.id, message: String(e?.message || e).slice(0, 300) }))

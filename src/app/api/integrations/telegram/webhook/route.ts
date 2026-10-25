@@ -98,8 +98,10 @@ export async function POST(request: NextRequest) {
     }
     // Le decisioni sono condizionate (solo da «in attesa», solo sulla versione letta):
     // un doppio tocco o una riconsegna di Telegram trovano la cosa già decisa.
+    // Il PDF può metterci parecchio: si risponde subito al tocco, l'esito arriva in chat.
+    if (action.kind === 'deck_pdf') await answerTelegramCallback(config, String(callback.id), 'Te la mando…')
     const result = await handleTelegramAction(createServiceRoleClient(), userId, action)
-    await answerTelegramCallback(config, String(callback.id), result.text)
+    if (action.kind !== 'deck_pdf') await answerTelegramCallback(config, String(callback.id), result.text)
     if (result.done && callback.message?.message_id) await clearTelegramButtons(config, chat.id, Number(callback.message.message_id))
     await sendTelegramMessage(config, chat.id, result.text)
     return ok({ action: action.kind, done: result.done })

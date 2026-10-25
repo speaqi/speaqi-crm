@@ -24,6 +24,9 @@ test('il PDF in bozza si approva col pulsante solo se non resta niente da comple
   assert.ok(todo[0].every((b) => !b.callback_data))
   assert.equal(todo[0][0].url, link)
   assert.ok(deckKeyboard({ id: ID, status: 'approved', todo: 0, link })[0].every((b) => !b.callback_data))
+  // Una generazione fallita tiene le slide di prima: niente pulsante, si guarda nell'editor.
+  assert.ok(deckKeyboard({ id: ID, status: 'failed', todo: 0, link })[0].every((b) => !b.callback_data))
+  assert.match(deckCaption({ title: 'X', status: 'failed', todo: 0, link }), /non è riuscita/)
   assert.match(deckCaption({ title: 'Sibiu · Sibiu County Tourism Association', status: 'ready', todo: 2, link }), /restano 2 \[DA VERIFICARE\]/)
   assert.match(deckCaption({ title: 'X', status: 'ready', todo: 0, link }), /pronta da approvare/)
   assert.ok(deckCaption({ title: 'X'.repeat(3000), status: 'ready', todo: 0, link, note: 'n'.repeat(3000) }).length <= 1000)
@@ -58,8 +61,12 @@ test('il PDF parte come documento con didascalia e pulsanti; senza Telegram non 
   assert.equal(form.get('caption'), '<b>Sibiu</b>')
   assert.equal(JSON.parse(String(form.get('reply_markup'))).inline_keyboard[0][0].callback_data, deckApproveData(ID))
   assert.equal((form.get('document') as File).name, 'speaqi-sibiu.pdf')
-  // Il messaggio con i pulsanti va alla chat delle notifiche se c'è.
-  process.env.TELEGRAM_NOTIFY_CHAT_ID = '999'
+  // Il messaggio con i pulsanti va alla chat delle notifiche se è autorizzata…
+  process.env.TELEGRAM_NOTIFY_CHAT_ID = '222'
   assert.equal((await sendTelegramButtons('*Proposta*', [[{ text: 'ok', callback_data: 'x' }]])).ok, true)
-  assert.equal(JSON.parse(calls[1].body).chat_id, '999')
+  assert.equal(JSON.parse(calls[1].body).chat_id, '222')
+  // …altrimenti alla prima autorizzata: da una chat non autorizzata i tocchi verrebbero rifiutati.
+  process.env.TELEGRAM_NOTIFY_CHAT_ID = '999'
+  await sendTelegramButtons('*Proposta*', [[{ text: 'ok', callback_data: 'x' }]])
+  assert.equal(JSON.parse(calls[2].body).chat_id, '111')
 })

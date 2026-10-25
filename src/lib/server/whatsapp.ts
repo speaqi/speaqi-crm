@@ -211,13 +211,16 @@ async function sendTelegramText(body: string, config: { token: string; chatId: s
 
 type TelegramKeyboard = Array<Array<{ text: string; callback_data?: string; url?: string }>>
 
-/** La chat Telegram delle notifiche: quella dichiarata, altrimenti la prima chat autorizzata. */
+/**
+ * La chat dei messaggi con pulsanti: quella delle notifiche se è fra le autorizzate (altrimenti
+ * il webhook rifiuterebbe ogni tocco), se no la prima chat autorizzata.
+ */
 export function telegramDeliveryConfig(): { token: string; chatId: string } | null {
   const notify = telegramNotifyConfig()
-  if (notify) return notify
   const token = String(process.env.TELEGRAM_BOT_TOKEN || '').trim()
-  const chatId = String(process.env.TELEGRAM_ALLOWED_CHAT_IDS || '').split(',').map((v) => v.trim()).filter(Boolean)[0]
-  return token && chatId ? { token, chatId } : null
+  const allowed = String(process.env.TELEGRAM_ALLOWED_CHAT_IDS || '').split(',').map((v) => v.trim()).filter(Boolean)
+  if (notify && allowed.includes(notify.chatId)) return notify
+  return token && allowed[0] ? { token, chatId: allowed[0] } : null
 }
 
 /**

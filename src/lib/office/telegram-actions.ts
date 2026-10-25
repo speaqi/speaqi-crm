@@ -35,16 +35,22 @@ export function parseTelegramAction(data: unknown): TelegramAction | null {
 /** Didascalia del PDF di una presentazione: cos'è, cosa manca, dove si modifica (Telegram: max 1024). */
 export function deckCaption(input: { title: string; status: string; todo: number; link: string; note?: string | null }) {
   const state = input.status === 'approved' ? 'approvata'
+    : input.status === 'failed' ? 'in bozza: l’ultima generazione non è riuscita, controllala nell’editor'
     : input.todo > 0 ? `bozza: restano ${input.todo} [DA VERIFICARE] da completare nell’editor`
     : 'bozza pronta da approvare'
   return [`*${input.title.slice(0, 200)}*`, `Presentazione ${state}.`, input.note ? input.note.slice(0, 300) : '', input.link]
     .filter(Boolean).join('\n').slice(0, 1000)
 }
 
+/** Si approva da Telegram solo una bozza pronta, senza niente da completare. */
+export function deckApprovable(input: { status: string; todo: number }) {
+  return input.status !== 'approved' && input.status !== 'generating' && input.status !== 'failed' && input.todo === 0
+}
+
 /** I pulsanti sotto il PDF: approvare solo se non resta niente da completare; modificare sempre. */
 export function deckKeyboard(input: { id: string; status: string; todo: number; link: string }): TelegramKeyboard {
   const row: TelegramButton[] = []
-  if (input.status !== 'approved' && input.status !== 'generating' && input.todo === 0) row.push({ text: '✅ Approva', callback_data: deckApproveData(input.id) })
+  if (deckApprovable(input)) row.push({ text: '✅ Approva', callback_data: deckApproveData(input.id) })
   row.push({ text: '✏️ Modifica nel CRM', url: input.link })
   return [row]
 }
