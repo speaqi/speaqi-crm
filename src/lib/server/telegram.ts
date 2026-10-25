@@ -19,6 +19,7 @@ import { errorMessage } from '@/lib/server/http'
  */
 
 const API_BASE = 'https://api.telegram.org'
+export const TELEGRAM_UPDATES = ['message', 'callback_query']
 const REQUEST_TIMEOUT_MS = 15_000
 
 export type TelegramConfig = {
@@ -189,13 +190,53 @@ export async function setTelegramWebhook(config: TelegramConfig, url: string) {
   return telegramFetch(config, 'setWebhook', {
     url,
     secret_token: config.webhookSecret,
-    // Solo i messaggi: reazioni, modifiche di post e sondaggi non hanno niente
-    // da dire al To Do e sarebbero solo update da scartare.
-    allowed_updates: ['message'],
+    // I messaggi e i tocchi sui pulsanti (approva, rifiuta): reazioni, modifiche di
+    // post e sondaggi non hanno niente da dire al CRM e sarebbero solo update da scartare.
+    allowed_updates: TELEGRAM_UPDATES,
     drop_pending_updates: false,
   })
 }
 
 export async function getTelegramWebhookInfo(config: TelegramConfig) {
   return telegramFetch(config, 'getWebhookInfo', {})
+}
+
+let callbacksChecked = false
+/**
+ * Un webhook registrato prima dei pulsanti riceve solo i messaggi: i tocchi sui pulsanti
+ * non arriverebbero mai. Una volta per processo si legge la registrazione da Telegram e,
+ * se manca, la si rifà sullo stesso indirizzo e con lo stesso segreto. Non lancia mai.
+ */
+export async function ensureTelegramCallbacks(config: TelegramConfig) {
+  if (callbacksChecked) return
+  callbacksChecked = true
+  try {
+    const info = await getTelegramWebhookInfo(config) as { url?: string; allowed_updates?: string[] } | null
+    if (!info?.url) return
+    const allowed = info.allowed_updates || []
+    // Senza filtro Telegram manda già tutto, pulsanti compresi.
+    if (!allowed.length || TELEGRAM_UPDATES.every((u) => allowed.includes(u))) return
+    await setTelegramWebhook(config, info.url)
+  } catch (error) {
+    callbacksChecked = false
+    console.error('[telegram] registrazione dei pulsanti non riuscita:', errorMessage(error, ''))
+  }
+}
+
+/** La risposta al tocco: senza, il pulsante resta con la rotellina per qualche secondo. */
+export async function answerTelegramCallback(config: TelegramConfig, callbackId: string, text: string) {
+  try {
+    await telegramFetch(config, 'answerCallbackQuery', { callback_query_id: callbackId, text: text.slice(0, 190) })
+  } catch (error) {
+    console.error('[telegram] answerCallbackQuery failed:', errorMessage(error, ''))
+  }
+}
+
+/** Toglie i pulsanti da un messaggio già deciso, così non si tocca due volte. */
+export async function clearTelegramButtons(config: TelegramConfig, chatId: string | number, messageId: number) {
+  try {
+    await telegramFetch(config, 'editMessageReplyMarkup', { chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } })
+  } catch {
+    /* Il messaggio può essere troppo vecchio o già senza pulsanti: non conta. */
+  }
 }

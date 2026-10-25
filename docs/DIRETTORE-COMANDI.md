@@ -3,6 +3,8 @@
 Si scrive nella casella «Scrivi al Direttore» dell’Ufficio o su Telegram (un messaggio che comincia con «Direttore» o `/direttore`, una foto, oppure tutto se il bot è in modalità Direttore). Anche a voce.
 Scrivendo «cosa posso chiederti?» il Direttore risponde con questo elenco.
 
+Le proposte da decidere (nuovi contatti, partner trovati) arrivano su Telegram una per una con **«✅ Approva» e «✖️ Rifiuta»**: il tocco vale come il clic nell’Ufficio, con le stesse regole. Scrivere «sì» in chat non approva niente.
+
 Regola fissa: il Direttore **non invia** email, fatture allo SDI o pubblicazioni, e **non lavora su Napoli**. Quando serve un tuo clic te lo dice, con il link.
 
 ## Contatti e partner
@@ -23,6 +25,8 @@ Regola fissa: il Direttore **non invia** email, fatture allo SDI o pubblicazioni
 | «Preparami 5 presentazioni di destinazioni» | Sceglie lui fra gli enti del turismo con un sito e senza presentazione, prima quelli con priorità e con una città leggibile dal nome. |
 | «Presentazione partner per Hotel Laguna, guida di Venezia» | Base **Partner** (QR e link con commissione, codici a tempo, vetrina, numeri nel portale). La prepara subito; le condizioni restano `[DA VERIFICARE]` finché non le scrivi nell’editor. |
 | Foto con «foto per la presentazione di Bibione» | Finiscono nelle slide al posto di quelle di esempio. |
+
+Ogni presentazione pronta (dall’agente Presentazioni o dal Direttore) **arriva su Telegram in PDF**, anche in bozza, con «✅ Approva» se non resta niente da completare e «✏️ Modifica nel CRM». Se la chiedi e c’è già, te la rimanda invece di rifarla.
 
 La base Partner si sceglie anche a mano: Tourism → Presentazioni → «Crea la presentazione» → «Per chi è: un partner».
 

@@ -8,6 +8,7 @@ import { addPhotosToDeck, createDeck, generateIntoDeck, type DeckRow, type Photo
 import { directorPhotoFiles } from '../office-director-photos'
 import { buildAgentRequest, validateDeckAgentResult } from '../tourism-deck-agent'
 import { addOfficeOutputOnce } from './shared'
+import { sendDeckToTelegram } from '../office-deck-telegram'
 
 const checked = (result: any) => { if (result.error) throw result.error; return result.data }
 
@@ -118,7 +119,14 @@ export function presentationsHandler(admin: any, options: {
       checked(await admin.rpc('finish_office_presentation', { p_run_id: ctx.runId, p_task_id: claim.task.id, p_report: {
         placeholders, fixes_proposed: fixes.length, warnings: deck.warnings, message: 'Rivedi e approva in Tourism. L’approvazione di questo rapporto non approva la presentazione.'
       } }))
-      if (claim.claimed) generated++
+      if (claim.claimed) {
+        generated++
+        // Appena pronta, la bozza arriva su Telegram in PDF (settings.telegram_pdf=false la spegne).
+        if (ctx.agent.settings?.telegram_pdf !== false) {
+          const sent = await sendDeckToTelegram(admin, deck)
+          if (!sent.ok && sent.error !== 'Telegram non configurato') ctx.log(`Presentazione ${deck.id}: non inviata su Telegram (${sent.error}).`)
+        }
+      }
       if (spentAttempts >= perRun) break
     }
     return { summary: `Presentazioni: ${generated} preparate, ${warnings} segnalazioni; nessuna approvazione o invio automatico.` }
