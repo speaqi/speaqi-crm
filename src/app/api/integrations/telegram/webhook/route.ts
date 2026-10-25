@@ -22,8 +22,8 @@ import {
   type TodoVoiceCandidate,
 } from '@/lib/server/todo-voice'
 import { resolveProgress } from '@/lib/todo'
-import { telegramDirectorReply, telegramDirectorRoute } from '@/lib/office/director-orders'
-import { createDirectorOrder, processDirectorOrder } from '@/lib/server/office-director-orders'
+import { directorFollowUp, telegramDirectorReply, telegramDirectorRoute } from '@/lib/office/director-orders'
+import { createDirectorOrder, pendingDirectorQuestion, processDirectorOrder } from '@/lib/server/office-director-orders'
 import { ensureOfficeAgents } from '@/lib/server/office-agents/definitions'
 import { parseTelegramAction } from '@/lib/office/telegram-actions'
 import { handleTelegramAction } from '@/lib/server/office-output-decision'
@@ -168,7 +168,12 @@ export async function POST(request: NextRequest) {
     // Al Direttore: /direttore, «Direttore …», una foto, o il Direttore impostato per ricevere tutto.
     const { data: director } = await supabase.from('office_agents').select('settings')
       .eq('id', 'director').eq('user_id', userId).maybeSingle()
-    const route = telegramDirectorRoute(transcript, { photo: !!photo, mode: (director?.settings as any)?.telegram_mode })
+    let route = telegramDirectorRoute(transcript, { photo: !!photo, mode: (director?.settings as any)?.telegram_mode })
+    if (!route.director && !photo) {
+      // La risposta a una domanda del Direttore («ecco il sito …») va a lui anche senza «Direttore» davanti.
+      const pending = await pendingDirectorQuestion(supabase, userId, { source: 'telegram', chatId: String(chatId), before: new Date().toISOString() })
+      if (pending && directorFollowUp(pending.awaiting, transcript)) route = { director: true, text: transcript.trim() }
+    }
     if (route.director) {
       const files = []
       if (photo) {

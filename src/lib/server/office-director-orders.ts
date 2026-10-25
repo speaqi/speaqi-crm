@@ -19,8 +19,8 @@ import {
   CONTACT_CATEGORY_LABELS, DIRECTOR_ORDER_SCHEMA, contactNextStep, directorOrderPrompt, directorStatusLines,
   directorEventsReply, directorInvoiceReply, directorQuoteLabel, interpretDirectorOrder, queuedWorkReport, quoteIsInvoiceable,
   directorHelpText, emailFromSite, looksLikeTourismBody, parsePartnerSearch, partnerSearchPrompt, PARTNER_SEARCH_SCHEMA, PARTNER_TYPE_CODES,
-  directorTaskDue, directorTaskReply,
-  type DirectorEventRow, type DirectorInvoiceQuote, type DirectorOrderPlan, type DirectorTaskItem, type DirectorTaskOutcome, type QueuedWork,
+  directorTaskDue, directorTaskReply, directorFollowUp, readAwaiting, AWAITING_TTL_MS,
+  type DirectorAwaiting, type DirectorEventRow, type DirectorInvoiceQuote, type DirectorOrderPlan, type DirectorTaskItem, type DirectorTaskOutcome, type QueuedWork,
 } from '../office/director-orders'
 import { addTaskToCalendar } from './gcal'
 import { sendNotificationText } from './whatsapp'
@@ -246,7 +246,7 @@ async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, 
   let note = ''
   if (!destination) {
     const activated = await activateEntityForOrder(admin, ctx, userId, entity, { orderText, proposedCity: plan.city, contactId })
-    if (!activated.ok) return { status: 'waiting_you', outputs: [], queued: [], reply: activated.reply }
+    if (!activated.ok) return { status: 'waiting_you', outputs: [], queued: [], reply: activated.reply, awaiting: awaitingOf(activated) }
     destination = activated.placeId
     note = `${activated.note} `
   }
@@ -357,10 +357,17 @@ type PresentationPlan = Extract<DirectorOrderPlan, { intent: 'presentation' }>
 /** Più esiti in una risposta sola: aspetta te se uno lo chiede, fallito solo se tutti falliscono. */
 function combineOutcomes(outcomes: Outcome[], footer = ''): Outcome {
   if (outcomes.length === 1 && !footer) return outcomes[0]
+  // Si riprende solo una domanda per volta: con due in sospeso, la risposta non saprebbe a quale va.
+  const asking = outcomes.filter((o) => o.awaiting)
   const status: Outcome['status'] = outcomes.some((o) => o.status === 'waiting_you') ? 'waiting_you'
     : outcomes.length && outcomes.every((o) => o.status === 'failed') ? 'failed' : 'done'
   return { status, outputs: outcomes.flatMap((o) => o.outputs), queued: outcomes.flatMap((o) => o.queued),
-    reply: [...outcomes.map((o) => `• ${o.reply}`), footer].filter(Boolean).join('\n') }
+    reply: [...outcomes.map((o) => `• ${o.reply}`), footer].filter(Boolean).join('\n'), ...(asking.length === 1 ? { awaiting: asking[0].awaiting } : {}) }
+}
+
+/** La domanda dell'attivazione, nella forma che l'ordine salva. */
+function awaitingOf(result: { need?: 'site' | 'city'; resume?: string }): DirectorAwaiting | undefined {
+  return result.need && result.resume ? { need: result.need, resume: result.resume } : undefined
 }
 
 /** La presentazione di un nome: ente del catalogo, contatto di un ente, oppure lavoro da agenzia. */
@@ -384,7 +391,8 @@ async function presentationTarget(admin: Admin, ctx: AgentContext, order: Direct
   if (orgName && (looksLikeTourismBody(orgName) || plan.type_code)) {
     // Un ente del turismo che non è ancora nel catalogo: il Direttore lo aggiunge e lo attiva, poi la presentazione.
     const country = plan.country_code || countryCode(contact?.country) || emailCountry(contact?.email)
-    if (!country) return { status: 'waiting_you', outputs: [], queued: [], reply: `${orgName} non è ancora in Tourism Intelligence e non so di quale paese è. Scrivimi «presentazione per ${orgName}, ${plan.city || 'città'}, paese …» e lo aggiungo io.` }
+    if (!country) return { status: 'waiting_you', outputs: [], queued: [], reply: `${orgName} non è ancora in Tourism Intelligence e non so di quale paese è. Scrivimi il paese e lo aggiungo io.`,
+      awaiting: { need: 'country', resume: `presentazione per ${orgName}${plan.city ? `, ${plan.city}` : ''}` } }
     const found = await ensureCatalogEntity(admin, userId, order.id, { name: orgName, country_code: country, type_code: plan.type_code || 'dmo', website: websiteFromText(order.text) })
     if ('reply' in found) return { status: 'waiting_you', outputs: [], queued: [], reply: found.reply }
     const outcome = await presentationFor(admin, ctx, userId, found.entity, plan, order.text, `${found.entity.name}${contact ? ` (${contact.name})` : ''}`, photos, contact?.id || null)
@@ -607,10 +615,18 @@ async function addEntity(admin: Admin, ctx: AgentContext, order: DirectorOrderRo
   const city = plan.city || (DESTINATION_TYPES.includes(plan.type_code) || plan.type_code === 'ministry' ? countryName(plan.country_code) : null)
   // Un contatto del CRM con l'organizzazione dell'ente (uno solo) si collega, invece di crearne un altro.
   const contact = crm ? null : await contactOfOrganization(admin, userId, entity.name)
-  const activated = await activateEntityForOrder(admin, ctx, userId, entity, { orderText: `${order.text}\n${city || ''}`, proposedCity: city, contactId: contact?.id || null })
+  // Alla risposta del titolare si riparte da qui: con la presentazione, se l'aveva chiesta.
+  const resume = plan.presentation ? `presentazione per ${entity.name}` : `aggiungi ${entity.name} a Tourism Intelligence e ai contatti`
+  const activated = await activateEntityForOrder(admin, ctx, userId, entity, { orderText: `${order.text}\n${city || ''}`, proposedCity: city, contactId: contact?.id || null, resume })
   const first = created ? `Ho aggiunto ${entity.name} a Tourism Intelligence.` : `${entity.name} era già in Tourism Intelligence.`
-  if (!activated.ok) return { status: 'waiting_you', outputs: [], queued: [], reply: `${first} ${activated.reply} ${link}` }
-  return { status: 'done', outputs: [], queued: [], reply: `${first} ${activated.note} ${link}` }
+  if (!activated.ok) return { status: 'waiting_you', outputs: [], queued: [], reply: `${first} ${activated.reply} ${link}`, awaiting: awaitingOf(activated) }
+  if (!plan.presentation) return { status: 'done', outputs: [], queued: [], reply: `${first} ${activated.note} ${link}` }
+  // «…e poi fammi la presentazione»: l'ente è attivo, la presentazione parte subito.
+  const fresh = await findEntity(admin, userId, [entity.name]) || { ...entity, status: 'VERIFIED' }
+  const deckPlan: PresentationPlan = { intent: 'presentation', targets: [entity.name], count: null, audience: 'destinazione', brief: null,
+    city, skipped: [], country_code: entity.country_code, type_code: entity.type_code }
+  const deck = await presentationFor(admin, ctx, userId, fresh, deckPlan, order.text, entity.name, [], contact?.id || activated.contactId)
+  return { ...deck, reply: `${first} ${activated.note} ${link}\n${deck.reply}` }
 }
 
 const ENTITY_COLUMNS = 'id,name,kind,status,website,email,phone,country_code,type_code,aliases,disabled,version'
@@ -715,7 +731,8 @@ async function statusReport(admin: Admin, userId: string, now: Date) {
   }, { brief: true })
 }
 
-type Outcome = { status: DirectorOrderRow['status']; reply: string; outputs: string[]; queued: QueueResult[] }
+/** `awaiting`: il dato che il Direttore ha chiesto al titolare, per riprendere l'ordine quando arriva. */
+type Outcome = { status: DirectorOrderRow['status']; reply: string; outputs: string[]; queued: QueueResult[]; awaiting?: DirectorAwaiting }
 
 /** Esegue il piano già validato. Scrive solo uscite, To Do e code. */
 async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrderRow, plan: DirectorOrderPlan, now: Date): Promise<Outcome> {
@@ -862,6 +879,23 @@ async function createDirectorTasks(admin: Admin, userId: string, order: Director
   return outcomes
 }
 
+/**
+ * L'ultimo ordine dalla stessa parte (stessa chat Telegram, o la pagina) prima di `before`,
+ * se aspetta una risposta del titolare da meno di un giorno. Solo l'ultimo: una domanda
+ * superata da un altro ordine non si riprende più.
+ */
+export async function pendingDirectorQuestion(admin: Admin, userId: string,
+  where: { source: DirectorOrderRow['source']; chatId: string | null; before: string; now?: Date }): Promise<{ id: string; awaiting: DirectorAwaiting } | null> {
+  let query = admin.from('office_director_orders').select('id,status,interpretation,updated_at').eq('user_id', userId)
+    .eq('source', where.source).lt('created_at', where.before)
+  if (where.source === 'telegram') query = where.chatId ? query.eq('telegram_chat_id', where.chatId) : query.is('telegram_chat_id', null)
+  const { data, error } = await query.order('created_at', { ascending: false }).limit(1).maybeSingle()
+  if (error || !data || data.status !== 'waiting_you') return null
+  if ((where.now || new Date()).getTime() - new Date(data.updated_at).getTime() > AWAITING_TTL_MS) return null
+  const awaiting = readAwaiting(data.interpretation)
+  return awaiting ? { id: data.id, awaiting } : null
+}
+
 export async function processDirectorOrder(admin: Admin, userId: string, orderId: string, options: { now?: () => Date } = {}): Promise<DirectorOrderRow> {
   const order = checked(await admin.from('office_director_orders').select('*').eq('id', orderId).eq('user_id', userId).single()) as DirectorOrderRow
   if (order.status !== 'received') return order
@@ -872,16 +906,22 @@ export async function processDirectorOrder(admin: Admin, userId: string, orderId
   const now = options.now?.() || new Date()
   let outcome: Outcome | null = null
   let plan: DirectorOrderPlan | null = null
+  // La risposta a una domanda del Direttore («ecco il sito …») riprende l'ordine rimasto in
+  // sospeso, con le parole che il Direttore aveva chiesto: non è un ordine nuovo senza contesto.
+  const pending = order.attachments?.length ? null
+    : await pendingDirectorQuestion(admin, userId, { source: order.source, chatId: order.telegram_chat_id, before: order.created_at, now })
+  const resumedText = pending ? directorFollowUp(pending.awaiting, order.text) : null
+  const work: DirectorOrderRow = resumedText ? { ...order, text: resumedText } : order
   const handler = async (ctx: AgentContext) => {
-    const images = await orderImages(admin, order)
+    const images = await orderImages(admin, work)
     const model = typeof ctx.agent.settings?.model === 'string' ? ctx.agent.settings.model : ctx.agent.model
     const today = officeRomeDay(now)
-    const answer = await callModel(ctx, { model, input: directorOrderPrompt(order.text, images.length, today), images,
+    const answer = await callModel(ctx, { model, input: directorOrderPrompt(work.text, images.length, today), images,
       maxOutputTokens: ORDER_MODEL_OUTPUT_TOKENS, jsonSchema: { name: 'director_order', schema: DIRECTOR_ORDER_SCHEMA as unknown as Record<string, unknown> } })
     let parsed: unknown = null
     try { parsed = JSON.parse(answer.text) } catch { /* Risposta illeggibile: diventa "non ho capito". */ }
-    plan = interpretDirectorOrder(parsed, { text: order.text, today, images: images.length })
-    outcome = await executePlan(admin, ctx, order, plan, now)
+    plan = interpretDirectorOrder(parsed, { text: work.text, today, images: images.length })
+    outcome = await executePlan(admin, ctx, work, plan, now)
     return { summary: `Ordine: ${outcome.reply.split('\n')[0].slice(0, 300)}` }
   }
   const result = await runAgentWhenFree('director', handler, { userId, key: `order:${order.id}` })
@@ -889,7 +929,15 @@ export async function processDirectorOrder(admin: Admin, userId: string, orderId
   const patch: Record<string, unknown> = { run_id: result.run?.id || null }
   if (done) {
     Object.assign(patch, { status: done.status, reply: done.reply, intent: (plan as DirectorOrderPlan | null)?.intent || null,
-      interpretation: plan, output_ids: done.outputs, queued: done.queued, error: null })
+      interpretation: { ...(plan as DirectorOrderPlan | null || {}),
+        ...(done.status === 'waiting_you' && done.awaiting ? { awaiting: done.awaiting } : {}),
+        ...(resumedText && pending ? { resumed_from: pending.id, resumed_text: resumedText } : {}) },
+      output_ids: done.outputs, queued: done.queued, error: null })
+    if (resumedText && pending) {
+      // L'ordine di prima non aspetta più te: la sua domanda ha avuto risposta qui.
+      await admin.from('office_director_orders').update({ status: 'done' })
+        .eq('id', pending.id).eq('user_id', userId).eq('status', 'waiting_you')
+    }
     void reportQueuedWork(admin, userId, order.id, 'Esito del lavoro', startQueuedAgents(userId, done.queued, `order:${order.id}`))
   } else if (result.skipped) {
     Object.assign(patch, { status: 'failed', reply: result.skipped === 'disabled'
