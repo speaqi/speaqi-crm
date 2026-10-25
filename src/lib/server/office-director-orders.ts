@@ -11,7 +11,8 @@ import { searchPattern } from '../command-center'
 import { officeRomeDay } from '../office/finance'
 import {
   CONTACT_CATEGORY_LABELS, DIRECTOR_ORDER_SCHEMA, contactNextStep, directorOrderPrompt, directorStatusLines,
-  directorEventsReply, interpretDirectorOrder, queuedWorkReport, type DirectorEventRow, type DirectorOrderPlan, type QueuedWork,
+  directorEventsReply, directorInvoiceReply, directorQuoteLabel, interpretDirectorOrder, queuedWorkReport, quoteIsInvoiceable,
+  type DirectorEventRow, type DirectorInvoiceQuote, type DirectorOrderPlan, type QueuedWork,
 } from '../office/director-orders'
 import { sendNotificationText } from './whatsapp'
 import { createServiceRoleClient } from './supabase'
@@ -19,6 +20,7 @@ import { activateEntityForOrder, verifiedDestination, type ActivationEntity } fr
 import { entitySearchPattern, pickOrderEntity } from '../office/entity-activation'
 import { DIRECTOR_BUCKET, directorPhotoFiles } from './office-director-photos'
 import { addPhotosToDeck, type DeckRow } from './tourism-decks'
+import { createInvoiceDraftFromQuote, invoiceProblems, loadInvoiceSettings } from './invoices'
 
 /**
  * Ordini al Direttore. Tre garanzie da non smontare:
@@ -257,6 +259,48 @@ async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, 
   return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `Presentazione per ${label}: ${note}${queueSentence(result)}${withPhotos}` }
 }
 
+/**
+ * «Fammi la fattura per …»: prepara la bozza dal preventivo, come «Genera fattura» nella
+ * scheda. Solo su un preventivo pagato o accettato; non cambia lo stato del preventivo e
+ * non invia niente allo SDI: quello resta un clic in Fatture.
+ */
+async function invoiceFor(admin: Admin, userId: string, plan: Extract<DirectorOrderPlan, { intent: 'invoice' }>): Promise<Outcome> {
+  const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+  const columns = 'id,quote_number,customer_name,customer_company,total_amount,status,payment_state'
+  let quotes: DirectorInvoiceQuote[]
+  if (plan.quote_number) {
+    quotes = checked(await admin.from('quotes').select(columns).eq('user_id', userId).ilike('quote_number', plan.quote_number).limit(2)) || []
+  } else {
+    const pattern = searchPattern(plan.customer || '')
+    if (!pattern) return { status: 'failed', outputs: [], queued: [], reply: 'Per quale cliente faccio la fattura? Scrivimi il numero del preventivo (PREV-…).' }
+    const found = checked(await admin.from('quotes').select(columns).eq('user_id', userId).neq('status', 'cancelled')
+      .or(`customer_name.ilike.${pattern},customer_company.ilike.${pattern}`).order('created_at', { ascending: false }).limit(10)) as DirectorInvoiceQuote[] || []
+    // Fra più preventivi dello stesso cliente conta quello da fatturare.
+    const ready = found.filter(quoteIsInvoiceable)
+    quotes = ready.length ? ready : found
+  }
+  const what = plan.quote_number || `«${plan.customer}»`
+  if (!quotes.length) return { status: 'failed', outputs: [], queued: [], reply: `Non trovo il preventivo ${what}. Controlla il numero in Preventivi: ${base}/preventivi` }
+  if (quotes.length > 1) return { status: 'waiting_you', outputs: [], queued: [], reply: `Per ${what} ci sono più preventivi:\n${quotes.slice(0, 5).map((q) => `• ${directorQuoteLabel(q)}`).join('\n')}\nScrivimi il numero di quello da fatturare.` }
+  const quote = quotes[0]
+  if (!quoteIsInvoiceable(quote)) {
+    const state = quote.status === 'sent' ? 'inviato e non ancora pagato' : quote.status === 'draft' ? 'in bozza' : quote.status === 'cancelled' ? 'annullato' : quote.status
+    return { status: 'waiting_you', outputs: [], queued: [], reply: [
+      `Il preventivo ${directorQuoteLabel(quote)} risulta ${state}: la fattura si fa sui preventivi pagati o accettati.`,
+      'Se l’hai incassato, segnalo come pagato nella scheda del preventivo e poi riscrivimi «fattura per ' + quote.quote_number + '».',
+      `${base}/preventivi?edit=${quote.id}`,
+    ].join('\n') }
+  }
+  const { invoice, created } = await createInvoiceDraftFromQuote(admin, userId, quote.id)
+  const { settings } = await loadInvoiceSettings(admin, userId)
+  const draft = invoice.status === 'draft'
+  return { status: 'done', outputs: [], queued: [], reply: directorInvoiceReply({
+    quote, created, invoiceStatus: invoice.status, numero: invoice.numero || null,
+    problems: draft ? invoiceProblems(invoice, settings) : [], warnings: draft && Array.isArray(invoice.warnings) ? invoice.warnings : [],
+    link: `${base}/fatture?invoice=${invoice.id}`,
+  }) }
+}
+
 async function findDuplicates(admin: Admin, userId: string, contact: Record<string, string | null>) {
   const found = new Map<string, { id: string; name: string; email: string | null; phone: string | null; company: string | null }>()
   const add = (rows: any[] | null) => (rows || []).forEach((row) => found.set(row.id, row))
@@ -367,6 +411,7 @@ async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrder
     return { status: 'done', outputs: [], queued: [], reply: directorEventsReply((events.data || []) as DirectorEventRow[],
       { installed: !!scout.data, enabled: !!scout.data?.enabled, sources }) }
   }
+  if (plan.intent === 'invoice') return invoiceFor(admin, userId, plan)
   if (plan.intent === 'task') {
     const { error } = await admin.from('tasks').insert({
       user_id: userId, contact_id: null, type: 'todo', title: plan.title, note: order.text.slice(0, 1000) || null,
@@ -422,7 +467,15 @@ export async function processDirectorOrder(admin: Admin, userId: string, orderId
   } else {
     Object.assign(patch, { status: 'failed', reply: `Non ci sono riuscito: ${result.error || 'errore sconosciuto'}.`, error: result.error || 'errore' })
   }
-  return checked(await admin.from('office_director_orders').update(patch).eq('id', order.id).eq('user_id', userId).select('*').single())
+  const save = () => admin.from('office_director_orders').update(patch).eq('id', order.id).eq('user_id', userId).select('*').single()
+  let saved = await save()
+  // Un'intenzione più nuova del vincolo sul database (migration non ancora applicata) non deve
+  // lasciare l'ordine «in lavorazione» per sempre: si salva senza, l'interpretazione resta.
+  if (saved.error && (saved.error as { code?: string }).code === '23514' && patch.intent) {
+    patch.intent = null
+    saved = await save()
+  }
+  return checked(saved)
 }
 
 const OPPORTUNITY_BY_CATEGORY: Record<string, { pipeline: string; role: string; next_step: string } | undefined> = {
