@@ -19,11 +19,12 @@ export default async function PresentationPage({
   searchParams
 }: {
   params: Promise<{ token: string }>
-  searchParams: Promise<{ print?: string }>
+  searchParams: Promise<{ print?: string; render?: string }>
 }) {
   const { token } = await params
-  const { print } = await searchParams
-  const deck = await loadPublicDeck(createServiceRoleClient(), token)
+  const { print, render } = await searchParams
+  // render: la chiave con cui il server stampa in PDF una bozza (vedi deckRenderKey).
+  const deck = await loadPublicDeck(createServiceRoleClient(), token, render)
   if (!deck) notFound()
-  return <DeckPlayer mode="full" slides={deck.slides} images={deck.images} credits={deck.credits} destination={deck.destination} printable pdfHref={`/presentazione/${token}/pdf`} autoPrint={print === '1'} quoteHref={deck.quote?.public_token ? `/preventivo?id=${encodeURIComponent(deck.quote.public_token)}` : undefined} />
+  return <DeckPlayer mode="full" slides={deck.slides} images={deck.images} credits={deck.credits} destination={deck.destination} printable pdfHref={render ? undefined : `/presentazione/${token}/pdf`} autoPrint={print === '1'} quoteHref={deck.quote?.public_token && !render ? `/preventivo?id=${encodeURIComponent(deck.quote.public_token)}` : undefined} />
 }

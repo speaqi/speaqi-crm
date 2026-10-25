@@ -173,9 +173,15 @@ export default function DeckEditor({ id }: { id: string }) {
               <button className={s.secondary} onClick={downloadPdf} disabled={!!busy}>{busy === 'pdf' ? <><span className={e.spin} /> Preparo il PDF…</> : 'Scarica il PDF'}</button>
             </>
           ) : (
-            <button className={s.primary} onClick={() => approve(true)} disabled={!!busy || generating || todo > 0} title={todo ? `Restano ${todo} [DA VERIFICARE]` : undefined}>
-              {busy === 'approve' ? 'Approvo…' : 'Approva'}
-            </button>
+            <>
+              {/* Il PDF si scarica anche prima di approvare: il link pubblico invece resta chiuso. */}
+              <button className={s.secondary} onClick={downloadPdf} disabled={!!busy || generating || dirty} title={dirty ? 'Salva prima le modifiche' : undefined}>
+                {busy === 'pdf' ? <><span className={e.spin} /> Preparo il PDF…</> : 'Scarica il PDF'}
+              </button>
+              <button className={s.primary} onClick={() => approve(true)} disabled={!!busy || generating || todo > 0} title={todo ? `Restano ${todo} [DA VERIFICARE]` : undefined}>
+                {busy === 'approve' ? 'Approvo…' : 'Approva'}
+              </button>
+            </>
           )}
         </div>
       </div>
