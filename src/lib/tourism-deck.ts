@@ -35,6 +35,35 @@ export const DECK_ART = {
 export type DeckArt = keyof typeof DECK_ART
 /** Foto di esempio generate con AI: la pagina lo dice quando non c'è una foto della destinazione. */
 export const DECK_AI_ART: readonly DeckArt[] = ['cover']
+/** Le immagini fisse che sono foto di un luogo: vanno sostituite con foto della destinazione. */
+export const DECK_PHOTO_ART: readonly DeckArt[] = ['cover', 'partenza', 'proposta']
+
+/** Le slide che vogliono una foto della destinazione, nell'ordine in cui la ricevono. */
+export const photoSlots = (slides: DeckSlide[]) =>
+  slides.filter((s) => (s.art ? DECK_PHOTO_ART.includes(s.art) : s.kind === 'cover'))
+
+/**
+ * Una foto della destinazione per ogni slide che ne vuole una, mai la stessa due volte.
+ * Una scelta già fatta (dall'agente o a mano) resta, se la foto esiste e non è ripetuta;
+ * gli spazi vuoti prendono le foto non ancora usate, nell'ordine dato (prima quelle
+ * caricate da chi lavora, poi quelle trovate). Senza foto resta l'immagine di esempio.
+ */
+export function assignPhotos(slides: DeckSlide[], photoIds: string[]): DeckSlide[] {
+  const known = new Set(photoIds)
+  const used = new Set<string>()
+  const slots = new Set(photoSlots(slides).map((s) => s.id))
+  const kept = slides.map((s) => {
+    const id = s.image_asset_id
+    if (!id || !known.has(id) || used.has(id)) return id ? { ...s, image_asset_id: null } : s
+    used.add(id)
+    return s
+  })
+  const free = photoIds.filter((id) => !used.has(id))
+  return kept.map((s) => {
+    if (!slots.has(s.id) || s.image_asset_id || !free.length) return s
+    return { ...s, image_asset_id: free.shift()! }
+  })
+}
 
 export const DECK_STATUSES = ['draft', 'generating', 'ready', 'approved', 'failed'] as const
 export type DeckStatus = (typeof DECK_STATUSES)[number]

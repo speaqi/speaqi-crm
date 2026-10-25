@@ -6,7 +6,7 @@ import { GENERIC } from './deck-template-fixture'
 
 // I numeri del territorio restano da verificare nel modello: per approvare li si scrive.
 const completed = (slides: DeckSlide[]) => slides.map((s) => JSON.parse(JSON.stringify(s).replace(DECK_TODO_PATTERN, '12')) as DeckSlide)
-import { addAssets, createDeck, getTemplate, saveTemplate, deleteDeck, generateIntoDeck, loadDeck, loadPublicDeck, saveDeckEdits, setApproval, type DeckRow } from '../src/lib/server/tourism-decks'
+import { addAssets, addPhotosToDeck, createDeck, getTemplate, saveTemplate, deleteDeck, generateIntoDeck, loadDeck, loadPublicDeck, saveDeckEdits, setApproval, type DeckRow } from '../src/lib/server/tourism-decks'
 
 type Row = Record<string, any>
 
@@ -240,4 +240,58 @@ test('cancellare un deck toglie foto, documenti e PDF generati', async () => {
   await deleteDeck(db, db, row)
   assert.deepEqual([...db.files.keys()], ['altro-utente/altro-deck/deck-v1.pdf'])
   assert.equal(db.tables.tourism_decks.length, 0)
+})
+
+const jpegOf = (background: string) => sharp({ create: { width: 64, height: 40, channels: 3, background } }).jpeg().toBuffer()
+const finder = (names: string[]) => async (_d: string, count: number) => ({
+  photos: await Promise.all(names.slice(0, count).map(async (name, i) => ({ name, buffer: await jpegOf(['#123', '#456', '#789', '#abc'][i]), credit: `Foto: Autore ${i} · CC BY 4.0 · Wikimedia Commons`, source_url: `https://commons.wikimedia.org/wiki/File:${name}` }))),
+  note: names.length < count ? 'Su Wikimedia Commons ho trovato solo poche foto.' : null
+})
+const photoIds = (deck: DeckRow) => deck.slides.filter((s) => ['cover', 'partenza', 'proposta'].includes(s.art || '')).map((s) => s.image_asset_id)
+
+test('la base destinazioni prende tre foto diverse della città, con credito', async () => {
+  const row = await createDeck(db, USER, { ...fields, destination: 'Bibione', input: { destinazione: 'Bibione', ente: 'Bibione Turismo' } })
+  globalThis.fetch = provider([])
+  const deck = await generateIntoDeck(db, db, row, undefined, undefined, finder(['a.jpg', 'b.jpg', 'c.jpg']))
+  const ids = photoIds(deck)
+  assert.equal(new Set(ids).size, 3)
+  assert.ok(ids.every(Boolean))
+  assert.equal(deck.assets.filter((a) => a.source === 'wikimedia').length, 3)
+  assert.ok(deck.assets.every((a) => a.credit?.includes('Wikimedia')))
+  // Rigenerare non riscarica: le foto ci sono già.
+  let asked = 0
+  const again = await generateIntoDeck(db, db, deck, undefined, undefined, async (d, n) => (asked++, finder([])(d, n)))
+  assert.equal(asked, 0)
+  assert.deepEqual(photoIds(again), ids)
+  const pub = await loadPublicDeck(db, (await setApproval(db, again, true)).public_token)
+  assert.equal(Object.keys(pub!.credits).length, 3)
+})
+
+test('trovate poche foto: il motivo finisce negli avvisi, le altre slide restano di esempio', async () => {
+  const row = await createDeck(db, USER, { ...fields, destination: 'Bibione' })
+  globalThis.fetch = provider([])
+  const deck = await generateIntoDeck(db, db, row, undefined, undefined, finder(['a.jpg']))
+  assert.equal(photoIds(deck).filter(Boolean).length, 1)
+  assert.ok(deck.warnings.some((w) => /poche foto/.test(w.message)))
+})
+
+test('foto da Telegram dopo: prendono il posto di quelle di Commons, una volta sola, e tolgono l’approvazione', async () => {
+  const row = await createDeck(db, USER, { ...fields, destination: 'Bibione' })
+  globalThis.fetch = provider([])
+  let deck = await generateIntoDeck(db, db, row, undefined, undefined, finder(['a.jpg', 'b.jpg', 'c.jpg']))
+  deck = await setApproval(db, deck, true)
+  const files = [
+    { name: 'telegram-1.jpg', buffer: await jpegOf('#f00'), source: 'telegram' as const, source_url: 'office-director:u/o/1.jpg' },
+    { name: 'telegram-2.jpg', buffer: await jpegOf('#0f0'), source: 'telegram' as const, source_url: 'office-director:u/o/2.jpg' }
+  ]
+  const first = await addPhotosToDeck(db, db, deck, files)
+  assert.equal(first.added, 2)
+  assert.equal(first.deck.status, 'ready')
+  const telegram = new Set(first.deck.assets.filter((a) => a.source === 'telegram').map((a) => a.id))
+  const ids = photoIds(first.deck)
+  assert.ok(telegram.has(ids[0]!) && telegram.has(ids[1]!))
+  assert.equal(new Set(ids).size, 3)
+  const again = await addPhotosToDeck(db, db, first.deck, files)
+  assert.equal(again.added, 0)
+  assert.equal(again.deck.assets.filter((a) => a.source === 'telegram').length, 2)
 })

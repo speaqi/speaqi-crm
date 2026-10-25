@@ -3,6 +3,7 @@ import { sendQuoteContractAcceptanceEmail } from '@/lib/email'
 import { errorMessage } from '@/lib/server/http'
 import { clientIp, parseSignPayload, signatureTermsMeta } from '@/lib/server/quote-signature'
 import { createServiceRoleClient } from '@/lib/server/supabase'
+import { invoiceOnAcceptance } from '@/lib/server/quote-acceptance-invoice'
 
 function parseRpcJsonb(data: unknown): unknown {
   if (typeof data !== 'string') return data
@@ -66,6 +67,8 @@ export async function POST(request: NextRequest) {
       }
       return Response.json({ error: 'Firma non registrata' }, { status: 400 })
     }
+
+    if (!row.already) void invoiceOnAcceptance(admin, { publicToken: input.token }, 'firma')
 
     // La conferma via email da' al cliente una copia e lo avvisa se qualcun
     // altro ha firmato al posto suo. Una mail che non parte non annulla la firma.

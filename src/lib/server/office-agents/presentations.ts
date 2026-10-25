@@ -4,7 +4,8 @@ import { deckPlaceholders, presentationFixes, presentationQueue, type Presentati
 import { callModel, type AgentHandler } from '../office-agents'
 import { createServiceRoleClient } from '../supabase'
 import { officeRows } from '../office-read'
-import { createDeck, generateIntoDeck, type DeckRow } from '../tourism-decks'
+import { addPhotosToDeck, createDeck, generateIntoDeck, type DeckRow, type PhotoFinder } from '../tourism-decks'
+import { directorPhotoFiles } from '../office-director-photos'
 import { buildAgentRequest, validateDeckAgentResult } from '../tourism-deck-agent'
 import { addOfficeOutputOnce } from './shared'
 
@@ -28,7 +29,7 @@ export async function presentationEntities(admin: any, userId: string, item: Pre
 }
 
 export function presentationsHandler(admin: any, options: {
-  model?: typeof callModel; create?: typeof createDeck; generate?: typeof generateIntoDeck
+  model?: typeof callModel; create?: typeof createDeck; generate?: typeof generateIntoDeck; findPhotos?: PhotoFinder
 } = {}): AgentHandler {
   return async (ctx) => {
     const userId = ctx.agent.user_id
@@ -68,6 +69,8 @@ export function presentationsHandler(admin: any, options: {
           input: { destinazione: destination.name, ente: entity.name, paese: destination.country_code || entity.country_code,
             prezzo: '', contatto: '[DA VERIFICARE]' }
         }, claim.task.id)
+        // Le foto mandate al Direttore con l'ordine vanno nei materiali prima della generazione.
+        if (item.photos?.length) deck = (await addPhotosToDeck(admin, admin, deck, await directorPhotoFiles(admin, userId, item.photos))).deck
         let providerError: unknown
         deck = await (options.generate || generateIntoDeck)(admin, admin, deck, undefined, async (args) => {
           try {
@@ -78,13 +81,17 @@ export function presentationsHandler(admin: any, options: {
               jsonSchema: { name: 'tourism_deck', schema: request.text.format.schema } })
             return validateDeckAgentResult(args, { output_text: result.text }, ctx.agent.model)
           } catch (error) { providerError = error; throw error }
-        })
+        }, options.findPhotos)
         spentAttempts++
         if (providerError) {
           checked(await admin.rpc('finish_office_presentation', { p_run_id: ctx.runId, p_task_id: claim.task.id,
             p_report: { message: 'Generazione non conclusa: verificare deck e riserva prima di riprovare. Nessun retry automatico.', error: deck.error } }))
           throw providerError
         }
+      }
+      else if (deck && item.photos?.length) {
+        // Presentazione già fatta: le foto arrivate dopo si aggiungono (una volta sola), senza rigenerare.
+        deck = (await addPhotosToDeck(admin, admin, deck, await directorPhotoFiles(admin, userId, item.photos))).deck
       }
       if (!deck || !['ready', 'failed', 'approved'].includes(deck.status)) {
         warnings++; ctx.log(`Presentazione ${claim.task.id}: tentativo da riconciliare, nessuna nuova spesa.`); continue

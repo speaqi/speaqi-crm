@@ -3,7 +3,9 @@ import { quoteSummary } from '../agency'
 import {
   DEFAULT_DECK_TEMPLATE,
   applyVars,
+  assignPhotos,
   countTodo,
+  photoSlots,
   normalizeSlide,
   normalizeTemplate,
   type DeckInput,
@@ -27,6 +29,7 @@ import {
   type DeckAsset
 } from './tourism-deck-assets'
 import { runDeckAgent, type DeckAgentArgs, type DeckAgentResult, type DeckEntityContext, type DeckMaterials } from './tourism-deck-agent'
+import { findDestinationPhotos, type DestinationPhoto } from './tourism-deck-photos'
 
 type Sb = any
 
@@ -189,7 +192,7 @@ export async function ensureDeckBucket(service: Sb) {
   bucketReady = true
 }
 
-export type UploadedFile = { name: string; buffer: Buffer }
+export type UploadedFile = { name: string; buffer: Buffer } & Pick<DeckAsset, 'source' | 'credit' | 'source_url'>
 
 /** Controlla, salva su Storage e registra sul deck. Tutto o niente sui limiti; un file non valido ferma la richiesta. */
 export async function addAssets(sb: Sb, service: Sb, row: DeckRow, files: UploadedFile[]): Promise<DeckAsset[]> {
@@ -208,7 +211,12 @@ export async function addAssets(sb: Sb, service: Sb, row: DeckRow, files: Upload
       if (++documents > MAX_DOCUMENTS) throw new TourismInputError(`Al massimo ${MAX_DOCUMENTS} documenti per presentazione`)
     }
     const id = randomUUID()
-    next.push({ id, kind: sniffed.kind, name, mime: sniffed.mime, size: file.buffer.length, path: storagePath(row.user_id, row.id, id, sniffed.ext) })
+    next.push({
+      id, kind: sniffed.kind, name, mime: sniffed.mime, size: file.buffer.length, path: storagePath(row.user_id, row.id, id, sniffed.ext),
+      ...(file.source ? { source: file.source } : {}),
+      ...(file.credit ? { credit: file.credit.slice(0, 200) } : {}),
+      ...(file.source_url ? { source_url: file.source_url.slice(0, 500) } : {})
+    })
   }
   if (!next.length) return []
   await ensureDeckBucket(service)
@@ -284,6 +292,69 @@ export async function loadMaterials(service: Sb, row: DeckRow): Promise<{ materi
   return { materials, skipped }
 }
 
+// ---- Foto della destinazione -----------------------------------------------
+
+export type PhotoFinder = (destination: string, count: number) => Promise<{ photos: DestinationPhoto[]; note: string | null }>
+
+/**
+ * Se mancano foto per le slide che ne vogliono una, le cerca su Wikimedia Commons e le
+ * aggiunge ai materiali del deck, con autore e licenza. Una volta sola per deck: foto
+ * trovate e poi tolte a mano non tornano. Non lancia: un problema diventa un avviso.
+ */
+export async function addDestinationPhotos(sb: Sb, service: Sb, row: DeckRow, template: DeckTemplate, find: PhotoFinder = findDestinationPhotos): Promise<string | null> {
+  if (row.assets.some((a) => a.source === 'wikimedia')) return null
+  const photos = row.assets.filter((a) => a.kind === 'photo').length
+  const wanted = Math.min(photoSlots(template.slides).length - photos, MAX_PHOTOS - photos)
+  if (wanted <= 0 || !row.destination?.trim()) return null
+  try {
+    const found = await find(row.destination, wanted)
+    if (found.photos.length) {
+      await addAssets(sb, service, row, found.photos.map((p) => ({ name: p.name, buffer: p.buffer, source: 'wikimedia', credit: p.credit, source_url: p.source_url })))
+    }
+    return found.note
+  } catch (error) {
+    return `Foto della destinazione non aggiunte: ${(error instanceof Error ? error.message : String(error)).slice(0, 160)}`
+  }
+}
+
+/**
+ * Foto arrivate fuori dall'editor (un ordine su Telegram): si aggiungono ai materiali e vanno
+ * subito sulle slide, al posto delle immagini di esempio e delle foto trovate su Commons.
+ * Nessun modello, nessuna spesa. Una presentazione approvata torna in revisione, come per
+ * ogni modifica. Oltre il massimo di foto, quelle in più restano fuori e lo si dice.
+ */
+export async function addPhotosToDeck(sb: Sb, service: Sb, row: DeckRow, files: UploadedFile[]): Promise<{ deck: DeckRow; added: number; skipped: number }> {
+  // La stessa foto rimandata (o lo stesso ordine riletto da un altro giro) non si aggiunge due volte.
+  const seen = new Set(row.assets.map((a) => a.source_url).filter(Boolean))
+  const fresh = files.filter((f) => !f.source_url || !seen.has(f.source_url))
+  const room = Math.max(0, MAX_PHOTOS - row.assets.filter((a) => a.kind === 'photo').length)
+  const take = fresh.slice(0, room)
+  if (!take.length) return { deck: row, added: 0, skipped: fresh.length }
+  const added = await addAssets(sb, service, row, take)
+  // Una generazione in corso riscrive le slide: le foto restano nei materiali e le usa lei.
+  if (row.status === 'generating') return { deck: row, added: added.length, skipped: fresh.length - take.length }
+  const found = new Set(row.assets.filter((a) => a.source === 'wikimedia').map((a) => a.id))
+  const released = row.slides.map((s) => (s.image_asset_id && found.has(s.image_asset_id) ? { ...s, image_asset_id: null } : s))
+  const slides = assignPhotos(released, deckPhotoIds(row.assets))
+  const updated = checked(
+    await sb
+      .from('tourism_decks')
+      .update({ slides, version: row.version + 1, status: row.status === 'approved' ? 'ready' : row.status, approved_at: null, updated_at: new Date().toISOString() })
+      .eq('user_id', row.user_id)
+      .eq('id', row.id)
+      .eq('version', row.version)
+      .select('*')
+      .maybeSingle()
+  )
+  return { deck: (updated.data as DeckRow) || row, added: added.length, skipped: fresh.length - take.length }
+}
+
+/** Le foto del deck in ordine di preferenza: prima quelle scelte da chi lavora, poi quelle trovate. */
+export const deckPhotoIds = (assets: DeckAsset[]) => {
+  const photos = assets.filter((a) => a.kind === 'photo')
+  return [...photos.filter((a) => a.source !== 'wikimedia'), ...photos.filter((a) => a.source === 'wikimedia')].map((a) => a.id)
+}
+
 // ---- Generazione ----------------------------------------------------------
 
 /**
@@ -292,7 +363,7 @@ export async function loadMaterials(service: Sb, row: DeckRow): Promise<{ materi
  * si può sempre correggere a mano.
  */
 export async function generateIntoDeck(sb: Sb, service: Sb, row: DeckRow, instruction?: string,
-  agent: (args: DeckAgentArgs) => Promise<DeckAgentResult> = runDeckAgent): Promise<DeckRow> {
+  agent: (args: DeckAgentArgs) => Promise<DeckAgentResult> = runDeckAgent, findPhotos: PhotoFinder = findDestinationPhotos): Promise<DeckRow> {
   const stale = new Date(Date.now() - GENERATING_STALE_MS).toISOString()
   // Due UPDATE condizionali, non un `.or()`: con PostgREST il filtro `or` di un UPDATE vale
   // anche per la risposta (la riga è già "generating"), e con select('id') la colonna
@@ -308,6 +379,7 @@ export async function generateIntoDeck(sb: Sb, service: Sb, row: DeckRow, instru
   if (!claimed.data) throw new Error('Generazione già in corso per questa presentazione (already running)')
   try {
     const { template } = await getTemplate(sb, row.user_id)
+    const photoNote = await addDestinationPhotos(sb, service, row, template, findPhotos)
     const { materials, skipped } = await loadMaterials(service, row)
     const entity = await entityContext(sb, row.user_id, row.entity_id)
     const result = await agent({
@@ -320,6 +392,7 @@ export async function generateIntoDeck(sb: Sb, service: Sb, row: DeckRow, instru
     })
     const warnings: DeckWarning[] = [
       ...result.warnings,
+      ...(photoNote ? [{ slide: '*', message: photoNote }] : []),
       ...skipped.map((message) => ({ slide: '*', message })),
       ...result.missing.map((m) => ({ slide: '*', message: `Manca: ${m}` }))
     ]
@@ -327,7 +400,8 @@ export async function generateIntoDeck(sb: Sb, service: Sb, row: DeckRow, instru
       await sb
         .from('tourism_decks')
         .update({
-          slides: result.slides,
+          // Le foto le assegna il codice: tre diverse, mai l'immagine di esempio se c'è una foto vera.
+          slides: assignPhotos(result.slides, deckPhotoIds(row.assets)),
           warnings,
           status: 'ready',
           error: null,
@@ -490,7 +564,8 @@ export async function loadPublicDeck(service: Sb, token: string) {
   const urls = await signedAssetUrls(service, row.assets.filter((a) => row.slides.some((s) => s.image_asset_id === a.id)), PUBLIC_URL_TTL_S)
   const quotes = await deckQuotes(service, row)
   const quote = quoteSummary(quotes.find((q: any) => ['sent', 'accepted', 'paid'].includes(q.status)))
-  return { title: row.title, destination: row.destination, slides: row.slides, images: Object.fromEntries(urls), quote }
+  const credits = Object.fromEntries(row.assets.filter((a) => a.credit && urls.has(a.id)).map((a) => [a.id, a.credit as string]))
+  return { title: row.title, destination: row.destination, slides: row.slides, images: Object.fromEntries(urls), credits, quote }
 }
 
 /** Una migration non ancora applicata non deve oscurare le presentazioni esistenti. */

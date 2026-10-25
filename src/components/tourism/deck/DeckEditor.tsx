@@ -54,6 +54,7 @@ export default function DeckEditor({ id }: { id: string }) {
   }, [deck?.status, busy, load])
 
   const images = useMemo(() => Object.fromEntries((deck?.assets || []).filter((a) => a.url).map((a) => [a.id, a.url as string])), [deck])
+  const credits = useMemo(() => Object.fromEntries((deck?.assets || []).filter((a) => a.credit).map((a) => [a.id, a.credit as string])), [deck])
   const photos = (deck?.assets || []).filter((a) => a.kind === 'photo')
   const todo = countTodo(slides)
 
@@ -268,7 +269,7 @@ export default function DeckEditor({ id }: { id: string }) {
         </div>
 
         <div className={`${e.col} ${e.sticky}`}>
-          <DeckPlayer slides={slides} images={images} destination={deck.destination} index={index} onIndexChange={setIndex} />
+          <DeckPlayer slides={slides} images={images} credits={credits} destination={deck.destination} index={index} onIndexChange={setIndex} />
           <span className={e.help}>Anteprima in tempo reale: è quello che vede chi riceve il link. In PDF ogni slide è una pagina 16:9.</span>
         </div>
       </div>

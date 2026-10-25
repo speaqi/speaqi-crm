@@ -82,6 +82,7 @@ function Kicker({ value }: { value?: string }) {
 export function SlideView({
   slide,
   image,
+  credit,
   n,
   total,
   active
@@ -89,6 +90,8 @@ export function SlideView({
   slide: DeckSlide
   /** Foto caricata per questo deck: vince sull'immagine fissa del modello. */
   image?: string | null
+  /** Autore e licenza della foto, quando la licenza lo chiede. */
+  credit?: string | null
   n: number
   total: number
   /** Non più mostrata a piè di slide; resta per compatibilità con chi la passa. */
@@ -115,7 +118,9 @@ export function SlideView({
           <h1><Lines value={slide.title} /></h1>
           {slide.body && <p className={d.sub}><Text value={slide.body} /></p>}
         </div>
-        {(aiArt || slide.footnote) && <div className={d.credit}>{slide.footnote ? <Text value={slide.footnote} /> : 'Speaqi Guides · Immagine generata con AI'}</div>}
+        {(aiArt || slide.footnote || (image && credit)) && (
+          <div className={d.credit}>{slide.footnote ? <Text value={slide.footnote} /> : image && credit ? credit : 'Speaqi Guides · Immagine generata con AI'}</div>
+        )}
       </section>
     )
   }
@@ -123,7 +128,7 @@ export function SlideView({
   if (slide.kind === 'list') {
     return (
       <section className={cls(base, !!picture && d.withSide)} aria-hidden={!active}>
-        {picture && <div className={d.side} style={photo(picture)} />}
+        {picture && <div className={d.side} style={photo(picture)}>{image && credit && <span className={d.photoCredit}>{credit}</span>}</div>}
         <div className={d.listText}>
           <Kicker value={slide.kicker} />
           <h2><Lines value={slide.title} /></h2>
@@ -308,7 +313,7 @@ export function SlideView({
             <h2><Lines value={slide.title} /></h2>
             {slide.body && <p className={d.lead}><Text value={slide.body} /></p>}
           </div>
-          {picture && <div className={d.photo} style={photo(picture)} />}
+          {picture && <div className={d.photo} style={photo(picture)}>{image && credit && <span className={d.photoCredit}>{credit}</span>}</div>}
         </div>
         {slide.note && <div className={d.pill}><Text value={slide.note} /></div>}
         {foot}
@@ -355,6 +360,7 @@ export function SlideView({
 export default function DeckPlayer({
   slides,
   images,
+  credits = {},
   destination,
   mode = 'embedded',
   index,
@@ -366,6 +372,8 @@ export default function DeckPlayer({
 }: {
   slides: DeckSlide[]
   images: Record<string, string>
+  /** Autore e licenza per foto (id → testo): le foto di Wikimedia Commons lo chiedono. */
+  credits?: Record<string, string>
   destination: string
   mode?: 'full' | 'embedded'
   index?: number
@@ -434,7 +442,7 @@ export default function DeckPlayer({
       <div className={d.bar}><span style={{ width: `${((current + 1) / Math.max(slides.length, 1)) * 100}%` }} /></div>
       <div className={d.stage} style={{ transform: `translate(${fit.x}px, ${fit.y}px) scale(${fit.scale})` }}>
         {slides.map((s, i) => (
-          <SlideView key={s.id} slide={s} image={s.image_asset_id ? images[s.image_asset_id] : null} n={i + 1} total={slides.length} active={i === current} />
+          <SlideView key={s.id} slide={s} image={s.image_asset_id ? images[s.image_asset_id] : null} credit={s.image_asset_id ? credits[s.image_asset_id] : null} n={i + 1} total={slides.length} active={i === current} />
         ))}
       </div>
       <div className={d.controls}>

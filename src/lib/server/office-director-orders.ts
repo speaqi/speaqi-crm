@@ -11,12 +11,16 @@ import { searchPattern } from '../command-center'
 import { officeRomeDay } from '../office/finance'
 import {
   CONTACT_CATEGORY_LABELS, DIRECTOR_ORDER_SCHEMA, contactNextStep, directorOrderPrompt, directorStatusLines,
-  directorEventsReply, interpretDirectorOrder, queuedWorkReport, type DirectorEventRow, type DirectorOrderPlan, type QueuedWork,
+  directorEventsReply, directorInvoiceReply, directorQuoteLabel, interpretDirectorOrder, queuedWorkReport, quoteIsInvoiceable,
+  type DirectorEventRow, type DirectorInvoiceQuote, type DirectorOrderPlan, type QueuedWork,
 } from '../office/director-orders'
 import { sendNotificationText } from './whatsapp'
 import { createServiceRoleClient } from './supabase'
 import { activateEntityForOrder, verifiedDestination, type ActivationEntity } from './office-entity-activation'
 import { entitySearchPattern, pickOrderEntity } from '../office/entity-activation'
+import { DIRECTOR_BUCKET, directorPhotoFiles } from './office-director-photos'
+import { addPhotosToDeck, type DeckRow } from './tourism-decks'
+import { createInvoiceDraftFromQuote, invoiceProblems, loadInvoiceSettings } from './invoices'
 
 /**
  * Ordini al Direttore. Tre garanzie da non smontare:
@@ -28,7 +32,7 @@ import { entitySearchPattern, pickOrderEntity } from '../office/entity-activatio
  *    se il loro interruttore è acceso.
  */
 
-export const DIRECTOR_BUCKET = 'office-director'
+export { DIRECTOR_BUCKET }
 export const MAX_ORDER_FILES = 4
 export const MAX_ORDER_FILE_BYTES = 8 * 1024 * 1024
 const ORDER_MODEL_OUTPUT_TOKENS = 1500
@@ -225,7 +229,7 @@ async function findEntity(admin: Admin, userId: string, names: Array<string | nu
  * l'ordine del titolare è l'autorizzazione. Si ferma solo per chiedere il sito o la città.
  */
 async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, entity: ActivationEntity,
-  plan: Extract<DirectorOrderPlan, { intent: 'presentation' }>, orderText: string, label: string): Promise<Outcome> {
+  plan: Extract<DirectorOrderPlan, { intent: 'presentation' }>, orderText: string, label: string, photos: string[] = []): Promise<Outcome> {
   let destination = entity.status === 'VERIFIED' ? await verifiedDestination(admin, userId, entity.id) : null
   let note = ''
   if (!destination) {
@@ -234,8 +238,96 @@ async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, 
     destination = activated.placeId
     note = `${activated.note} `
   }
-  const result = await queueForAgent(admin, userId, 'presentations', { key: `presentation:${entity.id}`, entity_id: entity.id, ...(destination ? { destination_id: destination } : {}) })
-  return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `Presentazione per ${label}: ${note}${queueSentence(result)}` }
+  if (photos.length) {
+    // Le foto mandate col comando sono della presentazione: se esiste già, ci vanno adesso.
+    const existing = checked(await admin.from('tourism_decks').select('*').eq('user_id', userId).eq('entity_id', entity.id)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle()) as DeckRow | null
+    if (existing) {
+      const files = await directorPhotoFiles(admin, userId, photos)
+      const { deck, added, skipped } = await addPhotosToDeck(admin, admin, existing, files)
+      const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+      const extra = skipped ? ` ${skipped === 1 ? 'Una foto è rimasta fuori' : `${skipped} foto sono rimaste fuori`}: la presentazione ne tiene al massimo 8.` : ''
+      const review = existing.status === 'approved' && added ? ' Era approvata: è tornata in revisione, riapprovala dopo averla guardata.' : ''
+      return { status: added ? 'done' : 'failed', outputs: [], queued: [], reply: added
+        ? `Presentazione per ${label}: ${note}ho aggiunto ${added === 1 ? 'la foto' : `${added} foto`} a «${deck.title}», al posto di quelle di esempio.${review}${extra} ${base}/tourism/presentazioni/${deck.id}`
+        : `Presentazione per ${label}: non sono riuscito ad aggiungere le foto a «${existing.title}».${extra}` }
+    }
+  }
+  const result = await queueForAgent(admin, userId, 'presentations', { key: `presentation:${entity.id}`, entity_id: entity.id,
+    ...(destination ? { destination_id: destination } : {}), ...(photos.length ? { photos } : {}) })
+  const withPhotos = photos.length ? ` Le ${photos.length === 1 ? 'foto che mi hai mandato andrà' : `${photos.length} foto che mi hai mandato andranno`} nella presentazione.` : ''
+  return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `Presentazione per ${label}: ${note}${queueSentence(result)}${withPhotos}` }
+}
+
+/**
+ * «Fammi la fattura per …» e «SNAV ha approvato, fai la fattura»: prepara la bozza dal
+ * preventivo, come «Genera fattura» nella scheda. Se l'ordine dice che il cliente ha approvato,
+ * prima segna il preventivo come accettato (solo da bozza o inviato). Non lo segna mai pagato
+ * e non invia niente allo SDI: quello resta un clic in Fatture.
+ */
+export async function invoiceFor(admin: Admin, userId: string, plan: Extract<DirectorOrderPlan, { intent: 'invoice' }>): Promise<Outcome> {
+  const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+  const columns = 'id,quote_number,customer_name,customer_company,total_amount,status,payment_state,billing_interval,contact_id'
+  const waiting = async () => (checked(await admin.from('quotes').select(columns).eq('user_id', userId).in('status', ['sent', 'accepted'])
+    .order('created_at', { ascending: false }).limit(5)) || []) as DirectorInvoiceQuote[]
+  let quotes: DirectorInvoiceQuote[]
+  if (plan.quote_number) {
+    quotes = checked(await admin.from('quotes').select(columns).eq('user_id', userId).ilike('quote_number', plan.quote_number).limit(2)) || []
+  } else {
+    const pattern = searchPattern(plan.customer || '')
+    const found = pattern ? (checked(await admin.from('quotes').select(columns).eq('user_id', userId).neq('status', 'cancelled')
+      .or(`customer_name.ilike.${pattern},customer_company.ilike.${pattern}`).order('created_at', { ascending: false }).limit(10)) || []) as DirectorInvoiceQuote[] : []
+    // Fra più preventivi dello stesso cliente conta quello da fatturare (o, per un'approvazione, quello in attesa).
+    const open = found.filter((q) => (plan.approved ? ['draft', 'sent'].includes(q.status) : false) || quoteIsInvoiceable(q))
+    quotes = open.length ? open : found
+  }
+  const what = plan.quote_number || `«${plan.customer}»`
+  if (!quotes.length) {
+    // Un nome capito male (un vocale: «snob» per SNAV) non deve finire nel vuoto: si mostra cosa è in attesa.
+    const pending = await waiting()
+    return { status: 'waiting_you', outputs: [], queued: [], reply: pending.length
+      ? `Non trovo il preventivo ${what}. Quelli in attesa sono:\n${pending.map((q) => `• ${directorQuoteLabel(q)}`).join('\n')}\nRiscrivimi il numero di quello giusto.`
+      : `Non trovo il preventivo ${what}. Controlla in Preventivi: ${base}/preventivi` }
+  }
+  if (quotes.length > 1) return { status: 'waiting_you', outputs: [], queued: [], reply: `Per ${what} ci sono più preventivi:\n${quotes.slice(0, 5).map((q) => `• ${directorQuoteLabel(q)}`).join('\n')}\nScrivimi il numero di quello da fatturare.` }
+  let quote = quotes[0]
+  if (quote.billing_interval === 'year' && quote.status !== 'paid' && quote.payment_state !== 'paid') {
+    // Un abbonamento si paga con carta e la bozza nasce dal pagamento: farla prima la raddoppierebbe.
+    return { status: 'waiting_you', outputs: [], queued: [], reply: `${directorQuoteLabel(quote)} è un abbonamento con carta: la bozza della fattura si prepara da sola quando arriva il pagamento.` }
+  }
+  let approvedNow = false
+  if (plan.approved && ['draft', 'sent'].includes(quote.status)) {
+    const now = new Date().toISOString()
+    // Il filtro di un UPDATE su PostgREST vale anche per la risposta (la riga non è più «sent»):
+    // si rilegge e si riconosce la propria scrittura dalla data.
+    checked(await admin.from('quotes').update({ status: 'accepted', accepted_at: now }).eq('user_id', userId).eq('id', quote.id).in('status', ['draft', 'sent']))
+    const reread = checked(await admin.from('quotes').select(`${columns},accepted_at`).eq('user_id', userId).eq('id', quote.id).single()) as DirectorInvoiceQuote & { accepted_at: string | null }
+    const previous = quote.status
+    quote = reread
+    if (reread.status === 'accepted' && reread.accepted_at && Date.parse(reread.accepted_at) === Date.parse(now)) {
+      approvedNow = true
+      if (quote.contact_id) {
+        await admin.from('activities').insert({ user_id: userId, contact_id: quote.contact_id, type: 'system',
+          content: `Preventivo ${quote.quote_number}: stato ${previous} -> accepted (approvazione del cliente comunicata al Direttore).`,
+          metadata: { quote_id: quote.id, previous_status: previous, next_status: 'accepted', source: 'director' } })
+      }
+    }
+  }
+  if (!quoteIsInvoiceable(quote)) {
+    const state = quote.status === 'sent' ? 'inviato, non ancora approvato' : quote.status === 'draft' ? 'in bozza' : quote.status === 'cancelled' ? 'annullato' : quote.status
+    return { status: 'waiting_you', outputs: [], queued: [], reply: [
+      `Il preventivo ${directorQuoteLabel(quote)} risulta ${state}: la fattura si fa quando il cliente l’ha approvato.`,
+      quote.status === 'cancelled' ? '' : `Quando ti dà l’ok scrivimi «${quote.customer_company || quote.customer_name || 'il cliente'} ha approvato ${quote.quote_number}, fai la fattura».`,
+    ].filter(Boolean).join('\n') }
+  }
+  const { invoice, created } = await createInvoiceDraftFromQuote(admin, userId, quote.id)
+  const { settings } = await loadInvoiceSettings(admin, userId)
+  const draft = invoice.status === 'draft'
+  return { status: 'done', outputs: [], queued: [], reply: directorInvoiceReply({
+    quote, created, invoiceStatus: invoice.status, numero: invoice.numero || null, approvedNow,
+    problems: draft ? invoiceProblems(invoice, settings) : [], warnings: draft && Array.isArray(invoice.warnings) ? invoice.warnings : [],
+    link: `${base}/fatture?invoice=${invoice.id}`,
+  }) }
 }
 
 async function findDuplicates(admin: Admin, userId: string, contact: Record<string, string | null>) {
@@ -319,14 +411,15 @@ async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrder
   }
   if (plan.intent === 'presentation') {
     const entity = await findEntity(admin, userId, [plan.target])
-    if (entity) return presentationFor(admin, ctx, userId, entity, plan, order.text, entity.name)
+    const photos = (order.attachments || []).map((a) => a.path)
+    if (entity) return presentationFor(admin, ctx, userId, entity, plan, order.text, entity.name, photos)
     const pattern = searchPattern(plan.target)
     const contacts = pattern ? checked(await admin.from('contacts').select('id,name,company').eq('user_id', userId)
       .or(`name.ilike.${pattern},company.ilike.${pattern}`).limit(3)) as Array<{ id: string; name: string; company: string | null }> : []
     if (contacts.length === 1) {
       // Il contatto di un ente del catalogo: la presentazione è quella dell'ente.
       const owner = contacts[0].company ? await findEntity(admin, userId, [contacts[0].company]) : null
-      if (owner) return presentationFor(admin, ctx, userId, owner, plan, order.text, `${owner.name} (${contacts[0].name})`)
+      if (owner) return presentationFor(admin, ctx, userId, owner, plan, order.text, `${owner.name} (${contacts[0].name})`, photos)
       const result = await queueForAgent(admin, userId, 'agency', { key: `agency:contact:${contacts[0].id}`, contact_id: contacts[0].id, brief: plan.brief || order.text })
       return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `${contacts[0].name} non è un ente del catalogo Tourism, quindi è un lavoro da agenzia. ${queueSentence(result)}` }
     }
@@ -347,6 +440,7 @@ async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrder
     return { status: 'done', outputs: [], queued: [], reply: directorEventsReply((events.data || []) as DirectorEventRow[],
       { installed: !!scout.data, enabled: !!scout.data?.enabled, sources }) }
   }
+  if (plan.intent === 'invoice') return invoiceFor(admin, userId, plan)
   if (plan.intent === 'task') {
     const { error } = await admin.from('tasks').insert({
       user_id: userId, contact_id: null, type: 'todo', title: plan.title, note: order.text.slice(0, 1000) || null,
@@ -402,7 +496,15 @@ export async function processDirectorOrder(admin: Admin, userId: string, orderId
   } else {
     Object.assign(patch, { status: 'failed', reply: `Non ci sono riuscito: ${result.error || 'errore sconosciuto'}.`, error: result.error || 'errore' })
   }
-  return checked(await admin.from('office_director_orders').update(patch).eq('id', order.id).eq('user_id', userId).select('*').single())
+  const save = () => admin.from('office_director_orders').update(patch).eq('id', order.id).eq('user_id', userId).select('*').single()
+  let saved = await save()
+  // Un'intenzione più nuova del vincolo sul database (migration non ancora applicata) non deve
+  // lasciare l'ordine «in lavorazione» per sempre: si salva senza, l'interpretazione resta.
+  if (saved.error && (saved.error as { code?: string }).code === '23514' && patch.intent) {
+    patch.intent = null
+    saved = await save()
+  }
+  return checked(saved)
 }
 
 const OPPORTUNITY_BY_CATEGORY: Record<string, { pipeline: string; role: string; next_step: string } | undefined> = {

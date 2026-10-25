@@ -17,7 +17,8 @@ import {
   normalizeStatus,
   normalizeText,
 } from '@/lib/server/quotes'
-import { requireRouteUser, requireArea } from '@/lib/server/supabase'
+import { requireRouteUser, requireArea, createServiceRoleClient } from '@/lib/server/supabase'
+import { invoiceOnAcceptance } from '@/lib/server/quote-acceptance-invoice'
 
 type RouteContext = {
   params: Promise<{ id: string }>
@@ -441,6 +442,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     // (prima status contatto e preventivi erano del tutto scollegati).
     if (quoteData.contact_id && current.status !== 'paid' && quoteData.status === 'paid') {
       await applyQuotePaidToContact(auth.supabase, auth.workspaceUserId, quoteData.contact_id)
+    }
+
+    // Accettato adesso: la bozza della fattura si prepara da sola e arriva su Telegram.
+    if (current.status !== 'accepted' && quoteData.status === 'accepted') {
+      void invoiceOnAcceptance(createServiceRoleClient(), { quoteId: quoteData.id }, 'scheda')
     }
 
     return Response.json({ quote: normalizeQuoteRow(quoteData) })

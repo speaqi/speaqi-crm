@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import {
   DIRECTOR_ORDER_SCHEMA, decideCategory, directorOrderPrompt, directorStatusLines, interpretDirectorOrder, queuedWorkReport, directorEventsReply,
-  telegramDirectorReply, telegramDirectorRoute,
+  telegramDirectorReply, telegramDirectorRoute, directorInvoiceReply, directorQuoteNumber, quoteIsInvoiceable,
 } from '../src/lib/office/director-orders'
 import { validateOrderFiles } from '../src/lib/server/office-director-orders'
 import { estimateModelCost, OFFICE_IMAGE_RESERVE_TOKENS } from '../src/lib/office-pricing'
@@ -181,5 +181,41 @@ describe('foto e costi', () => {
     const lines = directorStatusLines({ deals: [], quotesAwaiting: [], overdueTasks: 0, activities7d: 0, timeline: [], pendingOutputs: 0,
       runs: [{ agent: 'Direttore', status: 'done', summary: 'ok', started_at: '2026-10-24T10:00:00Z' }], spendWeekCents: 5 }, { brief: true })
     assert.match(lines.join('\n'), /0,05 € spesi/)
+  })
+})
+
+describe('fattura di un preventivo', () => {
+  test('«fammi la fattura per PREV-…» non è un To Do: il numero si legge dall’ordine', () => {
+    const text = 'mi fai fare la fattura per PREV-20260922-1B14FC'
+    assert.deepEqual(interpretDirectorOrder(answer({ intent: 'invoice', target: 'PREV-20260922-XXXXXX' }), { text, today: TODAY }),
+      { intent: 'invoice', quote_number: 'PREV-20260922-1B14FC', customer: null, approved: false })
+    // L'approvazione vale solo se l'ordine la dice, non perché il modello la propone.
+    assert.equal((interpretDirectorOrder(answer({ intent: 'invoice', quote_approved: true }), { text: 'snav approvato PREV-20260922-1B14FC, fai la fattura', today: TODAY }) as { approved: boolean }).approved, true)
+    assert.equal((interpretDirectorOrder(answer({ intent: 'invoice', quote_approved: true }), { text, today: TODAY }) as { approved: boolean }).approved, false)
+    assert.equal(directorQuoteNumber('fattura per prev-20260922-1b14fc grazie'), 'PREV-20260922-1B14FC')
+    assert.deepEqual(interpretDirectorOrder(answer({ intent: 'invoice', target: 'Hotel Rossi' }), { text: 'fattura a Hotel Rossi', today: TODAY }),
+      { intent: 'invoice', quote_number: null, customer: 'Hotel Rossi', approved: false })
+    assert.equal(interpretDirectorOrder(answer({ intent: 'invoice' }), { text: 'fammi una fattura', today: TODAY }).intent, 'unknown')
+    assert.match(directorOrderPrompt('x', 0, TODAY), /- invoice:/)
+    assert.ok(DIRECTOR_ORDER_SCHEMA.properties.intent.enum.includes('invoice'))
+  })
+
+  test('si fattura solo un preventivo pagato o accettato', () => {
+    assert.equal(quoteIsInvoiceable({ status: 'sent', payment_state: 'pending' }), false)
+    assert.equal(quoteIsInvoiceable({ status: 'accepted', payment_state: 'pending' }), true)
+    assert.equal(quoteIsInvoiceable({ status: 'sent', payment_state: 'paid' }), true)
+    assert.equal(quoteIsInvoiceable({ status: 'paid', payment_state: null }), true)
+  })
+
+  test('la risposta dice cosa manca e che non è partito niente', () => {
+    const quote = { id: 'q', quote_number: 'PREV-1', customer_name: 'Mario', customer_company: 'Rossi srl', total_amount: '1464.00', status: 'paid', payment_state: 'paid' }
+    const draft = directorInvoiceReply({ quote, created: true, invoiceStatus: 'draft', numero: null, problems: ['Manca la P.IVA o il codice fiscale del cliente'], warnings: [], link: 'https://crm/fatture?invoice=i' })
+    assert.match(draft, /Bozza della fattura pronta per PREV-1 \(Rossi srl, 1\.464 €\)/)
+    assert.match(draft, /• Manca la P\.IVA/)
+    assert.match(draft, /Non l’ho inviata/)
+    assert.match(draft, /fatture\?invoice=i$/)
+    const sent = directorInvoiceReply({ quote, created: false, invoiceStatus: 'sent', numero: '12', problems: [], warnings: [], link: 'l' })
+    assert.match(sent, /esiste già \(n\. 12\), stato: sent/)
+    assert.doesNotMatch(sent, /Non l’ho inviata/)
   })
 })

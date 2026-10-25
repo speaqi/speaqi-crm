@@ -18,6 +18,21 @@ export type DeckAsset = {
   mime: string
   size: number
   path: string
+  /** Da dove viene: caricata a mano (assente), Wikimedia Commons o un ordine su Telegram. */
+  source?: 'wikimedia' | 'telegram'
+  /** Autore e licenza, da mostrare sulla slide (le licenze Creative Commons lo chiedono). */
+  credit?: string
+  source_url?: string
+}
+
+/** Una foto pronta per il palco: lato lungo 1920 px, JPEG. Null se non è un'immagine leggibile. */
+export async function photoForDeck(buf: Buffer): Promise<Buffer | null> {
+  try {
+    const { default: sharp } = await import('sharp')
+    return await sharp(buf, { failOn: 'none' }).rotate().resize({ width: 1920, height: 1920, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer()
+  } catch {
+    return null
+  }
 }
 
 export type Sniffed = { kind: 'photo' | 'document'; mime: string; ext: string; doc?: 'pdf' | 'docx' | 'text' }
