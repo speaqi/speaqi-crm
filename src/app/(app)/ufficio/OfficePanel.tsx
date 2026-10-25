@@ -9,9 +9,10 @@ import { PIPELINE_LABELS, STAGE_LABELS, type OpportunityStage } from '@/lib/oppo
 import type { DirectorPlan, PlanItem } from '@/lib/office/director-plan'
 import { CONTACT_HIDDEN_KEYS, OutputBody } from '@/components/office/OutputBody'
 import { DirectorOrders } from './agenti/DirectorOrders'
+import { WorkList } from '@/components/office/WorkList'
 import styles from './ufficio.module.css'
 
-export type PanelTab = 'waiting' | 'team' | 'plan'
+export type PanelTab = 'waiting' | 'team' | 'plan' | 'work'
 type Agent = OfficeOverview['agents'][number]
 
 const euro = (cents: number) => formatEuroPlain(cents / 100)
@@ -79,11 +80,12 @@ export function OfficePanel({ data, reload, tab, setTab, department, setDepartme
   const toggle = (agent: Agent) => act(agent.id, async () => { await patchAgent(agent.id, { enabled: !agent.enabled }); return `${agent.name} ${agent.enabled ? 'spento' : 'acceso'}.` })
   const run = (agent: Agent) => act(agent.id, async () => {
     // Una chiave per clic: ripetere la stessa richiesta non raddoppia la corsa.
-    const result = await apiFetch<{ run: OfficeRun | null; error?: string; skipped?: string }>(`/api/office/agents/${encodeURIComponent(agent.id)}/run-now`, {
+    const result = await apiFetch<{ run: OfficeRun | null; error?: string; skipped?: string; queued?: boolean; summary?: string }>(`/api/office/agents/${encodeURIComponent(agent.id)}/run-now`, {
       method: 'POST', headers: { 'Idempotency-Key': crypto.randomUUID() },
     })
     if (result.error) throw new Error(result.error)
-    return result.skipped ? 'Turno saltato: corsa già presente o agente spento.' : result.run?.summary || 'Corsa conclusa.'
+    return result.queued ? result.summary || 'Incarico salvato: seguilo nella scheda Lavori.'
+      : result.skipped ? 'Turno saltato: corsa già presente o agente spento.' : result.run?.summary || 'Corsa conclusa.'
   })
   const decide = (id: string, status: 'approved' | 'rejected') => act(id, async () => {
     const output = data?.outputs.find((item) => item.id === id)
@@ -113,12 +115,14 @@ export function OfficePanel({ data, reload, tab, setTab, department, setDepartme
       onEnable={() => act('director', async () => { await patchAgent('director', { enabled: true }); return 'Direttore acceso.' })} />
 
     <div className={styles.tabs} role="tablist">
-      {([['waiting', `Aspetta te`, data.pending_count], ['team', department ? OFFICE_DEPARTMENTS[department as keyof typeof OFFICE_DEPARTMENTS] || 'Squadra' : 'Squadra', agents.length], ['plan', 'Piano di oggi', plan ? plan.work.length + plan.unblock.length + plan.activate.length : null]] as const)
+      {([['waiting', `Aspetta te`, data.pending_count], ['work', 'Lavori', null], ['team', department ? OFFICE_DEPARTMENTS[department as keyof typeof OFFICE_DEPARTMENTS] || 'Squadra' : 'Squadra', agents.length], ['plan', 'Piano di oggi', plan ? plan.work.length + plan.unblock.length + plan.activate.length : null]] as const)
         .map(([key, label, count]) => <button key={key} role="tab" aria-selected={tab === key} className={tab === key ? styles.on : ''} onClick={() => setTab(key)}>
           {label}{count !== null ? <span>{count}</span> : null}</button>)}
     </div>
     {error && <p role="alert" className={styles.error}>{error}</p>}
     <p role="status" className={styles.notice}>{notice}</p>
+
+    {tab === 'work' && <WorkList agentNames={Object.fromEntries(data.agents.map((agent) => [agent.id, agent.name]))} refreshSignal={data} onChanged={() => { void reload() }} />}
 
     {tab === 'waiting' && <div className={styles.list}>
       {data.pending_count === 0 && <p className={styles.muted}>Nessuna proposta da decidere.</p>}

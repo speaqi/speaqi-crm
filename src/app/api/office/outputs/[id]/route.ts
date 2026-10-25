@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { officeOwnerRoute } from '@/lib/server/office-api'
 import { approveDirectorContact, startAfterApproval } from '@/lib/server/office-director-orders'
+import { missingWorkSchema, officeWorkEnabled } from '@/lib/server/office-work-routing'
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   return officeOwnerRoute(request, async ({ admin, userId }) => {
@@ -9,6 +10,12 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     if (!body || Object.keys(body).some((key) => key !== 'status') || !['approved', 'rejected'].includes(body.status)) {
       return Response.json({ error: 'Scegli approvata o rifiutata' }, { status: 400 })
     }
+    if (officeWorkEnabled()) {
+      // Lo schema deve esserci prima del clic: la proposta non viene consumata in sua assenza.
+      const supported = await admin.from('office_work_items').select('id').limit(0)
+      if (missingWorkSchema(supported.error)) return Response.json({ error: 'Aggiornamento dei lavori in corso. La proposta resta da decidere.' }, { status: 503 })
+      if (supported.error) throw supported.error
+    }
     if (body.status === 'approved') {
       // Nuovo contatto dal Direttore: lo inserisce il codice del CRM, con le sue regole.
       const contact = await approveDirectorContact(admin, userId, id)
@@ -16,7 +23,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       if (contact) return Response.json({ output: contact.output, notice: contact.notice, contact_id: contact.contact_id })
     }
     // Decisione e coda interna nella stessa transazione; nessuna azione esterna.
-    const { data, error } = await admin.rpc('decide_office_output', { p_output_id:id,p_user_id:userId,p_status:body.status })
+    const { data, error } = await admin.rpc(officeWorkEnabled() ? 'office_work_decide_output' : 'decide_office_output', { p_output_id:id,p_user_id:userId,p_status:body.status })
     if (error) throw error
     if (!data?.output) {
       if (data?.reason === 'merge_failed') {

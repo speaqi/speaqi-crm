@@ -49,6 +49,7 @@ describe('orari', () => {
       'db-maintenance',
       'followups',
       'office-sales-followup',
+      'office-work',
       'orchestrator',
       'replies',
       'wine-project',

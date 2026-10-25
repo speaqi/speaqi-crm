@@ -16,7 +16,7 @@
 .notice { min-height: 0; color: #146048; font-size: 12px; }
 .notice:empty { display: none; }
 
-.tabs { display: flex; gap: 4px; position: sticky; top: -16px; z-index: 1; background: var(--bg, #f4f6fb); padding: 6px 0; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; position: sticky; top: -16px; z-index: 1; background: var(--bg, #f4f6fb); padding: 6px 0; }
 .tabs button { flex: 1; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; padding: 7px 6px; font-size: 12px; cursor: pointer; white-space: nowrap; }
 .tabs button span { margin-left: 5px; color: var(--text2); font-variant-numeric: tabular-nums; }
 .tabs button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -58,6 +58,20 @@
 .planList li small { display: block; color: var(--text2); }
 .planList li p { margin: 2px 0; }
 .why { color: #a15c00 !important; }
+.workHeading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; align-items: baseline; }
+.workState { font-size: 11px; color: var(--text2); border-radius: 999px; background: var(--surface2); padding: 3px 7px; white-space: nowrap; }
+.workState[data-status='blocked'], .workState[data-status='waiting_owner'] { color: #925200; background: #fff3d5; }
+.workState[data-status='succeeded'] { color: #146048; background: #e4f5ed; }
+.workState[data-status='failed'] { color: #9f2020; background: #fdecec; }
+.workState[data-status='running'] { color: var(--accent); }
+.workReason { font-size: 12px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; }
+.workEditor { display: grid; gap: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
+.workEditor label { display: grid; gap: 4px; font-size: 12px; color: var(--text2); }
+.workEditor input { min-width: 0; width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--surface); }
+.workHistory { font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; padding-top: 8px; }
+.workHistory ul { margin: 0; padding-left: 16px; }
+.workHistory a { color: var(--accent); }
+.workHistory small { color: var(--text2); }
 
 @media (max-width: 1100px) { .room { grid-template-columns: minmax(0, 1fr) 360px; } }
 @media (max-width: 800px) {

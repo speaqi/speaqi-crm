@@ -112,9 +112,10 @@ export default function OfficePage() {
     const key = crypto.randomUUID()
     try {
       await act(id, async () => {
-        const result = await apiFetch<{ run: OfficeRun | null; error?: string; skipped?: string }>(`/api/office/agents/${encodeURIComponent(id)}/run-now`, { method: 'POST', headers: { 'Idempotency-Key': key } })
+        const result = await apiFetch<{ run: OfficeRun | null; error?: string; skipped?: string; queued?: boolean; summary?: string }>(`/api/office/agents/${encodeURIComponent(id)}/run-now`, { method: 'POST', headers: { 'Idempotency-Key': key } })
         if (result.error) { await load(); throw new Error(result.error) }
-        setNotice(result.skipped ? 'Turno saltato: corsa già presente o agente spento.' : result.run?.summary || 'Corsa conclusa.')
+        setNotice(result.queued ? result.summary || 'Incarico salvato: seguilo nella scheda Lavori.'
+          : result.skipped ? 'Turno saltato: corsa già presente o agente spento.' : result.run?.summary || 'Corsa conclusa.')
       })
     } catch { /* Il messaggio resta visibile nella pagina. */ }
   }

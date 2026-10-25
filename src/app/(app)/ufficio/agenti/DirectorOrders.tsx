@@ -2,15 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { apiFetch } from '@/lib/api'
+import { WorkList } from '@/components/office/WorkList'
 import styles from './director.module.css'
 
 type Order = {
   id: string; source: 'web' | 'telegram'; text: string; attachments: Array<{ name: string }>
-  status: 'received' | 'working' | 'done' | 'waiting_you' | 'failed'; reply: string | null; created_at: string
+  status: 'received' | 'working' | 'waiting' | 'blocked' | 'cancelled' | 'done' | 'waiting_you' | 'failed'; reply: string | null; created_at: string
 }
 
 const STATUS: Record<Order['status'], string> = {
   received: 'Ricevuto', working: 'Ci sto lavorando', done: 'Fatto', waiting_you: 'Aspetta te', failed: 'Non fatto',
+  waiting: 'In attesa', blocked: 'Bloccato', cancelled: 'Annullato',
 }
 const date = (value: string) => new Date(value).toLocaleString('it-IT', { timeZone: 'Europe/Rome', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
@@ -31,26 +33,34 @@ export function DirectorOrders({ directorEnabled, onEnable, onChanged, compact =
   const [transcribing, setTranscribing] = useState(false)
   const [error, setError] = useState('')
   const [showAll, setShowAll] = useState(false)
+  const [workOrderId, setWorkOrderId] = useState<string | null>(null)
+  const changedCallback = useRef(onChanged)
+  useEffect(() => { changedCallback.current = onChanged }, [onChanged])
   const recorder = useRef<MediaRecorder | null>(null)
   const chunks = useRef<Blob[]>([])
   const fileInput = useRef<HTMLInputElement | null>(null)
-  // Un ordine appena chiuso può ancora ricevere l'esito del lavoro passato agli agenti.
-  const working = orders.some((order) => order.status === 'received' || order.status === 'working'
-    || Date.now() - new Date(order.created_at).getTime() < 4 * 60_000)
+  const working = orders.some((order) => ['received', 'working', 'waiting'].includes(order.status))
 
   const load = useCallback(async () => {
     const response = await apiFetch<{ orders: Order[] }>('/api/office/director/orders')
     setOrders(Array.isArray(response?.orders) ? response.orders : [])
   }, [])
   useEffect(() => { void load().catch(() => {}) }, [load])
-  // Finché il Direttore lavora si guarda ogni 3 secondi; poi si aggiorna anche la coda.
+  // Il server lavora anche a pagina chiusa. Qui si aggiorna solo la vista attiva.
   useEffect(() => {
     if (!working) return
     const timer = setInterval(() => {
-      void load().then(() => onChanged()).catch(() => {})
-    }, 3000)
+      if (document.visibilityState !== 'visible') return
+      void load().then(() => changedCallback.current()).catch(() => {})
+    }, 30_000)
     return () => clearInterval(timer)
-  }, [working, load, onChanged])
+  }, [working, load])
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === 'visible') void load().catch(() => {}) }
+    window.addEventListener('office:work-changed', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => { window.removeEventListener('office:work-changed', refresh); document.removeEventListener('visibilitychange', refresh) }
+  }, [load])
 
   async function send(event: FormEvent) {
     event.preventDefault()
@@ -100,7 +110,7 @@ export function DirectorOrders({ directorEnabled, onEnable, onChanged, compact =
     <h2 id="direttore-titolo">Scrivi al Direttore</h2>
     {compact ? <p className={styles.hint}>Un contatto o la foto del bigliettino, «prepara la presentazione per Visit Marseille», «come va la pipeline?», «ricordami di chiamare Rossi venerdì».</p>
       : <p className={styles.hint}>Un contatto (anche la foto del bigliettino), «costruisci la mappa di Marsiglia da questo link», «prepara la presentazione per Visit Marseille», «controlla la mappa di Barcellona», «come va la pipeline?», «ricordami di chiamare Rossi venerdì». Ti propongo i contatti prima di inserirli; il resto lo passo all’agente giusto.</p>}
-    {!directorEnabled && <p className={styles.off}>Il Direttore è spento: senza interruttore acceso non lavora gli ordini. <button type="button" className="btn btn-primary btn-sm" onClick={() => { void onEnable() }}>Accendi il Direttore</button></p>}
+    {!directorEnabled && <p className={styles.off}>Il Direttore è spento: gli ordini restano in attesa e riprendono quando lo accendi. <button type="button" className="btn btn-primary btn-sm" onClick={() => { void onEnable() }}>Accendi il Direttore</button></p>}
     <form onSubmit={send} className={styles.form}>
       <textarea rows={3} value={text} maxLength={4000} placeholder="Cosa devo fare?" onChange={(event) => setText(event.target.value)}
         onKeyDown={(event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); event.currentTarget.form?.requestSubmit() } }} />
@@ -123,6 +133,9 @@ export function DirectorOrders({ directorEnabled, onEnable, onChanged, compact =
           <small>{date(order.created_at)}{order.source === 'telegram' ? ' · Telegram' : ''}{order.attachments?.length ? ` · ${order.attachments.length} foto` : ''}</small></div>
         {order.text && <p className={styles.said}>«{order.text}»</p>}
         {order.reply && <p className={styles.reply}>{order.reply}</p>}
+        <button type="button" className="btn btn-ghost btn-sm" aria-expanded={workOrderId === order.id}
+          onClick={() => setWorkOrderId((current) => current === order.id ? null : order.id)}>{workOrderId === order.id ? 'Chiudi lavori dell’ordine' : 'Lavori dell’ordine'}</button>
+        {workOrderId === order.id && <WorkList orderId={order.id} compact refreshSignal={order} onChanged={onChanged} />}
       </li>)}
     </ul>}
     {compact && !showAll && orders.length > 3 && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowAll(true)}>Ordini precedenti ({Math.min(orders.length, 10) - 3})</button>}

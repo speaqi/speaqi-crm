@@ -16,6 +16,8 @@ export type Settlement = { tokensIn?: number; tokensOut?: number; model?: string
 /** Il contesto offre solo riserve, bozze e log. Nessun client con cui inviare o pubblicare. */
 export type AgentContext = {
   agent: Readonly<OfficeAgent>; runId: string
+  /** Verifica la presa del lavoro prima di effetti persistenti o spese. */
+  assertActive?(): Promise<void>
   reserve(cents: number): Promise<string>
   settle(ledgerId: string, actualCents: number, usage?: Settlement): Promise<void>
   addOutput(output: AgentOutputInput): Promise<string>
@@ -59,7 +61,7 @@ export function createOfficeStore(admin: SupabaseClient): OfficeStore {
 }
 
 export async function runAgent(agentId: string, handler: AgentHandler, options: {
-  userId: string; key?: string; store?: OfficeStore
+  userId: string; key?: string; store?: OfficeStore; assertActive?: () => Promise<void>
 }): Promise<{ run: OfficeRun | null; skipped?: string; error?: string }> {
   let store: OfficeStore | undefined
   let run: OfficeRun | null = null
@@ -76,7 +78,9 @@ export async function runAgent(agentId: string, handler: AgentHandler, options: 
     let outputSequence = 0
     const context: AgentContext = {
       agent: Object.freeze(agent), runId: run.id,
+      ...(options.assertActive ? { assertActive: options.assertActive } : {}),
       async reserve(cents) {
+        await options.assertActive?.()
         if (!nonNegativeInteger(cents)) throw new Error('Riserva non valida')
         const id = await store!.reserve(agentId, run!.id, cents)
         if (!id) throw new BudgetExceeded()
@@ -89,12 +93,14 @@ export async function runAgent(agentId: string, handler: AgentHandler, options: 
         await store!.settle(id, cents, usage)
       },
       async addOutput(input) {
+        await options.assertActive?.()
         const id = await store!.output(run!.id, input.key || `uscita-${++outputSequence}`, input)
         items += 1
         return id
       },
       log(message) { if (logs.length < 100) logs.push(String(message).slice(0, 1000)) },
     }
+    await options.assertActive?.()
     const result = await handler(context)
     run = await store.finish(run.id, 'done', result?.summary?.slice(0, 1000) || `Corsa conclusa: ${items} uscite preparate`, null, logs)
     return { run }

@@ -1,6 +1,6 @@
 # Ufficio — proposta dei lavori persistenti
 
-**Stato: proposta da approvare; nessuna implementazione o migration in questa PR.**
+**Stato: base approvata dal titolare il 25 ottobre 2026; primo incremento implementato nella PR.**
 Base: `main` con PR #76 e #77 (`62e4a47`). Capitolato: [audit del 24 ottobre](UFFICIO-AUDIT-2026-10-24.md), letto insieme a «Opportunità», «Ufficio Speaqi» e «Ordini al Direttore» di `CLAUDE.md`.
 
 Obiettivo: un ordine resta nel sistema fino a un risultato verificabile o a un blocco che dica **cosa manca, chi interviene e quando si ricontrolla**. Accodare o terminare una corsa non significa aver concluso il lavoro.
@@ -107,4 +107,12 @@ Le correzioni #76/#77 restano: intento `events`, messaggi StudioMap, controllo p
 
 **Fuori perimetro:** nuovi agenti Agenzia/Distribuzione, flussi dopo l'accordo, conversazione dal vivo, pianificazione generale di ordini composti oltre Tourism, riallocazione di budget e pubblicazioni/invii autonomi. Napoli, Naples e `napolimap` restano esclusi dai lavori sulle mappe, controllati all'ingresso e dopo la risoluzione dell'identità.
 
-**Punto di arresto:** questa PR consegna solo la proposta. L'implementazione e le nuove migrazioni iniziano dopo l'approvazione esplicita del titolare.
+**Approvazione ricevuta:** il titolare ha confermato «Sì, approvo la base #78». Implementazione e prove del primo incremento sono descritte in [rapporto dei test](UFFICIO-TEST-REPORT.md) e [guida operativa](UFFICIO-OPERATING-GUIDE.md). L'attivazione in produzione resta una fase separata e non è stata eseguita.
+
+## 8. Implementazione consegnata
+
+Il ramo contiene schema e RPC additive, worker con lease e checkpoint, importazione delle code, dipendenze e aggregazione degli ordini, eventi persistenti, contratti HTTP del pianificatore, API del titolare e scheda Lavori. Il piano del Direttore può proporre soltanto le deleghe tipizzate ammesse; quelle soggette a decisione restano collegate alla proposta in attesa del clic. Gli agenti spenti, occupati o senza budget mantengono il lavoro, con motivo e prossimo controllo.
+
+Il percorso Tourism verifica sempre le prove dell'ente richiesto prima della generazione; la sola etichetta VERIFIED non basta. Ricerca, lettura e interpretazione lasciano checkpoint; approvazione e sblocco del prerequisito sono atomici. Presentazioni adotta risultati già validi e ferma ricevute dubbie. Fonti e testo si correggono sullo stesso incarico, mentre una correzione non aggira una proposta pendente.
+
+La memoria commerciale riusa `lead_memories` per workspace/lead, con data e origine; i riepiloghi derivati non diventano prove fattuali. Backup del server e script includono le nuove tabelle. Le prove finali e i limiti osservati sono riportati separatamente, senza equiparare fixture locali e produzione.
