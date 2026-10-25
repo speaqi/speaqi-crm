@@ -3,14 +3,16 @@ import { describe, test } from 'node:test'
 import {
   DIRECTOR_ORDER_SCHEMA, decideCategory, directorOrderPrompt, directorStatusLines, interpretDirectorOrder, queuedWorkReport, directorEventsReply,
   telegramDirectorReply, telegramDirectorRoute, directorInvoiceReply, directorQuoteNumber, quoteIsInvoiceable,
+  directorTaskItems, directorTaskDue, directorTaskReply, romeDateTimeToIso, weekdayIt, MAX_ORDER_TASKS,
 } from '../src/lib/office/director-orders'
+import { allDayOf, calendarEventPayload } from '../src/lib/server/gcal'
 import { validateOrderFiles } from '../src/lib/server/office-director-orders'
 import { estimateModelCost, OFFICE_IMAGE_RESERVE_TOKENS } from '../src/lib/office-pricing'
 
 const TODAY = '2026-10-24'
 const empty = { name: null, role: null, company: null, email: null, phone: null, website: null, city: null, country: null }
 const answer = (patch: Record<string, unknown>) => ({ intent: 'unknown', card_text: null, contact: empty, category: null, category_reason: null,
-  brief: null, city: null, map_link: null, target: null, task_title: null, task_due: null, question: null, ...patch })
+  brief: null, city: null, map_link: null, target: null, tasks: [], question: null, ...patch })
 
 describe('nuovo contatto dal bigliettino', () => {
   const card = 'Marie Dupont\nDirectrice marketing\nVisit Marseille\nmarie.dupont@visitmarseille.fr\n+33 4 91 13 89 00\nwww.marseille-tourisme.com'
@@ -87,11 +89,65 @@ describe('mappe, presentazioni, attività', () => {
     assert.deepEqual(plan, { intent: 'check_map', city: 'Cádiz', slug: 'cadiz' })
   })
 
-  test('data dell’attività solo se valida e non nel passato', () => {
-    const ok = interpretDirectorOrder(answer({ intent: 'task', task_title: 'Chiamare Rossi', task_due: '2026-10-30' }), { text: '', today: TODAY })
-    assert.deepEqual(ok, { intent: 'task', title: 'Chiamare Rossi', due_date: '2026-10-30' })
-    const past = interpretDirectorOrder(answer({ intent: 'task', task_title: 'Chiamare Rossi', task_due: '2026-01-01' }), { text: '', today: TODAY })
-    assert.equal(past.intent === 'task' && past.due_date, null)
+  test('più cose da fare in un ordine: date solo valide, ora solo con un giorno, niente doppioni', () => {
+    const plan = interpretDirectorOrder(answer({ intent: 'task', tasks: [
+      { title: 'Chiamare Rossi', date: '2026-10-25', time: '15:00', minutes: null },
+      { title: 'Riunione con SNAV', date: '2026-10-29', time: '10:00', minutes: 60 },
+      { title: 'Mandare il preventivo a Bibione', date: null, time: '09:00', minutes: 30 },
+      { title: 'Chiamare Rossi', date: '2026-10-25', time: '15:00', minutes: null },
+      { title: 'Vecchia cosa', date: '2026-01-01', time: null, minutes: null },
+      { title: 'Data impossibile', date: '2026-02-30', time: '25:00', minutes: 9999 },
+      { title: '  ', date: '2026-10-30', time: null, minutes: null },
+    ] }), { text: '', today: TODAY })
+    assert.equal(plan.intent, 'task')
+    if (plan.intent !== 'task') return
+    assert.deepEqual(plan.items, [
+      { title: 'Chiamare Rossi', date: '2026-10-25', time: '15:00', minutes: null },
+      { title: 'Riunione con SNAV', date: '2026-10-29', time: '10:00', minutes: 60 },
+      { title: 'Mandare il preventivo a Bibione', date: null, time: null, minutes: null },
+      { title: 'Vecchia cosa', date: null, time: null, minutes: null },
+      { title: 'Data impossibile', date: null, time: null, minutes: null },
+    ])
+    assert.equal(interpretDirectorOrder(answer({ intent: 'task', tasks: [] }), { text: '', today: TODAY }).intent, 'unknown')
+    const many = directorTaskItems(Array.from({ length: 13 }, (_, i) => ({ title: `Cosa ${i}`, date: null, time: null, minutes: null })), TODAY)
+    assert.equal(many.items.length, MAX_ORDER_TASKS)
+    assert.equal(many.dropped, 3)
+  })
+
+  test('l’ora è quella di Roma, anche a cavallo del cambio d’ora', () => {
+    assert.equal(romeDateTimeToIso('2026-10-24', '15:00'), '2026-10-24T13:00:00.000Z')
+    assert.equal(romeDateTimeToIso('2026-10-26', '15:00'), '2026-10-26T14:00:00.000Z')
+    assert.equal(romeDateTimeToIso('2026-03-29', '10:30'), '2026-03-29T08:30:00.000Z')
+    assert.equal(directorTaskDue({ title: 'x', date: '2026-10-29', time: null, minutes: null }), '2026-10-29')
+    assert.equal(directorTaskDue({ title: 'x', date: null, time: null, minutes: null }), null)
+    assert.equal(weekdayIt('2026-10-24'), 'sabato')
+    assert.match(directorOrderPrompt('domani alle 15 chiamo Rossi', 0, TODAY), /oggi è 2026-10-24, sabato/)
+  })
+
+  test('la risposta dice cosa è in Calendar e perché il resto no', () => {
+    const reply = directorTaskReply([
+      { title: 'Chiamare Rossi', date: '2026-10-26', time: '15:00', minutes: null, calendar: 'added' },
+      { title: 'Riunione con SNAV', date: '2026-10-29', time: '10:00', minutes: 60, calendar: 'added' },
+      { title: 'Mandare il preventivo', date: null, time: null, minutes: null, calendar: 'no_date' },
+    ])
+    assert.match(reply, /Segnate 3 cose da fare/)
+    assert.match(reply, /📅 Chiamare Rossi · lunedì 26\/10 alle 15:00/)
+    assert.match(reply, /📅 Riunione con SNAV · giovedì 29\/10 alle 10:00 \(60 min\)/)
+    assert.match(reply, /📝 Mandare il preventivo/)
+    assert.match(reply, /In Google Calendar: 2/)
+    assert.match(reply, /senza giorno/)
+    const off = directorTaskReply([{ title: 'Chiamare Rossi', date: '2026-10-26', time: null, minutes: null, calendar: 'not_connected' }])
+    assert.match(off, /^Segnato:/)
+    assert.match(off, /Google Calendar non è collegato/)
+    assert.match(directorTaskReply([{ title: 'A', date: '2026-10-26', time: null, minutes: null, calendar: 'added' }]), /Tutto nel To Do e in Google Calendar/)
+    const partial = directorTaskReply([
+      { title: 'A', date: '2026-10-26', time: null, minutes: null, calendar: 'added' },
+      { title: 'B', date: null, time: null, minutes: null, calendar: 'not_saved' },
+    ])
+    assert.match(partial, /^Segnato:/)
+    assert.match(partial, /⚠️ B/)
+    assert.match(partial, /Tutto nel To Do e in Google Calendar/)
+    assert.match(partial, /non sono riuscito a salvarla/)
   })
 
   test('una risposta illeggibile diventa una domanda', () => {
@@ -324,5 +380,32 @@ describe('Osservatorio: fonti di partenza', async () => {
     assert.ok(DEFAULT_NEWS_FEEDS.length > 0 && DEFAULT_NEWS_FEEDS.length <= 20)
     assert.ok(DEFAULT_NEWS_FEEDS.every((u) => newsUrl(u) === u))
     assert.equal(new Set(DEFAULT_NEWS_FEEDS).size, DEFAULT_NEWS_FEEDS.length)
+  })
+})
+
+describe('Google Calendar', () => {
+  test('un giorno senza ora è un evento di tutta la giornata, con promemoria la sera prima', () => {
+    assert.equal(allDayOf('2026-10-29'), '2026-10-29')
+    assert.equal(allDayOf('2026-10-29T00:00:00+00:00'), '2026-10-29')
+    assert.equal(allDayOf('2026-10-29T14:00:00.000Z'), null)
+    assert.equal(allDayOf('2026-02-30'), null)
+    assert.equal(allDayOf('2026-13-01'), null)
+    // Un'attività alle 01:00 d'inverno è la mezzanotte UTC: chi crea l'evento dice che ha un orario.
+    const night = calendarEventPayload({ summary: 'x', startAt: '2026-11-10T00:00:00.000Z', allDay: false }) as any
+    assert.equal(night.start.dateTime, '2026-11-10T00:00:00.000Z')
+    assert.deepEqual((calendarEventPayload({ summary: 'x', startAt: '2026-11-10', allDay: true }) as any).start, { date: '2026-11-10' })
+    const day = calendarEventPayload({ summary: 'CRM · A', startAt: '2026-10-31' }) as any
+    assert.deepEqual(day.start, { date: '2026-10-31' })
+    assert.deepEqual(day.end, { date: '2026-11-01' })
+    assert.equal(day.reminders.overrides[0].minutes, 360)
+  })
+
+  test('con l’ora l’evento ha la sua durata; in modifica la forma vecchia si azzera', () => {
+    const timed = calendarEventPayload({ summary: 'CRM · B', startAt: '2026-10-29T09:00:00.000Z', durationMinutes: 60 }) as any
+    assert.equal(timed.start.dateTime, '2026-10-29T09:00:00.000Z')
+    assert.equal(timed.end.dateTime, '2026-10-29T10:00:00.000Z')
+    assert.equal('date' in timed.start, false)
+    assert.equal((calendarEventPayload({ summary: 'x', startAt: '2026-10-29T09:00:00.000Z' }, { patch: true }) as any).start.date, null)
+    assert.equal((calendarEventPayload({ summary: 'x', startAt: '2026-10-29' }, { patch: true }) as any).start.dateTime, null)
   })
 })

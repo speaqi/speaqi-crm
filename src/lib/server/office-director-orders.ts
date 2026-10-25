@@ -19,8 +19,10 @@ import {
   CONTACT_CATEGORY_LABELS, DIRECTOR_ORDER_SCHEMA, contactNextStep, directorOrderPrompt, directorStatusLines,
   directorEventsReply, directorInvoiceReply, directorQuoteLabel, interpretDirectorOrder, queuedWorkReport, quoteIsInvoiceable,
   directorHelpText, emailFromSite, looksLikeTourismBody, parsePartnerSearch, partnerSearchPrompt, PARTNER_SEARCH_SCHEMA, PARTNER_TYPE_CODES,
-  type DirectorEventRow, type DirectorInvoiceQuote, type DirectorOrderPlan, type QueuedWork,
+  directorTaskDue, directorTaskReply,
+  type DirectorEventRow, type DirectorInvoiceQuote, type DirectorOrderPlan, type DirectorTaskItem, type DirectorTaskOutcome, type QueuedWork,
 } from '../office/director-orders'
+import { addTaskToCalendar } from './gcal'
 import { sendNotificationText } from './whatsapp'
 import { createServiceRoleClient } from './supabase'
 import { activateEntityForOrder, verifiedDestination, type ActivationEntity } from './office-entity-activation'
@@ -789,13 +791,8 @@ async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrder
   }
   if (plan.intent === 'invoice') return invoiceFor(admin, userId, plan)
   if (plan.intent === 'task') {
-    const { error } = await admin.from('tasks').insert({
-      user_id: userId, contact_id: null, type: 'todo', title: plan.title, note: order.text.slice(0, 1000) || null,
-      due_date: plan.due_date, priority: 'medium', area: 'speaqi', progress_state: 'todo', progress_percent: 0, status: 'pending',
-      idempotency_key: `director-order:${order.id}`,
-    })
-    if (error && (error as { code?: string }).code !== '23505') throw error
-    return { status: 'done', outputs: [], queued: [], reply: `Segnato nel To Do: «${plan.title}»${plan.due_date ? ` per il ${plan.due_date.slice(8, 10)}/${plan.due_date.slice(5, 7)}` : ''}.` }
+    const outcomes = await createDirectorTasks(admin, userId, order, plan.items)
+    return { status: 'done', outputs: [], queued: [], reply: directorTaskReply(outcomes, plan.dropped) }
   }
   if (plan.intent === 'status') {
     // Corta apposta: arriva anche su Telegram. Il dettaglio sta nell'Ufficio.
@@ -805,6 +802,64 @@ async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrder
   }
   if (plan.intent === 'unknown') return { status: 'failed', outputs: [], queued: [], reply: plan.question }
   return { status: 'failed', outputs: [], queued: [], reply: 'Non ho capito cosa devo fare. Scrivimi «cosa posso chiederti?» per l’elenco dei comandi.' }
+}
+
+/**
+ * Le cose da fare di un ordine: nel To Do, e in Google Calendar quelle con un giorno.
+ * Una per riga con la sua chiave (`director-order:<ordine>:<n>`), quindi un ordine rilavorato
+ * ritrova le righe e non le raddoppia; un evento già creato non si ricrea. Calendar che non
+ * risponde non toglie niente al To Do: lo si dice nella risposta.
+ */
+async function createDirectorTasks(admin: Admin, userId: string, order: DirectorOrderRow, items: DirectorTaskItem[]): Promise<DirectorTaskOutcome[]> {
+  const note = [order.source === 'telegram' ? 'Dal Direttore, su Telegram.' : 'Dal Direttore.', order.text.slice(0, 1000)].filter(Boolean).join('\n\n')
+  const outcomes: DirectorTaskOutcome[] = []
+  let firstError: unknown = null
+  for (const [index, item] of items.entries()) {
+    const key = `director-order:${order.id}:${index}`
+    const due = directorTaskDue(item)
+    let task: { id: string; calendar_event_id: string | null } | null = null
+    // Una voce che non si salva non ferma le altre: si dice nella risposta, e rilavorando l'ordine
+    // le righe già scritte si ritrovano dalla chiave.
+    try {
+      const inserted = await admin.from('tasks').insert({
+        user_id: userId, contact_id: null, type: 'todo', title: item.title, note,
+        due_date: due, priority: 'medium', area: 'speaqi', progress_state: 'todo', progress_percent: 0, status: 'pending',
+        idempotency_key: key,
+      }).select('id,calendar_event_id').maybeSingle()
+      if (inserted.error && (inserted.error as { code?: string }).code !== '23505') throw inserted.error
+      task = inserted.data || (checked(await admin.from('tasks').select('id,calendar_event_id').eq('user_id', userId)
+        .eq('idempotency_key', key).maybeSingle()) as typeof task)
+    } catch (error) {
+      firstError ??= error
+      outcomes.push({ ...item, calendar: 'not_saved' })
+      continue
+    }
+    if (!due) { outcomes.push({ ...item, calendar: 'no_date' }); continue }
+    if (task?.calendar_event_id) { outcomes.push({ ...item, calendar: 'already' }); continue }
+    try {
+      const event = await addTaskToCalendar(admin, userId, {
+        summary: `CRM · ${item.title}`,
+        description: ['Attività pianificata in Speaqi CRM', note].join('\n\n'),
+        startAt: due,
+        allDay: !item.time,
+        durationMinutes: item.minutes ?? 30,
+      })
+      if (!event) { outcomes.push({ ...item, calendar: 'not_connected' }); continue }
+      if (task) {
+        const saved = await admin.from('tasks').update({
+          calendar_event_id: event.id, calendar_event_link: event.htmlLink, calendar_synced_at: new Date().toISOString(),
+        }).eq('user_id', userId).eq('id', task.id)
+        if (saved.error) console.error('[direttore] evento Calendar non legato al task', { task: task.id, message: saved.error.message })
+      }
+      outcomes.push({ ...item, calendar: 'added' })
+    } catch (error) {
+      console.error('[direttore] Google Calendar non ha risposto', { order: order.id, message: errorMessage(error, '').slice(0, 300) })
+      outcomes.push({ ...item, calendar: 'failed' })
+    }
+  }
+  // Nessuna salvata: è un errore vero, l'ordine lo riporta. Altrimenti la risposta dice quali mancano.
+  if (firstError && outcomes.every((o) => o.calendar === 'not_saved')) throw firstError
+  return outcomes
 }
 
 export async function processDirectorOrder(admin: Admin, userId: string, orderId: string, options: { now?: () => Date } = {}): Promise<DirectorOrderRow> {
