@@ -209,6 +209,70 @@ async function sendTelegramText(body: string, config: { token: string; chatId: s
   }
 }
 
+type TelegramKeyboard = Array<Array<{ text: string; callback_data?: string; url?: string }>>
+
+/** La chat Telegram delle notifiche: quella dichiarata, altrimenti la prima chat autorizzata. */
+export function telegramDeliveryConfig(): { token: string; chatId: string } | null {
+  const notify = telegramNotifyConfig()
+  if (notify) return notify
+  const token = String(process.env.TELEGRAM_BOT_TOKEN || '').trim()
+  const chatId = String(process.env.TELEGRAM_ALLOWED_CHAT_IDS || '').split(',').map((v) => v.trim()).filter(Boolean)[0]
+  return token && chatId ? { token, chatId } : null
+}
+
+/**
+ * Un messaggio Telegram con pulsanti (approva, rifiuta, apri). Solo Telegram: su WhatsApp
+ * i pulsanti non esistono e un messaggio senza non servirebbe a decidere.
+ */
+export async function sendTelegramButtons(text: string, keyboard: TelegramKeyboard): Promise<WhatsappSendResult> {
+  const config = telegramDeliveryConfig()
+  if (!config) return { ok: false, error: 'Telegram non configurato' }
+  if (isWhatsappHardDisabled()) return { ok: false, error: 'Notifiche disattivate da WHATSAPP_NOTIFY_ENABLED' }
+  try {
+    let sent = await telegramSendMessage(config.token, { chat_id: config.chatId, text: toTelegramHtml(clampWhatsappText(text)), parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboard } })
+    if (sent.status === 400) sent = await telegramSendMessage(config.token, { chat_id: config.chatId, text: clampWhatsappText(text), reply_markup: { inline_keyboard: keyboard } })
+    if (!sent.data?.ok) return { ok: false, error: String(sent.data?.description || `HTTP ${sent.status}`) }
+    return { ok: true, providerMessageId: String(sent.data.result?.message_id || '') || undefined }
+  } catch (error) {
+    return { ok: false, error: errorMessage(error, 'Telegram irraggiungibile') }
+  }
+}
+
+/** Telegram accetta documenti fino a 50 MB; un PDF di presentazione ne pesa pochi. */
+const TELEGRAM_DOCUMENT_MAX_BYTES = 49 * 1024 * 1024
+
+/** Un file (il PDF di una presentazione) nella chat Telegram, con didascalia e pulsanti. */
+export async function sendTelegramDocument(input: { file: Buffer; fileName: string; caption: string; keyboard?: TelegramKeyboard }): Promise<WhatsappSendResult> {
+  const config = telegramDeliveryConfig()
+  if (!config) return { ok: false, error: 'Telegram non configurato' }
+  if (isWhatsappHardDisabled()) return { ok: false, error: 'Notifiche disattivate da WHATSAPP_NOTIFY_ENABLED' }
+  if (input.file.length > TELEGRAM_DOCUMENT_MAX_BYTES) return { ok: false, error: 'File troppo grande per Telegram' }
+  const send = async (caption: string, html: boolean) => {
+    const form = new FormData()
+    form.set('chat_id', config.chatId)
+    form.set('document', new Blob([new Uint8Array(input.file)], { type: 'application/pdf' }), input.fileName)
+    form.set('caption', caption)
+    if (html) form.set('parse_mode', 'HTML')
+    if (input.keyboard) form.set('reply_markup', JSON.stringify({ inline_keyboard: input.keyboard }))
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 60_000)
+    try {
+      const response = await fetch(`${TELEGRAM_API_BASE}/bot${config.token}/sendDocument`, { method: 'POST', body: form, signal: controller.signal })
+      return { status: response.status, data: await response.json().catch(() => null) }
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+  try {
+    let sent = await send(toTelegramHtml(input.caption).slice(0, 1024), true)
+    if (sent.status === 400 && !/too big|too large/i.test(String(sent.data?.description || ''))) sent = await send(input.caption.slice(0, 1024), false)
+    if (!sent.data?.ok) return { ok: false, error: String(sent.data?.description || `HTTP ${sent.status}`) }
+    return { ok: true, providerMessageId: String(sent.data.result?.message_id || '') || undefined }
+  } catch (error) {
+    return { ok: false, error: errorMessage(error, 'Telegram irraggiungibile') }
+  }
+}
+
 /**
  * Manda una notifica sul canale configurato. `notifyTo` e il numero WhatsApp
  * del CRM; su Telegram si ignora e vale `TELEGRAM_NOTIFY_CHAT_ID`.

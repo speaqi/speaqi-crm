@@ -5,6 +5,7 @@ import { EXONYMS, nameKey } from '../office/entity-enricher'
 import { TOURISM_TYPES } from '../tourism'
 import { readEntitySite } from './office-agents/entity-enricher'
 import { officeDeckAgent } from './office-agents/presentations'
+import { sendDeckToTelegram } from './office-deck-telegram'
 import { officeAgentHandler } from './office-agents/registry'
 import { officeRows } from './office-read'
 import { createLeadFromInput } from './lead-ops'
@@ -247,6 +248,16 @@ async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, 
     destination = activated.placeId
     note = `${activated.note} `
   }
+  if (!photos.length) {
+    // C'è già una presentazione pronta per questo ente: non si rifà, si manda.
+    const ready = checked(await admin.from('tourism_decks').select('*').eq('user_id', userId).eq('entity_id', entity.id)
+      .in('status', ['ready', 'approved', 'failed']).order('updated_at', { ascending: false }).limit(1).maybeSingle()) as DeckRow | null
+    if (ready) {
+      const sent = await sendDeckToTelegram(admin, ready)
+      const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+      return { status: 'done', outputs: [], queued: [], reply: `Presentazione per ${label}: c’è già, «${ready.title}»${sent.pdf ? ', te l’ho mandata qui in PDF' : ''}. ${note}Per rifarla da capo usa «Rigenera» nell’editor: ${base}/tourism/presentazioni/${ready.id}` }
+    }
+  }
   if (photos.length) {
     // Le foto mandate col comando sono della presentazione: se esiste già, ci vanno adesso.
     const existing = checked(await admin.from('tourism_decks').select('*').eq('user_id', userId).eq('entity_id', entity.id)
@@ -265,7 +276,7 @@ async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, 
   const result = await queueForAgent(admin, userId, 'presentations', { key: `presentation:${entity.id}`, entity_id: entity.id,
     ...(destination ? { destination_id: destination } : {}), ...(photos.length ? { photos } : {}) })
   const withPhotos = photos.length ? ` Le ${photos.length === 1 ? 'foto che mi hai mandato andrà' : `${photos.length} foto che mi hai mandato andranno`} nella presentazione.` : ''
-  return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `Presentazione per ${label}: ${note}${queueSentence(result)}${withPhotos}` }
+  return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `Presentazione per ${label}: ${note}${queueSentence(result)}${withPhotos}${result.enabled && result.reason !== 'agent_missing' ? ' Quando è pronta ti arriva qui in PDF, con il pulsante per approvarla.' : ''}` }
 }
 
 /**
@@ -429,8 +440,10 @@ async function partnerPresentation(admin: Admin, ctx: AgentContext, order: Direc
     }
   }
   const link = `${base}/tourism/presentazioni/${deck.id}`
+  const telegram = generated ? await sendDeckToTelegram(admin, deck) : { ok: false, pdf: false }
+  const onTelegram = telegram.pdf ? ' Il PDF della bozza te l’ho mandato qui su Telegram.' : ''
   return { status: 'done', outputs: [], queued: [], reply: generated
-    ? `${name}: presentazione partner per la guida di ${city} pronta da rivedere. Le condizioni (commissione, prezzo dei codici) restano [DA VERIFICARE]: scrivile nell’editor, poi approvala o scarica il PDF. ${link}`
+    ? `${name}: presentazione partner per la guida di ${city} pronta da rivedere.${onTelegram} Le condizioni (commissione, prezzo dei codici) restano [DA VERIFICARE]: scrivile nell’editor, poi approvala. ${link}`
     : `${name}: ho preparato la presentazione partner per ${city} con il testo di base, ma l’adattamento non è riuscito. Puoi rivederla e rigenerarla da qui: ${link}` }
 }
 

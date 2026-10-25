@@ -2,6 +2,9 @@ import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 import {
+  answerTelegramCallback,
+  clearTelegramButtons,
+  ensureTelegramCallbacks,
   downloadTelegramFile,
   extractAudio,
   extractPhoto,
@@ -22,6 +25,9 @@ import { resolveProgress } from '@/lib/todo'
 import { telegramDirectorReply, telegramDirectorRoute } from '@/lib/office/director-orders'
 import { createDirectorOrder, processDirectorOrder } from '@/lib/server/office-director-orders'
 import { ensureOfficeAgents } from '@/lib/server/office-agents/definitions'
+import { parseTelegramAction } from '@/lib/office/telegram-actions'
+import { handleTelegramAction } from '@/lib/server/office-output-decision'
+import { sendProposalsToTelegram } from '@/lib/server/office-deck-telegram'
 import type { Task } from '@/types'
 
 /**
@@ -75,9 +81,35 @@ export async function POST(request: NextRequest) {
     return ok({ skipped: 'invalid_payload' })
   }
 
+  // Un tocco su un pulsante (Approva, Rifiuta, rimanda il PDF). Vale come il clic in pagina,
+  // ma solo dalla chat del titolare: in un gruppo conta anche chi tocca, non solo dove.
+  const callback = update?.callback_query
+  if (callback) {
+    const chat = callback.message?.chat
+    const trusted = chat && isAllowedChat(config, chat.id) && (chat.type === 'private' || isAllowedChat(config, callback.from?.id))
+    if (!trusted) {
+      console.warn(`[telegram] pulsante da chat non autorizzata: ${chat?.id}`)
+      return ok({ skipped: 'chat_not_allowed' })
+    }
+    const action = parseTelegramAction(callback.data)
+    if (!action) {
+      await answerTelegramCallback(config, String(callback.id), 'Pulsante non più valido.')
+      return ok({ skipped: 'unknown_action' })
+    }
+    // Le decisioni sono condizionate (solo da «in attesa», solo sulla versione letta):
+    // un doppio tocco o una riconsegna di Telegram trovano la cosa già decisa.
+    const result = await handleTelegramAction(createServiceRoleClient(), userId, action)
+    await answerTelegramCallback(config, String(callback.id), result.text)
+    if (result.done && callback.message?.message_id) await clearTelegramButtons(config, chat.id, Number(callback.message.message_id))
+    await sendTelegramMessage(config, chat.id, result.text)
+    return ok({ action: action.kind, done: result.done })
+  }
+
   const message = update?.message
   const chatId = message?.chat?.id
   if (!message || chatId === undefined) return ok({ skipped: 'no_message' })
+  // I webhook registrati prima dei pulsanti non ricevono i tocchi: si sistema da solo.
+  void ensureTelegramCallbacks(config)
   if (!isAllowedChat(config, chatId)) {
     console.warn(`[telegram] messaggio da chat non autorizzata: ${chatId}`)
     return ok({ skipped: 'chat_not_allowed' })
@@ -148,7 +180,11 @@ export async function POST(request: NextRequest) {
       // Si risponde 200 subito: Telegram riconsegnerebbe un update lento.
       const baseUrl = process.env.APP_BASE_URL || 'https://crm.speaqi.com'
       void processDirectorOrder(supabase, userId, order.id)
-        .then((done) => sendTelegramMessage(config, chatId, telegramDirectorReply(done, baseUrl)))
+        .then(async (done) => {
+          await sendTelegramMessage(config, chatId, telegramDirectorReply(done, baseUrl))
+          // Le proposte da decidere arrivano subito dopo, ognuna con «Approva» e «Rifiuta».
+          await sendProposalsToTelegram(supabase, userId, done.output_ids || [])
+        })
         .catch(async (error) => {
           console.error('[telegram] ordine al Direttore non elaborato:', error)
           await sendTelegramMessage(config, chatId, `⚠️ Il Direttore non è riuscito a lavorare l’ordine: ${errorMessage(error, 'errore')}.`)

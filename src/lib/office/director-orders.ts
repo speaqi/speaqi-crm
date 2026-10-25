@@ -511,6 +511,7 @@ export function directorHelpText(baseUrl: string) {
     '• «Preparami 5 presentazioni di destinazioni» → scelgo io 5 enti del catalogo che non ne hanno ancora una.',
     '• «Presentazione partner per Hotel Laguna, guida di Venezia» → usa la base Partner (QR con commissione, codici, vetrina).',
     '• Foto con «foto per la presentazione di Bibione» → finiscono nelle slide.',
+    '• Ogni presentazione pronta ti arriva qui in PDF (anche in bozza), con «Approva» se non manca niente. «Mandami la presentazione di Bibione» te la rimanda.',
     '',
     'Mappe',
     '• «Costruisci la mappa di Marsiglia, https://www.google.com/maps/d/…» → il Costruttore My Maps importa i luoghi.',
@@ -525,7 +526,8 @@ export function directorHelpText(baseUrl: string) {
     '• «Quali sono le prossime fiere?» → eventi e bandi trovati dal Ricercatore eventi.',
     '• «Ricordami di chiamare Rossi venerdì» → attività nel To Do.',
     '',
-    'Non faccio da solo: invii di email, invii allo SDI, pubblicazioni e lavoro su Napoli. Quando serve un clic tuo te lo dico, con il link.',
+    'Le proposte (nuovi contatti, partner) ti arrivano qui con «Approva» e «Rifiuta»: il tocco vale come il clic nell’Ufficio. Scrivere «sì» non approva niente.',
+    'Non faccio da solo: invii di email, invii allo SDI, pubblicazioni e lavoro su Napoli.',
     `Tutto il dettaglio: ${baseUrl}/ufficio`,
   ].join('\n')
 }
