@@ -174,7 +174,8 @@ test('presentazione: un tentativo dubbio non ripaga; un deck pronto viene adotta
   const deps = { ...f.deps, present: () => async () => { throw Error('non deve generare') } }
   assert.equal((await preparePresentationWork(f.ctx, f.work, f.db, deps)).reason_code, 'presentation_reconciliation')
   f.db.tables.tourism_decks.push({ id: DECK, user_id: USER, entity_id: ENTITY, status: 'failed', slides: [] })
-  assert.equal((await preparePresentationWork(f.ctx, f.work, f.db, deps)).reason_code, 'presentation_reconciliation')
+  // Fuori da un ordine del titolare una presentazione fallita non si rifà da sola.
+  assert.equal((await preparePresentationWork(f.ctx, f.work, f.db, deps)).reason_code, 'presentation_failed')
   Object.assign(f.db.tables.tourism_decks[0], { status: 'ready', version: 1, slides: applyVars(DEFAULT_DECK_TEMPLATE, {}) })
   assert.equal((await preparePresentationWork(f.ctx, f.work, f.db, deps)).status, 'succeeded')
 })
@@ -194,4 +195,44 @@ test('lease scaduta: nessuna chiamata al modello o uscita dal vecchio worker', a
   await assert.rejects(verifyTourismWork(f.ctx, f.work, f.db, { model: async () => { paid++; throw Error('non deve pagare') }, readSite: f.deps.readSite }), /presa.*scaduta/)
   assert.equal(paid, 0)
   assert.equal(f.db.tables.office_agent_outputs.length, 0)
+})
+
+test('presentazione fallita chiesta di nuovo con un ordine: si rifà una volta sola, poi si dice perché', async () => {
+  const f = presentationFixture()
+  f.work.origin = 'order'
+  f.db.tables.office_presentation_tasks.push({ id: DECK, user_id: USER, entity_id: ENTITY, destination_id: PLACE, state: 'failed' })
+  f.db.tables.tourism_decks.push({ id: DECK, user_id: USER, entity_id: ENTITY, status: 'failed', version: 1, error: 'Testo troppo lungo o non valido', slides: [] })
+  let regenerated = 0; let sent = 0
+  const deps = { ...f.deps, present: () => async () => { throw Error('non deve creare un altro deck') },
+    sendDeck: async () => { sent++ },
+    regenerate: async (_admin: unknown, _ctx: unknown, deck: any) => {
+      regenerated++
+      return Object.assign(f.db.tables.tourism_decks[0], { ...deck, status: 'ready', version: 2, error: null, slides: applyVars(DEFAULT_DECK_TEMPLATE, {}) })
+    } }
+  const result = await preparePresentationWork(f.ctx, f.work, f.db, deps)
+  assert.equal(result.status, 'succeeded')
+  assert.equal(regenerated, 1)
+  assert.equal(sent, 1)
+  assert.equal(f.db.tables.office_presentation_tasks[0].state, 'ready')
+  assert.equal(f.checkpoints.at(-1)!.checkpoint.regenerated, `${DECK}:v1`)
+
+  // Un secondo tentativo sulla stessa versione non ripaga: resta fermo con il motivo.
+  const again = presentationFixture()
+  again.work.origin = 'order'
+  again.work.checkpoint = { regenerated: `${DECK}:v1` }
+  again.db.tables.office_presentation_tasks.push({ id: DECK, user_id: USER, entity_id: ENTITY, destination_id: PLACE, state: 'failed' })
+  again.db.tables.tourism_decks.push({ id: DECK, user_id: USER, entity_id: ENTITY, status: 'failed', version: 1, error: 'boh', slides: [] })
+  const blocked = await preparePresentationWork(again.ctx, again.work, again.db, { ...again.deps,
+    regenerate: async () => { throw Error('non deve rigenerare due volte') } })
+  assert.equal(blocked.reason_code, 'presentation_failed')
+  assert.match(blocked.reason!, /boh/)
+})
+
+test('ricerca del sito interrotta: vale «nessun sito trovato», non un guasto', async () => {
+  const f = fixture()
+  f.db.tables.tourism_entities[0].website = null
+  const model = (async () => { throw new Error('Risposta del modello incompleta; costo registrato') }) as unknown as typeof callModel
+  const result = await verifyTourismWork(f.ctx, f.work, f.db, { ...f.deps, model })
+  assert.equal(result.status, 'blocked')
+  assert.equal(result.reason_code, 'official_website_missing')
 })

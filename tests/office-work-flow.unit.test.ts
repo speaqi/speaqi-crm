@@ -295,3 +295,32 @@ test('fonte corretta dopo il blocco riprende lo stesso lavoro e lo stesso ordine
   assert.equal(f.works.filter((work) => work.action === 'verify_tourism_entity').length, 1)
   assert.equal(f.db.tables.office_agent_outputs[0].output_key, `work:${verify.id}:proposal:v2`)
 })
+
+test('ente già verificato con la sua destinazione: niente seconda verifica, la presentazione parte subito', async () => {
+  const f = fixture()
+  Object.assign(f.db.tables.tourism_entities[0], { status: 'VERIFIED', website: SITE })
+  f.db.tables.tourism_entities.push({ id: PLACE, user_id: USER, kind: 'place', name: 'Marsiglia', country_code: 'FR', status: 'VERIFIED', disabled: false, aliases: [] })
+  f.db.tables.tourism_evidence.push({ id: 'ev-identity', user_id: USER, entity_id: ENTITY, status: 'VERIFIED', fields: ['name'], source_url: SITE, excerpt: identity },
+    { id: 'ev-coverage', user_id: USER, entity_id: ENTITY, status: 'VERIFIED', fields: ['coverage'], source_url: SITE, excerpt: coverage })
+  f.db.tables.tourism_relations = [{ id: 'rel', user_id: USER, from_id: ENTITY, to_id: PLACE, relation: 'PROMOTES', evidence_id: 'ev-coverage' }]
+  f.order()
+  await f.tick()
+  assert.equal(f.works.some((work) => work.action === 'verify_tourism_entity'), false)
+  const presentation = f.works.find((work) => work.action === 'prepare_presentation')!
+  assert.equal(presentation.payload.destination_id, PLACE)
+  await f.tick()
+  assert.equal(presentation.status, 'succeeded')
+  assert.equal(f.counters().reads, 0)
+  assert.equal(f.counters().generated, 1)
+})
+
+test('etichetta VERIFIED senza prove proprie: la verifica puntuale resta', async () => {
+  const f = fixture()
+  Object.assign(f.db.tables.tourism_entities[0], { status: 'VERIFIED', website: SITE })
+  f.db.tables.tourism_entities.push({ id: PLACE, user_id: USER, kind: 'place', name: 'Marsiglia', country_code: 'FR', status: 'VERIFIED', disabled: false, aliases: [] })
+  f.db.tables.tourism_evidence.push({ id: 'ev-coverage', user_id: USER, entity_id: PLACE, status: 'VERIFIED', fields: ['coverage'], source_url: SITE, excerpt: coverage })
+  f.db.tables.tourism_relations = [{ id: 'rel', user_id: USER, from_id: ENTITY, to_id: PLACE, relation: 'PROMOTES', evidence_id: 'ev-coverage' }]
+  f.order()
+  await f.tick()
+  assert.ok(f.works.some((work) => work.action === 'verify_tourism_entity'))
+})

@@ -395,6 +395,8 @@ export function readAwaiting(value: unknown): DirectorAwaiting | null {
   return { need, resume: resume.trim() }
 }
 
+const SKIP_SITE = /\b(?:senza|non\s+(?:usare|utilizzare|serve|cercare|leggere)|lascia\s+(?:perdere|stare)|salta|ignora)\b[^.?!]{0,40}\bsito\b|\bsito\b[^.?!]{0,20}\b(?:non\s+serve|lascia(?:lo)?\s+(?:perdere|stare))\b/i
+
 /**
  * La risposta del titolare alla domanda del Direttore diventa l'ordine completo, con le
  * parole che il Direttore gli aveva chiesto di scrivere: «ecco il sito venezuela.com.ve»
@@ -406,7 +408,8 @@ export function directorFollowUp(awaiting: DirectorAwaiting | null, text: string
   if (!awaiting || !answer || answer.length > 300) return null
   if (awaiting.need === 'site') {
     const site = websiteFromText(answer)
-    if (!site) return null
+    // «Lascia perdere il sito, fammi la presentazione»: si riprende l'ordine com'era.
+    if (!site) return SKIP_SITE.test(answer) ? awaiting.resume : null
     // «Aggiungi questo sito: …» è la risposta; «presentazione per Y, sito …» è un ordine nuovo.
     const rest = answer.replace(/\S*\.[a-z]{2,}\S*/gi, ' ')
     return OTHER_WORK.test(rest) ? null : `${awaiting.resume}, sito ${site}`
