@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { mkdir } from 'node:fs/promises'
 import { chromium } from 'playwright'
 import type { OfficeAgent, OfficeOverview, OfficeOutput, OfficeRun } from '../src/lib/office'
+import type { OfficeWorkSummary } from '../src/lib/office-activity'
 import { UFFICIO_SCENE_HTML } from '../src/lib/server/ufficio-scene'
 import { OFFICE_AGENT_DEFINITIONS } from '../src/lib/server/office-agents/definitions'
 
@@ -50,6 +51,18 @@ async function main() {
       if (url.pathname === '/api/ufficio/scena') return route.fulfill({ contentType: 'text/html', body: UFFICIO_SCENE_HTML })
       if (url.pathname === '/api/ufficio/sblocca') return json({ enabled: false, locked: false })
       if (url.pathname === '/api/office') return fail ? json({ error: 'Database di prova non disponibile' }, 500) : json(sceneOverview || overview())
+      if (/^\/api\/office\/agents\/[^/]+$/.test(url.pathname) && method === 'GET') {
+        const id = url.pathname.split('/').pop()
+        return json({ runs: (sceneOverview?.runs || runs).filter((run) => run.agent_id === id),
+          outputs: (sceneOverview?.outputs || outputs).filter((output) => output.agent_id === id), total: 1, offset: 0 })
+      }
+      if (url.pathname === '/api/office/work') {
+        const id = url.searchParams.get('agent_id')
+        const works = (sceneOverview?.works || []).filter((work) => (!id || work.agent_id === id)
+          && (url.searchParams.get('view') === 'all' || work.status !== 'succeeded'))
+        return json({ supported: true, works: works.map((work) => ({ ...work, payload: {}, result: work.status === 'succeeded'
+          ? { deck_id: '33333333-3333-4333-8333-333333333333' } : {} })), total: works.length, offset: 0 })
+      }
       if (url.pathname === '/api/office/agents/prova' && method === 'PATCH') { agent = { ...agent, ...body }; return json({ agent }) }
       if (url.pathname === '/api/office/agents/prova/run-now') {
         if (skipRun) return json({ run: null, skipped: 'already_running' })
@@ -135,6 +148,13 @@ async function main() {
       spend: { ...spend, agent_id: definition.id }, last_run: sceneRuns.find((r) => r.agent_id === definition.id) || null })),
       runs: sceneRuns, outputs: [{ ...output('scena-uscita'), agent_id: definitions[0].id, title: 'Ente con recapiti da verificare' }],
       pending_count: 1, totals: { day_actual: 132, day_reserved: 55, week_actual: 264, week_reserved: 55, month_actual: 440, month_reserved: 55 }, active_agents: 5 }
+    const work = (id: string, agentId: string, status: OfficeWorkSummary['status']): OfficeWorkSummary => ({
+      id, agent_id: agentId, action: 'prepare_presentation', status, origin: 'order', order_id: 'order',
+      created_at: '2026-10-26T08:00:00Z', updated_at: '2026-10-26T08:01:00Z',
+      reason: status === 'blocked' ? 'Manca il sito ufficiale' : null, required_action: null, result_summary: status === 'succeeded' ? 'Documento preparato in precedenza' : '',
+    })
+    sceneOverview.works = [work('current', 'entity_enricher', 'blocked'), work('old', 'entity_enricher', 'succeeded'),
+      work('finance-only', 'finance', 'blocked')]
     await page.goto(`${base}/ufficio`)
     const office = page.frameLocator('iframe[title="Ufficio Speaqi"]')
     await office.locator('#stage canvas').waitFor()
@@ -155,6 +175,39 @@ async function main() {
     assert.equal(await office.locator('.tag:not(.kiosk)').count(), 8)
     const shown = await office.locator('.tag:not(.kiosk)').evaluateAll((tags) => tags.filter((t) => (t as HTMLElement).style.display !== 'none').length)
     assert.ok(shown >= 2, `con un reparto aperto restano a schermo anche gli altri padiglioni (${shown})`)
+    // Clic sul cartellino del personaggio: scheda esatta, lavori attuali e storico anche fuori dalle proposte recenti.
+    await office.getByRole('button', { name: 'Apri scheda di Arricchimento enti', exact: true }).click()
+    const activity = page.getByRole('region', { name: 'Scheda di Arricchimento enti', exact: true })
+    await activity.getByRole('heading', { name: 'Cosa sta facendo' }).waitFor()
+    await activity.locator('[data-work-id="current"]').waitFor()
+    assert.equal(await activity.locator('[data-work-id="finance-only"]').count(), 0)
+    await activity.getByRole('heading', { name: 'Cosa ha fatto' }).waitFor()
+    await activity.getByText('Ricerca fonti in corso', { exact: true }).waitFor()
+    await activity.getByRole('button', { name: 'Anche conclusi', exact: true }).click()
+    await activity.getByText('Documento preparato in precedenza', { exact: true }).waitFor()
+    assert.equal(await activity.getByRole('link', { name: 'Apri presentazione →', exact: true }).getAttribute('href'), '/tourism/presentazioni/33333333-3333-4333-8333-333333333333')
+    await page.screenshot({ path: `${out}/06-scheda-personaggio.png`, fullPage: true })
+    await activity.getByRole('button', { name: 'Chiudi scheda di Arricchimento enti' }).click()
+    await activity.waitFor({ state: 'detached' })
+    // Il personaggio si seleziona anche sul corpo 3D, senza usare il cartellino.
+    await page.locator('iframe').evaluate((frame) => (frame as HTMLIFrameElement).contentWindow!.postMessage({
+      type: 'office:focus', department: 'ricerca', agentId: 'entity_enricher',
+    }, '*'))
+    await office.locator('button.person-tag.sel[aria-label="Apri scheda di Arricchimento enti"]').waitFor({ state: 'attached' })
+    const canvas = office.locator('#stage canvas')
+    const canvasBox = await canvas.boundingBox()
+    assert.ok(canvasBox)
+    await canvas.click({ position: { x: canvasBox.width * 0.47, y: canvasBox.height * 0.42 } })
+    await activity.getByRole('heading', { name: 'Cosa sta facendo' }).waitFor()
+    await activity.getByRole('button', { name: 'Chiudi scheda di Arricchimento enti' }).click()
+    // Lo stato bloccato dell'incarico prevale sulla corsa conclusa: stesso stato nel pannello e nel 3D.
+    const research = sceneOverview.agents.find((agent) => agent.id === 'entity_enricher')!
+    research.last_run = { ...sceneRuns[0], status: 'done', finished_at: '2026-10-26T08:01:00Z', summary: 'Verifica terminata senza presentazione' }
+    await page.getByRole('button', { name: '↻ Aggiorna' }).click()
+    await office.getByRole('button', { name: 'Apri scheda di Arricchimento enti', exact: true }).getByText('Arricchimento enti · Bloccato').waitFor()
+    await office.getByRole('button', { name: 'Apri scheda di Arricchimento enti', exact: true }).click()
+    await activity.getByText('Bloccato · 1 incarico aperto', { exact: true }).waitFor()
+    await activity.getByRole('button', { name: 'Chiudi scheda di Arricchimento enti' }).click()
     // Scegliere il reparto dal pannello muove anche la camera, e «Tutti» torna alla vista completa.
     await page.getByRole('button', { name: 'Tutti', exact: true }).click()
     await page.getByRole('tab', { name: /Squadra/, selected: true }).waitFor()
@@ -183,7 +236,13 @@ async function main() {
     assert.ok(frameBox && frameBox.y < 230 && frameBox.height > 380, 'su telefono il 3D occupa la prima schermata, il pannello segue')
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
     assert.ok(await office.locator('body').evaluate((body) => body.scrollWidth <= innerWidth))
+    await office.locator('.tag:not(.kiosk)', { hasText: 'Ricerca' }).click()
+    await office.getByRole('button', { name: 'Apri scheda di Arricchimento enti', exact: true }).click()
+    await activity.getByRole('heading', { name: 'Cosa sta facendo' }).waitFor()
+    await activity.getByText('Bloccato · 1 incarico aperto', { exact: true }).waitFor()
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'scheda del personaggio leggibile anche su telefono')
     await page.screenshot({ path: `${out}/08-3d-mobile.png`, fullPage: true })
+    await activity.getByRole('button', { name: 'Chiudi scheda di Arricchimento enti' }).click()
 
     // Senza WebGL la scena lo dice e la gestione resta tutta nel pannello.
     const fallbackPage = await context.newPage()

@@ -6,7 +6,7 @@ import { beforeEach, afterEach, test, mock } from 'node:test'
 import { NextRequest } from 'next/server'
 import { GET } from '../src/app/api/office/route'
 import { GET as officeScene } from '../src/app/api/ufficio/scena/route'
-import { PATCH as patchAgent } from '../src/app/api/office/agents/[id]/route'
+import { GET as agentHistory, PATCH as patchAgent } from '../src/app/api/office/agents/[id]/route'
 import { POST as runNow } from '../src/app/api/office/agents/[id]/run-now/route'
 import { PATCH as decide } from '../src/app/api/office/outputs/[id]/route'
 import { POST as automate } from '../src/app/api/automation/agents/[id]/run/route'
@@ -18,13 +18,14 @@ const originalEnv = { ...process.env }
 let member = false
 let pending = true
 let outputsError: string | null = null
+let worksError: string | null = null
 let pendingCount = 0
 let decideReason: string | null = null
 let calls: Array<{ url: string; method: string; body: Record<string, unknown> | null }> = []
 const params = { params: Promise.resolve({ id: 'prova' }) }
 
 beforeEach(() => {
-  member = false; pending = true; decideReason = null; outputsError = null; pendingCount = 0; calls = []; invalidateRouteUserCaches()
+  member = false; pending = true; decideReason = null; outputsError = null; worksError = null; pendingCount = 0; calls = []; invalidateRouteUserCaches()
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://office-test.invalid'
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-finta'
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-finta'
@@ -45,6 +46,7 @@ beforeEach(() => {
       return Response.json(Object.values(OFFICE_AGENT_DEFINITIONS).filter((d) => !id || d.id === id).map((d) => ({ ...d, user_id: OWNER })))
     }
     if (url.includes('/rpc/claim_office_agent_run')) return Response.json({ claimed: false, reason: 'disabled', run: { status: 'skipped_disabled' } })
+    if (url.includes('/office_work_items') && worksError) return Response.json({ code: worksError, message: 'Registro non disponibile' }, { status: 500 })
     if (url.includes('/office_agent_outputs') && method === 'HEAD') {
       return new Response(null, { headers: { 'content-range': `*/${pendingCount}` } })
     }
@@ -76,6 +78,7 @@ test('tutte le API titolare rifiutano richieste senza sessione prima di accedere
     () => GET(request('/api/office', undefined, 'GET', false)),
     () => officeScene(request('/api/ufficio/scena', undefined, 'GET', false)),
     () => patchAgent(request('/api/office/agents/prova', {}, 'PATCH', false), params),
+    () => agentHistory(request('/api/office/agents/prova', undefined, 'GET', false), params),
     () => runNow(request('/api/office/agents/prova/run-now', undefined, 'POST', false), params),
     () => decide(request('/api/office/outputs/prova', {}, 'PATCH', false), params),
   ]
@@ -89,11 +92,37 @@ test('un collaboratore riceve 403 su lettura, configurazione, corsa e decisioni'
     () => GET(request('/api/office', undefined, 'GET')),
     () => officeScene(request('/api/ufficio/scena', undefined, 'GET')),
     () => patchAgent(request('/api/office/agents/prova', { enabled: true }), params),
+    () => agentHistory(request('/api/office/agents/prova', undefined, 'GET'), params),
     () => runNow(request('/api/office/agents/prova/run-now', undefined, 'POST'), params),
     () => decide(request('/api/office/outputs/prova', { status: 'approved' }), params),
   ]
   for (const run of requests) assert.equal((await run())?.status, 403)
   assert.ok(!calls.some((call) => call.url.includes('/office_')))
+})
+
+test('storico personaggio: letture paginate per agente e proprietario, senza campi interni delle corse', async () => {
+  const response = await agentHistory(request('/api/office/agents/presentations?offset=20', undefined, 'GET'),
+    { params: Promise.resolve({ id: 'presentations' }) })
+  assert.equal(response.status, 200)
+  const value = await response.json()
+  assert.deepEqual(value.runs, []); assert.deepEqual(value.outputs, []); assert.equal(value.offset, 20)
+  const history = calls.filter((call) => /office_agent_(runs|outputs)/.test(call.url))
+  assert.equal(history.length, 2)
+  for (const call of history) {
+    const query = new URL(call.url).searchParams
+    assert.equal(query.get('user_id'), `eq.${OWNER}`)
+    assert.equal(query.get('agent_id'), 'eq.presentations')
+    assert.equal(query.get('offset'), '20'); assert.equal(query.get('limit'), '20')
+    assert.ok(!query.get('select')?.includes('*'))
+    assert.ok(!query.get('select')?.includes('details'))
+  }
+})
+
+test('storico: agente assente e filtro non valido non espongono attività', async () => {
+  assert.equal((await agentHistory(request('/api/office/agents/other', undefined, 'GET'), params)).status, 404)
+  assert.equal((await agentHistory(request('/api/office/agents/presentations?offset=-1', undefined, 'GET'),
+    { params: Promise.resolve({ id: 'presentations' }) })).status, 400)
+  assert.ok(!calls.some((call) => /office_agent_(runs|outputs)/.test(call.url)))
 })
 
 test('il titolare installa gli agenti spenti e legge totali zero', async () => {
@@ -119,6 +148,21 @@ test('gli altri errori della coda non vengono trattati come una pagina vuota', a
   outputsError = 'XX000'
   assert.equal((await GET(request('/api/office?offset=50', undefined, 'GET'))).status, 500)
   assert.ok(!calls.some((call) => call.method === 'HEAD'))
+})
+
+test('riepilogo 3D: registro mancante distinto da un ufficio senza incarichi; altri errori visibili', async () => {
+  worksError = 'PGRST205'
+  const response = await GET(request('/api/office', undefined, 'GET'))
+  assert.equal(response.status, 200)
+  const value = await response.json()
+  assert.equal(value.work_supported, false); assert.deepEqual(value.works, [])
+  for (const call of calls.filter((call) => call.url.includes('/office_work_items'))) {
+    const query = new URL(call.url).searchParams
+    assert.equal(query.get('user_id'), `eq.${OWNER}`)
+    assert.ok(!/payload|checkpoint|lease_token|\*/.test(query.get('select') || ''))
+  }
+  worksError = 'XX000'
+  assert.equal((await GET(request('/api/office', undefined, 'GET'))).status, 500)
 })
 
 test('approvare usa la sola RPC transazionale autorizzata; il secondo clic non cambia una decisione presa', async () => {

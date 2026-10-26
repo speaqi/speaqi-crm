@@ -166,7 +166,7 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
     reason: outcome.reply, reason_code: 'approval_required', required_action: 'Leggi e decidi la proposta collegata.', responsible: 'Titolare', next_check_at: null }
   if (outcome.status === 'failed') return blockedWork(outcome.reply, 'Completa i dati di questo lavoro.', 'Titolare')
   return { status: 'succeeded', phase: 'result_saved', close_plan: true, output_ids: outcome.outputs,
-    result: { intent: plan.intent, reply: outcome.reply }, result_summary: outcome.reply }
+    result: { ...outcome.result, intent: plan.intent, reply: outcome.reply }, result_summary: outcome.reply }
 }
 
 /** Dispatch chiuso; gli handler ricevono il solo incarico, mai tutta la coda di lavoro. */

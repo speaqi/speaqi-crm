@@ -26,6 +26,7 @@ export default function UfficioPage() {
   const [overview, setOverview] = useState<OfficeOverview | null>(null)
   const [tab, setTab] = useState<PanelTab>('waiting')
   const [department, setDepartment] = useState<string | null>(null)
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [highlight, setHighlight] = useState<string | null>(null)
   const [full, setFull] = useState(false)
   // «Aspetta te» in prima pagina porta qui con ?uscita=<id>: si apre la proposta nel pannello.
@@ -80,9 +81,17 @@ export default function UfficioPage() {
       }
     })()
     void refresh(controller.signal)
-    const interval = setInterval(() => { if (!document.hidden) void refresh(controller.signal) }, 30_000)
-    return () => { controller.abort(); clearInterval(interval) }
+    return () => controller.abort()
   }, [refresh, attempt])
+
+  const activeWork = overview?.works?.some((work) => ['ready', 'running'].includes(work.status)) || overview?.runs.some((run) => run.status === 'running')
+  useEffect(() => {
+    const timer = setInterval(() => { if (!document.hidden) void refresh() }, activeWork ? 5_000 : 30_000)
+    const visible = () => { if (!document.hidden) void refresh() }
+    document.addEventListener('visibilitychange', visible)
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', visible) }
+  }, [activeWork, refresh])
+  useEffect(() => () => refreshController.current?.abort(), [])
 
   useEffect(() => {
     function message(event: MessageEvent) {
@@ -99,11 +108,19 @@ export default function UfficioPage() {
       else if (event.data?.type === 'office:focus') {
         const id = event.data.department
         setDepartment(typeof id === 'string' ? id : null)
+        const agentId = event.data.agentId
+        const agent = snapshot.current?.departments.flatMap((sector) => sector.agents).find((item) => item.id === agentId)
+        setSelectedAgentId(agent?.id || null)
         if (typeof id === 'string') setTab('team')
       } else if (event.data?.type === 'office:navigate') {
         // Dal 3D non si cambia pagina: il totem «Aspetta te» e le schede aprono il pannello.
         const id = event.data.outputId
-        if (typeof event.data.agentId === 'string') { setTab('team'); return }
+        if (typeof event.data.agentId === 'string') {
+          const sector = snapshot.current?.departments.find((item) => item.agents.some((agent) => agent.id === event.data.agentId))
+          if (sector) { setSelectedAgentId(event.data.agentId); setDepartment(sector.id); setTab('team') }
+          return
+        }
+        setSelectedAgentId(null)
         setTab('waiting'); setHighlight(typeof id === 'string' ? id : null)
       }
     }
@@ -112,7 +129,13 @@ export default function UfficioPage() {
   }, [refresh, send])
 
   const reload = useCallback(() => refresh(), [refresh])
-  const pickDepartment = useCallback((id: string | null) => { setDepartment(id); send({ type: 'office:focus', department: id }) }, [send])
+  const pickDepartment = useCallback((id: string | null) => { setDepartment(id); setSelectedAgentId(null); send({ type: 'office:focus', department: id }) }, [send])
+  const selectAgent = useCallback((id: string | null) => {
+    const sector = snapshot.current?.departments.find((item) => item.agents.some((agent) => agent.id === id))
+    setSelectedAgentId(sector ? id : null)
+    if (sector) setDepartment(sector.id)
+    send({ type: 'office:focus', department: sector?.id || department, agentId: sector ? id : null })
+  }, [send, department])
 
   // Schermo intero vero dove il browser lo permette; altrimenti la stanza copre la finestra.
   useEffect(() => {
@@ -146,6 +169,6 @@ export default function UfficioPage() {
         aria-pressed={full}>{full ? '✕ Esci da schermo intero' : '⛶ Schermo intero'}</button>
     </div>
     <OfficePanel data={overview} reload={reload} tab={tab} setTab={setTab}
-      department={department} setDepartment={pickDepartment} highlight={highlight} />
+      department={department} setDepartment={pickDepartment} highlight={highlight} selectedAgentId={selectedAgentId} selectAgent={selectAgent} />
   </div>
 }

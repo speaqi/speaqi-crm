@@ -10,6 +10,8 @@ import type { DirectorPlan, PlanItem } from '@/lib/office/director-plan'
 import { CONTACT_HIDDEN_KEYS, OutputBody } from '@/components/office/OutputBody'
 import { DirectorOrders } from './agenti/DirectorOrders'
 import { WorkList } from '@/components/office/WorkList'
+import { AgentActivity } from '@/components/office/AgentActivity'
+import { officeAgentActivity } from '@/lib/office-activity'
 import styles from './ufficio.module.css'
 
 export type PanelTab = 'waiting' | 'team' | 'plan' | 'work'
@@ -20,14 +22,6 @@ const date = (value: string) => new Date(value).toLocaleString('it-IT', { timeZo
 const day = (value: string) => new Date(value).toLocaleDateString('it-IT', { timeZone: 'Europe/Rome', day: 'numeric', month: 'short' })
 
 /** Lo stato come lo disegna la scena: lo stesso pallino nel 3D e qui. */
-function agentState(agent: Agent) {
-  const last = agent.last_run
-  if (last?.status === 'running') return { key: 'running', label: 'In corso' }
-  if (!agent.enabled) return { key: 'off', label: 'Spento' }
-  if (last && ['failed', 'partial', 'skipped_budget'].includes(last.status)) return { key: 'attention', label: 'Da verificare' }
-  return { key: 'ready', label: 'Disponibile' }
-}
-
 function PlanList({ title, rows, extra }: { title: string; rows: PlanItem[]; extra?: (row: PlanItem) => string | null }) {
   return <section className={styles.planList}>
     <h3>{title} <span>{rows.length}</span></h3>
@@ -45,12 +39,13 @@ function PlanList({ title, rows, extra }: { title: string; rows: PlanItem[]; ext
  * Parlare al Direttore, decidere le proposte, accendere e far girare gli agenti, il piano di oggi.
  * Budget, impostazioni e storico completo restano in /ufficio/agenti, raggiungibili da qui.
  */
-export function OfficePanel({ data, reload, tab, setTab, department, setDepartment, highlight }: {
+export function OfficePanel({ data, reload, tab, setTab, department, setDepartment, highlight, selectedAgentId, selectAgent }: {
   data: OfficeOverview | null; reload: () => Promise<void>
   tab: PanelTab; setTab: (tab: PanelTab) => void
   department: string | null; setDepartment: (id: string | null) => void
   /** Uscita da mostrare per prima (clic su «Aspetta te» nel 3D). */
   highlight: string | null
+  selectedAgentId: string | null; selectAgent: (id: string | null) => void
 }) {
   const [busy, setBusy] = useState<string | null>(null)
   const [notice, setNotice] = useState('')
@@ -102,6 +97,7 @@ export function OfficePanel({ data, reload, tab, setTab, department, setDepartme
   const agents = department ? data.agents.filter((agent) => agent.department === department) : data.agents
   const outputs = [...data.outputs].sort((a, b) => (a.id === highlight ? -1 : b.id === highlight ? 1 : 0))
   const agentName = (id: string) => data.agents.find((agent) => agent.id === id)?.name || id
+  const selectedAgent = data.agents.find((agent) => agent.id === selectedAgentId)
 
   return <aside className={styles.panel} aria-label="Gestione dell’ufficio">
     <div className={styles.totals}>
@@ -110,6 +106,9 @@ export function OfficePanel({ data, reload, tab, setTab, department, setDepartme
       <span>Mese <strong>{euro(data.totals.month_actual)}</strong></span>
       <button type="button" className={styles.refresh} disabled={!!busy} onClick={() => { void act('refresh', async () => {}) }}>↻ Aggiorna</button>
     </div>
+
+    {selectedAgent && <AgentActivity key={selectedAgent.id} agent={selectedAgent} overview={data}
+      onClose={() => selectAgent(null)} onChanged={() => { void reload() }} />}
 
     <DirectorOrders compact directorEnabled={!!director?.enabled} onChanged={() => { void reload() }}
       onEnable={() => act('director', async () => { await patchAgent('director', { enabled: true }); return 'Direttore acceso.' })} />
@@ -151,7 +150,7 @@ export function OfficePanel({ data, reload, tab, setTab, department, setDepartme
       </div>
       {agents.length === 0 && <p className={styles.muted}>Nessun agente in questo reparto.</p>}
       {agents.map((agent) => {
-        const state = agentState(agent)
+        const state = officeAgentActivity(agent, data.works)
         return <article key={agent.id} className={styles.card}>
           <div className={styles.agentTop}>
             <h3><i className={styles.dot} data-state={state.key} aria-hidden />{agent.name}</h3>
@@ -159,9 +158,11 @@ export function OfficePanel({ data, reload, tab, setTab, department, setDepartme
               onChange={() => { void toggle(agent) }} aria-label={`Attiva ${agent.name}`} />{agent.enabled ? 'Acceso' : 'Spento'}</label>
           </div>
           <p className={styles.muted}>{agent.description}</p>
+          <p className={styles.last}>{state.label}{state.current?.reason ? ` — ${state.current.reason}` : ''}</p>
           <p className={styles.last}>{agent.last_run ? <>{OFFICE_RUN_LABELS[agent.last_run.status]} · {date(agent.last_run.started_at)} — {agent.last_run.summary}</> : 'Non ha ancora lavorato.'}</p>
           {agent.last_run?.error && <p className={styles.error}>{agent.last_run.error}</p>}
           <div className={styles.actions}>
+            <button className="btn btn-primary btn-sm" onClick={() => selectAgent(agent.id)}>Attività e storico</button>
             <button className="btn btn-ghost btn-sm" disabled={!!busy || !agent.enabled} onClick={() => { void run(agent) }}>{busy === agent.id ? 'Lavoro…' : 'Fai girare adesso'}</button>
             <span className={styles.muted}>Mese {euro(agent.spend.month_actual)} / {euro(agent.monthly_budget_cents)}</span>
             <Link className={styles.more} href={`/ufficio/agenti#agente-${agent.id}`}>Budget e impostazioni →</Link>
