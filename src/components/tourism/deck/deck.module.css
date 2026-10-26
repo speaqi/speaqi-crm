@@ -101,6 +101,13 @@
 .labelled .card { justify-content: space-between; min-height: 500px; padding: 42px 42px 48px; }
 .labelled .card .cardHead { margin-top: auto; }
 .labelled .card h3 { font-size: 60px; }
+.faq { gap: 20px; margin-top: 44px; }
+.faq .card { padding: 24px 34px 26px; min-height: 0; }
+.faq .card h3 { font-size: 38px; }
+.faq .card p { margin-top: 10px; font-size: 24px; }
+.plain .card { justify-content: flex-start; min-height: 0; }
+.plain .card .cardHead { margin-top: 0; }
+.plain .label { margin-bottom: 22px; }
 .card.hl .label { color: var(--navy); }
 .steps .card { min-height: 470px; padding: 42px 46px; }
 .steps .num { font-family: var(--title); font-synthesis: none; font-size: 84px; line-height: 1; color: #c2410c; margin-bottom: 52px; }
@@ -130,12 +137,32 @@
 .showcaseCard.hl { background: var(--orange); border-color: var(--orange); color: var(--navy); }
 .showcaseCard.hl .bigValue, .showcaseCard.hl p { color: var(--navy); }
 
+/* Catalogo con le foto: una scheda per mappa, il nome in basso su una sfumatura; sotto, la fascia «in produzione». */
+.showcasePhoto { position: relative; overflow: hidden; justify-content: flex-end; background-color: #24385a; background-size: cover; background-position: center; padding: 28px 30px 30px; border: 0; }
+.showcasePhoto::before { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(14, 24, 44, 0.78) 0%, rgba(14, 24, 44, 0) 42%); }
+.showcasePhoto h3 { position: relative; font-size: 46px; color: var(--cream); }
+.withBand { max-height: 560px; }
+.band { display: flex; align-items: center; gap: 28px; margin-top: 28px; padding: 22px 34px; border-radius: 22px; background: #24385a; font-family: var(--title); font-synthesis: none; font-size: 38px; }
+.bandLabel { font-family: var(--body); font-weight: 700; font-size: 24px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--orange); }
+
 /* Figure: numeri grandi con il filetto arancione sopra. */
 .figureRow { display: grid; gap: 58px; margin-top: 110px; }
 .figure { border-top: 4px solid var(--orange); padding-top: 26px; }
 .figure .bigValue { font-size: 132px; }
 .figure h3 { font-family: var(--body); font-weight: 700; font-size: 32px; margin-top: 18px; }
 .figure p { margin: 8px 0 0; font-weight: 700; font-size: 25px; color: var(--soft); }
+/* «Chi scegliamo»: cifre in alto, la nota, poi la fascia dei tre passi. */
+.withSteps .figureRow { margin-top: 54px; }
+.figureNote { margin: 26px 0 0; font-weight: 700; font-size: 27px; color: var(--soft); }
+.stepStrip { margin-top: auto; padding-top: 26px; }
+.stepLabel { font-weight: 700; font-size: 23px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--orange); margin-bottom: 20px; }
+.stepRow { display: grid; gap: 24px; }
+.stepCard { border-radius: 22px; padding: 28px 32px 30px; background: #24385a; border: 1px solid rgba(255, 255, 255, 0.08); }
+.stepCard h3 { font-size: 42px; display: flex; align-items: baseline; gap: 14px; }
+.stepCard h3 span { color: var(--orange); }
+.stepCard p { margin: 12px 0 0; font-weight: 700; font-size: 24px; line-height: 1.35; color: var(--soft); }
+.stepCard.hl { background: var(--orange); border-color: var(--orange); color: var(--navy); }
+.stepCard.hl h3 span, .stepCard.hl p { color: var(--navy); }
 .figureRow + .box { margin-top: auto; }
 .figureRow + .box p { margin: 0; color: var(--cream); font-size: 29px; }
 

@@ -10,7 +10,9 @@ import {
   countTodo,
   guardGenerated,
   mergeGenerated,
+  normalizeItem,
   normalizeTemplate,
+  photoSlots,
   resolveVars
 } from '../src/lib/tourism-deck'
 
@@ -20,7 +22,7 @@ const ASSET = '11111111-1111-4111-8111-111111111111'
 
 test('la base è la presentazione «Speaqi Guides · Destinazioni»: quattordici slide nello stesso ordine', () => {
   const ids = DEFAULT_DECK_TEMPLATE.slides.map((s) => s.id)
-  assert.deepEqual(ids, ['cover', 'partenza', 'proposta', 'cosa-ottieni', 'lingue', 'catalogo', 'provala', 'in-azione', 'collaborazione', 'requisiti', 'come-si-parte', 'servizi', 'domande', 'chiusura'])
+  assert.deepEqual(ids, ['cover', 'partenza', 'proposta', 'cosa-ottieni', 'lingue', 'catalogo', 'provala', 'in-azione', 'collaborazione', 'servizi', 'vantaggi', 'chi-scegliamo', 'domande', 'chiusura'])
   assert.equal(DEFAULT_DECK_TEMPLATE.base, DESTINATIONS_BASE)
   // La mappa è gratuita: nessun importo in euro, e nulla da completare a mano.
   assert.ok(!JSON.stringify(DEFAULT_DECK_TEMPLATE).includes('€'))
@@ -41,8 +43,32 @@ test('la destinazione entra nel nome: copertina, cosa ottiene, chiusura', () => 
   assert.equal(byId('cover').kicker, 'Speaqi Guides per Bergamo')
   assert.equal(byId('cosa-ottieni').title, 'Cosa ottiene Bergamo.')
   assert.match(byId('chiusura').title, /Facciamo la mappa di Bergamo\.$/)
-  assert.equal(byId('requisiti').items[0].value, '250.000')
-  assert.equal(byId('catalogo').items[0].highlight, true)
+  assert.equal(byId('chi-scegliamo').items[0].value, '250.000')
+})
+
+test('«Chi scegliamo» viene prima dei passi: tre cifre e tre passi in una slide sola, niente slide «come candidarsi» a parte', () => {
+  const slide = DEFAULT_DECK_TEMPLATE.slides.find((s) => s.id === 'chi-scegliamo')!
+  assert.equal(slide.kind, 'figures')
+  assert.equal(slide.title, 'Chi scegliamo.')
+  // Le voci con numero sono i requisiti, quelle senza sono i tre passi, in ordine.
+  assert.deepEqual(slide.items.filter((i) => i.value).map((i) => i.value), ['250.000', '2', '1'])
+  assert.deepEqual(slide.items.filter((i) => !i.value).map((i) => i.title), ['Primo incontro', 'Accordo', 'Mappa online'])
+  assert.ok(!DEFAULT_DECK_TEMPLATE.slides.some((s) => s.id === 'come-si-parte' || s.id === 'requisiti'))
+})
+
+test('il catalogo porta le foto delle cinque mappe e le dice generate con AI; nessun numero di luoghi', () => {
+  const slide = DEFAULT_DECK_TEMPLATE.slides.find((s) => s.id === 'catalogo')!
+  assert.deepEqual(slide.items.map((i) => i.title), ['Napoli', 'Roma', 'Lisbona', 'Pompei', 'Capri'])
+  for (const item of slide.items) {
+    assert.ok(item.art && DECK_ART[item.art].startsWith('/deck/destinazioni/catalogo-'))
+    assert.ok(!item.value)
+  }
+  assert.match(slide.footnote!, /generate con AI/)
+  // Le foto del catalogo sono immagini fisse: non sono foto della destinazione.
+  assert.ok(!photoSlots(DEFAULT_DECK_TEMPLATE.slides).some((s) => s.id === 'catalogo'))
+  // L'immagine di una voce si legge solo per chiave.
+  assert.equal(normalizeItem({ title: 'x', text: '', art: 'catalogo-roma' }).art, 'catalogo-roma')
+  assert.equal(normalizeItem({ title: 'x', text: '', art: '/etc/passwd' }).art, undefined)
 })
 
 test('senza destinazione il segnaposto non sparisce in silenzio', () => {
@@ -56,7 +82,7 @@ test('le slide fisse restano parola per parola: l’agente sceglie solo la foto'
   const merged = mergeGenerated(base, {
     slides: [
       { id: 'cover', title: 'Bergamo ti aspetta', body: 'altro', items: [], image_asset_id: ASSET },
-      { id: 'requisiti', title: 'Chiunque può candidarsi', items: [{ title: 'zero presenze', text: '' }] },
+      { id: 'chi-scegliamo', title: 'Chiunque può candidarsi', items: [{ title: 'zero presenze', text: '' }] },
       { id: 'partenza', title: 'I visitatori arrivano.\nLe informazioni sono sparse.', items: [{ title: 'Tante lingue', text: 'tedeschi e americani, ognuno con la sua' }] }
     ]
   })
@@ -64,7 +90,7 @@ test('le slide fisse restano parola per parola: l’agente sceglie solo la foto'
   assert.equal(byId('cover').title, base[0].title)
   assert.equal(byId('cover').body, base[0].body)
   assert.equal(byId('cover').image_asset_id, ASSET)
-  assert.deepEqual(byId('requisiti'), base.find((s) => s.id === 'requisiti'))
+  assert.deepEqual(byId('chi-scegliamo'), base.find((s) => s.id === 'chi-scegliamo'))
   // La slide del punto di partenza si personalizza, ma non perde le voci né il loro numero.
   assert.equal(byId('partenza').items[0].text, 'tedeschi e americani, ognuno con la sua')
   assert.equal(byId('partenza').items.length, 3)
