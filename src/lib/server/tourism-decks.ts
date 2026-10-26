@@ -1,7 +1,8 @@
-import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 import { quoteSummary } from '../agency'
 import {
   DEFAULT_DECK_TEMPLATE,
+  DESTINATIONS_BASE_PREVIOUS,
   PARTNER_DECK_TEMPLATE,
   deckModel,
   applyVars,
@@ -65,12 +66,27 @@ const checked = <T extends { error: unknown }>(result: T): T => {
 
 // ---- Modello generico -----------------------------------------------------
 
+/** Impronta della base destinazioni «destinazioni-2026-10» così com'era prima della revisione del 26/10. */
+const PREVIOUS_DESTINATIONS_FINGERPRINT = 'ca5a363f533721a94be68195ee6534dda6fa3221ef0fc1b64415db017142652a'
+
+export const templateFingerprint = (raw: unknown) => {
+  const t = normalizeTemplate(raw)
+  return createHash('sha256').update(JSON.stringify({ vars: t.vars, slides: t.slides })).digest('hex')
+}
+
+/** Vero solo per la base di prima salvata tale e quale: l'ha scritta il codice, non il titolare. */
+export const isUneditedPreviousDestinations = (raw: unknown) =>
+  (raw as { base?: unknown } | null)?.base === DESTINATIONS_BASE_PREVIOUS && templateFingerprint(raw) === PREVIOUS_DESTINATIONS_FINGERPRINT
+
 export async function getTemplate(sb: Sb, userId: string): Promise<{ template: DeckTemplate; version: number }> {
   const found = checked(await sb.from('tourism_deck_templates').select('content,version').eq('user_id', userId).eq('is_default', true).maybeSingle())
   if (found.data) {
     // Un modello senza `base` è precedente alla presentazione destinazioni di ottobre 2026:
     // si sostituisce una volta con quella. Uno salvato dopo (anche la base aziende) resta.
-    if (found.data.content?.base) return { template: normalizeTemplate(found.data.content), version: found.data.version }
+    // Lo stesso vale per la base destinazioni di prima della revisione del 26/10, ma solo se
+    // nessuno l'ha modificata: una versione corretta a mano dal titolare non si tocca mai.
+    const stale = !found.data.content?.base || isUneditedPreviousDestinations(found.data.content)
+    if (!stale) return { template: normalizeTemplate(found.data.content), version: found.data.version }
     const upgraded = checked(
       await sb
         .from('tourism_deck_templates')
