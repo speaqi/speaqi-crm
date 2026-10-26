@@ -67,11 +67,11 @@ const checked = <T extends { error: unknown }>(result: T): T => {
 // ---- Modello generico -----------------------------------------------------
 
 /** Impronta della base destinazioni «destinazioni-2026-10» così com'era prima della revisione del 26/10. */
-const PREVIOUS_DESTINATIONS_FINGERPRINT = 'ca5a363f533721a94be68195ee6534dda6fa3221ef0fc1b64415db017142652a'
+const PREVIOUS_DESTINATIONS_FINGERPRINT = '82ec6330b87e620e05e0f31d0bda1391f01ad6ce4370c6e4044bb23029614fc1'
 
 export const templateFingerprint = (raw: unknown) => {
   const t = normalizeTemplate(raw)
-  return createHash('sha256').update(JSON.stringify({ vars: t.vars, slides: t.slides })).digest('hex')
+  return createHash('sha256').update(JSON.stringify({ vars: t.vars, slides: t.slides, quote_template: t.quote_template })).digest('hex')
 }
 
 /** Vero solo per la base di prima salvata tale e quale: l'ha scritta il codice, non il titolare. */

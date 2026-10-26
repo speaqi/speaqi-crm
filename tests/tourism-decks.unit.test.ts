@@ -333,3 +333,9 @@ test('una base di prima corretta a mano dal titolare resta com’è', async () =
   assert.equal(template.slides[0].title, 'Il nostro titolo')
   assert.ok(template.slides.some((s) => s.id === 'requisiti'))
 })
+
+test('una base di prima con il solo preventivo corretto a mano resta com’è', async () => {
+  const edited = JSON.parse(readFileSync(new URL('./fixtures/tourism-deck-destinazioni-2026-10.json', import.meta.url), 'utf8'))
+  edited.quote_template = { ...(edited.quote_template || {}), public_note: 'Nota scritta dal titolare' }
+  assert.equal(isUneditedPreviousDestinations(edited), false)
+})
