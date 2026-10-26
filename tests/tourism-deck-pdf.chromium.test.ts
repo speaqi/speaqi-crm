@@ -1,7 +1,9 @@
 /**
  * Prova il Chromium vero (@sparticuz/chromium): apre una pagina servita in locale con due
  * slide 1920x1080 e deve tornare un PDF di due pagine 16:9. È la prova che il binario
- * parte nello stesso tipo di immagine Ubuntu di Railway. Lenta (qualche secondo), a parte:
+ * parte nel runtime del servizio. Per verificare le dipendenze di sistema, eseguire
+ * anche nello stage Docker pdf-runtime con il pacchetto Chromium, senza CHROMIUM_PATH.
+ * Lenta (qualche secondo), a parte:
  * `npm run test:tourism:pdf`.
  */
 import assert from 'node:assert/strict'
