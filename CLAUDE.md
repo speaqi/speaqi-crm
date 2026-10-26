@@ -651,6 +651,8 @@ Guida operativa e deploy Railway in `docs/WHATSAPP-OPENWA.md`.
 
 ## Deployment (Railway.app)
 
+- **PDF Agency e Tourism**: il Dockerfile installa `libnspr4`, `libnss3`, `libexpat1` e i certificati nello stage `pdf-runtime`, ereditato dal runner. Il binario Chromium incluso nel pacchetto non porta queste librerie nell'immagine Debian slim; la loro assenza causa `Code: 127` e il download restituisce 500. Lo standalone finale esegue `scripts/check-pdf-runtime.mjs` durante il build: deve generare un PDF 16:9. Il mount temporaneo `/tmp` evita di conservare i binari decompressi della prova nei layer.
+
 - Builder: Nixpacks (uses `railway.json`)
 - Port: **3000** (forced)
 - Start: `node start.cjs` — proxy server on `0.0.0.0:3000`, spawns Next.js on internal port
