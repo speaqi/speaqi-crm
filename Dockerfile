@@ -41,7 +41,9 @@ COPY --from=builder /app/.next/static ./.next/static
 # Verifica browser, librerie e pacchetti tracciati nell'immagine che sarà eseguita.
 # I binari decompressi della prova non vengono conservati nei layer dell'immagine.
 COPY --from=builder /app/scripts/check-pdf-runtime.mjs ./scripts/check-pdf-runtime.mjs
-RUN --mount=type=tmpfs,target=/tmp node scripts/check-pdf-runtime.mjs
+RUN mkdir -p /tmp/speaqi-pdf-runtime-check \
+    && TMPDIR=/tmp/speaqi-pdf-runtime-check node scripts/check-pdf-runtime.mjs \
+    && rm -rf /tmp/speaqi-pdf-runtime-check
 
 EXPOSE 3000
 
