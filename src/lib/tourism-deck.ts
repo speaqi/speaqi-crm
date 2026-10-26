@@ -39,7 +39,7 @@ export const DECK_ART = {
 } as const
 export type DeckArt = keyof typeof DECK_ART
 /** Foto di esempio generate con AI: la pagina lo dice quando non c'è una foto della destinazione. */
-export const DECK_AI_ART: readonly DeckArt[] = ['cover']
+export const DECK_AI_ART: readonly DeckArt[] = ['cover', 'partenza', 'proposta']
 /** Le immagini fisse che sono foto di un luogo: vanno sostituite con foto della destinazione. */
 export const DECK_PHOTO_ART: readonly DeckArt[] = ['cover', 'partenza', 'proposta']
 

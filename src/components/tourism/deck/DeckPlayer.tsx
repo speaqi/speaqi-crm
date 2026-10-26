@@ -105,6 +105,8 @@ export function SlideView({
   const picture = image || art
   const aiArt = !image && !!slide.art && DECK_AI_ART.includes(slide.art)
   const qr = slide.qr ? DECK_ART[slide.qr] : null
+  /** Credito sulla foto: autore e licenza di quella vera, altrimenti l'avviso sull'immagine di esempio. */
+  const photoLabel = image ? credit : aiArt ? 'Immagine generata con AI' : null
   const base = cls(d.slide, d[tone], d[slide.kind], active && d.active)
   const foot = <Foot footnote={slide.footnote} n={n} total={total} />
 
@@ -130,7 +132,7 @@ export function SlideView({
   if (slide.kind === 'list') {
     return (
       <section className={cls(base, !!picture && d.withSide)} aria-hidden={!active}>
-        {picture && <div className={d.side} style={photo(picture)}>{image && credit && <span className={d.photoCredit}>{credit}</span>}</div>}
+        {picture && <div className={d.side} style={photo(picture)}>{photoLabel && <span className={d.photoCredit}>{photoLabel}</span>}</div>}
         <div className={d.listText}>
           <Kicker value={slide.kicker} />
           <h2><Lines value={slide.title} /></h2>
@@ -343,7 +345,7 @@ export function SlideView({
             <h2><Lines value={slide.title} /></h2>
             {slide.body && <p className={d.lead}><Text value={slide.body} /></p>}
           </div>
-          {picture && <div className={d.photo} style={photo(picture)}>{image && credit && <span className={d.photoCredit}>{credit}</span>}</div>}
+          {picture && <div className={d.photo} style={photo(picture)}>{photoLabel && <span className={d.photoCredit}>{photoLabel}</span>}</div>}
         </div>
         {slide.note && <div className={d.pill}><Text value={slide.note} /></div>}
         {foot}
