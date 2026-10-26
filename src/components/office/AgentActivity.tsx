@@ -59,7 +59,7 @@ export function AgentActivity({ agent, overview, onClose, onChanged }: {
           : output.target_table === 'invoices' ? { invoice_id: output.target_id } : {})
         return <article key={output.id} className={styles.card}>
           <h3>{output.title}</h3>
-          <small>{date(output.created_at)} · {output.status === 'pending' ? 'Aspetta te' : output.status === 'approved' ? 'Approvato' : output.status === 'rejected' ? 'Rifiutato' : 'Registrato'}</small>
+          <small>{date(output.created_at)} · {output.status === 'pending' ? 'Aspetta te' : output.status === 'approved' ? 'Approvato' : output.status === 'rejected' ? 'Rifiutato' : output.kind === 'report' ? 'Letto' : 'Registrato'}</small>
           {link && <Link className={styles.more} href={link.href}>{link.label} →</Link>}
           {output.status === 'pending' && <Link className={styles.more} href={`/ufficio?uscita=${encodeURIComponent(output.id)}`}>Apri proposta da decidere →</Link>}
           <details><summary>Leggi il risultato</summary><div className={styles.body}><OutputBody value={output.body}

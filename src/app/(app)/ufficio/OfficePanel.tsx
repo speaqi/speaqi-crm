@@ -4,10 +4,10 @@ import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import { formatEuroPlain } from '@/lib/command-center'
-import { OFFICE_DEPARTMENTS, OFFICE_RUN_LABELS, officeApprovalEffect, type OfficeOverview, type OfficeRun } from '@/lib/office'
+import { OFFICE_DEPARTMENTS, OFFICE_RUN_LABELS, type OfficeOverview, type OfficeRun } from '@/lib/office'
 import { PIPELINE_LABELS, STAGE_LABELS, type OpportunityStage } from '@/lib/opportunities'
 import type { DirectorPlan, PlanItem } from '@/lib/office/director-plan'
-import { CONTACT_HIDDEN_KEYS, OutputBody } from '@/components/office/OutputBody'
+import { PendingInbox } from '@/components/office/PendingInbox'
 import { DirectorOrders } from './agenti/DirectorOrders'
 import { WorkList } from '@/components/office/WorkList'
 import { AgentActivity } from '@/components/office/AgentActivity'
@@ -82,21 +82,10 @@ export function OfficePanel({ data, reload, tab, setTab, department, setDepartme
     return result.queued ? result.summary || 'Incarico salvato: seguilo nella scheda Lavori.'
       : result.skipped ? 'Turno saltato: corsa già presente o agente spento.' : result.run?.summary || 'Corsa conclusa.'
   })
-  const decide = (id: string, status: 'approved' | 'rejected') => act(id, async () => {
-    const output = data?.outputs.find((item) => item.id === id)
-    const result = await apiFetch<{ notice?: string }>(`/api/office/outputs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
-    return result?.notice || (status === 'approved' && output ? officeApprovalEffect(output).notice : 'Proposta rifiutata.')
-  })
-  const telegram = (id: string) => act(id, async () => {
-    const result = await apiFetch<{ sent: boolean }>(`/api/office/outputs/${id}/telegram`, { method: 'POST' })
-    return result.sent ? 'Approvata e inviata su Telegram.' : 'Tentativo già registrato: nessun nuovo invio.'
-  })
 
   if (!data) return <aside className={styles.panel}><p className={styles.muted}>Carico l’ufficio…</p></aside>
   const director = data.agents.find((agent) => agent.id === 'director')
   const agents = department ? data.agents.filter((agent) => agent.department === department) : data.agents
-  const outputs = [...data.outputs].sort((a, b) => (a.id === highlight ? -1 : b.id === highlight ? 1 : 0))
-  const agentName = (id: string) => data.agents.find((agent) => agent.id === id)?.name || id
   const selectedAgent = data.agents.find((agent) => agent.id === selectedAgentId)
 
   return <aside className={styles.panel} aria-label="Gestione dell’ufficio">
@@ -123,24 +112,7 @@ export function OfficePanel({ data, reload, tab, setTab, department, setDepartme
 
     {tab === 'work' && <WorkList agentNames={Object.fromEntries(data.agents.map((agent) => [agent.id, agent.name]))} refreshSignal={data} onChanged={() => { void reload() }} />}
 
-    {tab === 'waiting' && <div className={styles.list}>
-      {data.pending_count === 0 && <p className={styles.muted}>Nessuna proposta da decidere.</p>}
-      {outputs.map((output) => {
-        const effect = officeApprovalEffect(output)
-        return <article key={output.id} id={`pannello-uscita-${output.id}`} className={`${styles.card} ${output.id === highlight ? styles.lit : ''}`}>
-          <small>{agentName(output.agent_id)} · {date(output.created_at)}</small>
-          <h3>{output.title}</h3>
-          <details><summary>Leggi</summary><div className={styles.body}><OutputBody value={output.body} hide={output.body.action === 'create_contact' ? CONTACT_HIDDEN_KEYS : undefined} /></div></details>
-          <p className={styles.effect}>{effect.description}</p>
-          <div className={styles.actions}>
-            <button className="btn btn-primary btn-sm" disabled={!!busy} onClick={() => { void decide(output.id, 'approved') }}>{effect.label}</button>
-            {output.agent_id === 'news_watch' && output.body.telegram_available === true && <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => { void telegram(output.id) }}>Approva e invia su Telegram</button>}
-            <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => { void decide(output.id, 'rejected') }}>Rifiuta</button>
-          </div>
-        </article>
-      })}
-      {data.pending_count > data.outputs.length && <Link className={styles.more} href="/ufficio/agenti#coda">Altre {data.pending_count - data.outputs.length} proposte →</Link>}
-    </div>}
+    {tab === 'waiting' && <PendingInbox data={data} onChanged={reload} highlight={highlight} />}
 
     {tab === 'team' && <div className={styles.list}>
       <div className={styles.chips}>

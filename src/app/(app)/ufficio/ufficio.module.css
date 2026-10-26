@@ -35,6 +35,10 @@
 .body ul { padding-left: 16px; margin: 0; }
 .effect { font-size: 12px; color: var(--text2); line-height: 1.45; }
 .actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.inboxHeading { display: flex; gap: 9px; align-items: flex-start; }
+.inboxHeading input { width: 17px; height: 17px; margin: 1px 0 0; flex: none; accent-color: var(--accent); }
+.inboxToolbar { display: grid; gap: 7px; padding: 12px; border: 1px solid var(--accent); border-radius: 8px; background: var(--surface); position: sticky; top: 32px; z-index: 2; font-size: 12px; }
+.inboxToolbar p { margin: 0; line-height: 1.5; color: var(--text2); }
 .more { font-size: 12px; color: var(--accent); text-decoration: none; margin-left: auto; }
 .more:hover { text-decoration: underline; }
 
