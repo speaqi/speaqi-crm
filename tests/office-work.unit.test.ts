@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { aggregateAutomationOutcome, nextOfficeBudgetCheck, officeWorkSpec, validateWorkPayload, type OfficeWorkItem, type WorkOutcome } from '../src/lib/office-work'
-import { runOfficeWorker, type OfficeWorkStore, type WorkEvent } from '../src/lib/server/office-work'
+import { aggregateAutomationOutcome, nextOfficeBudgetCheck, officeWorkNotice, officeWorkSpec, validateWorkPayload, type OfficeWorkItem, type WorkOutcome } from '../src/lib/office-work'
+import { SKIPPED_NOTICE, deliverOfficeWorkEvents, runOfficeWorker, type OfficeWorkStore, type WorkEvent } from '../src/lib/server/office-work'
+import { isCountryName } from '../src/lib/server/office-work-handlers'
+import { directorFollowUp } from '../src/lib/office/director-orders'
 import { runJob, type SchedulerDeps } from '../src/lib/server/automation-scheduler'
 import { OFFICE_AGENT_DEFINITIONS } from '../src/lib/server/office-agents/definitions'
 
@@ -188,4 +190,47 @@ test('pianificatore registra gli esiti applicativi e segnala soltanto i veri fal
     assert.equal(saved.outcome, outcome); assert.equal(saved.ok, outcome !== 'failed'); assert.equal(alerts, outcome === 'failed' ? 1 : 0)
   }
   assert.equal(aggregateAutomationOutcome(['skipped', 'blocked', 'failed']), 'failed')
+})
+
+test('Telegram: solo esiti, blocchi da risolvere e decisioni; mai «Pronto: Pronto»', () => {
+  const w = (patch: Record<string, unknown> = {}) => ({ status: 'succeeded', action: 'prepare_presentation', reason_code: null, required_action: null, result: {}, ...patch })
+  for (const status of ['ready', 'running', 'waiting', 'cancelled']) assert.equal(officeWorkNotice({ status, summary: 'Pronto' }, w({ status })), null)
+  assert.equal(officeWorkNotice({ status: 'succeeded', summary: 'Presentazione pronta per X.' }, w()), '✅ Presentazione pronta per X.')
+  // «Ordine compreso» con lavori assegnati è un passaggio; una risposta diretta del Direttore no.
+  assert.equal(officeWorkNotice({ status: 'succeeded', summary: 'Ordine compreso.' }, w({ action: 'interpret_order', result: { assigned: [{}] } })), null)
+  assert.equal(officeWorkNotice({ status: 'succeeded', summary: 'Ecco cosa puoi chiedermi' }, w({ action: 'interpret_order', result: { intent: 'help' } })), 'Ecco cosa puoi chiedermi')
+  // Un blocco dovuto al lavoro prima ripeterebbe l'avviso; uno già superato è vecchio.
+  assert.equal(officeWorkNotice({ status: 'blocked', summary: 'Il lavoro precedente è fallito.' }, w({ status: 'blocked', reason_code: 'dependency_failed' })), null)
+  assert.equal(officeWorkNotice({ status: 'blocked', summary: 'Sito illeggibile' }, w({ status: 'running', reason_code: 'website_unreadable' })), null)
+  assert.equal(officeWorkNotice({ status: 'blocked', summary: 'Il sito ufficiale non si riesce a leggere.' }, w({ status: 'blocked', reason_code: 'website_unreadable', required_action: 'Controlla il sito' })),
+    '⏸️ Il sito ufficiale non si riesce a leggere.\n\nRispondimi qui.')
+  assert.equal(officeWorkNotice({ status: 'failed', summary: 'Errore X' }, w({ status: 'failed', reason_code: 'execution', required_action: 'Riprova' })), '⚠️ Errore X\nCosa serve: Riprova')
+  assert.equal(officeWorkNotice({ status: 'waiting_owner', summary: 'Verifica pronta.' }, w({ status: 'waiting_owner', required_action: 'Approva in Aspetta te.' })), '👉 Verifica pronta.\nApprova in Aspetta te.')
+  assert.equal(officeWorkNotice({ status: 'succeeded', summary: 'x' }, null), null)
+})
+
+test('consegna degli avvisi: i passaggi interni non partono e restano segnati come non inviati', async () => {
+  const f = fakeStore()
+  const event = (id: string, status: string, summary: string): WorkEvent => ({ id, user_id: OWNER, work_id: ID, event_key: id,
+    body: { status, summary, message: `${status}: ${summary}`, notify: true }, telegram_chat_id: '1', lease_token: 't', status: 'pending' })
+  f.events.push(event('e1', 'ready', 'Pronto'), event('e2', 'running', 'In esecuzione'), event('e3', 'succeeded', 'Presentazione pronta.'))
+  f.store.eventWorks = async () => new Map([[ID, { status: 'succeeded', action: 'prepare_presentation', reason_code: null, required_action: null, result: { deck_id: 'd' } }]])
+  const sent: string[] = []
+  const counts = await deliverOfficeWorkEvents(OWNER, f.store, async (e) => { sent.push(String(e.body.message)); return { ok: true } })
+  assert.deepEqual(sent, ['✅ Presentazione pronta.'])
+  assert.deepEqual(counts, { sent: 1, uncertain: 0, failed: 0, skipped: 2 })
+  assert.deepEqual(f.delivered.filter((d) => d.error === SKIPPED_NOTICE).length, 2)
+})
+
+test('un paese non è un ente; «lascia perdere il sito» riprende l’ordine', () => {
+  assert.equal(isCountryName('Venezuela', 'VE'), true)
+  assert.equal(isCountryName('venezuela ', 'VE'), true)
+  assert.equal(isCountryName('Italia', 'IT'), true)
+  assert.equal(isCountryName('Ministerio del Turismo de Venezuela', 'VE'), false)
+  assert.equal(isCountryName('Venezuela', null), false)
+  const awaiting = { need: 'site' as const, resume: 'PRESENTAZIONE DI Ministerio del Turismo de Venezuela' }
+  assert.equal(directorFollowUp(awaiting, 'vabbè non utilizzare il sito ufficiale, fammi la presentazione'), awaiting.resume)
+  assert.equal(directorFollowUp(awaiting, 'lascia perdere il sito'), awaiting.resume)
+  assert.equal(directorFollowUp(awaiting, 'ecco il sito venezuela.travel'), `${awaiting.resume}, sito https://venezuela.travel`)
+  assert.equal(directorFollowUp(awaiting, 'trovami 5 partner per Roma'), null)
 })
