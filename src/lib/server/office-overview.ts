@@ -1,5 +1,23 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { OfficeAgent, OfficeOutput, OfficeOverview, OfficeRun, OfficeSpend } from '../office'
+import { OFFICE_OPEN_WORK_STATUSES, OFFICE_WORK_SUMMARY_COLUMNS, type OfficeWorkSummary } from '../office-activity'
+import { officeRows } from './office-read'
+
+async function loadWorkSummary(admin: SupabaseClient, userId: string) {
+  try {
+    const [open, recent] = await Promise.all([
+      officeRows<OfficeWorkSummary>(admin, userId, 'office_work_items', OFFICE_WORK_SUMMARY_COLUMNS,
+        (query) => query.in('status', OFFICE_OPEN_WORK_STATUSES)),
+      admin.from('office_work_items').select(OFFICE_WORK_SUMMARY_COLUMNS).eq('user_id', userId)
+        .order('updated_at', { ascending: false }).order('id').limit(30),
+    ])
+    if (recent.error) throw recent.error
+    return { works: [...new Map([...open, ...(recent.data || [])].map((work) => [work.id, work])).values()], work_supported: true }
+  } catch (error) {
+    if (['42P01', '42703', 'PGRST205', 'PGRST204'].includes((error as { code?: string }).code || '')) return { works: [], work_supported: false }
+    throw error
+  }
+}
 
 const emptySpend = (agentId: string): OfficeSpend => ({ agent_id: agentId, day_actual: 0, day_reserved: 0,
   week_actual: 0, week_reserved: 0, month_actual: 0, month_reserved: 0 })
@@ -12,7 +30,7 @@ export async function loadOfficeOverview(admin: SupabaseClient, userId: string, 
     agents.push(...(result.data || []))
     if ((result.data || []).length < 1000) break
   }
-  const [spendRes, runsRes, outputsRes, lastRuns] = await Promise.all([
+  const [spendRes, runsRes, outputsRes, lastRuns, activity] = await Promise.all([
     admin.rpc('office_budget_summary', { p_user_id: userId }),
     admin.from('office_agent_runs').select('*').eq('user_id', userId).order('started_at', { ascending: false }).limit(30),
     admin.from('office_agent_outputs').select('*', { count: 'exact' }).eq('user_id', userId).eq('status', 'pending')
@@ -23,6 +41,7 @@ export async function loadOfficeOverview(admin: SupabaseClient, userId: string, 
       if (result.error) throw result.error
       return (result.data?.[0] as OfficeRun | undefined) || null
     })),
+    loadWorkSummary(admin, userId),
   ])
   for (const result of [spendRes, runsRes]) if (result.error) throw result.error
   let outputs = outputsRes
@@ -42,5 +61,5 @@ export async function loadOfficeOverview(admin: SupabaseClient, userId: string, 
     return { ...agent, spend, last_run: lastRuns[index] }
   })
   return { agents: rows, runs: runsRes.data as OfficeRun[], outputs: outputs.data as OfficeOutput[],
-    pending_count: outputs.count || 0, totals, active_agents: agents.filter((agent) => agent.enabled).length }
+    pending_count: outputs.count || 0, totals, active_agents: agents.filter((agent) => agent.enabled).length, ...activity }
 }

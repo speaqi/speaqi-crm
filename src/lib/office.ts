@@ -34,6 +34,7 @@ export type OfficeOverview = {
   agents: Array<OfficeAgent & { last_run: OfficeRun | null; spend: OfficeSpend }>
   runs: OfficeRun[]; outputs: OfficeOutput[]; pending_count: number
   totals: Omit<OfficeSpend, 'agent_id'>; active_agents: number
+  works?: import('./office-activity').OfficeWorkSummary[]; work_supported?: boolean
 }
 
 /** Effetto concreto della decisione, coerente con decide_office_output. */

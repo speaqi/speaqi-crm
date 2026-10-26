@@ -43,6 +43,11 @@
 .chips button.on { background: var(--text); border-color: var(--text); color: var(--surface); }
 .agentTop { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
 .agentTop h3 { display: flex; align-items: center; gap: 7px; }
+.agentActivity { scroll-margin-top: 12px; }
+.agentActivity h2 { font-size: 18px; margin: 0; }
+.agentActivity > h3 { margin-top: 10px; }
+.agentActivity details > .card { margin-top: 6px; }
+.agentActivity .dot { display: inline-block; }
 .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: #8fc1ff; }
 .dot[data-state='running'] { background: #2fbf71; }
 .dot[data-state='attention'] { background: #f0a020; }

@@ -371,7 +371,7 @@ export async function invoiceFor(admin: Admin, userId: string, plan: Extract<Dir
   const { invoice, created } = await createInvoiceDraftFromQuote(admin, userId, quote.id)
   const { settings } = await loadInvoiceSettings(admin, userId)
   const draft = invoice.status === 'draft'
-  return { status: 'done', outputs: [], queued: [], reply: directorInvoiceReply({
+  return { status: 'done', outputs: [], queued: [], result: { invoice_id: invoice.id }, reply: directorInvoiceReply({
     quote, created, invoiceStatus: invoice.status, numero: invoice.numero || null, approvedNow,
     problems: draft ? invoiceProblems(invoice, settings) : [], warnings: draft && Array.isArray(invoice.warnings) ? invoice.warnings : [],
     link: `${base}/fatture?invoice=${invoice.id}`,
@@ -839,7 +839,7 @@ async function statusReport(admin: Admin, userId: string, now: Date) {
 }
 
 /** `awaiting`: il dato che il Direttore ha chiesto al titolare, per riprendere l'ordine quando arriva. */
-type Outcome = { status: DirectorOrderRow['status']; reply: string; outputs: string[]; queued: QueueResult[]; awaiting?: DirectorAwaiting }
+type Outcome = { status: DirectorOrderRow['status']; reply: string; outputs: string[]; queued: QueueResult[]; awaiting?: DirectorAwaiting; result?: { invoice_id: string } }
 
 /** Esegue il piano già validato. Scrive solo uscite, To Do e code. */
 export async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrderRow, plan: DirectorOrderPlan, now: Date): Promise<Outcome> {

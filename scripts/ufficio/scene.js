@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
 import LOGO_WHITE from '../../public/deck/logo-on-color.png'
 import LOGO_NAVY from '../../public/deck/logo.png'
+import { officeSceneEvents } from '../../src/lib/office-scene-events'
 
 // Campus Speaqi: sette padiglioni sempre visibili, le persone sono gli agenti veri del CRM.
 // Il clic avvicina la camera, non nasconde niente. Nessun dato inventato: un reparto vuoto ha scrivanie vuote.
@@ -35,6 +36,7 @@ let tween = null, stageWidth = 1, stageHeight = 1, lastFrame = 0, lastInteractio
 let webglFailed = false, down = null, dirty = true, hovered = null
 let ceoTag = null, pickables = [], pavilions = [], persons = [], spinners = [], trees = [], flags = [], lamps = [], screens = [], roomLights = [], hqWindows = [], hq = null
 let packets = [], kiosk = null, fountain = null, clouds = [], gulls = [], critters = [], stars = null, bounds = { center: new THREE.Vector3(), radius: 30 }
+const deliveredEvents = new Set()
 const tex = {}
 $('brand-logo').src = LOGO_WHITE
 
@@ -354,7 +356,9 @@ function placeAgent(parent, sector, agent, i, px, pz, coffee) {
   const rec = { agent, person, parts, station, orb, sector, pavilion: parent, phase: (hashId(agent.id) % 1000) / 160,
     seat: new THREE.Vector3(px, 0, pz + 0.62), coffee, mode: 'seated', until: 0, path: [], bubble: null, zs: [] }
   setupPerson(rec)
-  const el = document.createElement('div'); el.className = 'person-tag'
+  const el = document.createElement('button'); el.type = 'button'; el.className = 'person-tag'
+  el.setAttribute('aria-label', `Apri scheda di ${agent.name}`)
+  el.onclick = () => focusDepartment(sector.id, agent.id)
   el.innerHTML = `<i style="--c:${STATE_COLOR[agent.status]}"></i>${esc(agent.name)}`
   rec.tag = new CSS2DObject(el); rec.tag.position.set(0, 2.62, 0); rec.tag.visible = false; person.add(rec.tag)
   person.traverse((o) => { if (o.isMesh) { o.userData.agentId = agent.id; o.userData.deptId = sector.id; pickables.push(o) } })
@@ -797,10 +801,13 @@ function stepPerson(rec, t, dt) {
   }
 }
 const packetMat = new THREE.MeshBasicMaterial({ color: '#9ff7c4', toneMapped: false })
-function spawnPacket(rec) {
+function spawnPacket(fromId, toId) {
   if (!kiosk || packets.length > 24) return
-  const from = new THREE.Vector3(); rec.pavilion.localToWorld(from.set(rec.seat.x, H + 0.4, rec.seat.z - 0.3))
-  const to = kiosk.top.clone()
+  const source = persons.find((rec) => rec.agent.id === fromId)
+  const destination = persons.find((rec) => rec.agent.id === toId)
+  if (!source || (toId !== 'kiosk' && !destination)) return
+  const from = source.person.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 1.5, 0))
+  const to = destination ? destination.person.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 1.5, 0)) : kiosk.top.clone()
   const mid = from.clone().lerp(to, 0.5); mid.y = Math.max(from.y, to.y) + 3.5 + Math.random()
   const m = mesh(G.packet, packetMat, scene, from.x, from.y, from.z, false)
   const glow = new THREE.Sprite(glowMat); glow.scale.setScalar(0.4); m.add(glow)
@@ -1108,7 +1115,7 @@ function structureKey() {
 function buildOffice() {
   if (!scene || webglFailed || !snapshot) return
   const key = structureKey()
-  if (key === signature && root) { updateKiosk(); updateFocus(); return }
+  if (key === signature && root) { updatePeople(); updateKiosk(); updateFocus(); return }
   signature = key
   disposeRoot(); ceoTag = null; pickables = []; pavilions = []; persons = []; critters = []; spinners = []; trees = []; flags = []; screens = []; roomLights = []; hqWindows = []; hq = null
   lamps = []
@@ -1118,8 +1125,18 @@ function buildOffice() {
   for (const p of pavilions) p.center = p.group.localToWorld(new THREE.Vector3(0, 1.2, 0.2))
   sun.target.position.copy(bounds.center)
   sun.position.copy(bounds.center).add(new THREE.Vector3(-26, 42, 30))
-  applyLight(); updateFocus()
+  applyLight(); updatePeople(); updateFocus()
   dirty = true
+}
+function updatePeople() {
+  const agents = snapshot.departments.flatMap((sector) => sector.agents)
+  for (const rec of persons) {
+    rec.agent = agents.find((agent) => agent.id === rec.agent.id) || rec.agent
+    const agent = rec.agent
+    const label = agent.activityLabel || STATE[agent.status]
+    rec.tag.element.innerHTML = `<i style="--c:${STATE_COLOR[agent.status]}"></i>${esc(agent.name)} · ${esc(label)}`
+    rec.tag.element.title = [agent.currentWork?.label, agent.currentWork?.reason].filter(Boolean).join(' — ') || label
+  }
 }
 function updateFocus() {
   for (const p of pavilions) {
@@ -1135,7 +1152,7 @@ function focusDepartment(id, agentId = null) {
   focused = id; selected = agentId
   updateFocus(); renderPanel(); moveCamera()
   // Il pannello della pagina mostra la squadra del reparto scelto qui.
-  send({ type: 'office:focus', department: id })
+  send({ type: 'office:focus', department: id, agentId })
 }
 // Distanza minima perché tutti i punti stiano nell'inquadratura, con un margine: vale per ogni formato di finestra.
 function fitDistance(target, dir, points, margin = 0.86) {
@@ -1180,17 +1197,17 @@ function moveCamera(instant = false) {
       .concat(hq ? corners(hq.x, hq.z, HQ.w, HQ.d, TERRACE, TERRACE + hq.top) : [])
   }
   let pos = target.clone().addScaledVector(dir, fitDistance(target, dir, points, pav ? 0.82 : 0.94) * scale)
-  // Con un agente scelto in un padiglione la camera entra nella stanza: dall'apertura, alle spalle e di lato, guarda lui e il suo schermo.
+  // Inquadra persona e scrivania insieme, senza entrare nel corpo del personaggio.
   const inside = Boolean(pav && !pav.top && rec)
   if (inside) {
     const p = rec.person.position
     const half = pav.w / 2 - 0.35
-    const eye = new THREE.Vector3(Math.max(-half, Math.min(half, p.x + 0.85)), 1.55, Math.min(pav.d / 2 + 0.4, p.z + 1.9))
+    const eye = new THREE.Vector3(Math.max(-half, Math.min(half, p.x + 1.8)), 2.3, Math.min(pav.d / 2 + 3, p.z + 4.6))
     pos = pav.group.localToWorld(eye)
     target = pav.group.localToWorld(new THREE.Vector3(p.x, 1.05, p.z - 0.25))
   }
   // Dentro la stanza la camera può avvicinarsi e girare liberamente; fuori tornano i limiti della vista d'insieme.
-  controls.minDistance = inside ? 0.8 : 4
+  controls.minDistance = inside ? 1.8 : 4
   controls.minAzimuthAngle = inside ? -Infinity : -1.25
   controls.maxAzimuthAngle = inside ? Infinity : 1.25
   if (instant || reduceMotion) { camera.position.copy(pos); controls.target.copy(target); tween = null; controls.update() }
@@ -1209,7 +1226,9 @@ function rayHit(event) {
   const rect = renderer.domElement.getBoundingClientRect()
   const ray = new THREE.Raycaster()
   ray.setFromCamera(new THREE.Vector2((event.clientX - rect.left) / rect.width * 2 - 1, -(event.clientY - rect.top) / rect.height * 2 + 1), camera)
-  return ray.intersectObjects(pickables, false)[0]?.object.userData
+  // Le vetrate e gli aloni non devono intercettare il clic sulla persona visibile dietro.
+  return ray.intersectObjects(pickables, false).find((hit) =>
+    ![hit.object.material].flat().every((material) => material.transparent && material.opacity < 0.6))?.object.userData
 }
 function pick(event) {
   if (!down || Math.hypot(down.x - event.clientX, down.y - event.clientY) > 6) { down = null; return }
@@ -1322,10 +1341,6 @@ function step(t, dt) {
     b.l.rotation.z = flap; b.r.rotation.z = -flap
   }
   // Ogni agente in corso manda il lavoro verso "Aspetta te".
-  for (const rec of persons) if (rec.agent.status === 'running') {
-    rec.nextPacket = (rec.nextPacket ?? rec.phase % 2) - dt
-    if (rec.nextPacket <= 0) { spawnPacket(rec); rec.nextPacket = 1.6 + Math.random() * 1.6 }
-  }
   packets = packets.filter((p) => {
     p.t += dt / p.dur
     if (p.t >= 1) { scene.remove(p.m); return false }
@@ -1391,14 +1406,21 @@ window.addEventListener('message', (event) => {
     if (event.data.panel === false) $('fallback').textContent = 'Il 3D non è disponibile in questo browser. Agenti, proposte e Direttore sono nel pannello a destra.'
   } else if (event.data?.type === 'office:focus') {
     const id = typeof event.data.department === 'string' ? event.data.department : null
-    if (id === focused) return
-    if (!id || snapshot?.departments.some((d) => d.id === id)) { focused = id; selected = null; updateFocus(); renderPanel(); moveCamera() }
+    const agentId = typeof event.data.agentId === 'string' ? event.data.agentId : null
+    if (id === focused && agentId === selected) return
+    if (!id || snapshot?.departments.some((d) => d.id === id)) { focused = id; selected = agentId; updateFocus(); renderPanel(); moveCamera() }
   } else if (event.data?.type === 'office:snapshot') {
     const first = !snapshot
+    const events = officeSceneEvents(snapshot, event.data.snapshot)
     snapshot = event.data.snapshot; dataError = ''
     if (focused && !snapshot.departments.some((d) => d.id === focused)) { focused = null; selected = null }
     $('sync').innerHTML = `<i class="live"></i><span>CRM · Aggiornato alle ${new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' }).format(new Date(snapshot.updatedAt))}</span>`
     buildOffice(); renderPanel()
+    for (const event of events) if (!deliveredEvents.has(event.key)) {
+      deliveredEvents.add(event.key)
+      if (!reduceMotion && !webglFailed) spawnPacket(event.from, event.to)
+    }
+    while (deliveredEvents.size > 5000) deliveredEvents.delete(deliveredEvents.values().next().value)
     if (first) moveCamera(true)
   } else if (event.data?.type === 'office:error') {
     dataError = String(event.data.message)
