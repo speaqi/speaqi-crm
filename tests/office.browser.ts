@@ -21,6 +21,7 @@ let empty = true
 let fail = false
 let skipRun = false
 let sceneOverview: OfficeOverview | null = null
+let partialInbox = false
 const calls: Array<{ method: string; path: string; body: any; key?: string }> = []
 
 function overview(): OfficeOverview {
@@ -51,6 +52,17 @@ async function main() {
       if (url.pathname === '/api/ufficio/scena') return route.fulfill({ contentType: 'text/html', body: UFFICIO_SCENE_HTML })
       if (url.pathname === '/api/ufficio/sblocca') return json({ enabled: false, locked: false })
       if (url.pathname === '/api/office') return fail ? json({ error: 'Database di prova non disponibile' }, 500) : json(sceneOverview || overview())
+      if (url.pathname === '/api/office/inbox') {
+        const current = sceneOverview || overview()
+        if (method === 'GET') return json({ outputs: current.outputs.map((output) => ({ ...output,
+          document: output.target_table === 'tourism_decks' ? { id: output.target_id, title: 'Presentazione per Marsiglia', status: 'ready', version: 3 } : null })),
+          total: current.pending_count, offset: 0 })
+        const results = body.ids.map((id: string) => partialInbox && id === 'inbox-contact-2' ? { id, ok: false, error: 'Completa i dati del contatto' } : { id, ok: true })
+        const done = new Set(results.filter((row: any) => row.ok).map((row: any) => row.id))
+        if (sceneOverview) { sceneOverview.outputs = sceneOverview.outputs.filter((output) => !done.has(output.id)); sceneOverview.pending_count = sceneOverview.outputs.length }
+        else outputs = outputs.filter((output) => !done.has(output.id))
+        return json({ results })
+      }
       if (/^\/api\/office\/agents\/[^/]+$/.test(url.pathname) && method === 'GET') {
         const id = url.pathname.split('/').pop()
         return json({ runs: (sceneOverview?.runs || runs).filter((run) => run.agent_id === id),
@@ -108,15 +120,15 @@ async function main() {
     await page.getByRole('status').filter({ hasText: 'Turno saltato: corsa già presente o agente spento.' }).waitFor()
     skipRun = false
     await page.screenshot({ path: `${out}/02-desktop.png`, fullPage: true })
-    await page.getByRole('button', { name: 'Approva', exact: true }).click()
+    await page.getByRole('button', { name: 'Segna come letto', exact: true }).click()
     await page.getByText('Nessuna uscita da valutare.').waitFor()
     assert.equal(outputs.length, 0)
-    assert.equal(calls.find((call) => call.path.includes('/outputs/'))?.body.status, 'approved')
-    outputs = [output('uscita-2')]
+    assert.equal(calls.find((call) => call.path === '/api/office/inbox' && call.method === 'POST')?.body.action, 'acknowledge')
+    outputs = [{ ...output('uscita-2'), kind: 'proposal' }]
     await page.reload()
     await page.getByRole('button', { name: 'Rifiuta' }).click()
     await page.getByText('Nessuna uscita da valutare.').waitFor()
-    assert.equal(calls.filter((call) => call.path.includes('/outputs/')).at(-1)?.body.status, 'rejected')
+    assert.equal(calls.filter((call) => call.path === '/api/office/inbox' && call.method === 'POST').at(-1)?.body.action, 'rejected')
     outputs = [output('uscita-3')]
     await page.setViewportSize({ width: 390, height: 844 })
     await page.reload()
@@ -188,6 +200,7 @@ async function main() {
     assert.equal(await activity.getByRole('link', { name: 'Apri presentazione →', exact: true }).getAttribute('href'), '/tourism/presentazioni/33333333-3333-4333-8333-333333333333')
     await page.screenshot({ path: `${out}/06-scheda-personaggio.png`, fullPage: true })
     await activity.getByRole('button', { name: 'Chiudi scheda di Arricchimento enti' }).click()
+
     await activity.waitFor({ state: 'detached' })
     // Il personaggio si seleziona anche sul corpo 3D, senza usare il cartellino.
     await page.locator('iframe').evaluate((frame) => (frame as HTMLIFrameElement).contentWindow!.postMessage({
@@ -243,6 +256,51 @@ async function main() {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'scheda del personaggio leggibile anche su telefono')
     await page.screenshot({ path: `${out}/08-3d-mobile.png`, fullPage: true })
     await activity.getByRole('button', { name: 'Chiudi scheda di Arricchimento enti' }).click()
+
+    // Smaltimento: due rapporti dello stesso documento diventano una scheda; archiviare non approva il deck.
+    sceneOverview.outputs = [
+      { ...output('inbox-deck-old'), agent_id: 'presentations', target_table: 'tourism_decks', target_id: '55555555-5555-4555-8555-555555555555', body: { version: 1 } },
+      { ...output('inbox-deck-new'), agent_id: 'presentations', target_table: 'tourism_decks', target_id: '55555555-5555-4555-8555-555555555555', body: { version: 2 } },
+      { ...output('inbox-notice'), title: 'Rapporto informativo', agent_id: 'news_watch' },
+      { ...output('inbox-contact-1'), kind: 'proposal', agent_id: 'director', title: 'Primo contatto' },
+      { ...output('inbox-contact-2'), kind: 'proposal', agent_id: 'director', title: 'Secondo contatto' },
+    ]
+    sceneOverview.pending_count = 5
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await page.getByRole('button', { name: '↻ Aggiorna' }).click()
+    await page.getByRole('tab', { name: /Aspetta te/ }).click()
+    const inbox = page.getByRole('region', { name: 'Coda Aspetta te' })
+    await inbox.getByRole('button', { name: 'Tutte (4)', exact: true }).waitFor()
+    await inbox.getByRole('button', { name: 'Documenti (1)', exact: true }).click()
+    await inbox.getByRole('heading', { name: 'Presentazione per Marsiglia' }).waitFor()
+    assert.equal(await inbox.getByRole('link', { name: 'Apri documento →' }).getAttribute('href'), '/tourism/presentazioni/55555555-5555-4555-8555-555555555555')
+    await inbox.getByText('Da rivedere · versione 3', { exact: true }).waitFor()
+    await inbox.getByRole('button', { name: 'Seleziona questa vista' }).click()
+    await page.screenshot({ path: `${out}/09-coda-raggruppata.png`, fullPage: true })
+    await inbox.getByRole('button', { name: 'Archivia avvisi selezionati (2)' }).click()
+    await inbox.getByText('2 avvisi archiviati.', { exact: true }).waitFor()
+    const archived = calls.filter((call) => call.path === '/api/office/inbox' && call.method === 'POST').at(-1)!
+    assert.deepEqual(new Set(archived.body.ids), new Set(['inbox-deck-old', 'inbox-deck-new']))
+    assert.equal(archived.body.action, 'acknowledge')
+    assert.ok(!calls.some((call) => call.path.includes('/api/tourism/decks/') && call.method === 'POST'))
+    await inbox.getByRole('button', { name: 'Decisioni (2)', exact: true }).click()
+    await inbox.getByRole('button', { name: 'Seleziona questa vista' }).click()
+    partialInbox = true
+    await inbox.getByRole('button', { name: 'Approva selezionate (2)' }).click()
+    await inbox.getByRole('alert').filter({ hasText: 'Completa i dati del contatto' }).waitFor()
+    assert.equal(await inbox.getByRole('heading', { name: 'Primo contatto', exact: true }).count(), 0)
+    await inbox.getByRole('heading', { name: 'Secondo contatto', exact: true }).waitFor()
+    partialInbox = false
+    await inbox.getByRole('button', { name: 'Approva selezionate (1)' }).click()
+    await inbox.getByText('1 decisione approvata.', { exact: true }).waitFor()
+    assert.deepEqual(calls.filter((call) => call.path === '/api/office/inbox' && call.method === 'POST').at(-1)?.body.ids, ['inbox-contact-2'])
+    await inbox.getByRole('button', { name: 'Avvisi (1)', exact: true }).click()
+    await page.setViewportSize({ width: 390, height: 844 })
+    await inbox.getByRole('checkbox', { name: 'Seleziona Rapporto informativo' }).check()
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'coda e azioni multiple leggibili su telefono')
+    await page.screenshot({ path: `${out}/10-coda-mobile.png`, fullPage: true })
+    await inbox.getByRole('button', { name: 'Archivia avvisi selezionati (1)' }).click()
+    await inbox.getByText('Nessuna uscita da valutare.', { exact: true }).waitFor()
 
     // Senza WebGL la scena lo dice e la gestione resta tutta nel pannello.
     const fallbackPage = await context.newPage()

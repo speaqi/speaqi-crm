@@ -14,6 +14,14 @@ Un «sì» in chat non approva nulla. Gli agenti non possono accendersi, aumenta
 
 ## Leggere gli stati
 
+### Smaltire «Aspetta te»
+
+La coda distingue **Decisioni**, **Documenti** e **Avvisi**. I rapporti sulla stessa presentazione sono raggruppati in una scheda con il titolo e lo stato attuale del documento. **Apri documento** porta all'editor, dove resta l'approvazione della presentazione.
+
+Usa **Seleziona questa vista** o le caselle delle singole schede. **Archivia avvisi selezionati** li segna come letti (`done`), conserva lo storico e lascia invariati documenti, lavori e autorizzazioni. Non archivia proposte o uscite che costituiscono una decisione richiesta da un lavoro. Per le **Decisioni**, **Approva selezionate** e **Rifiuta selezionate** applicano gli effetti descritti nelle proposte, con il medesimo servizio delle azioni singole e di Telegram. Eventuali errori restano sulle voci non gestite; quelle riuscite escono dalla coda.
+
+Selezione e filtri valgono per la pagina corrente (massimo 50 elementi). L'archiviazione richiede la migration additiva `office_inbox_acknowledge`, da distribuire prima del codice. La RPC è eseguibile soltanto dal servizio del server; le API mantengono il controllo del titolare e del workspace.
+
 | Stato mostrato | Cosa significa | Azione del titolare |
 |---|---|---|
 | In attesa | Dipendenza, orario, agente spento o occupato | Leggi prossimo controllo e responsabile; riaccendi solo se vuoi autorizzare quell'agente |

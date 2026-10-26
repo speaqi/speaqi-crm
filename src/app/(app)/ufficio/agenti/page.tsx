@@ -4,10 +4,10 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { apiFetch } from '@/lib/api'
 import { formatEuroPlain } from '@/lib/command-center'
-import { OFFICE_DEPARTMENTS, OFFICE_RUN_LABELS, officeApprovalEffect, type OfficeAgent, type OfficeOverview, type OfficeRun } from '@/lib/office'
+import { OFFICE_DEPARTMENTS, OFFICE_RUN_LABELS, type OfficeAgent, type OfficeOverview, type OfficeRun } from '@/lib/office'
 import styles from './office.module.css'
 import { DirectorOrders } from './DirectorOrders'
-import { CONTACT_HIDDEN_KEYS, OutputBody } from '@/components/office/OutputBody'
+import { PendingInbox } from '@/components/office/PendingInbox'
 
 const euro = (cents: number) => formatEuroPlain(cents / 100)
 const date = (value: string) => new Date(value).toLocaleString('it-IT', { timeZone: 'Europe/Rome', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -72,16 +72,14 @@ export default function OfficePage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
-  const [offset, setOffset] = useState(0)
   const load = useCallback(async () => {
-    const response = await apiFetch<OfficeOverview>(`/api/office?offset=${offset}`)
+    const response = await apiFetch<OfficeOverview>('/api/office')
     setData(response)
     setError('')
-  }, [offset])
+  }, [])
   useEffect(() => { void load().catch((err) => setError(err instanceof Error ? err.message : 'Ufficio non disponibile')) }, [load])
   const refresh = useCallback(() => { void load().catch(() => {}) }, [load])
 
-  useEffect(() => { if (data && data.outputs.length === 0 && offset > 0) setOffset(Math.max(0, offset - 50)) }, [data, offset])
   // I link dalla scena e da «Aspetta te» portano un'ancora (#agente-…, #uscita-…), ma le schede
   // arrivano dopo il caricamento: il browser non le trova da solo, quindi si scorre all'arrivo dei dati.
   const ready = Boolean(data)
@@ -119,21 +117,6 @@ export default function OfficePage() {
       })
     } catch { /* Il messaggio resta visibile nella pagina. */ }
   }
-  async function decide(id: string, status: 'approved' | 'rejected') {
-    const output = data?.outputs.find((item) => item.id === id)
-    try { await act(id, async () => {
-      const result = await apiFetch<{ notice?: string }>(`/api/office/outputs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
-      setNotice(result?.notice || (status === 'approved' && output ? officeApprovalEffect(output).notice : 'Uscita rifiutata.'))
-    }) }
-    catch { /* Il messaggio resta visibile nella pagina. */ }
-  }
-  async function telegram(id: string) {
-    try { await act(id, async () => {
-      const result = await apiFetch<{ sent: boolean; duplicate: boolean }>(`/api/office/outputs/${id}/telegram`, { method: 'POST' })
-      setNotice(result.sent ? 'Rassegna approvata e inviata su Telegram.' : 'Tentativo già registrato. Verifica il bot e il registro degli invii; nessun nuovo invio eseguito.')
-    }) }
-    catch { /* Esito incerto visibile: nessun ritentativo automatico. */ }
-  }
 
   return <div className={styles.page}>
     <header className={styles.header}><div><p className={styles.eyebrow}>Solo titolare</p><h1>Ufficio</h1><p>Compiti, corse e cose che aspettano una tua decisione.</p></div>
@@ -155,21 +138,8 @@ export default function OfficePage() {
         const agents = data.agents.filter((agent) => agent.department === department)
         return agents.length > 0 && <section key={department} className={styles.department}><h2>{label}</h2>{agents.map((agent) => <AgentRow key={agent.id} agent={agent} busy={!!busy} change={change} run={run} />)}</section>
       })}
-      <section className={styles.queue} id="coda"><h2>Aspetta te <span>{data.pending_count}</span></h2><p>Leggi l’effetto indicato su ogni proposta prima di decidere: alcune approvazioni aggiornano il CRM o accodano nuovi lavori.</p>
-        {data.pending_count === 0 && <p className={styles.emptyQueue}>Nessuna uscita da valutare.</p>}
-        {data.outputs.map((output) => <article className={styles.output} id={`uscita-${output.id}`} key={output.id}>
-          <small>{data.agents.find((agent) => agent.id === output.agent_id)?.name || output.agent_id} · {date(output.created_at)}</small><h3>{output.title}</h3>
-          <div className={styles.outputBody}><OutputBody value={output.body} hide={output.body.action === 'create_contact' ? CONTACT_HIDDEN_KEYS : undefined} /></div>
-          <p>{officeApprovalEffect(output).description}</p>
-          <div className={styles.actions}><button className="btn btn-primary btn-sm" disabled={!!busy} onClick={() => { void decide(output.id, 'approved') }}>{officeApprovalEffect(output).label}</button>
-            {output.agent_id === 'news_watch' && output.body.telegram_available === true && <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => { void telegram(output.id) }}>Approva e invia su Telegram</button>}
-            <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => { void decide(output.id, 'rejected') }}>Rifiuta</button></div>
-        </article>)}
-        {(data.pending_count > 50 || offset > 0) && <div className={styles.actions}>
-          <button className="btn btn-ghost btn-sm" disabled={!!busy || offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Precedenti</button>
-          <span>{offset + 1}–{Math.min(offset + 50, data.pending_count)} di {data.pending_count}</span>
-          <button className="btn btn-ghost btn-sm" disabled={!!busy || offset + 50 >= data.pending_count} onClick={() => setOffset(offset + 50)}>Successive</button>
-        </div>}
+      <section className={styles.queue} id="coda"><h2>Aspetta te <span>{data.pending_count}</span></h2>
+        <PendingInbox data={data} onChanged={load} />
       </section>
       <section className={styles.history}><h2>Ultime corse</h2>{data.runs.length === 0 ? <p>Nessuna corsa registrata.</p> : <ul>{data.runs.map((item) => <li key={item.id}>
         <div><strong>{data.agents.find((agent) => agent.id === item.agent_id)?.name || item.agent_id}</strong><span>{date(item.started_at)} · {OFFICE_RUN_LABELS[item.status]}</span></div>
