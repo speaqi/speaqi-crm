@@ -33,6 +33,7 @@ import {
 } from './tourism-deck-assets'
 import { runDeckAgent, type DeckAgentArgs, type DeckAgentResult, type DeckEntityContext, type DeckMaterials } from './tourism-deck-agent'
 import { findDestinationPhotos, type DestinationPhoto } from './tourism-deck-photos'
+import { readWebsiteMaterial } from './tourism-site-crawler'
 
 type Sb = any
 
@@ -392,7 +393,7 @@ export const deckPhotoIds = (assets: DeckAsset[]) => {
  */
 export async function generateIntoDeck(sb: Sb, service: Sb, row: DeckRow, instruction?: string,
   agent: (args: DeckAgentArgs) => Promise<DeckAgentResult> = runDeckAgent, findPhotos: PhotoFinder = findDestinationPhotos,
-  options: { onlyIfUnchanged?: boolean } = {}): Promise<DeckRow> {
+  options: { onlyIfUnchanged?: boolean; readWebsite?: typeof readWebsiteMaterial } = {}): Promise<DeckRow> {
   const stale = new Date(Date.now() - GENERATING_STALE_MS).toISOString()
   // Due UPDATE condizionali, non un `.or()`: con PostgREST il filtro `or` di un UPDATE vale
   // anche per la risposta (la riga è già "generating"), e con select('id') la colonna
@@ -417,6 +418,16 @@ export async function generateIntoDeck(sb: Sb, service: Sb, row: DeckRow, instru
     const photoNote = await addDestinationPhotos(sb, service, row, template, findPhotos)
     const { materials, skipped } = await loadMaterials(service, row)
     const entity = await entityContext(sb, row.user_id, row.entity_id)
+    if (entity?.website) {
+      const website = await (options.readWebsite || readWebsiteMaterial)(entity.website)
+      for (const page of website.pages) {
+        materials.documents.push({
+          name: `Sito ufficiale · ${page.title || page.url} · ${page.url}`,
+          text: page.text
+        })
+      }
+      if (website.warning) skipped.push(`Sito ufficiale non acquisito: ${website.warning}`)
+    }
     const result = await agent({
       template,
       input: row.input,

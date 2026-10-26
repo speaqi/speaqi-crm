@@ -464,6 +464,142 @@ export const fetchResearchPage: ResearchFetch = async (url) => {
   }
 }
 
+export type WebsiteMaterial = {
+  pages: { url: string; title: string; text: string }[]
+  warning?: string
+}
+
+/** Reads a small, public, same-site sample for presentation context. */
+export async function readWebsiteMaterial(
+  input: string,
+  options: { fetch?: ResearchFetch; pause?: (ms: number) => Promise<void> } = {}
+): Promise<WebsiteMaterial> {
+  const normalized = /^https?:\/\//i.test(input.trim())
+    ? input.trim()
+    : `https://${input.trim()}`
+  const site = researchUrl(normalized)
+  if (!site)
+    return { pages: [], warning: 'URL del sito non valido o non pubblico.' }
+  const fetcher = options.fetch || fetchResearchPage
+  const pause =
+    options.pause ||
+    ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)))
+  const pages: WebsiteMaterial['pages'] = []
+  try {
+    const policies = new Map<string, RobotsPolicy>()
+    const policyFor = async (url: string) => {
+      const origin = new URL(url).origin
+      const cached = policies.get(origin)
+      if (cached) return cached
+      const robots = await fetcher(new URL('/robots.txt', origin).href)
+      if (robots.status >= 500 || [401, 403, 429].includes(robots.status))
+        throw new Error(
+          `robots.txt non consente di verificare l’accesso (HTTP ${robots.status}).`
+        )
+      const policy = robotsPolicy(robots.status === 200 ? robots.text : '', origin)
+      policies.set(origin, policy)
+      return policy
+    }
+    const visited = new Set<string>()
+    const queue = [site]
+    let requests = 0
+    while (queue.length && requests < 4) {
+      const url = queue.shift()!
+      if (visited.has(url) || !sameSite(url, site)) continue
+      const initialPolicy = await policyFor(url)
+      if (!initialPolicy.allowed(url)) continue
+      visited.add(url)
+      requests++
+      let pageUrl = url
+      let page: Awaited<ReturnType<ResearchFetch>> | null = null
+      for (let redirects = 0; redirects <= 3; redirects++) {
+        const currentPolicy = await policyFor(pageUrl)
+        if (!currentPolicy.allowed(pageUrl))
+          throw new Error('Una pagina richiesta è esclusa da robots.txt.')
+        if (pageUrl !== url) await pause(currentPolicy.delayMs)
+        page = await fetcher(pageUrl)
+        if (![301, 302, 303, 307, 308].includes(page.status)) break
+        const next = researchUrl(String(page.headers.location || ''), pageUrl)
+        if (
+          !next ||
+          !sameSite(next, site) ||
+          (new URL(pageUrl).protocol === 'https:' &&
+            new URL(next).protocol !== 'https:')
+        )
+          throw new Error('Il sito reindirizza fuori dal dominio indicato.')
+        pageUrl = next
+      }
+      if (!page || [301, 302, 303, 307, 308].includes(page.status))
+        throw new Error('Troppi reindirizzamenti.')
+      if (page.status < 200 || page.status >= 300) {
+        if (pages.length === 0) throw new Error(`Il sito ha risposto HTTP ${page.status}.`)
+        continue
+      }
+      if (!/html|xhtml/i.test(String(page.headers['content-type'] || 'text/html')))
+        continue
+      const $ = load(page.text)
+      const title = (
+        $('title').first().text() || $('meta[property="og:title"]').attr('content') || ''
+      )
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 200)
+      const description =
+        $(
+          'meta[name="description"],meta[property="og:description"]'
+        )
+          .first()
+          .attr('content') || ''
+      const pageLinks = $('a[href]')
+        .map((_, el) => ({
+          label: $(el).text().replace(/\s+/g, ' ').trim(),
+          href: researchUrl($(el).attr('href') || '', pageUrl)
+        }))
+        .get()
+      $('script,style,noscript,svg,header,footer,nav,form').remove()
+      const body = (
+        $('main').text().trim() ||
+        $('article').text().trim() ||
+        $('body').text()
+      )
+        .replace(/\s+/g, ' ')
+        .trim()
+      const text = [description.trim(), body].filter(Boolean).join('\n').slice(0, 8000)
+      if (title || text) pages.push({ url: pageUrl, title, text })
+      const pagePolicy = await policyFor(pageUrl)
+      if (visited.size === 1) {
+        const links: string[] = []
+        for (const { label, href } of pageLinks) {
+          if (links.length >= 12) break
+          if (!href || !sameSite(href, site)) continue
+          if (
+            /chi siamo|about|team|contatti|contact|territorio|destinazione|destination|cosa vedere|luoghi|visitare/i.test(
+              `${label} ${href}`
+            )
+          )
+            links.push(href)
+        }
+        for (const href of links) {
+          if (!visited.has(href) && !queue.includes(href)) queue.push(href)
+        }
+      }
+      if (queue.length && requests < 4) await pause(pagePolicy.delayMs)
+    }
+    return pages.length
+      ? { pages }
+      : {
+          pages,
+          warning:
+            'Il sito non ha restituito testo pubblico leggibile nelle pagine consentite da robots.txt.'
+        }
+  } catch (error) {
+    return {
+      pages,
+      warning: (error instanceof Error ? error.message : 'Lettura del sito non riuscita.').slice(0, 240)
+    }
+  }
+}
+
 export async function crawlTourismSite(
   input: string,
   options: {

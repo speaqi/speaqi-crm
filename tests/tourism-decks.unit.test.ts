@@ -167,6 +167,28 @@ test('l’agente legge note e documenti e il deck diventa pronto', async () => {
   assert.match(sent, /data:image\/jpeg;base64,/)
 })
 
+test('il sito pubblico dell’ente entra nei materiali con la fonte e i blocchi diventano avvisi', async () => {
+  seedGeneric()
+  const entityId = '99999999-9999-4999-8999-999999999999'
+  db.tables.tourism_entities.push({ id: entityId, user_id: USER, name: 'Fondazione', website: 'https://example.com', type_code: 'foundation', details: {} })
+  const row = await createDeck(db, USER, { ...fields, entity_id: entityId })
+  let sent = ''
+  globalThis.fetch = (async (_u: unknown, init: RequestInit) => {
+    sent = String(init.body)
+    return provider([{ id: 'cover', title: 'Capri con la Fondazione', body: 'Territorio e accoglienza', note: '', items: [], image_asset_id: null }])(_u as string, init)
+  }) as typeof fetch
+  const deck = await generateIntoDeck(db, db, row, undefined, undefined, undefined, {
+    readWebsite: async () => ({
+      pages: [{ url: 'https://www.example.com/chi-siamo', title: 'Chi siamo', text: 'La Fondazione promuove i sette comuni del territorio.' }],
+      warning: 'La home page non è accessibile.'
+    })
+  })
+  assert.equal(deck.status, 'ready')
+  assert.match(sent, /sette comuni del territorio/)
+  assert.match(sent, /https:\/\/www\.example\.com\/chi-siamo/)
+  assert.ok(deck.warnings.some((warning) => /Sito ufficiale non acquisito/.test(warning.message)))
+})
+
 test('se l’agente fallisce il deck resta modificabile a mano', async () => {
   const row = await createDeck(db, USER, fields)
   const before = JSON.stringify(row.slides)
