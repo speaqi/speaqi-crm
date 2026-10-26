@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { renderPdf } from './tourism-deck-pdf'
 import { AGENCY_BUCKET } from './agency-assets'
-import { AgencyInputError, renderKey, type PresentationRow } from './agency'
+import { AgencyInputError, ensureAgencyBucket, renderKey, type PresentationRow } from './agency'
 
 // PDF di una presentazione Agency: lo stesso Chromium delle presentazioni Tourism
 // (@sparticuz/chromium, un render alla volta) stampa la pagina pubblica, una pagina
@@ -51,6 +51,8 @@ export function getOrCreatePresentationPdf(
   const pending = inflight.get(path)
   if (pending) return pending
   const job = (async () => {
+    // Il primo file del progetto può essere proprio il PDF, senza allegati caricati.
+    await ensureAgencyBucket(service)
     const cached = await service.storage.from(AGENCY_BUCKET).download(path)
     if (cached.data && !cached.error) return Buffer.from(await cached.data.arrayBuffer())
     const pdf = await render(internalProposalUrl(row))
