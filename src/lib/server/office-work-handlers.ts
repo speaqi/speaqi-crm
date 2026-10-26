@@ -183,8 +183,11 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
           .eq('id', order.id).eq('user_id', work.user_id))
         return blockedWork(`Non trovo un ente univoco per «${target}» nel catalogo Tourism. Specifica il paese per aggiungerlo.`, 'Rispondi con il paese oppure indica l’ente del catalogo nello stesso lavoro.', 'Titolare', 'entity_missing')
       }
-      const city = typeof work.payload.city === 'string' ? work.payload.city : cityForEntity({ proposed: plan.city || null,
-        entityName: entity.name, orderText: text })
+      // Un ente già verificato con la sua destinazione non ha bisogno di una città dal titolare:
+      // vale il nome della destinazione legata. La città si chiede solo quando c'è da verificare.
+      const ready = await verifiedPresentationSource(admin, work.user_id, entity.id)
+      const city = ready?.destination.name || (typeof work.payload.city === 'string' ? work.payload.city : cityForEntity({ proposed: plan.city || null,
+        entityName: entity.name, orderText: text }))
       if (!city) {
         checked(await admin.from('office_director_orders').update({ interpretation: { ...plan,
           awaiting: { need: 'city', resume: `presentazione per ${target}` } } }).eq('id', order.id).eq('user_id', work.user_id))
@@ -192,7 +195,6 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
       }
       if (officeIsNaples(entity.name, city)) return blockedWork('Napoli è esclusa dal lavoro degli agenti.', 'Scegli una destinazione diversa nello stesso incarico.', 'Titolare', 'protected_destination')
       const photos = targets.length === 1 ? { photos: (order.attachments || []).map((item) => item.path) } : {}
-      const ready = await verifiedPresentationSource(admin, work.user_id, entity.id)
       if (ready) {
         children.push(child('presentations', 'prepare_presentation', { entity_id: entity.id, city: ready.destination.name || city,
           destination_id: ready.destination.id, ...photos }, `presentation:${index}`))
