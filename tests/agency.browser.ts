@@ -224,8 +224,11 @@ async function main() {
     await shot(page, '09-studio-investimento')
 
     // Approvazione, link pubblico
-    await page.getByRole('button', { name: 'Approva' }).click()
-    await page.getByText('Link per il cliente').waitFor()
+    await page.getByText('Link per il cliente', { exact: true }).waitFor()
+    assert.equal(await page.getByLabel('Link pubblico').count(), 0, 'il link inattivo non si può copiare')
+    await page.getByRole('button', { name: 'Approva e copia link', exact: true }).click()
+    await page.getByLabel('Link pubblico').waitFor()
+    await page.getByRole('button', { name: 'Copia link', exact: true }).waitFor()
     const link = await page.getByLabel('Link pubblico').inputValue()
     const pub = await context.newPage()
     await pub.goto(link)

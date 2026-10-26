@@ -188,6 +188,9 @@ export async function POST(request: NextRequest) {
       const baseUrl = process.env.APP_BASE_URL || 'https://crm.speaqi.com'
       void processDirectorOrder(supabase, userId, order.id)
         .then(async (done) => {
+          // Con il registro dei lavori l'ordine resta «ricevuto»: gli esiti arrivano dai lavori,
+          // e un secondo «ordine salvato» dopo «Ricevuto, ci lavoro» non dice niente di nuovo.
+          if (done.status === 'received') return
           await sendTelegramMessage(config, chatId, telegramDirectorReply(done, baseUrl))
           // Le proposte da decidere arrivano subito dopo, ognuna con «Approva» e «Rifiuta».
           await sendProposalsToTelegram(supabase, userId, done.output_ids || [])

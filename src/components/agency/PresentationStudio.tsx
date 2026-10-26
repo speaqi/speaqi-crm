@@ -139,11 +139,28 @@ export default function PresentationStudio({ id }: { id: string }) {
     return run('generate', async () => adopt(await post<PresentationView>(`/api/agency/presentations/${id}/generate`, { instruction })))
   }
 
-  const approve = (value: boolean) =>
+  const copyLink = async (token: string) => {
+    const url = `${window.location.origin}/proposta/${token}`
+    try {
+      await navigator.clipboard.writeText(url)
+      setNotice('Link della presentazione copiato: puoi inviarlo al cliente.')
+    } catch {
+      setNotice('Il link è attivo. Selezionalo nel campo “Link pubblico” e copialo per inviarlo al cliente.')
+    }
+  }
+
+  const approve = (value: boolean, copy = false) =>
     run('approve', async () => {
-      if (dirty && !(await save('Modifica prima dell’approvazione'))) return
-      adopt(await post<PresentationView>(`/api/agency/presentations/${id}/approve`, { approve: value }))
+      if (!v) return
+      if (dirty) {
+        const saved = await post<PresentationView>(`/api/agency/presentations/${id}`, { version: v.version, slides, theme, title, quote_id: quoteId, reason: 'Modifica prima dell’approvazione' }, 'PATCH')
+        adopt(saved)
+        setVersions(null)
+      }
+      const next = await post<PresentationView>(`/api/agency/presentations/${id}/approve`, { approve: value })
+      adopt(next)
       setNotice(value ? 'Approvata: il link è attivo e il PDF è quello definitivo.' : 'Riportata in revisione: il link non funziona finché non la riapprovi.')
+      if (value && copy) await copyLink(next.public_token)
     })
 
   const openVersions = () => run('versions', async () => setVersions((await apiFetch<{ versions: Version[] }>(`/api/agency/presentations/${id}/versions`)).versions))
@@ -234,10 +251,11 @@ export default function PresentationStudio({ id }: { id: string }) {
           <button className={s.ghost} onClick={() => run('pdf', () => download(`/api/agency/presentations/${id}/pdf`, 'proposta.pdf'))} disabled={locked || dirty} title={dirty ? 'Salva prima di esportare' : approved ? undefined : 'PDF di bozza: ogni pagina porta “Bozza”'}>
             {busy === 'pdf' ? <><span className={s.spin} /> PDF…</> : 'PDF'}
           </button>
-          {approved ? (
+          <button className={s.primary} onClick={() => approved && !dirty ? run('share', () => copyLink(v.public_token)) : approve(true, true)} disabled={locked || todo > 0} title={todo ? `Restano ${todo} [DA VERIFICARE]` : 'Link della presentazione da inviare al cliente, accessibile senza login'}>
+            {busy === 'approve' || busy === 'share' ? 'Preparo il link…' : approved && !dirty ? 'Copia link' : 'Approva e copia link'}
+          </button>
+          {approved && (
             <button className={s.ghost} onClick={() => approve(false)} disabled={locked}>Riporta in revisione</button>
-          ) : (
-            <button className={s.primary} onClick={() => approve(true)} disabled={locked || todo > 0} title={todo ? `Restano ${todo} [DA VERIFICARE]` : 'Attiva il link da condividere'}>{busy === 'approve' ? 'Approvo…' : 'Approva'}</button>
           )}
         </div>
       </div>
@@ -246,17 +264,20 @@ export default function PresentationStudio({ id }: { id: string }) {
       {notice && <p className={s.notice} role="status">{notice}</p>}
       {created.length > 0 && <div className={s.warn} style={{ marginBottom: 12 }}><strong>Alla creazione</strong><ul>{created.map((w, i) => <li key={i}>{w}</li>)}</ul></div>}
       {generating && <p className={s.notice} role="status"><span className={s.spin} /> L’agente sta lavorando: analizza i materiali e scrive le slide. Di solito 1-3 minuti; la pagina si aggiorna da sola.</p>}
-      {approved && (
-        <div className={s.panel} style={{ marginBottom: 14 }}>
-          <strong style={{ fontSize: 12 }}>Link per il cliente</strong>
+      <div className={s.panel} style={{ marginBottom: 14 }}>
+        <strong style={{ fontSize: 12 }}>Link per il cliente</strong>
+        {approved ? (
           <div className={s.share}>
             <input readOnly value={link} onFocus={(e) => e.currentTarget.select()} aria-label="Link pubblico" />
-            <button className={s.ghost} onClick={() => navigator.clipboard.writeText(link).then(() => setNotice('Link copiato'), () => setError('Copia non riuscita'))}>Copia</button>
+            <button className={s.ghost} onClick={() => run('share', () => copyLink(v.public_token))} disabled={locked || dirty}>Copia</button>
             <a className={s.ghost} href={`/proposta/${v.public_token}`} target="_blank" rel="noreferrer">Apri ↗</a>
           </div>
-          <p className={s.help}>Chi ha il link vede la proposta senza accedere. Una modifica la riporta in revisione e spegne il link finché non la riapprovi.</p>
-        </div>
-      )}
+        ) : (
+          <p className={s.help}>Usa “Approva e copia link” accanto al PDF per attivare il link e inviarlo al cliente.{todo > 0 && ` Completa prima i ${todo} [DA VERIFICARE].`}</p>
+        )}
+        <p className={s.help}>Chi riceve il link può sfogliare la presentazione e scaricare il PDF senza accedere al CRM. Le modifiche salvate disattivano il link fino alla nuova approvazione.</p>
+        {approved && dirty && <p className={s.help}>Ci sono modifiche non salvate: usa “Approva e copia link” per condividerne la versione aggiornata.</p>}
+      </div>
 
       <div className={s.studio}>
         <div className={s.slideList} aria-label="Slide">

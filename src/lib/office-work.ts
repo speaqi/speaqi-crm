@@ -46,6 +46,31 @@ export type WorkOutcome = {
 }
 export type WorkPatch = Omit<Partial<WorkOutcome>, 'children'> & { children?: OfficeWorkSpec[] }
 
+/** Lo stato del lavoro che decide se e come avvisare il titolare su Telegram. */
+export type WorkNoticeSource = { status: string; action: string; reason_code: string | null; required_action: string | null; result: Record<string, unknown> | null }
+// Domande a cui il titolare risponde in chat: il Direttore riprende l'ordine dalla risposta.
+const ANSWER_IN_CHAT = new Set(['needs_information', 'entity_missing', 'city_missing', 'official_website_missing', 'website_unreadable'])
+
+/**
+ * Il messaggio da mandare per un passaggio di un lavoro, oppure null se non porta niente al titolare:
+ * «pronto», «in esecuzione» e «in attesa» sono passaggi interni; un blocco già superato o dovuto a un
+ * lavoro precedente fallito ripeterebbe un avviso già mandato; «ordine compreso» con lavori assegnati
+ * è un passaggio, l'esito arriva da quei lavori.
+ */
+export function officeWorkNotice(event: { status?: unknown; summary?: unknown }, work: WorkNoticeSource | null): string | null {
+  const status = String(event.status || '')
+  const summary = typeof event.summary === 'string' ? event.summary.trim() : ''
+  if (!work || !summary || !['succeeded', 'failed', 'blocked', 'waiting_owner'].includes(status)) return null
+  if ((status === 'blocked' || status === 'waiting_owner') && work.status !== status) return null
+  if (status === 'blocked' && work.reason_code === 'dependency_failed') return null
+  if (status === 'succeeded' && work.action === 'interpret_order' && Array.isArray(work.result?.assigned)) return null
+  const next = work.required_action?.trim()
+  if (status === 'succeeded') return work.action === 'interpret_order' ? summary : `✅ ${summary}`
+  if (status === 'waiting_owner') return `👉 ${summary}${next ? `\n${next}` : ''}`
+  if (status === 'blocked' && ANSWER_IN_CHAT.has(work.reason_code || '')) return `⏸️ ${summary}\n\nRispondimi qui.`
+  return `${status === 'failed' ? '⚠️' : '⏸️'} ${summary}${next ? `\nCosa serve: ${next}` : ''}`
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const PAYLOAD_FIELDS = new Set(['order_id', 'entity_id', 'destination_id', 'place_id', 'contact_id', 'map_id', 'map_slug', 'slug', 'city',
   'source', 'website', 'target', 'brief', 'title', 'text', 'due_date', 'proposal_id', 'source_output_id', 'slot', 'approved',
