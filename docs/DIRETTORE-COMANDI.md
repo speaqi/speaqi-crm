@@ -39,6 +39,7 @@ La base Partner si sceglie anche a mano: Tourism → Presentazioni → «Crea la
 |---|---|
 | «Costruisci la mappa di West of Sicily, https://www.google.com/maps/d/…» | Il Costruttore My Maps importa i luoghi. Senza link usa solo una fonte già collegata in StudioMap, altrimenti si ferma e lo dice. |
 | «Controlla la mappa di Barcellona» | Il Controllo qualità prepara il rapporto. |
+| «Trovami le fonti eventi di Marsiglia» | Cerco sul web teatri, musei, festival e calendari della città e li aggiungo al catalogo fonti di StudioMap, come candidate da controllare. Fino a 2,50 € dal budget del Direttore. La città deve già esistere in StudioMap; Napoli no. |
 
 ## Soldi
 

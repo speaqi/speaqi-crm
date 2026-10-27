@@ -8,7 +8,7 @@ import { websiteFromText } from './entity-activation'
  * decide cosa si fa. Puro e testato: nessun accesso a database o rete.
  */
 
-export const DIRECTOR_ORDER_INTENTS = ['new_contact', 'build_map', 'check_map', 'presentation', 'find_partners', 'add_entity', 'rename_entity', 'status', 'events', 'invoice', 'task', 'help', 'unknown'] as const
+export const DIRECTOR_ORDER_INTENTS = ['new_contact', 'build_map', 'check_map', 'presentation', 'find_partners', 'add_entity', 'rename_entity', 'status', 'events', 'event_sources', 'invoice', 'task', 'help', 'unknown'] as const
 export type DirectorOrderIntent = (typeof DIRECTOR_ORDER_INTENTS)[number]
 export const CONTACT_CATEGORIES = ['destinazione', 'partner', 'agenzia', 'cliente_mappe', 'dubbio'] as const
 export type ContactCategory = (typeof CONTACT_CATEGORIES)[number]
@@ -36,6 +36,7 @@ export type DirectorOrderPlan =
   | { intent: 'help' }
   | { intent: 'status' }
   | { intent: 'events' }
+  | { intent: 'event_sources'; city: string; slug: string }
   | { intent: 'invoice'; quote_number: string | null; customer: string | null; approved: boolean }
   | { intent: 'task'; items: DirectorTaskItem[]; dropped: number }
   | { intent: 'unknown'; question: string; awaiting?: DirectorAwaiting }
@@ -97,6 +98,7 @@ export function directorOrderPrompt(text: string, images: number, today: string)
     '- rename_entity: rinominare un ente di Tourism Intelligence («rinomina X in Y», «cambia il nome di X in Y»). target = il nome attuale come scritto, new_name = il nome nuovo come scritto, then_presentation = true se chiede anche la presentazione. Se c’è un sito nell’ordine è dello stesso ente.',
     '- help: chiede cosa può chiederti, quali comandi esistono, come funzioni.',
     '- status: come stanno andando pipeline, trattative, timeline, agenti.',
+    '- event_sources: trovare le fonti degli eventi di una città da mettere nella mappa (siti e calendari di teatri, musei, festival, enti del turismo: «trovami le fonti eventi di Marsiglia»). city = la città. Non è events: events chiede gli eventi già trovati, event_sources chiede di cercare i siti da cui leggerli.',
     '- events: chiede quali fiere, eventi, workshop o bandi ci sono in arrivo ("quali sono le prossime fiere?"). Non è un task: la risposta la dà l’ufficio.',
     '- invoice: fare, preparare o emettere la fattura di un preventivo o di un cliente ("fammi la fattura per PREV-…", "fattura a Rossi"). target = il numero del preventivo o il nome del cliente, come scritto. quote_approved = true se il titolare dice che il cliente ha approvato, accettato o confermato il preventivo ("SNAV ha approvato, fai la fattura"). Non è un task: la bozza la prepara l’ufficio.',
     '- task: una o più cose da fare, appuntamenti, chiamate o promemoria per il titolare ("ricordami di…", "segna che devo…", "domani alle 15 chiamo Rossi e giovedì riunione con SNAV"), non una domanda. tasks = una voce per ogni cosa da fare (al massimo 10): title breve e chiaro (chi e cosa), date in formato AAAA-MM-GG se è detto un giorno (oggi è ' + today + ', ' + weekdayIt(today) + '; "domani", "giovedì", "il 3" si calcolano da oggi), time in formato HH:MM (24 ore) solo se è detta un’ora, minutes = la durata solo se è detta ("per un’ora" → 60). Un dato non detto è null.',
@@ -196,13 +198,15 @@ export function interpretDirectorOrder(parsed: unknown, input: { text: string; t
     const decided = decideCategory(raw.category, contact, brief)
     return { intent, contact, evidence, dropped, category: decided.category, category_reason: decided.reason, brief, card_text: cardText }
   }
-  if (intent === 'build_map' || intent === 'check_map') {
+  if (intent === 'build_map' || intent === 'check_map' || intent === 'event_sources') {
     const city = str(raw.city, 80)
-    if (!city) return { intent: 'unknown', question: 'Di quale città parliamo?' }
+    if (!city) return intent === 'event_sources'
+      ? { intent: 'unknown', question: 'Di quale città cerco le fonti degli eventi?', awaiting: { need: 'city', resume: 'trovami le fonti eventi di {}' } }
+      : { intent: 'unknown', question: 'Di quale città parliamo?' }
     if (officeIsNaples(city)) return { intent: 'unknown', question: 'Napoli resta fuori dal lavoro degli agenti: la mappa in produzione non si tocca. Vuoi provare con un’altra città?' }
     const slug = directorSlug(city)
     if (!slug) return { intent: 'unknown', question: 'Il nome della città non è valido.' }
-    if (intent === 'check_map') return { intent, city, slug }
+    if (intent === 'check_map' || intent === 'event_sources') return { intent, city, slug }
     const link = str(raw.map_link, 2000)
     // Il link vale solo se è davvero nell'ordine e se è una My Maps.
     const source = link && input.text.includes(link) && /google\.[a-z.]+\/maps\/d\/|[?&]mid=/.test(link) ? link : null
@@ -517,6 +521,33 @@ export function directorEventsReply(events: DirectorEventRow[], scout: { install
   return lines.join('\n')
 }
 
+/** Quello che restituisce StudioMap dopo la ricerca delle fonti eventi di una città. */
+export interface DirectorEventSourcesResult {
+  city: string; searched: boolean; proposed: number; added: number; total: number; enabled: number
+  new_sources: Array<{ name: string; home_url: string; agenda: string | null }>
+  cost_usd: number; error: string | null; warning: string | null; catalog_path: string
+}
+
+/** La risposta al titolare: quante fonti nuove, le prime per nome, e dove controllarle. */
+export function directorEventSourcesReply(r: DirectorEventSourcesResult, studioOrigin: string, spentCents: number): string {
+  const link = `${studioOrigin.replace(/\/$/, '')}${r.catalog_path}`
+  const spent = spentCents > 0 ? ` Spesa: ${(spentCents / 100).toFixed(2).replace('.', ',')} €.` : ''
+  if (!r.searched) {
+    return `${r.city}: la ricerca delle fonti eventi non è riuscita (${r.error || 'motivo sconosciuto'}). Non ho aggiunto niente.${spent} Puoi riprovare più tardi o aggiungere i siti a mano: ${link}`
+  }
+  const lines: string[] = []
+  if (!r.added) lines.push(`${r.city}: nessuna fonte eventi nuova. Nel catalogo ce ne sono ${r.total}.${spent}`)
+  else {
+    lines.push(`${r.city}: ho trovato ${r.added} ${r.added === 1 ? 'fonte eventi nuova' : 'fonti eventi nuove'} (ora ${r.total} nel catalogo).${spent}`)
+    for (const s of r.new_sources.slice(0, 8)) lines.push(`• ${s.name} — ${s.agenda || s.home_url}`)
+    if (r.added > 8) lines.push(`…e altre ${r.added - 8}.`)
+  }
+  if (r.warning) lines.push(r.warning)
+  lines.push('Sono candidate: controlla che le agende si leggano e disattiva quelle che non servono prima della raccolta degli eventi.')
+  lines.push(`Catalogo fonti in StudioMap: ${link}`)
+  return lines.join('\n')
+}
+
 export const QUOTE_APPROVAL = /\b(approvat\w*|accettat\w*|confermat\w*|firmat\w*|ha firmato|via libera|approved|accepted|signed)\b/i
 
 /** Il numero di un preventivo scritto nell'ordine (PREV-AAAAMMGG-XXXXXX), o null. */
@@ -631,6 +662,7 @@ export function directorHelpText(baseUrl: string) {
     'Mappe',
     '• «Costruisci la mappa di Marsiglia, https://www.google.com/maps/d/…» → il Costruttore My Maps importa i luoghi.',
     '• «Controlla la mappa di Barcellona» → il Controllo qualità fa il rapporto.',
+    '• «Trovami le fonti eventi di Marsiglia» → cerco sul web teatri, musei, festival e calendari della città e li metto nel catalogo fonti di StudioMap, da controllare.',
     '',
     'Soldi',
     '• «Fammi la fattura per PREV-2026-0012» → bozza pronta in Fatture, non la invio allo SDI.',
