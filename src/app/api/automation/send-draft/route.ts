@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
         .from('email_drafts')
         .update({ status: 'dismissed' })
         .eq('id', draftId)
+        .eq('status', 'pending')
 
       if (updateError) throw updateError
 
@@ -135,19 +136,45 @@ export async function POST(request: NextRequest) {
     // Cadenza SLA centralizzata in @/lib/sla
     const followupAt = nextFollowupAfterEmail(contact.status)
 
+    // Una richiesta sola invia: due clic o due schede trovano la bozza gia' presa.
+    const { data: claimed, error: claimError } = await auth.supabase
+      .from('email_drafts')
+      .update({ status: 'sending' })
+      .eq('id', draftId)
+      .eq('user_id', auth.workspaceUserId)
+      .eq('status', 'pending')
+      .select('id')
+      .maybeSingle()
+
+    if (claimError) throw claimError
+    if (!claimed) {
+      return Response.json({ error: 'Bozza già in invio o inviata' }, { status: 409 })
+    }
+
     // Send via Gmail
-    const result = await sendContactEmail(
-      auth.supabase,
-      auth.workspaceUserId,
-      contact as CRMContact,
-      {
-        subject,
-        html: bodyHtml,
-        text: bodyText,
-        followupAt: followupAt.toISOString(),
-        appendSignature: true,
-      }
-    )
+    let result: Awaited<ReturnType<typeof sendContactEmail>>
+    try {
+      result = await sendContactEmail(
+        auth.supabase,
+        auth.workspaceUserId,
+        contact as CRMContact,
+        {
+          subject,
+          html: bodyHtml,
+          text: bodyText,
+          followupAt: followupAt.toISOString(),
+          appendSignature: true,
+        }
+      )
+    } catch (sendError) {
+      // Invio non riuscito: la bozza torna disponibile, come prima.
+      await auth.supabase
+        .from('email_drafts')
+        .update({ status: 'pending' })
+        .eq('id', draftId)
+        .eq('status', 'sending')
+      throw sendError
+    }
 
     // Mark draft as sent
     const { error: updateError } = await auth.supabase

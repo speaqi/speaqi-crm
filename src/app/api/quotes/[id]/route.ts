@@ -5,6 +5,7 @@ import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { errorMessage } from '@/lib/server/http'
 import { defaultQuoteTemplate, quoteCompletionIssues } from '@/lib/commercial-proposal'
 import { applyQuotePaidToContact } from '@/lib/server/quote-payments'
+import { normalizeQuoteRow } from '@/lib/server/quote-create'
 import {
   DEFAULT_BANK_TRANSFER_INSTRUCTIONS,
   DEFAULT_CONTRACT_TERMS,
@@ -17,6 +18,7 @@ import {
   normalizeQuoteItems,
   normalizeStatus,
   normalizeText,
+  signedQuoteEconomicChanges,
 } from '@/lib/server/quotes'
 import { requireRouteUser, requireArea, createServiceRoleClient } from '@/lib/server/supabase'
 import { invoiceOnAcceptance } from '@/lib/server/quote-acceptance-invoice'
@@ -56,14 +58,6 @@ async function readContactForQuote(
   }
 
   throw first.error
-}
-
-function normalizeQuoteRow(row: any) {
-  return {
-    ...row,
-    contact: Array.isArray(row.contact) ? row.contact[0] : row.contact,
-    items: Array.isArray(row.items) ? row.items : [],
-  }
 }
 
 type OptionalQuoteColumn =
@@ -218,6 +212,21 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (!current) return Response.json({ error: 'Preventivo non trovato' }, { status: 404 })
 
     const rawBody = await request.json()
+    // Accettato o firmato: righe e importi sono quelli approvati dal cliente.
+    // Si confronta il corpo ricevuto, prima che le regole dell'abbonamento ci
+    // scrivano i loro valori.
+    const signed = Boolean(current.contract_accepted_at)
+    if (signed) {
+      const changed = signedQuoteEconomicChanges(current, rawBody)
+      if (changed.length) {
+        return Response.json(
+          {
+            error: `Il preventivo è già stato accettato: ${changed.join(', ')} non si possono più cambiare. Duplica il preventivo per proporre un'offerta diversa.`,
+          },
+          { status: 409 }
+        )
+      }
+    }
     // Un abbonamento resta tale finche' il costruttore non lo rende "pagamento
     // unico": se il PATCH non tocca billing_interval vale quello salvato.
     const body = applyBillingRules({
@@ -263,7 +272,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       taxRate:
         body.tax_rate !== undefined
           ? normalizeNumber(body.tax_rate, 22)
-          : Number(current.tax_rate || 22),
+          : normalizeNumber(current.tax_rate, 22),
       paymentTermsMode:
         body.payment_terms_mode !== undefined
           ? normalizePaymentTermsMode(body.payment_terms_mode, 'percent')
@@ -271,7 +280,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       depositPercent:
         body.deposit_percent !== undefined
           ? normalizeNumber(body.deposit_percent, 30)
-          : Number(current.deposit_percent || 30),
+          : normalizeNumber(current.deposit_percent, 30),
       depositManualAmount:
         body.deposit_manual_amount !== undefined
           ? normalizeNumber(body.deposit_manual_amount, 0)
@@ -346,9 +355,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           : contactChanged
             ? normalizeText(nextContact?.billing_city) || current.customer_city
             : current.customer_city,
-      items,
-      currency: body.currency !== undefined ? currencyCode(body.currency) : current.currency,
-      ...totals,
+      // Dopo la firma righe e importi restano quelli salvati: non si ricalcolano.
+      ...(signed
+        ? {}
+        : {
+            items,
+            currency: body.currency !== undefined ? currencyCode(body.currency) : current.currency,
+            ...totals,
+          }),
       status: nextStatus,
       payment_method:
         body.payment_method !== undefined
@@ -357,7 +371,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       payment_state:
         nextStatus === 'paid'
           ? 'paid'
-          : totals.deposit_amount > 0
+          : (signed ? normalizeNumber(current.deposit_amount, 0) : totals.deposit_amount) > 0
             ? current.payment_state || 'pending'
             : 'waived',
       payment_terms_note:
@@ -383,7 +397,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     // Scritto solo quando e' un abbonamento o lo era: i preventivi una tantum
     // non dipendono dalla migration dell'abbonamento.
-    if (body.billing_interval === 'year' || current.billing_interval === 'year') {
+    if (!signed && (body.billing_interval === 'year' || current.billing_interval === 'year')) {
       updatePayload.billing_interval = body.billing_interval
     }
 
