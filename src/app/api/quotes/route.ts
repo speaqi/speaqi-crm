@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
   if ('error' in auth) return auth.error
   const areaError = requireArea(auth, 'preventivi')
   if (areaError) return areaError
+  if (!auth.isAdmin) return Response.json({ error: 'I preventivi si modificano solo dal titolare del workspace.' }, { status: 403 })
 
   try {
     const body = await request.json()

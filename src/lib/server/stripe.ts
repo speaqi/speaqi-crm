@@ -25,7 +25,11 @@ export class StripeApiError extends Error {
 
 export async function stripeFetch<T = any>(
   path: string,
-  options: { method?: 'GET' | 'POST'; params?: URLSearchParams } = {}
+  options: {
+    method?: 'GET' | 'POST'
+    params?: URLSearchParams
+    idempotencyKey?: string
+  } = {}
 ): Promise<T> {
   const secretKey = process.env.STRIPE_SECRET_KEY
   if (!secretKey) throw new StripeApiError('Stripe non configurato: imposta STRIPE_SECRET_KEY sul deploy', 501)
@@ -37,6 +41,7 @@ export async function stripeFetch<T = any>(
       Authorization: `Bearer ${secretKey}`,
       'Stripe-Version': STRIPE_API_VERSION,
       ...(method === 'POST' ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}),
+      ...(options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {}),
     },
     body: method === 'POST' ? options.params : undefined,
     cache: 'no-store',

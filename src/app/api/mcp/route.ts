@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { sendCustomEmail } from '@/lib/email'
 import { applyPipelineScope } from '@/lib/server/scope-filters'
-import { requireRouteUser } from '@/lib/server/supabase'
+import { requireArea, requireRouteUser } from '@/lib/server/supabase'
 
 const TOOLS = [
   {
@@ -174,6 +174,9 @@ async function handleTool(request: NextRequest, name: string, args: Record<strin
     }
 
     case 'send_email': {
+      const areaError = requireArea(auth, 'email')
+      if (areaError) throw new Error('Area email non abilitata per questo utente')
+      if (!auth.isAdmin) throw new Error('L’invio di email personalizzate è riservato al titolare')
       await sendCustomEmail(
         String(args.to || ''),
         String(args.subject || ''),

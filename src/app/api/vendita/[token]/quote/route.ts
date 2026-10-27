@@ -54,7 +54,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const recent = new Date(Date.now() - SALES_LINK_DEDUP_MINUTES * 60 * 1000).toISOString()
     const { data: duplicate } = await admin
       .from('quotes')
-      .select('public_token, quote_acceptance_token, contract_signer_name, title')
+      .select('id, public_token, contract_signer_name, title')
       .eq('sales_team_member_id', link.member.id)
       .eq('customer_email', payload.email)
       .eq('title', packageDef.quoteTitle)
@@ -63,8 +63,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-    if (duplicate?.quote_acceptance_token && !duplicate.contract_signer_name) {
-      return Response.json({ url: signingPath(duplicate.public_token, duplicate.quote_acceptance_token), reused: true })
+    if (duplicate && !duplicate.contract_signer_name) {
+      const { data: secret } = await admin
+        .from('quote_secrets')
+        .select('acceptance_token')
+        .eq('quote_id', duplicate.id)
+        .maybeSingle()
+      if (secret?.acceptance_token) {
+        return Response.json({ url: signingPath(duplicate.public_token, secret.acceptance_token), reused: true })
+      }
     }
 
     const contact = await findOrCreateSalesContact(admin, link.userId, link.member.name, payload)

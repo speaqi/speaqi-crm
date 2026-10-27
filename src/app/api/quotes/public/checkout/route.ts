@@ -10,6 +10,7 @@ import {
   type StripeCatalogPricing,
 } from '@/lib/server/stripe'
 import { createPublicServerClient, createServiceRoleClient } from '@/lib/server/supabase'
+import { quoteSignatureMismatches } from '@/lib/server/quotes'
 
 function normalizeText(value: unknown) {
   const normalized = String(value || '').trim()
@@ -71,7 +72,7 @@ async function startSubscriptionCheckout(request: NextRequest, token: string) {
   const { data: quote, error } = await admin
     .from('quotes')
     .select(
-      'id, quote_number, public_token, title, status, total_amount, currency, customer_email, quote_acceptance_email, contract_signer_email, billing_interval, subscription_status, stripe_checkout_session_id, stripe_checkout_url'
+      'id, quote_number, public_token, title, status, items, subtotal_amount, discount_amount, tax_rate, tax_amount, total_amount, currency, customer_email, quote_acceptance_email, contract_signer_email, billing_interval, subscription_status, stripe_checkout_session_id, stripe_checkout_url'
     )
     .eq('public_token', token)
     .neq('status', 'cancelled')
@@ -91,8 +92,11 @@ async function startSubscriptionCheckout(request: NextRequest, token: string) {
   if (!signature) {
     return Response.json({ error: 'Firma il contratto prima di procedere al pagamento' }, { status: 409 })
   }
-  // Importi cambiati dopo la firma: il cliente pagherebbe una cifra che non ha firmato.
-  if (toCents(signature.amounts_snapshot?.total) !== toCents(quote.total_amount)) {
+  // Offerta cambiata dopo la firma: il cliente pagherebbe condizioni diverse da
+  // quelle firmate. Non basta confrontare il totale: contano righe, IVA, valuta
+  // e periodicità.
+  const mismatches = quoteSignatureMismatches(signature.amounts_snapshot, quote)
+  if (mismatches.length) {
     return Response.json(
       { error: 'L’offerta è cambiata dopo la firma: chiedi al team Speaqi un nuovo link di firma' },
       { status: 409 }
@@ -138,7 +142,19 @@ async function startSubscriptionCheckout(request: NextRequest, token: string) {
     origin: pickOrigin(request),
     catalog,
   })
-  const session = await stripeFetch<any>('/checkout/sessions', { params })
+  // Due clic contemporanei devono produrre la stessa sessione Stripe, non due
+  // abbonamenti pagabili. La chiave cambia ogni ora: un retry il giorno dopo
+  // può creare una sessione nuova, due richieste nello stesso minuto no.
+  const hourBucket = Math.floor(Date.now() / 3_600_000)
+  const idempotencyKey = [
+    'quote-checkout',
+    quote.id,
+    pricing,
+    toCents(quote.total_amount),
+    String(quote.currency || 'EUR').toUpperCase(),
+    hourBucket,
+  ].join('-')
+  const session = await stripeFetch<any>('/checkout/sessions', { params, idempotencyKey })
   const checkoutUrl = normalizeText(session?.url)
   const sessionId = normalizeText(session?.id)
   if (!checkoutUrl || !sessionId) {
@@ -158,7 +174,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const token = normalizeText(body.token)
-    const amountKind = normalizeText(body.amount) === 'total' ? 'total' : 'deposit'
 
     if (!token) return Response.json({ error: 'Token preventivo mancante' }, { status: 400 })
 
@@ -180,51 +195,17 @@ export async function POST(request: NextRequest) {
       return await startSubscriptionCheckout(request, token)
     }
 
-    if (quote.payment_method !== 'stripe' && quote.payment_method !== 'both') {
-      return Response.json({ error: 'Pagamento Stripe non previsto per questo preventivo' }, { status: 400 })
-    }
-
-    const amountCents = toCents(amountKind === 'total' ? quote.total_amount : quote.deposit_amount)
-    if (amountCents < 50) {
-      return Response.json({ error: 'Importo troppo basso per Stripe' }, { status: 400 })
-    }
-
-    const origin = pickOrigin(request)
-    const successUrl = `${origin}/preventivo?id=${encodeURIComponent(token)}&checkout=success`
-    const cancelUrl = `${origin}/preventivo?id=${encodeURIComponent(token)}&checkout=cancelled`
-
-    const params = new URLSearchParams()
-    params.set('mode', 'payment')
-    params.set('client_reference_id', token)
-    params.set('success_url', successUrl)
-    params.set('cancel_url', cancelUrl)
-    params.set('line_items[0][quantity]', '1')
-    params.set('line_items[0][price_data][currency]', String(quote.currency || 'EUR').toLowerCase())
-    params.set(
-      'line_items[0][price_data][product_data][name]',
-      `${amountKind === 'total' ? 'Saldo' : 'Acconto'} ${quote.quote_number}`
+    // I preventivi una tantum si pagano con bonifico. La pagina /preventivo non
+    // mostra mai il pulsante carta per queste offerte: lasciare la sessione
+    // `mode=payment` raggiungibile significava incassare senza segnare il
+    // preventivo come pagato ne' preparare la fattura.
+    return Response.json(
+      {
+        error:
+          'Pagamento con carta disponibile solo per gli abbonamenti annuali. Per questa offerta usa il bonifico.',
+      },
+      { status: 409 }
     )
-    params.set('line_items[0][price_data][unit_amount]', String(amountCents))
-    params.set('metadata[quote_token]', token)
-    params.set('metadata[quote_number]', String(quote.quote_number || ''))
-    params.set('metadata[payment_part]', amountKind)
-    if (quote.customer_email) params.set('customer_email', String(quote.customer_email))
-
-    const stripePayload = await stripeFetch<any>('/checkout/sessions', { params })
-
-    const checkoutUrl = normalizeText(stripePayload?.url)
-    const sessionId = normalizeText(stripePayload?.id)
-    if (!checkoutUrl || !sessionId) {
-      return Response.json({ error: 'Stripe non ha restituito un link valido' }, { status: 502 })
-    }
-
-    await supabase.rpc('mark_quote_checkout_created', {
-      p_public_token: token,
-      p_session_id: sessionId,
-      p_checkout_url: checkoutUrl,
-    })
-
-    return Response.json({ url: checkoutUrl })
   } catch (error) {
     if (error instanceof StripeApiError) {
       return Response.json({ error: error.message }, { status: error.status })

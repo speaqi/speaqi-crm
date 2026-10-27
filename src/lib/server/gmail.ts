@@ -437,7 +437,7 @@ export async function loadRequiredGmailSignature(supabase: any, userId: string):
   return signature
 }
 
-export function buildGmailConnectUrl(state: string) {
+export function buildGmailConnectUrl(state: string, codeChallenge?: string) {
   const { clientId, redirectUri } = getGoogleConfig()
   const params = new URLSearchParams({
     client_id: clientId,
@@ -453,11 +453,15 @@ export function buildGmailConnectUrl(state: string) {
     scope: GMAIL_SCOPES.join(' '),
     state,
   })
+  if (codeChallenge) {
+    params.set('code_challenge', codeChallenge)
+    params.set('code_challenge_method', 'S256')
+  }
 
   return `${GOOGLE_AUTH_URL}?${params.toString()}`
 }
 
-export async function exchangeCodeForTokens(code: string) {
+export async function exchangeCodeForTokens(code: string, codeVerifier?: string) {
   const { clientId, clientSecret, redirectUri } = getGoogleConfig()
   const response = await fetch(GOOGLE_TOKEN_URL, {
     method: 'POST',
@@ -470,6 +474,7 @@ export async function exchangeCodeForTokens(code: string) {
       redirect_uri: redirectUri,
       code,
       grant_type: 'authorization_code',
+      ...(codeVerifier ? { code_verifier: codeVerifier } : {}),
     }),
     cache: 'no-store',
   })

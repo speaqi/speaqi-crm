@@ -1,10 +1,12 @@
 import { NextRequest } from 'next/server'
 import { sendCustomEmail, sendFollowupEmail, sendReminderEmail } from '@/lib/email'
-import { createServiceRoleClient, requireRouteUser } from '@/lib/server/supabase'
+import { createServiceRoleClient, requireArea, requireRouteUser } from '@/lib/server/supabase'
 
 export async function POST(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  const areaError = requireArea(auth, 'email')
+  if (areaError) return areaError
 
   try {
     const body = await request.json()
@@ -21,6 +23,9 @@ export async function POST(request: NextRequest) {
     } else if (type === 'reminder') {
       result = await sendReminderEmail(to, body.calls || [])
     } else {
+      if (!auth.isAdmin) {
+        return Response.json({ error: 'L’invio di email personalizzate è riservato al titolare.' }, { status: 403 })
+      }
       if (!subject || !html) {
         return Response.json({ error: 'Missing subject or html for custom email' }, { status: 400 })
       }

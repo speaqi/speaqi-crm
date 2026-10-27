@@ -60,11 +60,15 @@ export async function readContactForQuote(
 }
 
 export function normalizeQuoteRow(row: any) {
-  return {
+  const normalized = {
     ...row,
     contact: Array.isArray(row.contact) ? row.contact[0] : row.contact,
     items: Array.isArray(row.items) ? row.items : [],
   }
+  // Il token di accettazione non deve mai uscire dalle API private: chi lo
+  // possiede può firmare al posto del cliente.
+  delete (normalized as Record<string, unknown>).quote_acceptance_token
+  return normalized
 }
 
 type OptionalQuoteColumn =
@@ -270,7 +274,8 @@ export async function createQuoteRecord(
   if (extra.tourismDeckId) insertPayload.tourism_deck_id = extra.tourismDeckId
   if (extra.salesTeamMemberId) insertPayload.sales_team_member_id = extra.salesTeamMemberId
   if (extra.acceptanceToken) {
-    insertPayload.quote_acceptance_token = extra.acceptanceToken
+    // Il token di accettazione vive fuori da `quotes`: la riga del preventivo
+    // e' leggibile dai collaboratori assegnati, il token no.
     insertPayload.quote_acceptance_email = extra.acceptanceEmail || insertPayload.customer_email || null
   }
 
@@ -303,6 +308,16 @@ export async function createQuoteRecord(
 
   if (insertError) throw insertError
   if (!insertedId) throw new Error('Impossibile creare il preventivo')
+
+  if (extra.acceptanceToken) {
+    const { error: secretError } = await supabase
+      .from('quote_secrets')
+      .upsert(
+        { quote_id: insertedId, acceptance_token: extra.acceptanceToken },
+        { onConflict: 'quote_id' }
+      )
+    if (secretError) throw secretError
+  }
 
   // Aggancia il preventivo alla trattativa aperta del contatto (best-effort:
   // se la tabella deals o la colonna deal_id non esistono ancora, si ignora).

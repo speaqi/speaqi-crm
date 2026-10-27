@@ -10,6 +10,22 @@ import { errorMessage } from '@/lib/server/http'
 import { nextFollowupAfterEmail } from '@/lib/sla'
 import type { CRMContact } from '@/types'
 
+function emailBlockReason(contact: Record<string, any>): string | null {
+  if (contact.email_unsubscribed_at) return 'Il contatto è disiscritto dalle email.'
+  if (contact.hidden) return 'Il contatto è nascosto.'
+  const eligibility = String(contact.marketing_eligibility || '').trim().toLowerCase()
+  if (eligibility === 'excluded' || eligibility === 'suppressed') {
+    return 'Il contatto non è eleggibile al marketing.'
+  }
+  if (
+    contact.marketing_status === 'paused' &&
+    (!contact.marketing_paused_until || new Date(contact.marketing_paused_until).getTime() > Date.now())
+  ) {
+    return 'Il marketing è in pausa per questo contatto.'
+  }
+  return null
+}
+
 export async function POST(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
@@ -57,6 +73,7 @@ export async function POST(request: NextRequest) {
       .from('contacts')
       .select('*')
       .eq('id', draft.contact_id)
+      .eq('user_id', auth.workspaceUserId)
       .single()
 
     if (contactError || !contact) {
@@ -65,6 +82,11 @@ export async function POST(request: NextRequest) {
 
     if (!contact.email) {
       return Response.json({ error: 'Contatto senza email' }, { status: 400 })
+    }
+
+    const blocked = emailBlockReason(contact)
+    if (blocked) {
+      return Response.json({ error: blocked }, { status: 409 })
     }
 
     const subject = editedSubject || draft.subject || '(nessun oggetto)'
@@ -132,24 +154,63 @@ export async function POST(request: NextRequest) {
       if (editError) throw editError
     }
 
+    // Claim atomico: due clic o due schede non possono inviare la stessa bozza
+    // due volte. La transizione pending -> sending avviene solo per il primo.
+    const sendingAt = new Date().toISOString()
+    const { data: claimed, error: claimError } = await auth.supabase
+      .from('email_drafts')
+      .update({
+        status: 'sending',
+        sending_at: sendingAt,
+        send_attempts: Number(draft.send_attempts || 0) + 1,
+        last_send_error: null,
+      })
+      .eq('id', draftId)
+      .eq('user_id', auth.workspaceUserId)
+      .eq('status', 'pending')
+      .select('id')
+      .maybeSingle()
+
+    if (claimError) throw claimError
+    if (!claimed) {
+      return Response.json(
+        { error: 'La bozza è già in invio o è stata inviata da un altro processo.' },
+        { status: 409 }
+      )
+    }
+
     // Cadenza SLA centralizzata in @/lib/sla
     const followupAt = nextFollowupAfterEmail(contact.status)
 
-    // Send via Gmail
-    const result = await sendContactEmail(
-      auth.supabase,
-      auth.workspaceUserId,
-      contact as CRMContact,
-      {
-        subject,
-        html: bodyHtml,
-        text: bodyText,
-        followupAt: followupAt.toISOString(),
-        appendSignature: true,
-      }
-    )
+    let result
+    try {
+      // Send via Gmail
+      result = await sendContactEmail(
+        auth.supabase,
+        auth.workspaceUserId,
+        contact as CRMContact,
+        {
+          subject,
+          html: bodyHtml,
+          text: bodyText,
+          followupAt: followupAt.toISOString(),
+          appendSignature: true,
+        }
+      )
+    } catch (sendError) {
+      await auth.supabase
+        .from('email_drafts')
+        .update({
+          status: 'failed',
+          last_send_error: errorMessage(sendError, 'Invio fallito'),
+        })
+        .eq('id', draftId)
+        .eq('user_id', auth.workspaceUserId)
+        .eq('status', 'sending')
+      throw sendError
+    }
 
-    // Mark draft as sent
+    // Mark draft as sent (solo se è ancora nel claim di questo processo).
     const { error: updateError } = await auth.supabase
       .from('email_drafts')
       .update({
@@ -161,9 +222,11 @@ export async function POST(request: NextRequest) {
         gmail_draft_message_id: null,
       })
       .eq('id', draftId)
+      .eq('user_id', auth.workspaceUserId)
+      .eq('status', 'sending')
 
     if (updateError) {
-      console.error('Failed to mark draft as sent', updateError)
+      throw updateError
     }
 
     return Response.json({

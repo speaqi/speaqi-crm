@@ -865,6 +865,7 @@ export default function PreventiviPage() {
             <div>
               <h2>{editingId ? 'Modifica preventivo' : 'Nuovo preventivo'}</h2>
               <p>Il link cliente resta fuori dall’area CRM.</p>
+              {!isAdmin && <p className="inline-error">I preventivi sono in sola lettura: solo il titolare del workspace può crearli o modificarli.</p>}
             </div>
             {editingId && (
               <button type="button" className="btn btn-ghost btn-sm" onClick={resetForm}>
@@ -1346,7 +1347,7 @@ export default function PreventiviPage() {
             )}
           </div>
 
-          <button className="btn btn-primary quotes-submit" disabled={saving || contextLoading || Boolean(contextFailure)} type="submit">
+          <button className="btn btn-primary quotes-submit" disabled={!isAdmin || saving || contextLoading || Boolean(contextFailure)} type="submit">
             {saving ? 'Salvataggio…' : editingId ? 'Aggiorna preventivo' : 'Genera preventivo'}
           </button>
         </form>
@@ -1428,6 +1429,7 @@ export default function PreventiviPage() {
                     <select
                       className="fi quote-status-select"
                       value={quote.status}
+                      disabled={!isAdmin}
                       onChange={(event) => updateStatus(quote, event.target.value as QuoteStatus)}
                     >
                       {Object.entries(STATUS_LABELS).map(([value, label]) => (
@@ -1436,14 +1438,14 @@ export default function PreventiviPage() {
                         </option>
                       ))}
                     </select>
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => editQuote(quote)}>
+                    <button type="button" className="btn btn-ghost btn-sm" disabled={!isAdmin} onClick={() => editQuote(quote)}>
                       Modifica
                     </button>
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm"
                       onClick={() => duplicateQuote(quote)}
-                      disabled={duplicatingQuoteId === quote.id}
+                      disabled={!isAdmin || duplicatingQuoteId === quote.id}
                     >
                       {duplicatingQuoteId === quote.id ? 'Duplicazione…' : 'Duplica'}
                     </button>
@@ -1454,7 +1456,7 @@ export default function PreventiviPage() {
                       type="button"
                       className="btn btn-ghost btn-sm"
                       onClick={() => sendAcceptanceEmail(quote)}
-                      disabled={sendingQuoteId === quote.id || Boolean(quote.contract_signer_email)}
+                      disabled={!isAdmin || sendingQuoteId === quote.id || Boolean(quote.contract_signer_email)}
                     >
                       {sendingQuoteId === quote.id ? 'Invio…' : 'Invia email'}
                     </button>

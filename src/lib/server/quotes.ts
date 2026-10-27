@@ -144,6 +144,113 @@ export function isQuoteItemIncluded(item: QuoteLineItem) {
   return !item.choice_group_id || item.selected === true
 }
 
+/** Confronto economico stabile: ignora id/line_total generati e l'ordine delle chiavi. */
+function economicItemSignature(item: QuoteLineItem) {
+  return {
+    description: item.description,
+    details: item.details || null,
+    quantity: Math.round(item.quantity * 100) / 100,
+    unit_price: roundMoney(item.unit_price),
+    list_unit_price: item.list_unit_price ? roundMoney(item.list_unit_price) : null,
+    choice_group_id: item.choice_group_id || null,
+    choice_group_label: item.choice_group_label || null,
+    selected: item.choice_group_id ? item.selected === true : undefined,
+  }
+}
+
+function cents(value: unknown) {
+  return Math.round(normalizeNumber(value, 0) * 100)
+}
+
+function sameMoney(left: unknown, right: unknown) {
+  return cents(left) === cents(right)
+}
+
+const SIGNED_ECONOMIC_LABELS: Record<string, string> = {
+  items: 'righe offerta',
+  discount_amount: 'sconto',
+  tax_rate: 'IVA',
+  payment_terms_mode: 'modalità pagamento',
+  deposit_percent: 'acconto',
+  deposit_manual_amount: 'acconto manuale',
+  currency: 'valuta',
+  billing_interval: 'periodicità',
+  payment_method: 'metodo di pagamento',
+  valid_until: 'validità',
+}
+
+/**
+ * Campi economici cambiati dopo la firma. Il contratto accettato vale per
+ * l'offerta firmata: cambiarne righe, sconto, IVA, valuta o periodicità
+ * significa proporre condizioni diverse, che richiedono un nuovo preventivo.
+ */
+export function signedQuoteEconomicChanges(
+  body: Record<string, unknown>,
+  current: Record<string, unknown>
+): string[] {
+  const changed: string[] = []
+
+  if (body.items !== undefined) {
+    const nextItems = normalizeQuoteItems(body.items).map(economicItemSignature)
+    const currentItems = normalizeQuoteItems(current.items).map(economicItemSignature)
+    if (JSON.stringify(nextItems) !== JSON.stringify(currentItems)) changed.push('items')
+  }
+
+  if (body.discount_amount !== undefined && !sameMoney(body.discount_amount, current.discount_amount)) {
+    changed.push('discount_amount')
+  }
+  if (body.tax_rate !== undefined && !sameMoney(body.tax_rate, current.tax_rate)) {
+    changed.push('tax_rate')
+  }
+  if (
+    body.payment_terms_mode !== undefined &&
+    normalizePaymentTermsMode(body.payment_terms_mode, 'percent') !==
+      normalizePaymentTermsMode(current.payment_terms_mode, 'percent')
+  ) {
+    changed.push('payment_terms_mode')
+  }
+  if (
+    body.deposit_percent !== undefined &&
+    !sameMoney(body.deposit_percent, current.deposit_percent)
+  ) {
+    changed.push('deposit_percent')
+  }
+  if (
+    body.deposit_manual_amount !== undefined &&
+    !sameMoney(body.deposit_manual_amount, current.deposit_manual_amount)
+  ) {
+    changed.push('deposit_manual_amount')
+  }
+  if (body.currency !== undefined && currencyCode(body.currency as string) !== currencyCode(current.currency as string)) {
+    changed.push('currency')
+  }
+  if (
+    body.billing_interval !== undefined &&
+    normalizeBillingInterval(body.billing_interval) !== normalizeBillingInterval(current.billing_interval)
+  ) {
+    changed.push('billing_interval')
+  }
+  if (
+    body.payment_method !== undefined &&
+    normalizePaymentMethod(body.payment_method) !== normalizePaymentMethod(current.payment_method)
+  ) {
+    changed.push('payment_method')
+  }
+  if (
+    body.valid_until !== undefined &&
+    String(normalizeText(body.valid_until) || '') !== String(normalizeText(current.valid_until) || '')
+  ) {
+    changed.push('valid_until')
+  }
+
+  return changed
+}
+
+export function signedQuoteEconomicChangeMessage(changed: string[]) {
+  const labels = changed.map((field) => SIGNED_ECONOMIC_LABELS[field] || field)
+  return `Il contratto è già stato firmato: non si possono cambiare ${labels.join(', ')}. Duplica il preventivo per proporre nuove condizioni.`
+}
+
 export function calculateQuoteTotals(
   items: QuoteLineItem[],
   options?: {
@@ -230,4 +337,38 @@ export function quoteAcceptanceUrl(origin: string, publicToken: string, acceptan
 export function currencyCode(value?: string | null) {
   const normalized = String(value || 'EUR').trim().toUpperCase()
   return /^[A-Z]{3}$/.test(normalized) ? normalized : 'EUR'
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    return `{${Object.keys(record)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableJson(record[key])}`)
+      .join(',')}}`
+  }
+  return JSON.stringify(value ?? null)
+}
+
+/**
+ * La firma vale per l'offerta intera. Due preventivi con lo stesso totale ma
+ * righe, IVA o valuta diverse non sono la stessa offerta.
+ */
+export function quoteSignatureMismatches(snapshot: any, quote: any): string[] {
+  const mismatches: string[] = []
+  const sameNumber = (left: unknown, right: unknown) => cents(left) === cents(right)
+  if (!sameNumber(snapshot?.subtotal, quote.subtotal_amount)) mismatches.push('subtotal')
+  if (!sameNumber(snapshot?.discount, quote.discount_amount)) mismatches.push('discount')
+  if (!sameNumber(snapshot?.tax_rate, quote.tax_rate)) mismatches.push('tax_rate')
+  if (!sameNumber(snapshot?.tax, quote.tax_amount)) mismatches.push('tax')
+  if (!sameNumber(snapshot?.total, quote.total_amount)) mismatches.push('total')
+  if (String(snapshot?.currency || '').toUpperCase() !== String(quote.currency || '').toUpperCase()) {
+    mismatches.push('currency')
+  }
+  if (String(snapshot?.billing_interval || 'one_time') !== String(quote.billing_interval || 'one_time')) {
+    mismatches.push('billing_interval')
+  }
+  if (stableJson(snapshot?.items || []) !== stableJson(quote.items || [])) mismatches.push('items')
+  return mismatches
 }

@@ -16,6 +16,8 @@ import {
   normalizeQuoteItems,
   normalizeStatus,
   normalizeText,
+  signedQuoteEconomicChangeMessage,
+  signedQuoteEconomicChanges,
 } from '@/lib/server/quotes'
 import { requireRouteUser, requireArea, createServiceRoleClient } from '@/lib/server/supabase'
 import { invoiceOnAcceptance } from '@/lib/server/quote-acceptance-invoice'
@@ -58,11 +60,13 @@ async function readContactForQuote(
 }
 
 function normalizeQuoteRow(row: any) {
-  return {
+  const normalized = {
     ...row,
     contact: Array.isArray(row.contact) ? row.contact[0] : row.contact,
     items: Array.isArray(row.items) ? row.items : [],
   }
+  delete (normalized as Record<string, unknown>).quote_acceptance_token
+  return normalized
 }
 
 type OptionalQuoteColumn =
@@ -210,6 +214,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   if ('error' in auth) return auth.error
   const areaError = requireArea(auth, 'preventivi')
   if (areaError) return areaError
+  if (!auth.isAdmin) return Response.json({ error: 'I preventivi si modificano solo dal titolare del workspace.' }, { status: 403 })
 
   try {
     const { id } = await context.params
@@ -217,6 +222,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (!current) return Response.json({ error: 'Preventivo non trovato' }, { status: 404 })
 
     const rawBody = await request.json()
+    if (current.contract_accepted_at) {
+      const changed = signedQuoteEconomicChanges(rawBody, current)
+      if (changed.length) {
+        return Response.json(
+          { error: signedQuoteEconomicChangeMessage(changed) },
+          { status: 409 }
+        )
+      }
+    }
     // Un abbonamento resta tale finche' il costruttore non lo rende "pagamento
     // unico": se il PATCH non tocca billing_interval vale quello salvato.
     const body = applyBillingRules({
@@ -262,7 +276,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       taxRate:
         body.tax_rate !== undefined
           ? normalizeNumber(body.tax_rate, 22)
-          : Number(current.tax_rate || 22),
+          : Number(current.tax_rate ?? 22),
       paymentTermsMode:
         body.payment_terms_mode !== undefined
           ? normalizePaymentTermsMode(body.payment_terms_mode, 'percent')
@@ -270,7 +284,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       depositPercent:
         body.deposit_percent !== undefined
           ? normalizeNumber(body.deposit_percent, 30)
-          : Number(current.deposit_percent || 30),
+          : Number(current.deposit_percent ?? 30),
       depositManualAmount:
         body.deposit_manual_amount !== undefined
           ? normalizeNumber(body.deposit_manual_amount, 0)
@@ -460,6 +474,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   if ('error' in auth) return auth.error
   const areaError = requireArea(auth, 'preventivi')
   if (areaError) return areaError
+  if (!auth.isAdmin) return Response.json({ error: 'I preventivi si modificano solo dal titolare del workspace.' }, { status: 403 })
 
   try {
     const { id } = await context.params

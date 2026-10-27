@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { buildGmailConnectUrl, isMissingRelation } from '@/lib/server/gmail'
 import { requireRouteUser, requireArea } from '@/lib/server/supabase'
 
@@ -13,8 +13,11 @@ export async function POST(request: NextRequest) {
   if (areaError) return areaError
 
   try {
-    const state = crypto.randomUUID()
+    const state = crypto.randomBytes(24).toString('base64url')
+    const codeVerifier = crypto.randomBytes(32).toString('base64url')
+    const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url')
 
+    // Un solo state attivo per utente: annulla eventuali tentativi precedenti.
     await auth.supabase
       .from('gmail_oauth_states')
       .delete()
@@ -25,13 +28,26 @@ export async function POST(request: NextRequest) {
       .insert({
         state,
         user_id: auth.user.id,
+        code_verifier: codeVerifier,
+        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
       })
 
     if (error) throw error
 
-    return Response.json({
-      url: buildGmailConnectUrl(state),
+    const response = NextResponse.json({
+      url: buildGmailConnectUrl(state, codeChallenge),
     })
+    // Lo state deve tornare dallo stesso browser che ha iniziato il flusso:
+    // senza questo cookie un link di consenso può collegare il Gmail di un
+    // altro utente al workspace dell'attaccante (OAuth CSRF).
+    response.cookies.set('speaqi_gmail_oauth_state', state, {
+      path: '/api/gmail',
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 600,
+    })
+    return response
   } catch (error) {
     if (isMissingRelation(error)) {
       return Response.json({ error: GMAIL_MIGRATION_ERROR }, { status: 500 })

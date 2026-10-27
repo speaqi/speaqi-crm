@@ -63,6 +63,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if ('error' in auth) return auth.error
   const areaError = requireArea(auth, 'preventivi')
   if (areaError) return areaError
+  if (!auth.isAdmin) return Response.json({ error: 'I preventivi si modificano solo dal titolare del workspace.' }, { status: 403 })
 
   try {
     const { id } = await context.params
@@ -99,7 +100,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
       .update({
         customer_email: recipient,
         quote_acceptance_email: recipient,
-        quote_acceptance_token: acceptanceToken,
       })
       .eq('user_id', auth.workspaceUserId)
       .eq('id', id)
@@ -117,6 +117,26 @@ export async function POST(request: NextRequest, context: RouteContext) {
         )
       }
       throw prepare.error
+    }
+
+    const secretWrite = await auth.supabase
+      .from('quote_secrets')
+      .upsert(
+        { quote_id: id, acceptance_token: acceptanceToken },
+        { onConflict: 'quote_id' }
+      )
+
+    if (secretWrite.error) {
+      if (missingAcceptanceColumns(secretWrite.error) || /quote_secrets/i.test(String(secretWrite.error.message || ''))) {
+        return Response.json(
+          {
+            error:
+              'Il database non ha ancora la tabella per i link di firma. Applica la migration Supabase più recente e riprova.',
+          },
+          { status: 500 }
+        )
+      }
+      throw secretWrite.error
     }
 
     const origin = requestOrigin(request)

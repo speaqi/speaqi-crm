@@ -81,14 +81,17 @@ export async function POST(request: NextRequest) {
     const ignoreCap = body.ignore_cap === true
     const supabase = createServiceRoleClient()
 
+    // Il freno di emergenza vale per OGNI invio automatico, non solo per le
+    // bozze: anche il ramo contact_id deve fermarsi.
+    if (!dryRun && process.env.AUTOMATION_SEND_ENABLED !== 'true') {
+      return Response.json({ error: 'Automatic sending disabled' }, { status: 503 })
+    }
+    const context = automationContext()
+    if (!context) {
+      return Response.json({ error: 'Automation workspace not configured' }, { status: 503 })
+    }
+
     if (draftId) {
-      if (!dryRun && process.env.AUTOMATION_SEND_ENABLED !== 'true') {
-        return Response.json({ error: 'Automatic sending disabled' }, { status: 503 })
-      }
-      const context = automationContext()
-      if (!context) {
-        return Response.json({ error: 'Automation workspace not configured' }, { status: 503 })
-      }
       const result = await sendDraftAutomatically(supabase, context, {
         draftId,
         minAgeMinutes: Math.max(0, Math.floor(Number(body.min_age_minutes) || 0)),
@@ -123,6 +126,7 @@ export async function POST(request: NextRequest) {
       .from('contacts')
       .select('*')
       .eq('id', contactId)
+      .eq('user_id', context.workspaceUserId)
       .maybeSingle()
 
     if (contactError) throw contactError
@@ -140,6 +144,13 @@ export async function POST(request: NextRequest) {
     }
     if (isClosedStatus(String(contact.status || ''))) {
       return skip('closed_status', `Stage chiuso: ${contact.status}`)
+    }
+    if (contact.hidden) {
+      return skip('hidden', 'Contatto nascosto')
+    }
+    const eligibility = String(contact.marketing_eligibility || '').trim().toLowerCase()
+    if (eligibility === 'excluded' || eligibility === 'suppressed') {
+      return skip('marketing_eligibility', 'Contatto non eleggibile al marketing')
     }
     if ((contact.marketing_status || '') === 'paused') {
       const until = contact.marketing_paused_until
@@ -160,6 +171,9 @@ export async function POST(request: NextRequest) {
         { error: 'Mittente non determinabile: passare sender_user_id' },
         { status: 400 }
       )
+    }
+    if (senderUserId !== context.workspaceUserId && senderUserId !== context.senderUserId) {
+      return Response.json({ error: 'Mittente non autorizzato per questo workspace' }, { status: 403 })
     }
 
     // ─── Guardrail: tetto giornaliero per mittente (deliverability) ───

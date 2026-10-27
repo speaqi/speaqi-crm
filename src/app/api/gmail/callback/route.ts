@@ -18,11 +18,22 @@ function getAppOrigin(request: NextRequest) {
   return `${protocol}://${host}`
 }
 
+const GMAIL_STATE_COOKIE = 'speaqi_gmail_oauth_state'
+
 function redirectToStatus(request: NextRequest, status: 'connected' | 'error', message?: string) {
   const url = new URL('/gmail', getAppOrigin(request))
   url.searchParams.set('gmail', status)
   if (message) url.searchParams.set('message', message)
-  return NextResponse.redirect(url)
+  const response = NextResponse.redirect(url)
+  // Monouso: il cookie viene rimosso su ogni esito.
+  response.cookies.set(GMAIL_STATE_COOKIE, '', {
+    path: '/api/gmail',
+    maxAge: 0,
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+  })
+  return response
 }
 
 export async function GET(request: NextRequest) {
@@ -38,6 +49,14 @@ export async function GET(request: NextRequest) {
     return redirectToStatus(request, 'error', 'Missing Gmail OAuth parameters')
   }
 
+  // Lo state deve essere quello salvato nel cookie HttpOnly di questo browser.
+  // Senza questo controllo un attaccante può far autorizzare Gmail alla vittima
+  // e collegarlo al proprio account CRM.
+  const cookieState = request.cookies.get(GMAIL_STATE_COOKIE)?.value || ''
+  if (!cookieState || cookieState !== state) {
+    return redirectToStatus(request, 'error', 'OAuth state non valido o scaduto. Riprova il collegamento.')
+  }
+
   try {
     const admin = createServiceRoleClient()
     const { data: oauthState, error: stateError } = await admin
@@ -50,13 +69,24 @@ export async function GET(request: NextRequest) {
       throw stateError || new Error('OAuth state not found')
     }
 
+    const expiresAt = oauthState.expires_at
+      ? new Date(oauthState.expires_at).getTime()
+      : new Date(oauthState.created_at).getTime() + 10 * 60 * 1000
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      throw new Error('OAuth state scaduto. Riprova il collegamento.')
+    }
+
+    // Monouso: consuma lo state prima dello scambio, così un replay non può
+    // ripetere il callback con lo stesso codice.
+    await admin.from('gmail_oauth_states').delete().eq('state', state)
+
     const { data: existingAccount } = await admin
       .from('gmail_accounts')
       .select('*')
       .eq('user_id', oauthState.user_id)
       .maybeSingle()
 
-    const tokens = await exchangeCodeForTokens(code)
+    const tokens = await exchangeCodeForTokens(code, oauthState.code_verifier || undefined)
     const profile = await fetchGmailProfile(tokens.access_token)
 
     const encryptedRefreshToken = tokens.refresh_token
@@ -84,11 +114,6 @@ export async function GET(request: NextRequest) {
       )
 
     if (upsertError) throw upsertError
-
-    await admin
-      .from('gmail_oauth_states')
-      .delete()
-      .eq('state', state)
 
     return redirectToStatus(request, 'connected')
   } catch (error) {
