@@ -5476,8 +5476,16 @@ textarea.form-input::placeholder { color: var(--text3); }
     border: 0;
     border-radius: 0;
   }
-  .public-quote-actions {
+  .public-quote-actions,
+  .public-quote-contract-form {
     display: none;
+  }
+  .public-quote-contract-body {
+    max-height: none;
+    overflow: visible;
+  }
+  .public-quote-grid.lower {
+    display: block;
   }
 }
 

@@ -75,7 +75,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const { data: quote, error: readError } = await auth.supabase
       .from('quotes')
-      .select('id, user_id, contact_id, quote_number, public_token, status, title, customer_name, customer_email, customer_company, items, contract_terms, payment_terms_note, public_note')
+      .select('id, user_id, contact_id, quote_number, public_token, status, title, customer_name, customer_email, customer_company, agency_project_id, items, contract_terms, payment_terms_note, public_note')
       .eq('user_id', auth.workspaceUserId)
       .eq('id', id)
       .maybeSingle()

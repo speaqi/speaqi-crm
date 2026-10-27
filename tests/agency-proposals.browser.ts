@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdir } from 'node:fs/promises'
 import { chromium } from 'playwright'
 import { normalizeAgencySettings, normalizeAnalysis } from '../src/lib/agency'
+import { AGENCY_GENERAL_TERMS } from '../src/lib/agency-contract'
 import { normalizeQuoteTemplate, quoteDraftFromTemplate } from '../src/lib/commercial-proposal'
 
 // API intercettate: verifica UI e passaggio dei dati, senza toccare clienti reali.
@@ -59,7 +60,7 @@ async function main() {
       throw e
     })
     await page.getByText('Preventivo e contratto riutilizzabili', { exact: true }).click()
-    await page.getByLabel('Contratto di base').fill('Accordo Agency approvato per {{cliente}} — {{progetto}}')
+    await page.getByLabel('Condizioni particolari predefinite').fill('Accordo Agency approvato per {{cliente}} — {{progetto}}')
     await page.getByRole('button', { name: '＋ Voce riutilizzabile' }).click()
     await page.getByLabel('Servizio 1', { exact: true }).fill('Design per {{cliente}}')
     await page.getByLabel('Prezzo unitario, IVA esclusa').fill('1500')
@@ -68,15 +69,22 @@ async function main() {
     await page.screenshot({ path: output + '/agency-base.png', fullPage: false })
     assert.equal(settings.quote_template?.items[0].unit_price, 1500)
     await page.goto(base + `/preventivi?agency_project=${projectId}`)
-    await page.waitForFunction(() => (document.querySelector('textarea[maxlength="30000"]') as HTMLTextAreaElement)?.value.includes('Accordo Agency approvato per Alfa'))
-    assert.equal(await page.getByLabel('Contratto abbinato al preventivo').inputValue(), 'Accordo Agency approvato per Alfa — Nuovo sito Alfa')
+    await page.getByLabel('Condizioni particolari della singola offerta').filter({ visible: true }).waitFor()
+    await page.waitForFunction(() => (document.querySelector('textarea[aria-label="Condizioni particolari della singola offerta"]') as HTMLTextAreaElement)?.value.includes('Accordo Agency approvato per Alfa'))
+    assert.equal(await page.getByLabel('Condizioni particolari della singola offerta').inputValue(), 'Accordo Agency approvato per Alfa — Nuovo sito Alfa')
     await page.screenshot({ path: output + '/agency-quote.png', fullPage: false })
     await page.getByRole('button', { name: 'Genera preventivo', exact: true }).click()
     await page.waitForURL(`**/agency/${projectId}`)
+    assert.ok(savedQuote.contract_terms.includes(AGENCY_GENERAL_TERMS))
     assert.equal(savedQuote.agency_project_id, projectId)
     assert.equal(savedQuote.items[0].unit_price, 1500)
     assert.equal(savedQuote.customer_tax_id, contact.billing_tax_id)
     assert.equal(savedQuote.status, 'draft')
+    await page.goto(base + '/termini-speaqi-agency')
+    assert.equal(await page.locator('.public-quote-contract-body').textContent(), AGENCY_GENERAL_TERMS)
+    await page.emulateMedia({ media: 'print' })
+    assert.equal(await page.locator('.public-quote-contract-body').evaluate(el => getComputedStyle(el).maxHeight), 'none')
+    await page.pdf({ path: output + '/agency-conditions.pdf', format: 'A4', printBackground: true })
     assert.deepEqual(errors, [])
     console.log('OK: base Agency salvata e riusata nel preventivo con contratto e dati fiscali')
   } finally { await browser.close() }

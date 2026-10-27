@@ -1,3 +1,5 @@
+import { signatureTermsMeta } from '../src/lib/server/quote-signature'
+import { AGENCY_CONTRACT_CODE, AGENCY_SPECIFIC_APPROVAL_TEXT } from '../src/lib/agency-contract'
 import assert from 'node:assert/strict'
 import { createHmac } from 'node:crypto'
 import { describe, test } from 'node:test'
@@ -361,4 +363,16 @@ describe('link vendita', () => {
   test('escapeLike neutralizza i jolly', () => {
     assert.equal(escapeLike('mario_rossi%@x.it'), 'mario\\_rossi\\%@x.it')
   })
+})
+
+test('Agency richiede approvazione specifica anche senza abbonamento e conserva il documento corretto', () => {
+  const body = { token: 't', acceptance_token: 'a', signer_name: 'Mario Rossi', accepted: true, signature_png: fakePng() }
+  assert.equal(parseSignPayload(body, { requireAgencyClauses: true }).ok, false)
+  assert.equal(parseSignPayload({ ...body, specific_clauses_accepted: 'true' }, { requireAgencyClauses: true }).ok, false)
+  assert.equal(parseSignPayload({ ...body, specific_clauses_accepted: true }, { requireAgencyClauses: true }).ok, true)
+  const meta = signatureTermsMeta(false, true)
+  assert.equal(meta.terms_url, '/termini-speaqi-agency')
+  assert.equal(meta.document_code, AGENCY_CONTRACT_CODE)
+  assert.equal(meta.specific_clauses_text, AGENCY_SPECIFIC_APPROVAL_TEXT)
+  assert.equal(signatureTermsMeta(false).terms_url, '/termini-speaqi')
 })

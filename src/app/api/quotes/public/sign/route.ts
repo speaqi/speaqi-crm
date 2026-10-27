@@ -1,3 +1,4 @@
+import { isAgencyContract, AGENCY_GENERAL_TERMS } from '@/lib/agency-contract'
 import { NextRequest } from 'next/server'
 import { sendQuoteContractAcceptanceEmail } from '@/lib/email'
 import { errorMessage } from '@/lib/server/http'
@@ -31,11 +32,16 @@ export async function POST(request: NextRequest) {
     const admin = createServiceRoleClient()
 
     const token = String(body?.token || '').trim()
-    const { data: billing } = token
-      ? await admin.from('quotes').select('billing_interval').eq('public_token', token).maybeSingle()
-      : { data: null }
+    const { data: billing, error: billingError } = token
+      ? await admin.from('quotes').select('billing_interval,agency_project_id,contract_terms').eq('public_token', token).maybeSingle()
+      : { data: null, error: null }
 
-    const parsed = parseSignPayload(body, { requireRenewalClause: billing?.billing_interval === 'year' })
+    if (billingError) throw billingError
+    const agency = isAgencyContract(billing || {})
+    if (agency && !String(billing?.contract_terms || '').includes(AGENCY_GENERAL_TERMS)) {
+      return Response.json({ error: 'Le condizioni Agency devono essere aggiornate dal team prima della firma.' }, { status: 409 })
+    }
+    const parsed = parseSignPayload(body, { requireRenewalClause: billing?.billing_interval === 'year', requireAgencyClauses: agency })
     if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 })
     const input = parsed.value
 
@@ -46,7 +52,7 @@ export async function POST(request: NextRequest) {
       p_signature_png: input.signaturePng,
       p_ip: clientIp(request.headers),
       p_user_agent: (request.headers.get('user-agent') || '').slice(0, 500),
-      p_terms_meta: signatureTermsMeta(input.renewalAccepted),
+      p_terms_meta: signatureTermsMeta(input.renewalAccepted, agency),
     })
     if (error) return Response.json({ error: errorMessage(error, 'Firma non registrata') }, { status: 500 })
 

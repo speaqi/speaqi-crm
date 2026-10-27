@@ -1,3 +1,4 @@
+import { isAgencyContract } from '@/lib/agency-contract'
 import { NextRequest } from 'next/server'
 import { sendQuoteContractAcceptanceEmail } from '@/lib/email'
 import { errorMessage } from '@/lib/server/http'
@@ -47,6 +48,11 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createPublicServerClient()
+    const { data: publicQuote, error: quoteError } = await createServiceRoleClient().from('quotes').select('agency_project_id,contract_terms').eq('public_token', token).maybeSingle()
+    if (quoteError) throw quoteError
+    if (isAgencyContract(publicQuote || {})) {
+      return Response.json({ error: 'Per Agency occorrono la firma e l’approvazione specifica delle clausole.' }, { status: 400 })
+    }
     const { data, error } = await supabase.rpc('accept_public_quote_contract', {
       p_public_token: token,
       p_acceptance_token: acceptanceToken,

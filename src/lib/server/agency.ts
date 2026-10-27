@@ -1,3 +1,4 @@
+import { ensureAgencyContractTerms, AGENCY_GENERAL_TERMS } from '../agency-contract'
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 import type { NextRequest } from 'next/server'
 import { requireRouteUser } from './supabase'
@@ -475,7 +476,7 @@ export async function loadMaterials(service: Sb, row: ProjectRow): Promise<{ mat
 
 // ---- Preventivi collegati -------------------------------------------------
 
-const QUOTE_FIELDS = 'id,quote_number,title,status,currency,billing_interval,items,subtotal_amount,discount_amount,tax_rate,tax_amount,total_amount,deposit_amount,payment_terms_note,public_note,valid_until,public_token,updated_at,contact_id,agency_project_id,created_at'
+const QUOTE_FIELDS = 'contract_terms,contract_accepted_at,contract_signer_email,id,quote_number,title,status,currency,billing_interval,items,subtotal_amount,discount_amount,tax_rate,tax_amount,total_amount,deposit_amount,payment_terms_note,public_note,valid_until,public_token,updated_at,contact_id,agency_project_id,created_at'
 
 export async function projectQuotes(sb: Sb, userId: string, projectId: string) {
   const rows = checked(await sb.from('quotes').select(QUOTE_FIELDS).eq('user_id', userId).eq('agency_project_id', projectId).order('created_at', { ascending: false })).data || []
@@ -494,7 +495,9 @@ export async function attachQuote(sb: Sb, project: ProjectRow, quoteId: string) 
   if (!quote) throw new AgencyInputError('Preventivo non trovato')
   if (quote.contact_id && project.contact_id && quote.contact_id !== project.contact_id) throw new AgencyInputError('Il preventivo è di un altro cliente')
   if (quote.agency_project_id && quote.agency_project_id !== project.id) throw new AgencyInputError('Il preventivo è già collegato a un’altra opportunità')
-  checked(await sb.from('quotes').update({ agency_project_id: project.id }).eq('user_id', project.user_id).eq('id', quoteId))
+  const signed = Boolean(quote.contract_signer_email || quote.contract_accepted_at)
+  if (signed && !String(quote.contract_terms || '').includes(AGENCY_GENERAL_TERMS)) throw new AgencyInputError('Il contratto è già accettato con condizioni diverse. Duplica il preventivo per creare un’offerta Agency.')
+  checked(await sb.from('quotes').update({ agency_project_id: project.id, ...(signed ? {} : { contract_terms: ensureAgencyContractTerms(quote.contract_terms), updated_at: now() }) }).eq('user_id', project.user_id).eq('id', quoteId))
   return quote
 }
 

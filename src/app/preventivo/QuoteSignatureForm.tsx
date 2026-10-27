@@ -1,5 +1,6 @@
 'use client'
 
+import { AGENCY_ACCEPTED_TEXT, AGENCY_SPECIFIC_APPROVAL_TEXT, AGENCY_CONTRACT_URL } from '@/lib/agency-contract'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useRef, useState } from 'react'
@@ -9,6 +10,7 @@ type QuoteSignatureFormProps = {
   token: string
   acceptanceToken: string
   defaultSignerName?: string | null
+  isAgency?: boolean
   isSubscription: boolean
 }
 
@@ -18,12 +20,13 @@ type QuoteSignatureFormProps = {
  * automatico (artt. 1341-1342 c.c.). Dopo la firma la pagina si ricarica e
  * compare il pagamento con carta.
  */
-export function QuoteSignatureForm({ token, acceptanceToken, defaultSignerName, isSubscription }: QuoteSignatureFormProps) {
+export function QuoteSignatureForm({ token, acceptanceToken, defaultSignerName, isSubscription, isAgency = false }: QuoteSignatureFormProps) {
   const router = useRouter()
   const padRef = useRef<SignaturePadHandle | null>(null)
   const [signerName, setSignerName] = useState(defaultSignerName || '')
   const [accepted, setAccepted] = useState(false)
   const [renewalAccepted, setRenewalAccepted] = useState(false)
+  const [specificClausesAccepted, setSpecificClausesAccepted] = useState(false)
   const [hasInk, setHasInk] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -37,6 +40,7 @@ export function QuoteSignatureForm({ token, acceptanceToken, defaultSignerName, 
     if (!accepted) return setError('Devi accettare le condizioni contrattuali.')
     if (isSubscription && !renewalAccepted) return setError('Devi approvare il rinnovo automatico annuale.')
 
+    if (isAgency && !specificClausesAccepted) return setError('Devi approvare specificamente le clausole Agency.')
     setLoading(true)
     try {
       const response = await fetch('/api/quotes/public/sign', {
@@ -49,6 +53,7 @@ export function QuoteSignatureForm({ token, acceptanceToken, defaultSignerName, 
           signature_png: signature,
           accepted,
           renewal_accepted: renewalAccepted,
+          specific_clauses_accepted: specificClausesAccepted,
         }),
       })
       const payload = await response.json().catch(() => null)
@@ -80,13 +85,16 @@ export function QuoteSignatureForm({ token, acceptanceToken, defaultSignerName, 
       <label className="public-quote-contract-check">
         <input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} />
         <span>
+          {isAgency ? <>{AGENCY_ACCEPTED_TEXT} <Link href={AGENCY_CONTRACT_URL} target="_blank" rel="noopener noreferrer">Leggi le condizioni generali Agency</Link></> : <>
           Dichiaro di aver letto e accettato le condizioni contrattuali e i{' '}
-          <Link href="/termini-speaqi" target="_blank" rel="noopener noreferrer">
-            Termini di servizio Speaqi
-          </Link>{' '}
-          per questa offerta.
+          <Link href="/termini-speaqi" target="_blank" rel="noopener noreferrer">Termini di servizio Speaqi</Link>{' '}per questa offerta.
+          </>}
         </span>
       </label>
+      {isAgency && <label className="public-quote-contract-check">
+        <input type="checkbox" checked={specificClausesAccepted} onChange={event => setSpecificClausesAccepted(event.target.checked)} />
+        <span>{AGENCY_SPECIFIC_APPROVAL_TEXT}</span>
+      </label>}
       {isSubscription && (
         <label className="public-quote-contract-check">
           <input
@@ -104,7 +112,7 @@ export function QuoteSignatureForm({ token, acceptanceToken, defaultSignerName, 
       <button
         type="submit"
         className="public-quote-contract-submit"
-        disabled={loading || !hasInk || !accepted || (isSubscription && !renewalAccepted)}
+        disabled={loading || !hasInk || !accepted || (isSubscription && !renewalAccepted) || (isAgency && !specificClausesAccepted)}
       >
         {loading ? 'Registrazione firma…' : isSubscription ? 'Firma e vai al pagamento' : 'Firma il contratto'}
       </button>

@@ -1,3 +1,4 @@
+import { isAgencyContract } from '@/lib/agency-contract'
 import { BrandLockup } from '@/components/layout/BrandLockup'
 import { resolvePublicBankInstructions } from '@/lib/quote-defaults'
 import { confirmSubscriptionCheckout } from '@/lib/server/quote-payments'
@@ -136,6 +137,7 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
   }
   const quote: Quote = loaded
 
+  const isAgency = isAgencyContract(quote)
   const items = safeItems(quote.items)
   const lockedChoices = quote.status === 'accepted' || quote.status === 'paid' || Boolean(quote.contract_signer_email)
   // Stripe solo per l'abbonamento annuale, e solo dopo la firma. Gli altri
@@ -422,8 +424,10 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
 
         <div className="public-quote-grid lower">
           <section className="public-quote-card">
-            <h2>Contratto</h2>
-            {isSubscription && hasSignature ? (
+            <h2 id="contratto">Contratto</h2>
+            {quote.contract_terms && <div className="public-quote-contract-body" style={{ whiteSpace: 'pre-wrap', marginBottom: 24 }}>{quote.contract_terms}</div>}
+            {isAgency && <p><a href="/contratti/SPEAQI-AGENCY-CGC-v1.0.txt" download>Scarica le condizioni generali Speaqi Agency</a></p>}
+            {(isSubscription || isAgency) && hasSignature ? (
               <div>
                 <div className="public-quote-contract-badge">Contratto firmato</div>
                 <p className="public-quote-contract-email-note">
@@ -432,13 +436,16 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
                   {quote.contract_signer_email ? ` · conferma inviata a ${quote.contract_signer_email}` : ''}
                 </p>
               </div>
-            ) : isSubscription && acceptanceToken ? (
+            ) : (isSubscription || isAgency) && acceptanceToken && !quote.contract_signer_email ? (
               <QuoteSignatureForm
                 token={quote.public_token}
                 acceptanceToken={acceptanceToken}
                 defaultSignerName={quote.customer_name}
-                isSubscription
+                isSubscription={isSubscription}
+                isAgency={isAgency}
               />
+            ) : isAgency && quote.contract_signer_email ? (
+              <div><div className="public-quote-contract-badge">Contratto accettato</div><p>{quote.contract_signer_email} · {formatDate(quote.contract_accepted_at)}</p></div>
             ) : quote.contract_signer_email ? (
               <QuoteContractAcceptance
                 token={quote.public_token}

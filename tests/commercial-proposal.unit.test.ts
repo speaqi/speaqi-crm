@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { AGENCY_GENERAL_TERMS, AGENCY_CONTRACT_CODE, agencyParticularTerms, ensureAgencyContractTerms, isAgencyContract } from '../src/lib/agency-contract'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { agencyBaseSlides, DEFAULT_AGENCY_SETTINGS, DEFAULT_AGENCY_SLIDES, normalizeAgencySettings } from '../src/lib/agency'
@@ -63,4 +65,31 @@ test('la base Tourism aziende non eredita gratuità e soglie della partnership d
   assert.doesNotMatch(text, /100\.000|mappa è gratuita|500 punti/)
   assert.match(text, /preventivo e nel contratto/)
   assert.match(text, /30 giorni/)
+})
+
+test('Agency usa integralmente il documento approvato, anche nei modelli personalizzati', () => {
+  assert.equal(AGENCY_GENERAL_TERMS, readFileSync(new URL('../public/contratti/SPEAQI-AGENCY-CGC-v1.0.txt', import.meta.url), 'utf8').trim())
+  assert.equal(defaultQuoteTemplate('agency').contract_terms, AGENCY_GENERAL_TERMS)
+  const template = normalizeQuoteTemplate({ contract_terms: 'Consegna entro 30 giorni per {{cliente}}' }, 'agency')
+  const draft = quoteDraftFromTemplate(template, { cliente: 'Alfa' })
+  assert.ok(draft.contract_terms.startsWith(AGENCY_GENERAL_TERMS))
+  assert.equal(agencyParticularTerms(draft.contract_terms), 'Consegna entro 30 giorni per Alfa')
+  assert.equal(ensureAgencyContractTerms(draft.contract_terms), draft.contract_terms)
+  const tampered = draft.contract_terms.replace('Foro di Napoli', 'Foro di Milano')
+  assert.ok(ensureAgencyContractTerms(tampered).startsWith(AGENCY_GENERAL_TERMS))
+  assert.equal(agencyParticularTerms(ensureAgencyContractTerms(tampered)), 'Consegna entro 30 giorni per Alfa')
+  assert.equal(isAgencyContract({ contract_terms: AGENCY_CONTRACT_CODE }), true)
+  assert.equal(isAgencyContract({ agency_project_id: 'agency-id' }), true)
+  assert.equal(isAgencyContract({ contract_terms: defaultQuoteTemplate('tourism').contract_terms }), false)
+})
+
+test('la vecchia base Agency viene sostituita senza trascinare segnaposto obsoleti', () => {
+  const template = normalizeQuoteTemplate({ contract_terms: 'ACCORDO DI SERVIZI — SPEAQI AGENCY\n[DA VERIFICARE]' }, 'agency')
+  assert.equal(template.contract_terms, AGENCY_GENERAL_TERMS)
+  assert.equal(quoteCompletionIssues(template).length, 0)
+})
+
+test('i preventivi Agency precedenti non possono essere inviati senza le condizioni obbligatorie', () => {
+  assert.equal(quoteCompletionIssues({ agency_project_id: 'p', contract_terms: 'Condizioni precedenti personalizzate' }).length, 1)
+  assert.equal(quoteCompletionIssues({ agency_project_id: 'p', contract_terms: AGENCY_GENERAL_TERMS }).length, 0)
 })

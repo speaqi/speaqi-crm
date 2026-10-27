@@ -1,3 +1,4 @@
+import { ensureAgencyContractTerms, isAgencyContract } from '@/lib/agency-contract'
 import { NextRequest } from 'next/server'
 import { createActivities } from '@/lib/server/crm'
 import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
@@ -278,9 +279,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     })
 
     const nextStatus = normalizeStatus(body.status, current.status)
-    const contractTerms = body.contract_terms !== undefined
+    const requestedContractTerms = body.contract_terms !== undefined
       ? normalizeText(body.contract_terms) || (current.agency_project_id ? defaultQuoteTemplate('agency').contract_terms : current.tourism_deck_id ? defaultQuoteTemplate('tourism').contract_terms : DEFAULT_CONTRACT_TERMS)
       : current.contract_terms
+    const contractTerms = !current.contract_accepted_at && isAgencyContract(current) ? ensureAgencyContractTerms(requestedContractTerms) : requestedContractTerms
     if (current.contract_accepted_at && contractTerms !== current.contract_terms) {
       return Response.json({ error: 'Il contratto è già stato accettato. Duplica il preventivo per proporre nuove condizioni.' }, { status: 409 })
     }

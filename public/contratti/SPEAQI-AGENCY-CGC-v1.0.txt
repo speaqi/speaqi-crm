@@ -1,0 +1,656 @@
+SPEAQI AGENCY
+
+CONDIZIONI GENERALI DI CONTRATTO
+
+Servizi digitali, sviluppo web, software, produzione multimediale, marketing e consulenza tecnologica
+
+Codice documento: SPEAQI-AGENCY-CGC-v1.0
+Versione: 1.0
+Data: 27 ottobre 2026
+Ambito di applicazione: Rapporti commerciali B2B
+
+⸻
+
+ARTICOLO 1 — PARTI, DEFINIZIONI E AMBITO DI APPLICAZIONE
+
+1.1 Identificazione del Fornitore
+
+Le presenti Condizioni Generali di Contratto (di seguito, le «Condizioni Generali») disciplinano i rapporti tra:
+
+THE BEST ITALY, associazione con sede legale in Napoli (NA), Via Guglielmo Melisurgo n. 4, C.F. 95125440636, P. IVA 10831191217, operante attraverso il marchio commerciale SPEAQI, in persona del legale rappresentante pro tempore (di seguito, il «Fornitore»);
+
+e
+
+il soggetto professionale, imprenditoriale, associativo o istituzionale identificato nel Preventivo, nell’Ordine o nell’Accordo sottoscritto (di seguito, il «Cliente»).
+
+Il Fornitore e il Cliente sono congiuntamente definiti le «Parti».
+
+1.2 Definizioni
+
+Ai fini delle presenti Condizioni Generali si intende per:
+
+Servizi: le attività professionali, creative, tecnologiche e digitali erogate dal Fornitore.
+
+Preventivo: il documento commerciale che descrive le prestazioni richieste, i corrispettivi, le tempistiche e le condizioni particolari applicabili.
+
+Contratto: l’insieme dei documenti contrattuali validamente accettati dalle Parti.
+
+Deliverable: gli elaborati, i contenuti, i prodotti digitali e gli altri risultati espressamente previsti dal Contratto.
+
+Materiali del Cliente: informazioni, documenti, immagini, testi, marchi, dati, credenziali e altri contenuti forniti dal Cliente.
+
+Tecnologie Preesistenti: software, codice sorgente, componenti, framework, template, librerie, metodologie, algoritmi, sistemi di intelligenza artificiale e strumenti sviluppati, acquisiti o legittimamente utilizzati dal Fornitore indipendentemente dal Contratto.
+
+Servizi di Terzi: prodotti, infrastrutture, software, API e servizi forniti da soggetti diversi dal Fornitore.
+
+1.3 Ambito di applicazione
+
+Le presenti Condizioni Generali si applicano esclusivamente ai rapporti commerciali con Clienti che agiscono nell’esercizio della propria attività professionale, imprenditoriale, associativa o istituzionale.
+
+Non disciplinano la vendita di mappe o guide digitali ai consumatori, né i rapporti di affiliazione commerciale.
+
+⸻
+
+ARTICOLO 2 — OGGETTO DEL CONTRATTO
+
+2.1 Servizi
+
+Il Fornitore può erogare, tra gli altri:
+
+a) progettazione e realizzazione di siti web;
+
+b) sviluppo di e-commerce;
+
+c) sviluppo di applicazioni e software;
+
+d) progettazione UX/UI;
+
+e) graphic design e brand identity;
+
+f) produzione di video, fotografie, audio e contenuti multimediali;
+
+g) servizi di marketing e comunicazione digitale;
+
+h) servizi SEO e ottimizzazione della presenza online;
+
+i) consulenza tecnologica e strategica;
+
+j) automazioni e soluzioni basate sull’intelligenza artificiale;
+
+k) hosting, manutenzione e assistenza, quando espressamente previsti;
+
+l) ulteriori attività professionali e digitali concordate tra le Parti.
+
+2.2 Perimetro delle prestazioni
+
+Le prestazioni dovute dal Fornitore sono esclusivamente quelle individuate nel Preventivo o negli eventuali allegati contrattuali.
+
+Qualsiasi attività non espressamente inclusa deve intendersi esclusa dal corrispettivo, salvo diversa previsione di legge o accordo scritto.
+
+2.3 Natura delle obbligazioni
+
+Il Fornitore si impegna a eseguire le prestazioni con la diligenza professionale richiesta dalla natura delle attività.
+
+Le obbligazioni di risultato eventualmente assunte sono quelle espressamente individuate nel Contratto o derivanti dalla qualificazione giuridica del rapporto.
+
+⸻
+
+ARTICOLO 3 — FORMAZIONE DEL CONTRATTO
+
+3.1 Proposta commerciale
+
+Il Fornitore formula le proprie offerte mediante Preventivi, Ordini o Accordi specifici.
+
+Ogni proposta individua, per quanto applicabile:
+
+a) prestazioni incluse;
+
+b) corrispettivi;
+
+c) modalità e scadenze di pagamento;
+
+d) tempistiche;
+
+e) durata;
+
+f) condizioni particolari.
+
+3.2 Accettazione
+
+Il Contratto si perfeziona mediante accettazione della proposta secondo le modalità indicate dal Fornitore e nel rispetto della normativa applicabile.
+
+L’accettazione può avvenire mediante sottoscrizione tradizionale, firma elettronica o altro procedimento giuridicamente idoneo.
+
+3.3 Documenti contrattuali
+
+In caso di contrasto tra disposizioni contrattuali, prevalgono, salvo diversa previsione espressa:
+
+1. Gli accordi speciali sottoscritti dalle Parti.
+2. Le condizioni particolari del Preventivo o dell’Ordine.
+3. Le presenti Condizioni Generali.
+
+Gli eventuali accordi sul trattamento dei dati personali prevalgono per le materie di rispettiva competenza.
+
+3.4 Avvio delle prestazioni
+
+Salvo diversa previsione, l’avvio delle prestazioni è subordinato al perfezionamento del Contratto, al pagamento dell’eventuale acconto e alla disponibilità dei materiali e delle informazioni necessari.
+
+⸻
+
+ARTICOLO 4 — MODALITÀ DI ESECUZIONE
+
+4.1 Autonomia organizzativa
+
+Il Fornitore organizza autonomamente le modalità tecniche e operative di esecuzione delle prestazioni, nel rispetto degli obblighi contrattuali.
+
+4.2 Collaboratori
+
+Il Fornitore può avvalersi di dipendenti, collaboratori, consulenti e subfornitori qualificati, mantenendo le responsabilità previste dalla legge e dal Contratto.
+
+4.3 Tecnologie utilizzate
+
+Il Fornitore può utilizzare software, piattaforme, strumenti di sviluppo, sistemi di intelligenza artificiale e servizi tecnologici di terzi.
+
+L’utilizzo di tali strumenti deve avvenire nel rispetto della normativa applicabile e degli obblighi contrattualmente assunti.
+
+4.4 Modifiche tecnologiche
+
+Il Fornitore può aggiornare o sostituire le tecnologie utilizzate, purché ciò non comporti una riduzione sostanziale delle prestazioni contrattualmente garantite.
+
+⸻
+
+ARTICOLO 5 — OBBLIGHI DEL CLIENTE
+
+5.1 Collaborazione
+
+Il Cliente si impegna a fornire tempestivamente informazioni, materiali, credenziali, autorizzazioni e approvazioni ragionevolmente necessari all’esecuzione delle prestazioni.
+
+5.2 Accuratezza delle informazioni
+
+Il Cliente è responsabile dell’accuratezza delle informazioni fornite e della legittima disponibilità dei materiali trasmessi al Fornitore.
+
+5.3 Diritti sui materiali
+
+Il Cliente dichiara di disporre dei diritti e delle autorizzazioni necessari all’utilizzo dei materiali forniti.
+
+Il Cliente autorizza il Fornitore a utilizzare tali materiali nei limiti necessari all’esecuzione del Contratto.
+
+5.4 Ritardi
+
+Qualora il Cliente ritardi la consegna di materiali, informazioni o approvazioni necessari, le tempistiche contrattuali potranno essere riprogrammate in misura ragionevole e proporzionata agli effetti del ritardo.
+
+5.5 Mancata collaborazione protratta
+
+Qualora la mancata collaborazione del Cliente impedisca in modo significativo la prosecuzione delle prestazioni, il Fornitore può richiedere formalmente l’adempimento degli obblighi necessari, assegnando un termine congruo.
+
+Decorso inutilmente tale termine, il Fornitore può avvalersi dei rimedi previsti dal Contratto e dalla legge.
+
+⸻
+
+ARTICOLO 6 — CORRISPETTIVI E PAGAMENTI
+
+6.1 Corrispettivi
+
+I corrispettivi sono quelli indicati nel Preventivo o nell’Accordo.
+
+Salvo diversa indicazione, gli importi si intendono al netto dell’IVA e degli altri oneri fiscali applicabili.
+
+6.2 Modalità di pagamento
+
+Le modalità e le scadenze di pagamento sono definite nel Contratto.
+
+Il Fornitore può prevedere:
+
+a) acconti iniziali;
+
+b) pagamenti intermedi;
+
+c) pagamenti collegati a milestone;
+
+d) pagamenti finali;
+
+e) canoni periodici.
+
+6.3 Costi di terzi
+
+I costi relativi a domini, hosting, licenze, API, servizi cloud e altri fornitori esterni sono inclusi esclusivamente quando espressamente indicato.
+
+6.4 Prestazioni aggiuntive
+
+Le attività ulteriori rispetto al perimetro contrattuale sono soggette a separata approvazione economica.
+
+6.5 Fatturazione
+
+La fatturazione avviene secondo le scadenze e le modalità previste nel Contratto e dalla normativa applicabile.
+
+⸻
+
+ARTICOLO 7 — RITARDI NEI PAGAMENTI E SOSPENSIONE
+
+7.1 Interessi moratori
+
+In caso di ritardo nei pagamenti, si applicano, ove ne ricorrano i presupposti, gli interessi moratori previsti dal D.Lgs. 231/2002.
+
+7.2 Sollecito
+
+Il Fornitore può inviare al Cliente un sollecito di pagamento indicando l’importo dovuto e assegnando, di norma, un termine di quindici giorni per la regolarizzazione.
+
+7.3 Sospensione
+
+In presenza di un inadempimento rilevante e persistente, il Fornitore può sospendere le prestazioni nei limiti consentiti dalla legge e dal Contratto, previa comunicazione al Cliente.
+
+La sospensione deve essere proporzionata all’inadempimento.
+
+7.4 Ripristino
+
+A seguito della regolarizzazione, il Fornitore procede al ripristino delle prestazioni secondo tempi tecnici ragionevoli.
+
+7.5 Obbligazioni economiche
+
+La sospensione legittimamente disposta non determina automaticamente l’estinzione delle obbligazioni economiche già maturate.
+
+⸻
+
+ARTICOLO 8 — DURATA DEL CONTRATTO
+
+8.1 Durata
+
+La durata del Contratto è indicata nel Preventivo o nell’Accordo.
+
+8.2 Progetti a termine
+
+I contratti aventi a oggetto prestazioni progettuali terminano secondo quanto previsto dall’accordo, fatti salvi gli obblighi destinati a sopravvivere alla conclusione.
+
+8.3 Servizi continuativi
+
+I servizi ricorrenti, inclusi hosting, manutenzione e assistenza, sono disciplinati dalle relative condizioni contrattuali.
+
+8.4 Rinnovo
+
+L’eventuale rinnovo automatico deve essere espressamente previsto nel Contratto, con indicazione della durata del rinnovo e delle modalità e dei termini per evitarlo.
+
+In assenza di una clausola di rinnovo applicabile, non opera alcun rinnovo automatico.
+
+⸻
+
+ARTICOLO 9 — MODIFICHE, CONSEGNA E ACCETTAZIONE
+
+9.1 Richieste aggiuntive
+
+Il Cliente può richiedere modifiche o integrazioni delle prestazioni originariamente concordate.
+
+9.2 Valutazione
+
+Il Fornitore valuta la fattibilità delle modifiche e comunica eventuali conseguenze su corrispettivi, tempi, risorse, caratteristiche tecniche e Deliverable.
+
+9.3 Approvazione
+
+Le modifiche che incidono sul contenuto economico o sostanziale del Contratto richiedono l’approvazione delle Parti.
+
+In assenza di accordo, rimane valido il perimetro originario delle prestazioni.
+
+9.4 Consegna
+
+Per le prestazioni che prevedono la realizzazione di Deliverable, il Fornitore comunica al Cliente l’avvenuta consegna o la disponibilità del risultato per la verifica.
+
+9.5 Verifica
+
+Salvo diversa previsione contrattuale, il Cliente dispone di dieci giorni lavorativi dalla comunicazione di consegna per effettuare le verifiche e segnalare per iscritto eventuali difformità rispetto alle specifiche concordate.
+
+Le contestazioni devono essere sufficientemente circostanziate da consentire al Fornitore di individuare e verificare le difformità.
+
+9.6 Correzioni
+
+Il Fornitore provvede, secondo tempi tecnici ragionevoli, alla correzione delle difformità contrattualmente rilevanti a esso imputabili.
+
+Le richieste che introducono funzionalità o caratteristiche ulteriori rispetto al perimetro concordato costituiscono prestazioni aggiuntive.
+
+9.7 Accettazione
+
+Salvo diversa previsione contrattuale e fatti salvi i diritti inderogabili del Cliente, la mancata contestazione scritta entro il termine previsto dall’articolo 9.5 costituisce accettazione contrattuale dei Deliverable ai fini della conclusione della fase di verifica e dell’esigibilità degli eventuali pagamenti collegati all’accettazione.
+
+Tale accettazione non pregiudica i rimedi previsti dalla legge per difetti non riconoscibili mediante l’ordinaria verifica o per altre ipotesi inderogabilmente tutelate.
+
+⸻
+
+ARTICOLO 10 — PROPRIETÀ INTELLETTUALE
+
+10.1 Principio generale
+
+La titolarità dei diritti di proprietà intellettuale è disciplinata dalla legge, dalle presenti Condizioni Generali e dagli eventuali accordi particolari.
+
+10.2 Tecnologie del Fornitore
+
+Salvo espresso accordo contrario, rimangono nella titolarità del Fornitore o dei rispettivi aventi diritto:
+
+a) software e componenti preesistenti;
+
+b) framework e librerie proprietarie;
+
+c) template e strumenti riutilizzabili;
+
+d) metodologie e processi;
+
+e) algoritmi e sistemi di orchestrazione AI;
+
+f) infrastrutture tecnologiche proprietarie.
+
+10.3 Elaborati commissionati
+
+Per i siti web, le applicazioni, gli elaborati grafici, i contenuti e gli altri risultati realizzati specificamente su commissione del Cliente, la titolarità e i diritti di utilizzazione economica sono disciplinati dal Preventivo o da altro accordo scritto.
+
+L’eventuale trasferimento dei diritti patrimoniali espressamente concordato produce effetti secondo le condizioni stabilite nel Contratto.
+
+10.4 Licenze
+
+Quando necessario per l’utilizzo dei Deliverable, il Fornitore concede al Cliente le licenze espressamente previste dal Contratto.
+
+10.5 Software di terzi
+
+L’utilizzo di software open source, librerie e componenti di terze parti rimane soggetto alle rispettive condizioni di licenza.
+
+10.6 Materiali del Cliente
+
+I diritti sui materiali originariamente appartenenti al Cliente rimangono nella titolarità del Cliente o dei rispettivi aventi diritto.
+
+10.7 Codice sorgente e file di progetto
+
+La consegna del codice sorgente, dei file di progetto modificabili, dei repository, dei file grafici sorgente o di altri materiali tecnici non espressamente previsti nel Contratto non si intende automaticamente compresa nelle prestazioni.
+
+Restano salvi gli obblighi di consegna derivanti dalla legge, dalla natura del rapporto o dagli accordi tra le Parti.
+
+⸻
+
+ARTICOLO 11 — INTELLIGENZA ARTIFICIALE E SERVIZI DI TERZI
+
+11.1 Utilizzo dell’intelligenza artificiale
+
+Il Fornitore può utilizzare tecnologie di intelligenza artificiale per attività di elaborazione, generazione, traduzione, classificazione, ricerca e organizzazione dei contenuti.
+
+11.2 Natura dei risultati
+
+Il Cliente prende atto che i sistemi di intelligenza artificiale possono produrre risultati inesatti, incompleti o non aggiornati.
+
+11.3 Controlli
+
+Il Fornitore adotta le procedure di controllo e verifica previste dal Contratto e appropriate alla natura del servizio.
+
+11.4 Servizi esterni
+
+L’erogazione dei Servizi può richiedere l’utilizzo di fornitori tecnologici esterni.
+
+Il Fornitore rimane responsabile dell’adempimento delle proprie obbligazioni contrattuali secondo la normativa applicabile.
+
+11.5 Diritti sui risultati generati
+
+La titolarità e i diritti di utilizzo dei contenuti generati mediante sistemi di intelligenza artificiale sono disciplinati dalla normativa applicabile, dalle condizioni dei servizi tecnologici utilizzati e dagli accordi contrattuali tra le Parti.
+
+Il Fornitore non garantisce l’esistenza di diritti esclusivi su risultati generati mediante intelligenza artificiale quando tali diritti non siano riconosciuti dalla normativa applicabile.
+
+⸻
+
+ARTICOLO 12 — RISERVATEZZA
+
+12.1 Informazioni riservate
+
+Le Parti si impegnano a mantenere riservate le informazioni commerciali, tecniche, organizzative e strategiche ricevute nell’ambito del rapporto contrattuale e identificate come riservate o ragionevolmente riconoscibili come tali.
+
+12.2 Utilizzo
+
+Le informazioni riservate possono essere utilizzate esclusivamente per finalità connesse all’esecuzione del Contratto.
+
+12.3 Esclusioni
+
+Non sono considerate riservate le informazioni che:
+
+a) siano legittimamente di pubblico dominio;
+
+b) fossero già legittimamente conosciute dalla Parte ricevente;
+
+c) siano state legittimamente ottenute da terzi;
+
+d) debbano essere comunicate in adempimento di obblighi di legge.
+
+12.4 Durata
+
+Gli obblighi di riservatezza continuano per tre anni dalla cessazione del Contratto.
+
+Per le informazioni qualificabili come segreti commerciali ai sensi della normativa applicabile, la tutela permane finché sussistono i relativi presupposti di legge.
+
+⸻
+
+ARTICOLO 13 — PROTEZIONE DEI DATI PERSONALI
+
+13.1 Normativa
+
+Le Parti si impegnano a rispettare la normativa applicabile in materia di protezione dei dati personali, incluso il Regolamento UE 2016/679.
+
+13.2 Ruoli
+
+I ruoli privacy delle Parti sono determinati in base alle concrete attività di trattamento.
+
+13.3 Responsabile del trattamento
+
+Quando il Fornitore tratta dati personali per conto del Cliente in qualità di responsabile del trattamento, le Parti stipulano, prima dell’avvio dei relativi trattamenti, un accordo conforme all’articolo 28 GDPR.
+
+13.4 Sicurezza
+
+Le Parti adottano misure tecniche e organizzative adeguate ai rischi connessi ai trattamenti di rispettiva competenza.
+
+13.5 Fornitori esterni
+
+L’eventuale ricorso a sub-responsabili e i trasferimenti internazionali di dati personali sono disciplinati dalla normativa applicabile e dagli accordi privacy pertinenti.
+
+⸻
+
+ARTICOLO 14 — GARANZIE E RESPONSABILITÀ
+
+14.1 Diligenza professionale
+
+Il Fornitore si impegna a eseguire le prestazioni con la diligenza professionale richiesta dalla natura delle attività.
+
+14.2 Risultati commerciali
+
+Salvo espresse garanzie contrattuali, il Fornitore non garantisce il conseguimento di specifici risultati commerciali, economici, di traffico, conversione o posizionamento sui motori di ricerca.
+
+14.3 Responsabilità per inadempimento
+
+Il Fornitore risponde degli inadempimenti contrattuali a esso imputabili secondo la normativa applicabile.
+
+14.4 Limite convenzionale di responsabilità
+
+Nei limiti consentiti dalla legge e salvo diversa previsione espressa nel Contratto, la responsabilità complessiva del Fornitore per danni derivanti dall’inadempimento delle obbligazioni contrattuali è limitata:
+
+a) per i progetti a corrispettivo determinato, all’importo complessivo del corrispettivo contrattuale;
+
+b) per i servizi continuativi, all’importo dei corrispettivi pagati o dovuti dal Cliente nei dodici mesi precedenti il fatto che ha generato la responsabilità.
+
+14.5 Danni indiretti
+
+Nei limiti consentiti dalla legge e fatte salve le ipotesi di responsabilità inderogabile, il Fornitore non risponde dei danni indiretti o consequenziali non prevedibili al momento della conclusione del Contratto.
+
+La presente disposizione non esclude il risarcimento di danni che, secondo la normativa applicabile, debbano essere risarciti.
+
+14.6 Responsabilità inderogabili
+
+Nessuna disposizione contrattuale può escludere o limitare preventivamente la responsabilità per dolo o colpa grave o negli altri casi in cui la legge vieti tali limitazioni.
+
+14.7 Contestazioni
+
+Il Cliente comunica tempestivamente eventuali difformità riscontrate, fornendo le informazioni ragionevolmente necessarie alla loro verifica.
+
+Rimangono salvi i diritti e i rimedi inderogabili previsti dalla legge.
+
+⸻
+
+ARTICOLO 15 — HOSTING, MANUTENZIONE E ASSISTENZA
+
+15.1 Servizi continuativi
+
+I servizi di hosting, manutenzione, aggiornamento e assistenza sono inclusi esclusivamente quando espressamente previsti nel Contratto.
+
+15.2 Disponibilità
+
+In assenza di specifici accordi sui livelli di servizio, non è garantita una percentuale determinata di disponibilità ininterrotta.
+
+15.3 Manutenzione
+
+Il Fornitore può effettuare interventi di manutenzione ordinaria, straordinaria, aggiornamento e sicurezza.
+
+Quando ragionevolmente possibile, gli interventi programmati che incidano significativamente sulla disponibilità dei Servizi sono comunicati preventivamente al Cliente.
+
+15.4 Servizi di terzi
+
+Il Cliente prende atto che alcune funzionalità possono dipendere da infrastrutture e servizi esterni.
+
+Il Fornitore rimane responsabile dell’adempimento delle obbligazioni contrattualmente assunte, secondo la normativa applicabile.
+
+15.5 Backup e conservazione
+
+Gli eventuali servizi di backup, conservazione e ripristino dei dati sono disciplinati dal Contratto.
+
+In assenza di specifica previsione, non si intendono automaticamente inclusi servizi di backup ulteriori rispetto a quelli necessari per adempiere agli obblighi contrattuali e normativi applicabili.
+
+⸻
+
+ARTICOLO 16 — FORZA MAGGIORE
+
+16.1 Eventi straordinari
+
+Nessuna Parte è responsabile dell’inadempimento nella misura in cui questo derivi da eventi straordinari, imprevedibili e inevitabili, estranei alla propria sfera di controllo, che rendano impossibile la prestazione secondo la disciplina applicabile.
+
+16.2 Comunicazione
+
+La Parte interessata comunica tempestivamente all’altra Parte l’evento e le conseguenze prevedibili.
+
+16.3 Mitigazione
+
+Le Parti adottano misure ragionevoli per limitare gli effetti dell’evento.
+
+16.4 Prolungamento
+
+Qualora l’impedimento si protragga e comprometta stabilmente l’esecuzione del Contratto, le Parti valutano le conseguenze contrattuali secondo la normativa applicabile e gli eventuali accordi specifici.
+
+⸻
+
+ARTICOLO 17 — RECESSO, RISOLUZIONE E CESSAZIONE
+
+17.1 Recesso
+
+Il diritto di recesso e le relative condizioni sono disciplinati dal Preventivo, dagli eventuali accordi specifici e dalla normativa applicabile.
+
+17.2 Interruzione anticipata
+
+In caso di interruzione anticipata di un progetto commissionato, le conseguenze economiche sono determinate secondo la qualificazione giuridica del rapporto, le disposizioni di legge applicabili e gli eventuali accordi contrattuali.
+
+Rimangono salvi i diritti del Fornitore relativi alle prestazioni eseguite, alle spese sostenute e agli ulteriori importi eventualmente dovuti secondo la legge e il Contratto.
+
+17.3 Risoluzione
+
+Ciascuna Parte può avvalersi dei rimedi previsti dalla legge in caso di inadempimento dell’altra Parte.
+
+17.4 Effetti della cessazione
+
+Alla cessazione del rapporto:
+
+a) rimangono dovuti gli importi maturati secondo il Contratto e la legge;
+
+b) cessano i diritti di utilizzo per i quali sia prevista una scadenza;
+
+c) rimangono efficaci gli obblighi destinati per loro natura a sopravvivere;
+
+d) la gestione dei dati e dei contenuti avviene secondo gli accordi applicabili.
+
+17.5 Consegna ed esportazione
+
+Le modalità di consegna, esportazione o restituzione dei materiali sono definite dal Preventivo, dagli accordi specifici e dagli eventuali accordi sul trattamento dei dati personali.
+
+⸻
+
+ARTICOLO 18 — MODIFICHE CONTRATTUALI E COMUNICAZIONI
+
+18.1 Modifiche
+
+Le modifiche delle condizioni applicabili a un Contratto già concluso richiedono un valido fondamento contrattuale o un accordo tra le Parti.
+
+La pubblicazione di una nuova versione delle Condizioni Generali non modifica automaticamente i contratti già perfezionati.
+
+18.2 Comunicazioni
+
+Le comunicazioni contrattuali avvengono attraverso gli indirizzi e i canali indicati dalle Parti.
+
+18.3 Comunicazioni formali
+
+Quando richiesto dalla legge o dal Contratto, le comunicazioni devono essere effettuate mediante PEC, raccomandata o altro mezzo idoneo.
+
+18.4 Versionamento
+
+Ogni Contratto identifica la versione delle Condizioni Generali e degli eventuali documenti specifici applicabili.
+
+Il Fornitore conserva evidenza delle versioni contrattuali accettate.
+
+⸻
+
+ARTICOLO 19 — LEGGE APPLICABILE E DISPOSIZIONI FINALI
+
+19.1 Legge applicabile
+
+Il Contratto è disciplinato dalla legge italiana.
+
+19.2 Foro competente
+
+Salve le competenze inderogabili previste dalla legge, per le controversie derivanti dal Contratto è convenuta la competenza esclusiva del Foro di Napoli.
+
+19.3 Invalidità parziale
+
+L’eventuale invalidità o inefficacia di una disposizione non determina automaticamente l’invalidità dell’intero Contratto, nei limiti consentiti dalla legge.
+
+19.4 Mancato esercizio dei diritti
+
+Il mancato o ritardato esercizio di un diritto non costituisce automaticamente rinuncia allo stesso.
+
+19.5 Intero accordo
+
+Il Contratto, comprensivo dei documenti richiamati, costituisce la disciplina pattizia del rapporto tra le Parti per le prestazioni oggetto dell’accordo.
+
+⸻
+
+ACCETTAZIONE DELLE CONDIZIONI GENERALI
+
+Il Cliente dichiara di aver ricevuto o avuto effettiva possibilità di conoscere, prima della conclusione del Contratto, le presenti Condizioni Generali e gli eventuali allegati applicabili.
+
+Fornitore: THE BEST ITALY — SPEAQI
+
+Cliente: __________________________________
+
+Preventivo / Ordine n.: ____________________
+
+Data: _____________________________________
+
+Firma del Cliente: _________________________
+
+⸻
+
+SPECIFICA APPROVAZIONE DELLE CLAUSOLE
+
+Ai sensi e per gli effetti degli articoli 1341 e 1342 del Codice civile, ove applicabili, il Cliente dichiara di approvare specificamente le seguenti disposizioni:
+
+* Articolo 7.3: Sospensione delle prestazioni.
+* Articolo 8.4: Eventuale rinnovo automatico, ove espressamente previsto dal Contratto.
+* Articolo 9.7: Accettazione dei Deliverable in assenza di contestazione nel termine previsto.
+* Articolo 14.4: Limite convenzionale di responsabilità.
+* Articolo 14.5: Limitazioni relative a determinate categorie di danno.
+* Articolo 19.2: Foro competente esclusivo.
+
+Resta ferma la necessità di specifica approvazione delle eventuali ulteriori clausole contenute nel Preventivo o negli accordi particolari che rientrino nelle fattispecie previste dagli articoli 1341 e 1342 del Codice civile.
+
+Firma del Cliente per specifica approvazione:
+
+⸻
+
+⸻
+
+Fine documento
+
+SPEAQI-AGENCY-CGC-v1.0
+27 ottobre 2026

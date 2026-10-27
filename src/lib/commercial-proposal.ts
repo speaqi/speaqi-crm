@@ -1,3 +1,4 @@
+import { AGENCY_GENERAL_TERMS, ensureAgencyContractTerms, isAgencyContract } from './agency-contract'
 import type { QuoteLineItem } from '@/types'
 
 export type ProposalLine = { description: string; details: string; quantity: number; unit_price: number | null }
@@ -13,35 +14,7 @@ export type ProposalType = 'agency' | 'tourism'
 // Testi di lavoro: i campi contrattuali non ancora definiti impediscono l'invio,
 // ma non il salvataggio della bozza. Non sostituiscono i contratti già emessi.
 const PROVIDER = 'Fornitore: The Best Italy, Via Guglielmo Melisurgo 4, P.IVA 10831191217.'
-export const DEFAULT_AGENCY_CONTRACT = `ACCORDO DI SERVIZI — SPEAQI AGENCY
-
-${PROVIDER}
-Cliente e progetto: quelli indicati nel presente preventivo.
-
-1. Oggetto e perimetro
-Le prestazioni, le quantità e i corrispettivi sono esclusivamente quelli delle righe selezionate del preventivo e dei relativi dettagli. La presentazione illustra la proposta; eventuali attività aggiuntive richiedono un accordo scritto.
-
-2. Consegne e collaborazione
-Il Cliente fornisce materiali, accessi e approvazioni necessari e garantisce i diritti sui materiali forniti.
-Tempi, dipendenze, numero di revisioni e modalità di approvazione: [DA VERIFICARE].
-
-3. Corrispettivi
-Valgono importi, IVA, acconto, saldo e condizioni di pagamento riportati nel preventivo. Eventuali canoni, spese pubblicitarie, licenze e servizi di terzi devono essere indicati espressamente nelle righe o nelle esclusioni.
-
-4. Diritti e consegna dei materiali
-Diritti d'uso, file sorgenti, licenze di terzi e condizioni di trasferimento: [DA VERIFICARE].
-
-5. Assistenza e durata
-Durata dell'incarico, assistenza dopo la consegna, manutenzione ed esclusioni: [DA VERIFICARE].
-
-6. Riservatezza e dati
-Le parti trattano come riservati i materiali e le informazioni ricevuti per l'esecuzione dell'incarico. Eventuali ruoli privacy e accordi sul trattamento dei dati: [DA VERIFICARE].
-
-7. Interruzione e controversie
-Recesso, risoluzione, responsabilità e disciplina delle controversie: [DA VERIFICARE].
-
-8. Accettazione
-La firma del preventivo riguarda le righe selezionate, le condizioni economiche e il presente accordo.`
+export const DEFAULT_AGENCY_CONTRACT = AGENCY_GENERAL_TERMS
 
 export const DEFAULT_TOURISM_CONTRACT = `ACCORDO DI PROGETTO — SPEAQI TOURISM
 
@@ -93,7 +66,7 @@ export function normalizeQuoteTemplate(raw: unknown, type: ProposalType): QuoteT
       quantity: Number.isFinite(Number(i?.quantity)) && Number(i?.quantity) > 0 ? Math.min(Number(i.quantity), 1000000) : 1,
       unit_price: i?.unit_price !== null && i?.unit_price !== '' && Number.isFinite(Number(i?.unit_price)) && Number(i?.unit_price) >= 0 ? Math.min(Number(i.unit_price), 100000000) : null
     })),
-    contract_terms: text(r.contract_terms, 30000) || base.contract_terms,
+    contract_terms: type === 'agency' ? ensureAgencyContractTerms(text(r.contract_terms, 30000)) : text(r.contract_terms, 30000) || base.contract_terms,
     payment_terms_note: text(r.payment_terms_note, 2000),
     public_note: text(r.public_note, 2000),
     deposit_percent: r.deposit_percent !== null && r.deposit_percent !== undefined && Number.isFinite(Number(r.deposit_percent)) ? Math.max(0, Math.min(100, Number(r.deposit_percent))) : base.deposit_percent
@@ -123,7 +96,10 @@ export function quoteDraftFromTemplate(template: QuoteTemplate, vars: Record<str
 }
 
 /** Guardie condivise da creazione, modifica e invio email. Nessun costo implicito. */
-export function quoteCompletionIssues(quote: { contract_terms?: unknown; items?: unknown; payment_terms_note?: unknown; public_note?: unknown }) {
+export function quoteCompletionIssues(quote: { agency_project_id?: unknown; contract_terms?: unknown; items?: unknown; payment_terms_note?: unknown; public_note?: unknown }) {
+  if (isAgencyContract(quote) && !(typeof quote.contract_terms === 'string' && quote.contract_terms.includes(AGENCY_GENERAL_TERMS))) {
+    return ['Apri e salva il preventivo per includere le Condizioni Generali Speaqi Agency prima di inviare.']
+  }
   const values = [quote.contract_terms, quote.payment_terms_note, quote.public_note]
   for (const i of Array.isArray(quote.items) ? quote.items : []) {
     if (!i?.choice_group_id || i.selected === true) values.push(i?.description, i?.details)

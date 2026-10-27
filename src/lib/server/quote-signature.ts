@@ -1,3 +1,4 @@
+import { AGENCY_ACCEPTED_TEXT, AGENCY_SPECIFIC_APPROVAL_TEXT, AGENCY_CONTRACT_CODE, AGENCY_CONTRACT_DATE, AGENCY_CONTRACT_URL } from '../agency-contract'
 import { QUOTE_TERMS_LAST_UPDATED_IT } from '@/lib/quote-defaults'
 
 const PNG_PREFIX = 'data:image/png;base64,'
@@ -37,11 +38,12 @@ export type SignPayload = {
   signerName: string
   signaturePng: string
   renewalAccepted: boolean
+  specificClausesAccepted: boolean
 }
 
 export function parseSignPayload(
   body: unknown,
-  options: { requireRenewalClause?: boolean } = {}
+  options: { requireRenewalClause?: boolean; requireAgencyClauses?: boolean } = {}
 ): { ok: true; value: SignPayload } | { ok: false; error: string } {
   const row = body && typeof body === 'object' ? (body as Record<string, unknown>) : {}
   const token = String(row.token || '').trim()
@@ -58,6 +60,10 @@ export function parseSignPayload(
     return { ok: false, error: 'Devi approvare il rinnovo automatico e le clausole specifiche' }
   }
 
+  if (options.requireAgencyClauses && row.specific_clauses_accepted !== true) {
+    return { ok: false, error: 'Devi approvare specificamente le clausole delle Condizioni Generali Speaqi Agency' }
+  }
+
   const signature = validateSignatureDataUrl(row.signature_png)
   if (!signature.ok) return signature
 
@@ -69,6 +75,7 @@ export function parseSignPayload(
       signerName,
       signaturePng: String(row.signature_png),
       renewalAccepted: row.renewal_accepted === true,
+      specificClausesAccepted: row.specific_clauses_accepted === true,
     },
   }
 }
@@ -83,7 +90,13 @@ export function clientIp(headers: Headers) {
   return headers.get('x-real-ip')?.trim() || null
 }
 
-export function signatureTermsMeta(renewalAccepted: boolean) {
+export function signatureTermsMeta(renewalAccepted: boolean, agency = false) {
+  if (agency) return {
+    terms_url: AGENCY_CONTRACT_URL, terms_last_updated: AGENCY_CONTRACT_DATE,
+    document_code: AGENCY_CONTRACT_CODE, accepted_text: AGENCY_ACCEPTED_TEXT,
+    specific_clauses_accepted: true, specific_clauses_text: AGENCY_SPECIFIC_APPROVAL_TEXT,
+    ...(renewalAccepted ? { renewal_clause_text: SIGNATURE_RENEWAL_TEXT } : {}),
+  }
   return {
     terms_url: '/termini-speaqi',
     terms_last_updated: QUOTE_TERMS_LAST_UPDATED_IT,

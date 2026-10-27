@@ -5,6 +5,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 're
 import { Modal } from '@/components/ui/Modal'
 import { apiFetch } from '@/lib/api'
 import { DEFAULT_BANK_TRANSFER_INSTRUCTIONS, DEFAULT_CONTRACT_TERMS } from '@/lib/quote-defaults'
+import { agencyParticularTerms, ensureAgencyContractTerms, isAgencyContract, AGENCY_GENERAL_TERMS } from '@/lib/agency-contract'
 import { defaultQuoteTemplate, quoteCompletionIssues } from '@/lib/commercial-proposal'
 import {
   SPEAQI_PACKAGES,
@@ -874,9 +875,9 @@ export default function PreventiviPage() {
           </div>
 
           <details style={{ margin: '12px 0' }}>
-            <summary>Basi contrattuali Agency e Tourism</summary>
+            <summary>Tipo di contratto: Speaqi Agency o Tourism</summary>
             <p>Il modello si carica automaticamente dalla proposta. Per un preventivo manuale puoi scegliere qui la base e poi completarla.</p>
-            {(['agency', 'tourism'] as const).map(type => <button key={type} type="button" className="btn btn-ghost btn-sm" disabled={contractLocked} onClick={() => {
+            {(['agency', 'tourism'] as const).map(type => <button key={type} type="button" className="btn btn-ghost btn-sm" disabled={contractLocked || Boolean(agencyProject) && type !== 'agency'} onClick={() => {
               if (confirm('Sostituire il testo contrattuale con la base scelta? Le voci restano quelle attuali.')) patchDraft({ contract_terms: defaultQuoteTemplate(type).contract_terms, status: 'draft' })
             }}>Base {type === 'agency' ? 'Speaqi Agency' : 'Tourism'}</button>)}
           </details>
@@ -1324,7 +1325,12 @@ export default function PreventiviPage() {
 
           <label className="fg">
             <span className="fl">Contratto abbinato al preventivo</span>
-            <textarea className="fi" rows={14} maxLength={30000} value={draft.contract_terms || ''} readOnly={contractLocked} onChange={event => patchDraft({ contract_terms: event.target.value })} />
+            {isAgencyContract(draft) || agencyProject ? <>
+              <span>Condizioni generali Speaqi Agency · SPEAQI-AGENCY-CGC-v1.0 · sempre incluse</span>
+              <details><summary>Leggi le condizioni generali</summary><div style={{ whiteSpace: 'pre-wrap' }}>{contractLocked ? draft.contract_terms : AGENCY_GENERAL_TERMS}</div></details>
+              <span className="fl">Condizioni particolari della singola offerta</span>
+              <textarea aria-label="Condizioni particolari della singola offerta" className="fi" rows={6} maxLength={5000} value={agencyParticularTerms(draft.contract_terms)} readOnly={contractLocked} onChange={event => patchDraft({ contract_terms: ensureAgencyContractTerms(event.target.value) })} />
+            </> : <textarea className="fi" rows={14} maxLength={30000} value={draft.contract_terms || ''} readOnly={contractLocked} onChange={event => patchDraft({ contract_terms: event.target.value })} />}
             <small>{contractLocked ? 'Contratto già accettato. Duplica il preventivo per proporre nuove condizioni.' : 'Il cliente accetta questo testo insieme al preventivo. Le modifiche valgono solo per questa offerta.'}</small>
           </label>
           {quoteCompletionIssues(draft).map(issue => <p key={issue} className="inline-error" role="status">{issue} Puoi salvare in stato Bozza.</p>)}

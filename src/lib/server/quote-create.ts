@@ -1,3 +1,4 @@
+import { ensureAgencyContractTerms, isAgencyContract } from '../agency-contract'
 import { createActivities } from '@/lib/server/crm'
 import { defaultQuoteTemplate, quoteCompletionIssues } from '@/lib/commercial-proposal'
 import { getOpenDeal } from '@/lib/server/deal-ops'
@@ -223,7 +224,8 @@ export async function createQuoteRecord(
     depositManualAmount: normalizeNumber(body.deposit_manual_amount, 0),
   })
   const status = normalizeStatus(body.status, 'sent')
-  const contractTerms = normalizeText(body.contract_terms) || (extra.agencyProjectId ? defaultQuoteTemplate('agency').contract_terms : extra.tourismDeckId ? defaultQuoteTemplate('tourism').contract_terms : DEFAULT_CONTRACT_TERMS)
+  const requestedContractTerms = normalizeText(body.contract_terms) || (extra.agencyProjectId ? defaultQuoteTemplate('agency').contract_terms : extra.tourismDeckId ? defaultQuoteTemplate('tourism').contract_terms : DEFAULT_CONTRACT_TERMS)
+  const contractTerms = isAgencyContract({ agency_project_id: extra.agencyProjectId, contract_terms: requestedContractTerms }) ? ensureAgencyContractTerms(requestedContractTerms) : requestedContractTerms
   const issues = quoteCompletionIssues({ contract_terms: contractTerms, items: body.items, payment_terms_note: body.payment_terms_note, public_note: body.public_note })
   if (status !== 'draft' && status !== 'cancelled' && issues.length) throw new QuoteInputError(issues[0])
   const now = new Date().toISOString()

@@ -1,3 +1,4 @@
+import { AGENCY_GENERAL_TERMS, agencyParticularTerms } from '../src/lib/agency-contract'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createQuoteRecord, QuoteInputError } from '../src/lib/server/quote-create'
@@ -31,4 +32,21 @@ test('un contratto incompleto si salva in bozza ma si rifiuta prima di scrivere 
   const draft = { customer_name: 'Alfa', items: [{ description: 'Servizio', quantity: 1, unit_price: 10 }], contract_terms: '[DA VERIFICARE]', status: 'sent' }
   await assert.rejects(createQuoteRecord(sb, 'owner', null, draft), QuoteInputError)
   assert.equal(writes, 0)
+})
+
+test('creazione Agency: le CGC sono obbligatorie anche con condizioni particolari inviate via API', async () => {
+  let inserted: Record<string, any> = {}
+  const sb = { from() { const q: any = {
+    insert(payload: Record<string, any>) { inserted = payload; return q },
+    select() { return q }, eq() { return q },
+    async single() { return { data: { id: 'quote-id' }, error: null } },
+    async maybeSingle() { return { data: { id: 'quote-id', ...inserted }, error: null } }
+  }; return q } }
+  const saved = await createQuoteRecord(sb, 'owner', null, {
+    customer_name: 'Alfa', items: [{ description: 'Sito web', quantity: 1, unit_price: 1000 }],
+    contract_terms: 'Consegna in 30 giorni.', status: 'sent'
+  }, { agencyProjectId: 'project-id' })
+  assert.ok(saved.contract_terms.startsWith(AGENCY_GENERAL_TERMS))
+  assert.equal(agencyParticularTerms(saved.contract_terms), 'Consegna in 30 giorni.')
+  assert.equal(saved.agency_project_id, 'project-id')
 })

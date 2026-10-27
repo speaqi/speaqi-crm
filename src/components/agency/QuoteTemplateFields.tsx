@@ -1,5 +1,6 @@
 'use client'
 
+import { isAgencyContract, agencyParticularTerms, ensureAgencyContractTerms, AGENCY_GENERAL_TERMS } from '@/lib/agency-contract'
 import type { QuoteTemplate } from '@/lib/commercial-proposal'
 import s from './proposal-template.module.css'
 
@@ -22,7 +23,11 @@ export default function QuoteTemplateFields({ value, onChange }: { value: QuoteT
     <label>Acconto predefinito (%)<input type="number" min={0} max={100} value={value.deposit_percent} onChange={e => onChange({ ...value, deposit_percent: Number(e.target.value) })} /></label>
     <label>Condizioni di pagamento<textarea rows={3} value={value.payment_terms_note} maxLength={2000} onChange={e => onChange({ ...value, payment_terms_note: e.target.value })} /></label>
     <label>Nota pubblica<textarea rows={2} value={value.public_note} maxLength={2000} onChange={e => onChange({ ...value, public_note: e.target.value })} /></label>
-    <label>Contratto di base<textarea rows={14} value={value.contract_terms} maxLength={30000} onChange={e => onChange({ ...value, contract_terms: e.target.value })} /></label>
+    {isAgencyContract(value) ? <>
+      <p>Le condizioni generali Speaqi Agency SPEAQI-AGENCY-CGC-v1.0 sono sempre incluse nei preventivi di agenzia.</p>
+      <details><summary>Condizioni generali Agency</summary><div style={{ whiteSpace: 'pre-wrap' }}>{AGENCY_GENERAL_TERMS}</div></details>
+      <label>Condizioni particolari predefinite<textarea rows={6} value={agencyParticularTerms(value.contract_terms)} maxLength={5000} onChange={e => onChange({ ...value, contract_terms: ensureAgencyContractTerms(e.target.value) })} /></label>
+    </> : <label>Contratto di base<textarea rows={14} value={value.contract_terms} maxLength={30000} onChange={e => onChange({ ...value, contract_terms: e.target.value })} /></label>}
     <small>Inserisci il testo contrattuale approvato. I campi [DA VERIFICARE] possono restare in bozza, ma vanno completati prima dell’invio. Ogni preventivo conserva la propria copia.</small>
   </div>
 }
