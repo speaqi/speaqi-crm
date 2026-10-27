@@ -100,7 +100,9 @@ test('createDeck parte dalla base destinazioni con il nome riempito', async () =
   const row = await createDeck(db, USER, fields)
   assert.equal(row.status, 'draft')
   assert.equal(row.slides[0].kicker, 'Speaqi Guides per Capri')
-  assert.equal(row.slides.length, 14)
+  // Quattordici slide della base più l'ultima, con i contatti.
+  assert.equal(row.slides.length, 15)
+  assert.equal(row.slides[14].id, 'contatti')
   assert.equal(db.tables.tourism_deck_templates.length, 1)
   assert.equal(db.tables.tourism_deck_templates[0].content.base, DESTINATIONS_BASE)
 })
@@ -360,4 +362,21 @@ test('una base di prima con il solo preventivo corretto a mano resta com’è', 
   const edited = JSON.parse(readFileSync(new URL('./fixtures/tourism-deck-destinazioni-2026-10.json', import.meta.url), 'utf8'))
   edited.quote_template = { ...(edited.quote_template || {}), public_note: 'Nota scritta dal titolare' }
   assert.equal(isUneditedPreviousDestinations(edited), false)
+})
+
+test('la slide dei contatti c\u2019è in ogni presentazione nuova: italiano, inglese, partner e modello salvato a mano', async () => {
+  const last = (r: { slides: Array<{ id: string; title: string; items: Array<{ title: string }> }> }) => r.slides[r.slides.length - 1]
+  const italian = await createDeck(db, USER, fields)
+  assert.equal(last(italian).id, 'contatti')
+  assert.match(last(italian).title, /Parliamone/)
+  assert.ok(last(italian).items.some((i) => i.title === 'info@speaqi.com'))
+  const english = await createDeck(db, USER, { ...fields, input: { ...fields.input, lingua: 'en' } })
+  assert.match(last(english).title, /Let’s talk/)
+  const partner = await createDeck(db, USER, { ...fields, input: { ...fields.input, modello: 'partner' } })
+  assert.equal(last(partner).id, 'contatti')
+  // Un modello salvato e corretto a mano non ce l'ha: la riceve lo stesso, una volta sola.
+  db.tables.tourism_deck_templates.length = 0
+  db.tables.tourism_deck_templates.push({ user_id: USER, is_default: true, version: 3, content: { version: 1, base: 'mio', vars: {}, slides: [{ id: 'cover', kind: 'cover', title: 'Il mio titolo' }] } })
+  const custom = await createDeck(db, USER, fields)
+  assert.deepEqual(custom.slides.map((s) => s.id), ['cover', 'contatti'])
 })

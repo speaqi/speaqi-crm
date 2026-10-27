@@ -130,7 +130,7 @@ export type DeckInput = Partial<Record<DeckVarName, string>> & { modello?: DeckM
 export const deckModel = (input: DeckInput | null | undefined): DeckModel => (input?.modello === 'partner' ? 'partner' : 'destinazione')
 export const deckLanguage = (input: DeckInput | null | undefined): DeckLanguage => (input?.lingua === 'en' ? 'en' : 'it')
 
-export const MAX_DECK_SLIDES = 16
+export const MAX_DECK_SLIDES = 20
 const LIMITS = { slides: MAX_DECK_SLIDES, items: 6, kicker: 80, footnote: 200, itemValue: 40, title: 160, body: 700, note: 300, itemTitle: 80, itemText: 260, hint: 500, varValue: 300 }
 
 const slide = (s: Partial<DeckSlide> & Pick<DeckSlide, 'id' | 'kind' | 'title'>): DeckSlide => ({
@@ -355,6 +355,41 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
       fixed: true
     })
   ]
+}
+
+/** Id della slide finale con i contatti: la aggiunge il codice a ogni presentazione, in italiano o in inglese. */
+export const CONTACTS_SLIDE_ID = 'contatti'
+
+/**
+ * I contatti di Speaqi che compaiono nell'ultima slide. Per aggiungerne uno basta una riga qui:
+ * valgono per tutte le presentazioni nuove (`withContactsSlide`) e, con la stessa riga nel file SQL
+ * della migrazione, per quelle già fatte.
+ */
+export const SPEAQI_DECK_CONTACTS: Array<{ title: string; icon: DeckIcon }> = [
+  { title: '+39 389 686 8162', icon: 'chat' },
+  { title: 'info@speaqi.com', icon: 'send' },
+  { title: 'guides.speaqi.com/destinations', icon: 'globe' },
+  { title: 'speaqi.com', icon: 'link' }
+]
+
+/** L'ultima slide: chi contattare in Speaqi. Testo fisso, nessuna personalizzazione. */
+export function contactsSlide(lang: DeckLanguage = 'it'): DeckSlide {
+  const en = lang === 'en'
+  return slide({
+    id: CONTACTS_SLIDE_ID,
+    kind: 'closing',
+    title: en ? 'Let’s talk.\nHere is how to reach us.' : 'Parliamone.\nEcco come raggiungerci.',
+    body: 'Massimo Morgante',
+    note: 'Founder & CEO, Speaqi',
+    items: SPEAQI_DECK_CONTACTS.map((c) => ({ title: c.title, text: '', icon: c.icon })),
+    fixed: true,
+    hint: 'Slide finale con i contatti di Speaqi. Testo fisso: non cambiarlo.'
+  })
+}
+
+/** Aggiunge in fondo la slide dei contatti se manca; una presentazione che ce l'ha già non cambia. */
+export function withContactsSlide(slides: DeckSlide[], lang: DeckLanguage = 'it'): DeckSlide[] {
+  return slides.some((s) => s.id === CONTACTS_SLIDE_ID) ? slides : [...slides, contactsSlide(lang)]
 }
 
 /** Base partner: hotel, agenzie, compagnie e chi porta le guide Speaqi ai propri ospiti. */

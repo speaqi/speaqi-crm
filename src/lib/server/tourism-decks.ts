@@ -6,6 +6,7 @@ import {
   PARTNER_DECK_TEMPLATE,
   deckModel,
   deckLanguage,
+  withContactsSlide,
   applyVars,
   assignPhotos,
   countTodo,
@@ -144,10 +145,13 @@ export async function loadDeck(sb: Sb, userId: string, id: string): Promise<Deck
  * non cambia base.
  */
 export async function templateForDeck(sb: Sb, userId: string, input: DeckInput | null | undefined): Promise<DeckTemplate> {
-  if (deckModel(input) === 'partner') return structuredClone(PARTNER_DECK_TEMPLATE)
-  // In inglese vale la base inglese scritta nel codice: il modello salvato dal titolare è in italiano.
-  if (deckLanguage(input) === 'en') return structuredClone(DEFAULT_DECK_TEMPLATE_EN)
-  return (await getTemplate(sb, userId)).template
+  const lang = deckLanguage(input)
+  const template = deckModel(input) === 'partner'
+    ? structuredClone(PARTNER_DECK_TEMPLATE)
+    // In inglese vale la base inglese scritta nel codice: il modello salvato dal titolare è in italiano.
+    : lang === 'en' ? structuredClone(DEFAULT_DECK_TEMPLATE_EN) : (await getTemplate(sb, userId)).template
+  // L'ultima slide con i contatti c'è in ogni presentazione, qualunque sia la base (anche una salvata a mano).
+  return { ...template, slides: withContactsSlide(template.slides, lang) }
 }
 
 export type DeckFields = {
