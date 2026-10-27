@@ -63,6 +63,10 @@ export function officeApprovalEffect(output: Pick<OfficeOutput, 'agent_id' | 'ki
     return { label: 'Approva aggiornamento', description: 'Autorizza il rifacimento delle traduzioni indicate alla prossima corsa, entro il budget dell’agente.',
       notice: 'Aggiornamento autorizzato per la prossima corsa, entro il budget.' }
   }
+  if (output.kind === 'draft_email' && typeof output.body.email_draft_id === 'string') {
+    return { label: 'Approva senza inviare', description: '«Approva e invia» la manda subito dal Gmail collegato, se il cliente non ha risposto nel frattempo e non si è disiscritto. «Approva senza inviare» la lascia in /email da mandare a mano; «Rifiuta» la scarta anche da lì.',
+      notice: 'Approvata: la bozza resta in /email da mandare.' }
+  }
   return { label: 'Approva', description: 'Registra l’approvazione. Non invia email, fatture o pubblicazioni.',
     notice: 'Approvata. La decisione è registrata; nessun invio eseguito.' }
 }

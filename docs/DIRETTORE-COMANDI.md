@@ -28,9 +28,16 @@ Toccando **/** nel bot compare il menu. Ogni comando diventa la stessa frase che
 | `/ricorda venerdì alle 10 chiamare SNAV` | promemoria nel To Do e in Calendar |
 | `/todo …` | va al To Do anche con il bot in modalità Direttore |
 | `/scheda SNAV` | **non chiama il Direttore**: cerca contatti, enti e mappe e risponde con i link alle schede |
+| `/coda` | cosa aspetta te: «Approva le sicure», le email da mandare, le decisioni |
 | `/direttore …` · `/aiuto` | qualsiasi altra richiesta · questo elenco |
 
 Un comando senza il pezzo che serve risponde con l’esempio, senza spendere. Il menu si aggiorna da solo a ogni deploy (`setMyCommands`). Logica in `src/lib/office/telegram-commands.ts`.
+
+## Cosa si approva da solo
+
+Ogni 10 minuti l'Ufficio approva **da solo**, 30 minuti dopo che sono nate (il tempo per rifiutarle da Telegram), le proposte interne e reversibili: lavori accodati agli agenti (mappe, lingue, controllo qualità), To Do per gli eventi, enti verificati portati nel CRM, contatti senza possibili doppioni. Te lo dice in un messaggio.
+
+Restano a te: le **email** (arrivano con «📨 Approva e invia»: parte dal Gmail collegato, mai a chi ha risposto o si è disiscritto, al massimo 30 al giorno), le **unioni** di contatti, i contatti con possibili doppioni e ciò che spende fuori budget. Si spegne dal Direttore (`settings.autonomy.enabled = false`) o per un agente (`settings.auto_approve = false`).
 
 Regola fissa: il Direttore **non invia** email, fatture allo SDI o pubblicazioni, e **non lavora su Napoli**. Quando serve un tuo clic te lo dice, con il link.
 

@@ -15,6 +15,8 @@ export type TelegramCommandResult =
   | { kind: 'director'; command: string; text: string }
   /** Una frase per il To Do, anche con il bot in modalità Direttore. */
   | { kind: 'todo'; command: string; text: string }
+  /** Il riepilogo della coda da decidere, con i pulsanti. */
+  | { kind: 'queue'; command: string }
   /** Una ricerca senza modello: risponde con i link alle schede. */
   | { kind: 'search'; command: string; query: string }
   /** Una risposta già scritta (aiuto, comando incompleto o sconosciuto). */
@@ -52,6 +54,12 @@ export function cityAndCount(arg: string, fallback = 5): { city: string; count: 
 const MY_MAPS_LINK = /https?:\/\/\S+/i
 
 export const TELEGRAM_COMMANDS: CommandSpec[] = [
+  {
+    command: 'coda', group: 'Situazione', needsArg: false,
+    description: 'Cosa aspetta una tua decisione (email, proposte)',
+    usage: '/coda',
+    build: () => ({ kind: 'queue', command: 'coda' }),
+  },
   {
     command: 'presentazione', group: 'Presentazioni', needsArg: true,
     description: 'Presentazione per un ente (anche più nomi, o con foto)',
@@ -186,7 +194,7 @@ const ALIASES: Record<string, string> = {
   nuovo: 'contatto', bigliettino: 'contatto',
   cerca: 'scheda', trova: 'scheda',
   qualita: 'controlla', stats: 'stato', status: 'stato',
-  eventi: 'fiere', promemoria: 'ricorda', fatture: 'fattura',
+  eventi: 'fiere', decidi: 'coda', approva: 'coda', inbox: 'coda', promemoria: 'ricorda', fatture: 'fattura',
 }
 
 /** Quello che si passa a `setMyCommands`: Telegram ne mostra al massimo 100. */

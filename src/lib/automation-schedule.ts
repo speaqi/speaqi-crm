@@ -55,6 +55,7 @@ export const AUTOMATION_JOBS: ScheduledJob[] = [
   { name: 'office-languages-voice', cron: '0 2 * * *', description: 'Lingue e voce: testi e audio delle mappe in coda, entro il budget', steps: [{ path: '/api/automation/agents/languages_voice/run' }] },
   { name: 'office-db-cleaner', cron: '30 4 * * 0', description: 'Pulizia database: doppioni e dati sporchi, unioni solo approvate', steps: [{ path: '/api/automation/agents/db_cleaner/run' }] },
   { name: 'office-entity-enricher', cron: '0 6 * * *', description: 'Arricchimento enti: proposte con fonti, CRM solo dopo il clic', steps: [{ path: '/api/automation/agents/entity_enricher/run' }] },
+  { name: 'office-autonomy', cron: '*/10 * * * *', description: 'Ufficio: approva da sole le proposte sicure dopo il ritardo e porta su Telegram quelle da decidere', steps: [{ path: '/api/automation/office-autonomy' }] },
   { name: 'office-finance', cron: '30 8 * * *', description: 'Finanza: bozze e segnalazioni, nessun invio', steps: [{ path: '/api/automation/agents/finance/run' }] },
   {
     name: 'office-maintenance',

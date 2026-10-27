@@ -6,6 +6,7 @@ import { apiFetch } from '@/lib/api'
 import { officeApprovalEffect, type OfficeOverview } from '@/lib/office'
 import { INBOX_DOCUMENT_STATES, officeInboxGroups, type InboxAction, type InboxCategory, type InboxPage, type InboxResult } from '@/lib/office-inbox'
 import { CONTACT_HIDDEN_KEYS, OutputBody } from './OutputBody'
+import { outputTrust } from '@/lib/office/autonomy'
 import styles from '@/app/(app)/ufficio/ufficio.module.css'
 
 const date = (value: string) => new Date(value).toLocaleString('it-IT', { timeZone: 'Europe/Rome', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -86,6 +87,30 @@ export function PendingInbox({ data, onChanged, highlight }: { data: OfficeOverv
     finally { inFlight.current = false; setBusy(false) }
   }
 
+  async function sendDraft(id: string) {
+    if (inFlight.current) return
+    if (!window.confirm('Mando questa email adesso dal Gmail collegato?')) return
+    inFlight.current = true; setBusy(true); setError(''); setNotice('')
+    try {
+      const result = await apiFetch<{ notice: string }>(`/api/office/outputs/${id}/send`, { method: 'POST' })
+      setNotice(result.notice)
+      await load(); await onChanged()
+    } catch (err) { setError(err instanceof Error ? err.message : 'Invio da verificare: controlla in Gmail → Inviati prima di riprovare.') }
+    finally { inFlight.current = false; setBusy(false) }
+  }
+  async function approveSafe() {
+    if (inFlight.current) return
+    inFlight.current = true; setBusy(true); setError(''); setNotice('')
+    try {
+      const result = await apiFetch<{ approved: number; archived: number; errors: string[] }>('/api/office/inbox/safe', { method: 'POST' })
+      setNotice(`${result.approved} approvate, ${result.archived} avvisi archiviati${result.errors.length ? `; ${result.errors.length} restano: ${result.errors[0]}` : ''}.`)
+      await load(); await onChanged()
+      window.dispatchEvent(new Event('office:work-changed'))
+    } catch (err) { setError(err instanceof Error ? err.message : 'Operazione non completata') }
+    finally { inFlight.current = false; setBusy(false) }
+  }
+  const safeCount = page.outputs.filter((output) => ['auto', 'safe'].includes(outputTrust(output))).length
+
   return <section className={styles.list} aria-label="Coda Aspetta te">
     <p className={styles.muted}>Le decisioni aggiornano il lavoro. Gli avvisi si possono segnare come letti, anche in gruppo.</p>
     <div className={styles.chips} aria-label="Filtra la coda">
@@ -96,6 +121,7 @@ export function PendingInbox({ data, onChanged, highlight }: { data: OfficeOverv
     </div>
     {page.total > 50 && <p className={styles.muted}>Filtri e selezione si riferiscono alle voci di questa pagina.</p>}
     {visible.length > 0 && <div className={styles.actions}>
+      {safeCount > 0 && <button className="btn btn-primary btn-sm" disabled={busy} title="Archivia gli avvisi e approva le proposte interne e reversibili (accodamenti, To Do, enti, contatti senza doppioni). Email, unioni e spese restano a te." onClick={() => { void approveSafe() }}>Approva le sicure ({safeCount})</button>}
       <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setSelected(new Set(visible.flatMap((group) => group.ids)))}>Seleziona questa vista</button>
       {selectedIds.length > 0 && <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setSelected(new Set())}>Deseleziona</button>}
     </div>}
@@ -136,6 +162,7 @@ export function PendingInbox({ data, onChanged, highlight }: { data: OfficeOverv
         {failure.length > 0 && <p role="alert" className={styles.error}>{[...new Set(failure)].join(' ')}</p>}
         <div className={styles.actions}>
           {group.href && <Link className="btn btn-primary btn-sm" href={group.href}>Apri documento →</Link>}
+          {group.category === 'decisions' && outputTrust(output) === 'send' && <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => { void sendDraft(output.id) }}>Approva e invia</button>}
           {group.category === 'decisions' ? <>
             <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => { void process(group.ids, 'approved') }}>{effect.label}</button>
             <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => { void process(group.ids, 'rejected') }}>Rifiuta</button>

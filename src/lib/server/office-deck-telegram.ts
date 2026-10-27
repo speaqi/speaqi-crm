@@ -47,7 +47,8 @@ export async function sendProposalsToTelegram(admin: Admin, userId: string, outp
   for (const output of (data || []) as Array<{ id: string; title: string; body: any }>) {
     const message = proposalMessage({ id: output.id, title: output.title, lines: proposalLines(output.body), link: `${baseUrl()}/ufficio?uscita=${output.id}` })
     const result = await sendTelegramButtons(message.text, message.keyboard)
-    if (result.ok) sent++
+    // Segnata come mandata: il giro dell'autonomia non la rimanda.
+    if (result.ok) { sent++; await admin.from('office_agent_outputs').update({ body: { ...(output.body || {}), telegram_sent_at: new Date().toISOString() } }).eq('id', output.id).eq('user_id', userId).eq('status', 'pending') }
     else console.error('[telegram] proposta non inviata:', result.error)
   }
   return sent

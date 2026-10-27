@@ -69,6 +69,8 @@ describe('comandi slash di Telegram', () => {
 
   test('/scheda cerca, /todo va al To Do, un comando sconosciuto mostra l’aiuto', () => {
     assert.deepEqual(parseTelegramCommand('/scheda SNAV'), { kind: 'search', command: 'scheda', query: 'SNAV' })
+    assert.deepEqual(parseTelegramCommand('/coda'), { kind: 'queue', command: 'coda' })
+    assert.deepEqual(parseTelegramCommand('/approva'), { kind: 'queue', command: 'coda' })
     assert.deepEqual(parseTelegramCommand('/todo domani chiamo Rossi'), { kind: 'todo', command: 'todo', text: 'domani chiamo Rossi' })
     const unknown = parseTelegramCommand('/boh')
     assert.equal(unknown?.kind, 'reply')

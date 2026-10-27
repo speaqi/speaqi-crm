@@ -48,6 +48,7 @@ describe('orari', () => {
       'commercial-outreach',
       'db-maintenance',
       'followups',
+      'office-autonomy',
       'office-sales-followup',
       'office-work',
       'orchestrator',

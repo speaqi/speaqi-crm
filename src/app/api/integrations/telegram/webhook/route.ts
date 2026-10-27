@@ -31,6 +31,8 @@ import { handleTelegramAction } from '@/lib/server/office-output-decision'
 import { sendProposalsToTelegram } from '@/lib/server/office-deck-telegram'
 import { parseTelegramCommand } from '@/lib/office/telegram-commands'
 import { telegramSchedaReply } from '@/lib/server/telegram-search'
+import { queueOverview } from '@/lib/server/office-autonomy'
+import { sendTelegramButtons } from '@/lib/server/whatsapp'
 import type { Task } from '@/types'
 
 /**
@@ -102,9 +104,11 @@ export async function POST(request: NextRequest) {
     // Le decisioni sono condizionate (solo da «in attesa», solo sulla versione letta):
     // un doppio tocco o una riconsegna di Telegram trovano la cosa già decisa.
     // Il PDF può metterci parecchio: si risponde subito al tocco, l'esito arriva in chat.
-    if (action.kind === 'deck_pdf') await answerTelegramCallback(config, String(callback.id), 'Te la mando…')
+    // PDF, invii e coda possono metterci qualche secondo: si risponde subito al tocco.
+    const slow = action.kind === 'deck_pdf' || action.kind === 'output_send' || action.kind === 'queue'
+    if (slow) await answerTelegramCallback(config, String(callback.id), action.kind === 'deck_pdf' ? 'Te la mando…' : 'Ci penso io…')
     const result = await handleTelegramAction(createServiceRoleClient(), userId, action)
-    if (action.kind !== 'deck_pdf') await answerTelegramCallback(config, String(callback.id), result.text)
+    if (!slow) await answerTelegramCallback(config, String(callback.id), result.text)
     if (result.done && callback.message?.message_id) await clearTelegramButtons(config, chat.id, Number(callback.message.message_id))
     await sendTelegramMessage(config, chat.id, result.text)
     return ok({ action: action.kind, done: result.done })
@@ -175,6 +179,13 @@ export async function POST(request: NextRequest) {
     if (command?.kind === 'reply') {
       await finish({ transcript, status: 'command', intent: { command: command.command } })
       await sendTelegramMessage(config, chatId, command.text)
+      return ok({ command: command.command })
+    }
+    if (command?.kind === 'queue') {
+      const overview = await queueOverview(supabase, userId)
+      await finish({ transcript, status: 'command', intent: { command: command.command, counts: overview.counts } })
+      const sent = await sendTelegramButtons(overview.text, overview.keyboard)
+      if (!sent.ok) await sendTelegramMessage(config, chatId, overview.text.replace(/\*/g, ''))
       return ok({ command: command.command })
     }
     if (command?.kind === 'search') {

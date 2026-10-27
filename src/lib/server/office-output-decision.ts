@@ -6,6 +6,8 @@ import { errorMessage } from './http'
 import { deckApprovable, type TelegramAction } from '../office/telegram-actions'
 import { countTodo } from '../tourism-deck'
 import { missingWorkSchema, officeWorkEnabled } from './office-work-routing'
+import { approveAndSendOutput } from './office-email-send'
+import { handleQueueAction } from './office-autonomy'
 
 type Admin = any
 export type OutputDecision = { ok: true; output: unknown; notice?: string; contact_id?: string } | { ok: false; error: string; status: number; extra?: Record<string, unknown> }
@@ -47,6 +49,11 @@ export async function decideOfficeOutput(admin: Admin, userId: string, id: strin
     return { ok: false, status: 409, error: data?.reason === 'agent_missing' ? 'Il destinatario non è ancora installato. Installa gli agenti successivi prima di accodare.' : 'Uscita non trovata o già decisa. Aggiorna la pagina.' }
   }
   await startAfterApproval(admin, userId, data.output).catch(() => undefined)
+  // Bozza email scartata: esce anche da /email, così non la manda nessuno per sbaglio.
+  if (status === 'rejected' && data.output.kind === 'draft_email') {
+    const draftId = typeof data.output.body?.email_draft_id === 'string' ? data.output.body.email_draft_id : null
+    if (draftId) await admin.from('email_drafts').update({ status: 'dismissed' }).eq('id', draftId).eq('user_id', userId).eq('status', 'pending')
+  }
   return { ok: true, output: data.output }
 }
 
@@ -56,6 +63,11 @@ export async function decideOfficeOutput(admin: Admin, userId: string, id: strin
  */
 export async function handleTelegramAction(admin: Admin, userId: string, action: TelegramAction): Promise<{ text: string; done: boolean }> {
   try {
+    if (action.kind === 'output_send') {
+      const sent = await approveAndSendOutput(admin, userId, action.id, (id) => decideOfficeOutput(admin, userId, id, 'approved'))
+      return { text: sent.text, done: sent.ok || (!sent.ok && sent.status === 409 && !sent.uncertain) }
+    }
+    if (action.kind === 'queue') return { text: await handleQueueAction(admin, userId, action.view), done: action.view === 'safe' }
     if (action.kind === 'output') {
       const result = await decideOfficeOutput(admin, userId, action.id, action.status)
       if (!result.ok) return { text: result.error, done: result.status === 409 && /già (stata )?decisa/.test(result.error) }

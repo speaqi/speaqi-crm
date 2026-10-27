@@ -7,10 +7,16 @@
 export type TelegramButton = { text: string; callback_data?: string; url?: string }
 export type TelegramKeyboard = TelegramButton[][]
 
+export type QueueView = 'safe' | 'emails' | 'decisions'
+
 export type TelegramAction =
   | { kind: 'deck_approve'; id: string }
   | { kind: 'deck_pdf'; id: string }
   | { kind: 'output'; id: string; status: 'approved' | 'rejected' }
+  /** Bozza email dell'Ufficio: approvarla vuol dire mandarla, con un tocco. */
+  | { kind: 'output_send'; id: string }
+  /** I pulsanti di /coda: approva le sicure, mostra le email, mostra le decisioni. */
+  | { kind: 'queue'; view: QueueView }
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 
@@ -18,18 +24,40 @@ const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 export const deckApproveData = (id: string) => `d:a:${id}`
 export const deckPdfData = (id: string) => `d:p:${id}`
 export const outputData = (id: string, status: 'approved' | 'rejected') => `o:${status === 'approved' ? 'a' : 'r'}:${id}`
+export const outputSendData = (id: string) => `o:s:${id}`
+export const queueData = (view: QueueView) => `q:${view === 'safe' ? 'a' : view === 'emails' ? 'e' : 'd'}`
 
 /** Solo le forme note, con un UUID vero: qualunque altro dato si ignora. */
 export function parseTelegramAction(data: unknown): TelegramAction | null {
   const value = typeof data === 'string' ? data.trim().toLowerCase() : ''
-  const match = new RegExp(`^([do]):([apr]):(${UUID})$`).exec(value)
+  const queue = /^q:([aed])$/.exec(value)
+  if (queue) return { kind: 'queue', view: queue[1] === 'a' ? 'safe' : queue[1] === 'e' ? 'emails' : 'decisions' }
+  const match = new RegExp(`^([do]):([aprs]):(${UUID})$`).exec(value)
   if (!match) return null
   const [, scope, verb, id] = match
   if (scope === 'd' && verb === 'a') return { kind: 'deck_approve', id }
   if (scope === 'd' && verb === 'p') return { kind: 'deck_pdf', id }
   if (scope === 'o' && verb === 'a') return { kind: 'output', id, status: 'approved' }
   if (scope === 'o' && verb === 'r') return { kind: 'output', id, status: 'rejected' }
+  if (scope === 'o' && verb === 's') return { kind: 'output_send', id }
   return null
+}
+
+/** Sotto una bozza email: si manda, si scarta, o si corregge nel CRM. */
+export function draftEmailKeyboard(input: { id: string; editLink: string }): TelegramKeyboard {
+  return [
+    [{ text: '📨 Approva e invia', callback_data: outputSendData(input.id) }, { text: '✖️ Scarta', callback_data: outputData(input.id, 'rejected') }],
+    [{ text: '✏️ Correggi nel CRM', url: input.editLink }],
+  ]
+}
+
+/** Sotto il riepilogo di /coda. Ogni pulsante compare solo se ha qualcosa da fare. */
+export function queueKeyboard(counts: { auto: number; safe: number; send: number; manual: number }): TelegramKeyboard {
+  const rows: TelegramKeyboard = []
+  if (counts.auto + counts.safe) rows.push([{ text: `✅ Approva le sicure (${counts.auto + counts.safe})`, callback_data: queueData('safe') }])
+  if (counts.send) rows.push([{ text: `📨 Mostrami le email (${counts.send})`, callback_data: queueData('emails') }])
+  if (counts.manual) rows.push([{ text: `✋ Mostrami le decisioni (${counts.manual})`, callback_data: queueData('decisions') }])
+  return rows
 }
 
 /** Didascalia del PDF di una presentazione: cos'è, cosa manca, dove si modifica (Telegram: max 1024). */
