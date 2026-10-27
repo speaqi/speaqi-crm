@@ -42,22 +42,6 @@ function requestOrigin(request: NextRequest) {
   return 'https://crm.speaqi.com'
 }
 
-function missingAcceptanceColumns(error: unknown) {
-  const message =
-    error instanceof Error
-      ? error.message.toLowerCase()
-      : error && typeof error === 'object' && 'message' in error
-        ? String((error as { message?: unknown }).message || '').toLowerCase()
-        : ''
-
-  return (
-    (message.includes('quote_acceptance_email') ||
-      message.includes('quote_acceptance_token') ||
-      message.includes('quote_acceptance_sent_at')) &&
-    (message.includes('schema cache') || message.includes('column') || message.includes('could not find'))
-  )
-}
-
 export async function POST(request: NextRequest, context: RouteContext) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
@@ -95,39 +79,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const acceptanceToken = buildQuoteAcceptanceToken()
-    const prepare = await auth.supabase
-      .from('quotes')
-      .update({
-        customer_email: recipient,
-        quote_acceptance_email: recipient,
-      })
-      .eq('user_id', auth.workspaceUserId)
-      .eq('id', id)
-      .select('id')
-      .single()
-
-    if (prepare.error) {
-      if (missingAcceptanceColumns(prepare.error)) {
-        return Response.json(
-          {
-            error:
-              'Il database non ha ancora le colonne per l’accettazione via email. Applica la migration Supabase più recente e riprova.',
-          },
-          { status: 500 }
-        )
-      }
-      throw prepare.error
-    }
-
     const secretWrite = await auth.supabase
-      .from('quote_secrets')
-      .upsert(
-        { quote_id: id, acceptance_token: acceptanceToken },
-        { onConflict: 'quote_id' }
-      )
+      .rpc('rotate_quote_acceptance_token', {
+        p_quote_id: id,
+        p_acceptance_token: acceptanceToken,
+        p_recipient: recipient,
+      })
 
     if (secretWrite.error) {
-      if (missingAcceptanceColumns(secretWrite.error) || /quote_secrets/i.test(String(secretWrite.error.message || ''))) {
+      if (['42P01', 'PGRST205', '42883', 'PGRST202'].includes(secretWrite.error.code)) {
         return Response.json(
           {
             error:
@@ -137,6 +97,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
         )
       }
       throw secretWrite.error
+    }
+    if (!secretWrite.data) {
+      return Response.json({ error: 'Il preventivo è già firmato o non è più disponibile.' }, { status: 409 })
     }
 
     const origin = requestOrigin(request)

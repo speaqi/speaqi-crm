@@ -222,15 +222,6 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (!current) return Response.json({ error: 'Preventivo non trovato' }, { status: 404 })
 
     const rawBody = await request.json()
-    if (current.contract_accepted_at) {
-      const changed = signedQuoteEconomicChanges(rawBody, current)
-      if (changed.length) {
-        return Response.json(
-          { error: signedQuoteEconomicChangeMessage(changed) },
-          { status: 409 }
-        )
-      }
-    }
     // Un abbonamento resta tale finche' il costruttore non lo rende "pagamento
     // unico": se il PATCH non tocca billing_interval vale quello salvato.
     const body = applyBillingRules({
@@ -399,6 +390,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       updatePayload.billing_interval = body.billing_interval
     }
 
+    // Confronta il payload effettivo, dopo normalizzazione e calcolo dei totali.
+    // Il trigger DB protegge anche la firma registrata dopo la lettura iniziale.
+    if (current.contract_accepted_at) {
+      const changed = signedQuoteEconomicChanges(updatePayload, current)
+      if (changed.length) {
+        return Response.json({ error: signedQuoteEconomicChangeMessage(changed) }, { status: 409 })
+      }
+    }
+
     let updatedId: string | null = null
     let updateError: unknown = null
 
@@ -465,6 +465,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     return Response.json({ quote: normalizeQuoteRow(quoteData) })
   } catch (error) {
+    if (errorMessage(error, '').includes('signed_quote_immutable')) {
+      return Response.json({ error: 'Il preventivo è stato firmato: aggiorna la pagina o duplica l’offerta.' }, { status: 409 })
+    }
     return Response.json({ error: errorMessage(error, 'Impossibile aggiornare il preventivo') }, { status: 500 })
   }
 }

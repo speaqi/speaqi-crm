@@ -7,6 +7,7 @@ import { nextFollowupAfterEmail } from '@/lib/sla'
 import type { CRMContact } from '@/types'
 import { automationContext, validateAutomationSecret } from '@/lib/server/automation-auth'
 import { sendDraftAutomatically } from '@/lib/server/automation-send'
+import { emailBlockReason } from '@/lib/server/email-eligibility'
 
 /**
  * Invio email machine-to-machine.
@@ -136,27 +137,13 @@ export async function POST(request: NextRequest) {
     if (!String(contact.email || '').trim()) {
       return skip('missing_email', 'Contatto senza indirizzo email')
     }
-    if (contact.email_unsubscribed_at) {
-      return skip('unsubscribed', 'Contatto disiscritto')
-    }
+    const blocked = emailBlockReason(contact)
+    if (blocked) return skip('email_not_eligible', blocked)
     if (contact.contact_scope === 'personal') {
       return skip('personal_scope', 'Contatto in area personale')
     }
     if (isClosedStatus(String(contact.status || ''))) {
       return skip('closed_status', `Stage chiuso: ${contact.status}`)
-    }
-    if (contact.hidden) {
-      return skip('hidden', 'Contatto nascosto')
-    }
-    const eligibility = String(contact.marketing_eligibility || '').trim().toLowerCase()
-    if (eligibility === 'excluded' || eligibility === 'suppressed') {
-      return skip('marketing_eligibility', 'Contatto non eleggibile al marketing')
-    }
-    if ((contact.marketing_status || '') === 'paused') {
-      const until = contact.marketing_paused_until
-      if (!until || new Date(until).getTime() > Date.now()) {
-        return skip('paused', 'Marketing in pausa per questo contatto')
-      }
     }
 
     const senderUserId = await resolveSenderUserId(

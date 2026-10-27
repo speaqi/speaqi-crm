@@ -11,6 +11,7 @@ import {
 } from '@/lib/server/stripe'
 import { createPublicServerClient, createServiceRoleClient } from '@/lib/server/supabase'
 import { quoteSignatureMismatches } from '@/lib/server/quotes'
+import { subscriptionCheckoutSession } from '@/lib/server/quote-checkout'
 
 function normalizeText(value: unknown) {
   const normalized = String(value || '').trim()
@@ -107,29 +108,6 @@ async function startSubscriptionCheckout(request: NextRequest, token: string) {
   }
 
   const catalog = await resolveCatalogPricing(quote.total_amount, quote.quote_number)
-  const pricing = catalog ? 'catalog' : 'inline'
-
-  // Una sessione ancora aperta si riusa: due clic non creano due abbonamenti.
-  // Se il prezzo e' passato da inline a catalogo (o viceversa) la vecchia si
-  // chiude prima di aprirne una nuova, per non lasciarne due pagabili.
-  if (quote.stripe_checkout_session_id && quote.stripe_checkout_url) {
-    try {
-      const existing = await stripeFetch<any>(
-        `/checkout/sessions/${encodeURIComponent(quote.stripe_checkout_session_id)}`
-      )
-      if (existing?.status === 'open' && existing?.mode === 'subscription' && existing?.url) {
-        if ((existing?.metadata?.pricing || 'inline') === pricing) {
-          return Response.json({ url: existing.url })
-        }
-        await stripeFetch(`/checkout/sessions/${encodeURIComponent(existing.id)}/expire`, {
-          method: 'POST',
-          params: new URLSearchParams(),
-        })
-      }
-    } catch {
-      // sessione scaduta o illeggibile: se ne crea una nuova
-    }
-  }
 
   const params = buildSubscriptionCheckoutParams({
     token,
@@ -142,32 +120,8 @@ async function startSubscriptionCheckout(request: NextRequest, token: string) {
     origin: pickOrigin(request),
     catalog,
   })
-  // Due clic contemporanei devono produrre la stessa sessione Stripe, non due
-  // abbonamenti pagabili. La chiave cambia ogni ora: un retry il giorno dopo
-  // può creare una sessione nuova, due richieste nello stesso minuto no.
-  const hourBucket = Math.floor(Date.now() / 3_600_000)
-  const idempotencyKey = [
-    'quote-checkout',
-    quote.id,
-    pricing,
-    toCents(quote.total_amount),
-    String(quote.currency || 'EUR').toUpperCase(),
-    hourBucket,
-  ].join('-')
-  const session = await stripeFetch<any>('/checkout/sessions', { params, idempotencyKey })
-  const checkoutUrl = normalizeText(session?.url)
-  const sessionId = normalizeText(session?.id)
-  if (!checkoutUrl || !sessionId) {
-    return Response.json({ error: 'Stripe non ha restituito un link valido' }, { status: 502 })
-  }
-
-  await admin.rpc('mark_quote_checkout_created', {
-    p_public_token: token,
-    p_session_id: sessionId,
-    p_checkout_url: checkoutUrl,
-  })
-
-  return Response.json({ url: checkoutUrl })
+  const session = await subscriptionCheckoutSession(admin, quote, params)
+  return Response.json({ url: session.url })
 }
 
 export async function POST(request: NextRequest) {

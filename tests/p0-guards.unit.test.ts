@@ -57,6 +57,15 @@ describe('signedQuoteEconomicChanges', () => {
     assert.deepEqual(signedQuoteEconomicChanges({ tax_rate: 0, deposit_percent: 0 }, exempt), [])
     assert.match(signedQuoteEconomicChangeMessage(['items', 'tax_rate']), /righe offerta, IVA/)
   })
+
+  test('quantità frazionarie e fallback null non eludono il blocco', () => {
+    assert.deepEqual(signedQuoteEconomicChanges({ items: [{ ...current.items[0], quantity: 1.001 }] }, current), ['items'])
+    const exempt = { ...current, tax_rate: 0, deposit_percent: 0 }
+    for (const value of [null, '', 'non-un-numero']) {
+      assert.deepEqual(signedQuoteEconomicChanges({ tax_rate: value, deposit_percent: value }, exempt), ['tax_rate', 'deposit_percent'])
+    }
+    assert.deepEqual(signedQuoteEconomicChanges({ total_amount: 1209.01 }, { ...current, total_amount: 1207.8 }), ['total_amount'])
+  })
 })
 
 describe('quoteSignatureMismatches', () => {
@@ -119,6 +128,15 @@ describe('quoteSignatureMismatches', () => {
       ],
     }
     assert.deepEqual(quoteSignatureMismatches(reordered, quote), [])
+  })
+
+  test('id rigenerati e line_total derivati non cambiano le condizioni firmate', () => {
+    assert.deepEqual(quoteSignatureMismatches(snapshot, {
+      ...quote, items: [{ ...current.items[0], id: 'regenerated', line_total: undefined }],
+    }), [])
+    assert.deepEqual(quoteSignatureMismatches(snapshot, {
+      ...quote, items: [{ ...current.items[0], quantity: 1.001 }],
+    }), ['items'])
   })
 })
 

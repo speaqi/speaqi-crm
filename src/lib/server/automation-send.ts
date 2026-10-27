@@ -6,6 +6,7 @@ import { validateGeneratedDraft } from '@/lib/server/email-draft-context'
 import { sendContactEmail, simpleTextToHtml } from '@/lib/server/gmail'
 import { errorMessage } from '@/lib/server/http'
 import type { AutomationContext } from '@/lib/server/automation-auth'
+import { emailBlockReason } from '@/lib/server/email-eligibility'
 
 const DEFAULT_DAILY_CAP = 40
 
@@ -74,11 +75,9 @@ export async function inspectAutomaticDraft(
   if (!contact) return { result: skip(draftId, 'workspace_mismatch', 'Contatto non disponibile nel workspace') }
   if (contact.contact_scope !== 'holding') return { result: skip(draftId, 'scope_not_allowed', 'Solo holding è autorizzato') }
   if (!String(contact.email || '').trim()) return { result: skip(draftId, 'missing_email', 'Email mancante') }
-  if (contact.email_unsubscribed_at) return { result: skip(draftId, 'unsubscribed', 'Contatto disiscritto') }
+  const blocked = emailBlockReason(contact)
+  if (blocked) return { result: skip(draftId, 'email_not_eligible', blocked) }
   if (isClosedStatus(String(contact.status || ''))) return { result: skip(draftId, 'closed_status', 'Stage chiuso') }
-  if (contact.marketing_status === 'paused' && (!contact.marketing_paused_until || new Date(contact.marketing_paused_until).getTime() > Date.now())) {
-    return { result: skip(draftId, 'paused', 'Marketing in pausa') }
-  }
 
   const { count: replies, error: repliesError } = await supabase
     .from('gmail_messages').select('id', { count: 'exact', head: true })

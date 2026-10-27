@@ -59,11 +59,13 @@ export async function GET(request: NextRequest) {
 
   try {
     const admin = createServiceRoleClient()
-    const { data: oauthState, error: stateError } = await admin
+    const { data: stateRows, error: stateError } = await admin
       .from('gmail_oauth_states')
-      .select('*')
+      .delete()
       .eq('state', state)
-      .single()
+      .select('*')
+
+    const oauthState = stateRows?.length === 1 ? stateRows[0] : null
 
     if (stateError || !oauthState) {
       throw stateError || new Error('OAuth state not found')
@@ -76,9 +78,8 @@ export async function GET(request: NextRequest) {
       throw new Error('OAuth state scaduto. Riprova il collegamento.')
     }
 
-    // Monouso: consuma lo state prima dello scambio, così un replay non può
-    // ripetere il callback con lo stesso codice.
-    await admin.from('gmail_oauth_states').delete().eq('state', state)
+    // DELETE RETURNING acquisisce e consuma lo state in una sola operazione.
+    // Solo il callback che ha ricevuto la riga può scambiare il codice.
 
     const { data: existingAccount } = await admin
       .from('gmail_accounts')

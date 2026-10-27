@@ -3,10 +3,17 @@
 --
 -- Da eseguire DOPO il deploy del codice che legge/scrive quote_secrets.
 -- Prima di questa migration il token è già stato copiato in quote_secrets.
+-- Il trigger della prima migration sincronizza anche le scritture legacy
+-- avvenute durante il deploy. Non sovrascrivere qui i secret più recenti.
 
 update public.quotes
 set quote_acceptance_token = null
 where quote_acceptance_token is not null;
+
+-- Dopo il deploy nessun percorso pubblico deve registrare sessioni Stripe.
+revoke all on function public.mark_quote_checkout_created(text, text, text)
+  from public, anon, authenticated;
+grant execute on function public.mark_quote_checkout_created(text, text, text) to service_role;
 
 -- ── Preventivi ─────────────────────────────────────────────────────────────
 -- Proprietario: accesso completo.

@@ -149,7 +149,7 @@ function economicItemSignature(item: QuoteLineItem) {
   return {
     description: item.description,
     details: item.details || null,
-    quantity: Math.round(item.quantity * 100) / 100,
+    quantity: item.quantity,
     unit_price: roundMoney(item.unit_price),
     list_unit_price: item.list_unit_price ? roundMoney(item.list_unit_price) : null,
     choice_group_id: item.choice_group_id || null,
@@ -177,6 +177,11 @@ const SIGNED_ECONOMIC_LABELS: Record<string, string> = {
   billing_interval: 'periodicità',
   payment_method: 'metodo di pagamento',
   valid_until: 'validità',
+  subtotal_amount: 'subtotale',
+  tax_amount: 'importo IVA',
+  total_amount: 'totale',
+  deposit_amount: 'importo acconto',
+  balance_amount: 'saldo',
 }
 
 /**
@@ -199,7 +204,7 @@ export function signedQuoteEconomicChanges(
   if (body.discount_amount !== undefined && !sameMoney(body.discount_amount, current.discount_amount)) {
     changed.push('discount_amount')
   }
-  if (body.tax_rate !== undefined && !sameMoney(body.tax_rate, current.tax_rate)) {
+  if (body.tax_rate !== undefined && !sameMoney(normalizeNumber(body.tax_rate, 22), current.tax_rate)) {
     changed.push('tax_rate')
   }
   if (
@@ -211,7 +216,7 @@ export function signedQuoteEconomicChanges(
   }
   if (
     body.deposit_percent !== undefined &&
-    !sameMoney(body.deposit_percent, current.deposit_percent)
+    !sameMoney(normalizeNumber(body.deposit_percent, 30), current.deposit_percent)
   ) {
     changed.push('deposit_percent')
   }
@@ -241,6 +246,10 @@ export function signedQuoteEconomicChanges(
     String(normalizeText(body.valid_until) || '') !== String(normalizeText(current.valid_until) || '')
   ) {
     changed.push('valid_until')
+  }
+
+  for (const field of ['subtotal_amount', 'tax_amount', 'total_amount', 'deposit_amount', 'balance_amount']) {
+    if (body[field] !== undefined && !sameMoney(body[field], current[field])) changed.push(field)
   }
 
   return changed
@@ -369,6 +378,7 @@ export function quoteSignatureMismatches(snapshot: any, quote: any): string[] {
   if (String(snapshot?.billing_interval || 'one_time') !== String(quote.billing_interval || 'one_time')) {
     mismatches.push('billing_interval')
   }
-  if (stableJson(snapshot?.items || []) !== stableJson(quote.items || [])) mismatches.push('items')
+  const economicItems = (items: unknown) => normalizeQuoteItems(items).map(economicItemSignature)
+  if (stableJson(economicItems(snapshot?.items)) !== stableJson(economicItems(quote.items))) mismatches.push('items')
   return mismatches
 }

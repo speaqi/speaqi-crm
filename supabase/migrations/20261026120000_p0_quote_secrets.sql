@@ -39,6 +39,7 @@ with check (
 
 revoke all on public.quote_secrets from anon;
 grant select, insert, update, delete on public.quote_secrets to authenticated;
+grant all on public.quote_secrets to service_role;
 
 -- Backfill dei token già emessi. La colonna vecchia resta per il tempo del
 -- deploy e viene azzerata nella migration successiva.
@@ -272,3 +273,123 @@ revoke all on function public.sign_public_quote_contract(text, text, text, text,
   from public, anon, authenticated;
 grant execute on function public.sign_public_quote_contract(text, text, text, text, text, text, jsonb)
   to service_role;
+
+-- Compatibilità durante il deploy: anche i token emessi dal codice vecchio
+-- dopo il backfill devono arrivare nella nuova tabella. Il trigger e il
+-- backfill diventano visibili nello stesso commit della migration.
+create or replace function public.sync_legacy_quote_acceptance_token()
+returns trigger language plpgsql security invoker set search_path = '' as $$
+begin
+  if nullif(btrim(new.quote_acceptance_token), '') is not null then
+    insert into public.quote_secrets (quote_id, acceptance_token)
+    values (new.id, new.quote_acceptance_token)
+    on conflict (quote_id) do update
+      set acceptance_token = excluded.acceptance_token, updated_at = now();
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.sync_legacy_quote_acceptance_token() from public, anon, authenticated;
+drop trigger if exists sync_legacy_quote_acceptance_token on public.quotes;
+create trigger sync_legacy_quote_acceptance_token
+after insert or update of quote_acceptance_token on public.quotes
+for each row execute function public.sync_legacy_quote_acceptance_token();
+
+-- Rinnovo atomico: destinatario, nuovo secret e revoca del token legacy.
+-- Invoker + controllo owner esplicito, anche prima della stretta RLS finale.
+create or replace function public.rotate_quote_acceptance_token(
+  p_quote_id uuid, p_acceptance_token text, p_recipient text
+) returns boolean language plpgsql security invoker set search_path = '' as $$
+begin
+  if auth.uid() is null or nullif(btrim(p_acceptance_token), '') is null then
+    return false;
+  end if;
+  perform 1 from public.quotes
+    where id = p_quote_id and user_id = auth.uid()
+      and status <> 'cancelled' and contract_accepted_at is null
+    for update;
+  if not found then return false; end if;
+  update public.quotes set customer_email = p_recipient,
+    quote_acceptance_email = p_recipient, quote_acceptance_token = null
+    where id = p_quote_id;
+  insert into public.quote_secrets (quote_id, acceptance_token)
+    values (p_quote_id, p_acceptance_token)
+    on conflict (quote_id) do update
+      set acceptance_token = excluded.acceptance_token, updated_at = now();
+  return true;
+end;
+$$;
+revoke all on function public.rotate_quote_acceptance_token(uuid, text, text) from public, anon;
+grant execute on function public.rotate_quote_acceptance_token(uuid, text, text) to authenticated;
+
+-- L'invariante si verifica sul record bloccato dall'UPDATE: protegge anche
+-- una firma arrivata fra la lettura HTTP e il salvataggio, e i client diretti.
+create or replace function public.guard_signed_quote_economics()
+returns trigger language plpgsql security invoker set search_path = '' as $$
+declare v_old_items jsonb; v_new_items jsonb;
+begin
+  if old.contract_accepted_at is null then return new; end if;
+  select coalesce(jsonb_agg(jsonb_strip_nulls(item - 'id')), '[]'::jsonb)
+    into v_old_items from jsonb_array_elements(old.items) item;
+  select coalesce(jsonb_agg(jsonb_strip_nulls(item - 'id')), '[]'::jsonb)
+    into v_new_items from jsonb_array_elements(new.items) item;
+  if v_old_items is distinct from v_new_items or
+    row(new.contract_accepted_at, new.contract_terms, new.subtotal_amount,
+      new.discount_amount, new.tax_rate, new.tax_amount, new.total_amount,
+      new.currency, new.billing_interval, new.payment_method,
+      new.payment_terms_mode, new.deposit_percent, new.deposit_manual_amount,
+      new.deposit_amount, new.balance_amount, new.valid_until)
+    is distinct from
+    row(old.contract_accepted_at, old.contract_terms, old.subtotal_amount,
+      old.discount_amount, old.tax_rate, old.tax_amount, old.total_amount,
+      old.currency, old.billing_interval, old.payment_method,
+      old.payment_terms_mode, old.deposit_percent, old.deposit_manual_amount,
+      old.deposit_amount, old.balance_amount, old.valid_until) then
+    raise exception using errcode = '23514', message = 'signed_quote_immutable';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.guard_signed_quote_economics() from public, anon, authenticated;
+drop trigger if exists guard_signed_quote_economics on public.quotes;
+create trigger guard_signed_quote_economics before update on public.quotes
+for each row execute function public.guard_signed_quote_economics();
+
+-- Un tentativo persistente per preventivo; la chiave e i parametri Stripe
+-- restano identici anche su retry, concorrenza e cambio dell'ora.
+create table if not exists public.quote_checkout_attempts (
+  quote_id uuid primary key references public.quotes(id) on delete cascade,
+  attempt_id uuid not null unique default gen_random_uuid(),
+  params jsonb not null,
+  stripe_session_id text,
+  created_at timestamptz not null default now()
+);
+alter table public.quote_checkout_attempts enable row level security;
+revoke all on public.quote_checkout_attempts from public, anon, authenticated;
+grant all on public.quote_checkout_attempts to service_role;
+
+create or replace function public.claim_quote_checkout_attempt(
+  p_quote_id uuid, p_params jsonb, p_replaces_attempt uuid default null
+) returns jsonb language plpgsql security invoker set search_path = '' as $$
+declare v_attempt public.quote_checkout_attempts%rowtype;
+begin
+  perform 1 from public.quotes
+    where id = p_quote_id and billing_interval = 'year'
+      and contract_accepted_at is not null and status not in ('cancelled', 'paid')
+      and coalesce(subscription_status, '') not in ('active', 'trialing', 'past_due', 'incomplete')
+    for update;
+  if not found then raise exception 'quote_checkout_not_available'; end if;
+  insert into public.quote_checkout_attempts(quote_id, params)
+    values (p_quote_id, p_params) on conflict (quote_id) do nothing;
+  -- Si sostituisce solo un tentativo di cui il server ha verificato la
+  -- sessione scaduta. Due richieste sul vecchio id condividono il nuovo.
+  update public.quote_checkout_attempts
+    set attempt_id = gen_random_uuid(), params = p_params,
+      stripe_session_id = null, created_at = now()
+    where quote_id = p_quote_id and attempt_id = p_replaces_attempt;
+  select * into v_attempt from public.quote_checkout_attempts where quote_id = p_quote_id;
+  return to_jsonb(v_attempt);
+end;
+$$;
+revoke all on function public.claim_quote_checkout_attempt(uuid, jsonb, uuid) from public, anon, authenticated;
+grant execute on function public.claim_quote_checkout_attempt(uuid, jsonb, uuid) to service_role;
