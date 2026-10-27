@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
 import { createClient } from '@/lib/supabase'
-import { countTodo, type DeckSlide } from '@/lib/tourism-deck'
+import { countTodo, deckLanguage, type DeckSlide } from '@/lib/tourism-deck'
 import { formatMoney } from '@/lib/agency'
 import type { DeckView } from '@/lib/server/tourism-decks'
 import DeckPlayer from './DeckPlayer'
@@ -275,7 +275,7 @@ export default function DeckEditor({ id }: { id: string }) {
         </div>
 
         <div className={`${e.col} ${e.sticky}`}>
-          <DeckPlayer slides={slides} images={images} credits={credits} destination={deck.destination} index={index} onIndexChange={setIndex} />
+          <DeckPlayer slides={slides} images={images} credits={credits} destination={deck.destination} lang={deckLanguage(deck.input)} index={index} onIndexChange={setIndex} />
           <span className={e.help}>Anteprima in tempo reale: è quello che vede chi riceve il link. In PDF ogni slide è una pagina 16:9.</span>
         </div>
       </div>

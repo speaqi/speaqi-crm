@@ -123,8 +123,12 @@ export type DeckVarName = (typeof DECK_VAR_NAMES)[number]
 /** Per chi è la presentazione: un ente (base salvata dal titolare) o un partner che distribuisce le guide. */
 export const DECK_MODELS = ['destinazione', 'partner'] as const
 export type DeckModel = (typeof DECK_MODELS)[number]
-export type DeckInput = Partial<Record<DeckVarName, string>> & { modello?: DeckModel }
+/** In che lingua è la presentazione: italiano (la base di sempre) o inglese (`tourism-deck-en.ts`). */
+export const DECK_LANGUAGES = ['it', 'en'] as const
+export type DeckLanguage = (typeof DECK_LANGUAGES)[number]
+export type DeckInput = Partial<Record<DeckVarName, string>> & { modello?: DeckModel; lingua?: DeckLanguage }
 export const deckModel = (input: DeckInput | null | undefined): DeckModel => (input?.modello === 'partner' ? 'partner' : 'destinazione')
+export const deckLanguage = (input: DeckInput | null | undefined): DeckLanguage => (input?.lingua === 'en' ? 'en' : 'it')
 
 export const MAX_DECK_SLIDES = 16
 const LIMITS = { slides: MAX_DECK_SLIDES, items: 6, kicker: 80, footnote: 200, itemValue: 40, title: 160, body: 700, note: 300, itemTitle: 80, itemText: 260, hint: 500, varValue: 300 }

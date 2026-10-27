@@ -4,7 +4,7 @@ import { officeIsNaples } from '../office/director'
 import { EXONYMS, nameKey } from '../office/entity-enricher'
 import { TOURISM_TYPES } from '../tourism'
 import { readEntitySite } from './office-agents/entity-enricher'
-import { officeDeckAgent } from './office-agents/presentations'
+import { officeDeckAgent, presentationEntities } from './office-agents/presentations'
 import { sendDeckToTelegram } from './office-deck-telegram'
 import { officeAgentHandler } from './office-agents/registry'
 import { officeRows } from './office-read'
@@ -273,6 +273,8 @@ async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, 
     destination = activated.placeId
     note = `${activated.note} `
   }
+  // «Fammela in inglese»: un deck nuovo in inglese, quello italiano resta com'è.
+  if (plan.language === 'en') return englishPresentation(admin, ctx, userId, entity, destination, label, note, photos)
   if (!photos.length) {
     // C'è già una presentazione pronta per questo ente: non si rifà, si manda.
     const ready = checked(await admin.from('tourism_decks').select('*').eq('user_id', userId).eq('entity_id', entity.id)
@@ -305,6 +307,51 @@ async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, 
     ...(destination ? { destination_id: destination } : {}), ...(photos.length ? { photos } : {}) })
   const withPhotos = photos.length ? ` Le ${photos.length === 1 ? 'foto che mi hai mandato andrà' : `${photos.length} foto che mi hai mandato andranno`} nella presentazione.` : ''
   return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `Presentazione per ${label}: ${note}${queueSentence(result)}${withPhotos}${result.enabled && result.reason !== 'agent_missing' ? ' Quando è pronta ti arriva qui in PDF, con il pulsante per approvarla.' : ''}` }
+}
+
+/**
+ * La presentazione di un ente in inglese: un deck a parte (`input.lingua = 'en'`, base inglese), così
+ * quella italiana resta com'è. Ce n'è una sola per ente: chiederla di nuovo rimanda quella che c'è.
+ * La genera il Direttore nel suo budget; l'approvazione resta un clic del titolare.
+ */
+async function englishPresentation(admin: Admin, ctx: AgentContext, userId: string, entity: ActivationEntity, destinationId: string | null,
+  label: string, note: string, photos: string[]): Promise<Outcome> {
+  const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+  let deck = checked(await admin.from('tourism_decks').select('*').eq('user_id', userId).eq('entity_id', entity.id).eq('input->>lingua', 'en')
+    .order('updated_at', { ascending: false }).limit(1).maybeSingle()) as DeckRow | null
+  const link = (row: DeckRow) => `${base}/tourism/presentazioni/${row.id}`
+  if (deck?.status === 'failed') return retryFailedDeck(admin, ctx, deck, `${label} (inglese)`, note)
+  if (!deck) {
+    if (!destinationId) return { status: 'waiting_you', outputs: [], queued: [], reply: `Presentazione in inglese per ${label}: non trovo la destinazione verificata dell’ente. Scrivimi la città.` }
+    let source: Awaited<ReturnType<typeof presentationEntities>>
+    try { source = await presentationEntities(admin, userId, { entity_id: entity.id, destination_id: destinationId }) }
+    catch (error) { return { status: 'failed', outputs: [], queued: [], reply: `Presentazione in inglese per ${label}: ${errorMessage(error, 'mancano i dati verificati')}.` } }
+    const { entity: org, destination } = source
+    const evidence = (checked(await admin.from('tourism_evidence').select('fields,source_url,excerpt').eq('user_id', userId).eq('status', 'VERIFIED')
+      .in('entity_id', [org.id, destination.id]).order('id').limit(100)) || []) as Array<{ fields: unknown; source_url: string | null; excerpt: string | null }>
+    const notes = JSON.stringify({ ente: org.name, destinazione: destination.name, lingua: 'inglese',
+      evidenze: evidence.map((e) => ({ fields: e.fields, excerpt: e.excerpt, source_url: e.source_url })) }).slice(0, 30000)
+    deck = await createDeck(admin, userId, { entity_id: org.id, destination: destination.name, notes,
+      input: { destinazione: destination.name, ente: org.name, paese: destination.country_code || org.country_code || '', prezzo: '', contatto: '[DA VERIFICARE]', lingua: 'en' } },
+      stableId(`en-deck:${org.id}`))
+  }
+  if (photos.length) deck = (await addPhotosToDeck(admin, admin, deck, await directorPhotoFiles(admin, userId, photos))).deck
+  let generated = deck.status !== 'draft'
+  if (!generated) {
+    try {
+      deck = await generateIntoDeck(admin, admin, deck, undefined, officeDeckAgent(ctx))
+      generated = true
+    } catch (error) {
+      if (error instanceof BudgetExceeded) throw error
+      console.error('[direttore] presentazione in inglese non generata', errorMessage(error, ''))
+    }
+  } else if (deck.status === 'ready' || deck.status === 'approved') {
+    const sent = await sendDeckToTelegram(admin, deck)
+    return { status: 'done', outputs: [], queued: [], reply: `Presentazione in inglese per ${label}: c’è già, «${deck.title}»${sent.pdf ? ', te l’ho mandata qui in PDF' : ''}. ${note}${link(deck)}` }
+  }
+  if (!generated || deck.status !== 'ready') return { status: 'failed', outputs: [], queued: [], reply: `Presentazione in inglese per ${label}: ho preparato il testo di base in inglese ma l’adattamento non è riuscito. Puoi rivederla e rigenerarla da qui: ${link(deck)}` }
+  const telegram = await sendDeckToTelegram(admin, deck)
+  return { status: 'done', outputs: [], queued: [], reply: `Presentazione in inglese per ${label} pronta da rivedere: l’ho fatta nuova, quella italiana resta com’è.${telegram.pdf ? ' Il PDF della bozza te l’ho mandato qui su Telegram.' : ''} ${note}${link(deck)}` }
 }
 
 /**
