@@ -1,4 +1,5 @@
 import { timingSafeEqual } from 'crypto'
+import { telegramMenu } from '@/lib/office/telegram-commands'
 import { errorMessage } from '@/lib/server/http'
 
 /**
@@ -195,6 +196,24 @@ export async function setTelegramWebhook(config: TelegramConfig, url: string) {
     allowed_updates: TELEGRAM_UPDATES,
     drop_pending_updates: false,
   })
+}
+
+/** Il menu «/» del bot: i comandi pronti di `telegram-commands.ts`. */
+export async function setTelegramCommands(config: TelegramConfig) {
+  return telegramFetch(config, 'setMyCommands', { commands: telegramMenu() })
+}
+
+let commandsChecked = false
+/** Una volta per processo si ripubblica il menu: un deploy con comandi nuovi li mostra da solo. Non lancia mai. */
+export async function ensureTelegramCommands(config: TelegramConfig) {
+  if (commandsChecked) return
+  commandsChecked = true
+  try {
+    await setTelegramCommands(config)
+  } catch (error) {
+    commandsChecked = false
+    console.error('[telegram] registrazione dei comandi non riuscita:', errorMessage(error, ''))
+  }
 }
 
 export async function getTelegramWebhookInfo(config: TelegramConfig) {

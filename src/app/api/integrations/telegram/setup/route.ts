@@ -3,6 +3,7 @@ import { requireAutomation } from '@/lib/server/automation-auth'
 import { errorMessage } from '@/lib/server/http'
 import {
   getTelegramWebhookInfo,
+  setTelegramCommands,
   setTelegramWebhook,
   telegramConfig,
   telegramStatus,
@@ -50,7 +51,8 @@ export async function POST(request: NextRequest) {
 
     const url = `${base}/api/integrations/telegram/webhook`
     await setTelegramWebhook(config, url)
-    return Response.json({ ok: true, url, webhook: await getTelegramWebhookInfo(config) })
+    await setTelegramCommands(config)
+    return Response.json({ ok: true, url, commands: true, webhook: await getTelegramWebhookInfo(config) })
   } catch (error) {
     return Response.json(
       { ok: false, error: errorMessage(error, 'Registrazione del webhook non riuscita') },

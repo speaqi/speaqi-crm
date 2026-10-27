@@ -5,6 +5,7 @@ import {
   answerTelegramCallback,
   clearTelegramButtons,
   ensureTelegramCallbacks,
+  ensureTelegramCommands,
   downloadTelegramFile,
   extractAudio,
   extractPhoto,
@@ -28,6 +29,8 @@ import { ensureOfficeAgents } from '@/lib/server/office-agents/definitions'
 import { parseTelegramAction } from '@/lib/office/telegram-actions'
 import { handleTelegramAction } from '@/lib/server/office-output-decision'
 import { sendProposalsToTelegram } from '@/lib/server/office-deck-telegram'
+import { parseTelegramCommand } from '@/lib/office/telegram-commands'
+import { telegramSchedaReply } from '@/lib/server/telegram-search'
 import type { Task } from '@/types'
 
 /**
@@ -112,6 +115,7 @@ export async function POST(request: NextRequest) {
   if (!message || chatId === undefined) return ok({ skipped: 'no_message' })
   // I webhook registrati prima dei pulsanti non ricevono i tocchi: si sistema da solo.
   void ensureTelegramCallbacks(config)
+  void ensureTelegramCommands(config)
   if (!isAllowedChat(config, chatId)) {
     console.warn(`[telegram] messaggio da chat non autorizzata: ${chatId}`)
     return ok({ skipped: 'chat_not_allowed' })
@@ -165,11 +169,32 @@ export async function POST(request: NextRequest) {
       await finish({ transcript })
     }
 
-    // Al Direttore: /direttore, «Direttore …», una foto, o il Direttore impostato per ricevere tutto.
-    const { data: director } = await supabase.from('office_agents').select('settings')
-      .eq('id', 'director').eq('user_id', userId).maybeSingle()
-    let route = telegramDirectorRoute(transcript, { photo: !!photo, mode: (director?.settings as any)?.telegram_mode })
-    if (!route.director && !photo) {
+    // I comandi slash (/presentazione, /mappa, /scheda…): scorciatoie per le stesse frasi.
+    const baseUrl = process.env.APP_BASE_URL || 'https://crm.speaqi.com'
+    const command = audio ? null : parseTelegramCommand(transcript, { photo: !!photo })
+    if (command?.kind === 'reply') {
+      await finish({ transcript, status: 'command', intent: { command: command.command } })
+      await sendTelegramMessage(config, chatId, command.text)
+      return ok({ command: command.command })
+    }
+    if (command?.kind === 'search') {
+      const reply = await telegramSchedaReply(supabase, userId, command.query, baseUrl)
+      await finish({ transcript, status: 'command', intent: { command: command.command, query: command.query } })
+      await sendTelegramMessage(config, chatId, reply)
+      return ok({ command: command.command })
+    }
+    if (command?.kind === 'todo') transcript = command.text
+
+    // Al Direttore: un comando, /direttore, «Direttore …», una foto, o il Direttore impostato per ricevere tutto.
+    let route: { director: boolean; text: string }
+    if (command?.kind === 'director') route = { director: true, text: command.text }
+    else if (command?.kind === 'todo') route = { director: false, text: transcript }
+    else {
+      const { data: director } = await supabase.from('office_agents').select('settings')
+        .eq('id', 'director').eq('user_id', userId).maybeSingle()
+      route = telegramDirectorRoute(transcript, { photo: !!photo, mode: (director?.settings as any)?.telegram_mode })
+    }
+    if (!command && !route.director && !photo) {
       // La risposta a una domanda del Direttore («ecco il sito …») va a lui anche senza «Direttore» davanti.
       const pending = await pendingDirectorQuestion(supabase, userId, { source: 'telegram', chatId: String(chatId), before: new Date().toISOString() })
       if (pending && directorFollowUp(pending.awaiting, transcript)) route = { director: true, text: transcript.trim() }
@@ -185,7 +210,6 @@ export async function POST(request: NextRequest) {
       await finish({ transcript, status: 'director', intent: { director_order_id: order.id } })
       await sendTelegramMessage(config, chatId, 'Ricevuto, ci lavoro.')
       // Si risponde 200 subito: Telegram riconsegnerebbe un update lento.
-      const baseUrl = process.env.APP_BASE_URL || 'https://crm.speaqi.com'
       void processDirectorOrder(supabase, userId, order.id)
         .then(async (done) => {
           // Con il registro dei lavori l'ordine resta «ricevuto»: gli esiti arrivano dai lavori,

@@ -7,6 +7,31 @@ Le proposte da decidere (nuovi contatti, partner trovati) arrivano su Telegram u
 
 **Quando ti fa una domanda, rispondi e basta.** Se gli manca un dato (il sito, la città o il paese di un ente) te lo chiede, e la tua risposta («ecco il sito venezuela.com.ve», «Caracas», «Romania») riprende l’ordine da dove si era fermato. Su Telegram arriva al Direttore anche senza scrivere «Direttore». Vale per un giorno, e solo per l’ultima domanda: se nel frattempo gli hai mandato un altro ordine, ripeti la richiesta intera.
 
+## Comandi slash su Telegram
+
+Toccando **/** nel bot compare il menu. Ogni comando diventa la stessa frase che scriveresti a mano e passa dal Direttore con le sue regole:
+
+| Comando | Equivale a |
+|---|---|
+| `/presentazione Visit Bergamo` (con foto: le mette nelle slide) | «Prepara la presentazione per Visit Bergamo» |
+| `/presentazioni 5` | «Preparami 5 presentazioni di destinazioni» |
+| `/presentazione_partner Hotel Laguna, guida di Venezia` | presentazione con la base Partner |
+| `/manda Bibione` | «Mandami la presentazione di Bibione» (PDF) |
+| `/contatto Mario Rossi, …` (o solo la foto del bigliettino) | «Nuovo contatto: …» |
+| `/ente Venezuela Tourism` | «Aggiungi … a Tourism Intelligence e ai contatti» |
+| `/partner Venezia 5` | «Trovami 5 partner per la mappa di Venezia» |
+| `/rinomina X in Y` | «Rinomina X in Y» |
+| `/mappa Marsiglia https://www.google.com/maps/d/…` | «Costruisci la mappa di Marsiglia, …» |
+| `/controlla Barcellona` | «Controlla la mappa di Barcellona» |
+| `/fattura PREV-…` · `/approvato PREV-…` | bozza di fattura · preventivo accettato + bozza |
+| `/stato` · `/fiere` | «Come stiamo?» · «Quali sono le prossime fiere?» |
+| `/ricorda venerdì alle 10 chiamare SNAV` | promemoria nel To Do e in Calendar |
+| `/todo …` | va al To Do anche con il bot in modalità Direttore |
+| `/scheda SNAV` | **non chiama il Direttore**: cerca contatti, enti e mappe e risponde con i link alle schede |
+| `/direttore …` · `/aiuto` | qualsiasi altra richiesta · questo elenco |
+
+Un comando senza il pezzo che serve risponde con l’esempio, senza spendere. Il menu si aggiorna da solo a ogni deploy (`setMyCommands`). Logica in `src/lib/office/telegram-commands.ts`.
+
 Regola fissa: il Direttore **non invia** email, fatture allo SDI o pubblicazioni, e **non lavora su Napoli**. Quando serve un tuo clic te lo dice, con il link.
 
 ## Contatti e partner
