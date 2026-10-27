@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { aggregateAutomationOutcome, nextOfficeBudgetCheck, officeWorkSpec, workAutomationOutcome,
-  type AutomationOutcome, type OfficeWorkItem, type OfficeWorkSpec, type WorkOutcome, type WorkPatch } from '../office-work'
+import { aggregateAutomationOutcome, nextOfficeBudgetCheck, officeWorkNotice, officeWorkSpec, workAutomationOutcome,
+  type AutomationOutcome, type WorkNoticeSource, type OfficeWorkItem, type OfficeWorkSpec, type WorkOutcome, type WorkPatch } from '../office-work'
 import { createOfficeStore, runAgent, type AgentContext, type OfficeStore } from './office-agents'
 import { createServiceRoleClient } from './supabase'
 import { errorMessage } from './http'
@@ -33,6 +33,8 @@ export type OfficeWorkStore = {
   openState(userId: string): Promise<{ blocked: number; waiting: number }>
   claimEvents(userId: string, limit: number): Promise<WorkEvent[]>
   finishEvent(eventId: string, token: string, status: 'sent' | 'uncertain' | 'failed', error: string | null): Promise<void>
+  /** Lo stato attuale dei lavori degli avvisi: decide quali meritano un messaggio. */
+  eventWorks?(userId: string, workIds: string[]): Promise<Map<string, WorkNoticeSource>>
 }
 
 export function createOfficeWorkStore(admin: Admin): OfficeWorkStore {
@@ -84,6 +86,13 @@ export function createOfficeWorkStore(admin: Admin): OfficeWorkStore {
     async finishEvent(id, token, status, error) {
       await rpc('office_work_finish_event', { p_event_id: id, p_token: token, p_status: status, p_error: error })
     },
+    async eventWorks(userId, workIds) {
+      if (!workIds.length) return new Map()
+      const { data, error } = await admin.from('office_work_items').select('id,status,action,reason_code,required_action,result')
+        .eq('user_id', userId).in('id', workIds)
+      if (error) throw error
+      return new Map((data || []).map((row: WorkNoticeSource & { id: string }) => [row.id, row]))
+    },
   }
 }
 
@@ -107,7 +116,7 @@ export type WorkExecutor = (ctx: AgentContext, work: OfficeWorkItem, admin: Admi
 type RunAgent = typeof runAgent
 export type WorkRunResult = { id: string; status: OfficeWorkItem['status']; outcome: AutomationOutcome; reason?: string }
 export type OfficeWorkerResult = { outcome: AutomationOutcome; reason: string; results: WorkRunResult[]; recovered?: unknown;
-  seeded?: unknown; imported?: unknown; notifications?: { sent: number; uncertain: number; failed: number } }
+  seeded?: unknown; imported?: unknown; notifications?: { sent: number; uncertain: number; failed: number; skipped: number } }
 type WorkerOptions = {
   admin?: Admin; store?: OfficeWorkStore; agentStore?: OfficeStore; execute?: WorkExecutor; run?: RunAgent
   now?: () => Date; limit?: number; heartbeatMs?: number; enabled?: boolean; deliverNotifications?: boolean
@@ -210,12 +219,25 @@ async function defaultSendEvent(event: WorkEvent) {
   return sendNotificationText(message, { requiredChannel: 'telegram' })
 }
 
+/** Gli avvisi che non portano niente al titolare non partono; restano nello storico come non inviati. */
+export const SKIPPED_NOTICE = 'Non inviato: passaggio intermedio, nessuna novità per il titolare.'
+
 export async function deliverOfficeWorkEvents(userId: string, store: OfficeWorkStore, send = defaultSendEvent) {
   const events = await store.claimEvents(userId, 10)
-  const counts = { sent: 0, uncertain: 0, failed: 0 }
+  const counts = { sent: 0, uncertain: 0, failed: 0, skipped: 0 }
+  const works = store.eventWorks ? await store.eventWorks(userId, [...new Set(events.map((event) => event.work_id))]) : null
   for (const event of events) {
+    let message: string | null = null
+    if (works) {
+      message = officeWorkNotice(event.body, works.get(event.work_id) || null)
+      if (!message) {
+        await store.finishEvent(event.id, event.lease_token, 'failed', SKIPPED_NOTICE)
+        counts.skipped++
+        continue
+      }
+    }
     let result: { ok: boolean; error?: string; certainFailure?: boolean }
-    try { result = await send(event) } catch (error) { result = { ok: false, error: errorMessage(error, 'Consegna incerta') } }
+    try { result = await send(message ? { ...event, body: { ...event.body, message } } : event) } catch (error) { result = { ok: false, error: errorMessage(error, 'Consegna incerta') } }
     const status = result.ok ? 'sent' : result.certainFailure ? 'failed' : 'uncertain'
     await store.finishEvent(event.id, event.lease_token, status, result.error || null)
     counts[status]++

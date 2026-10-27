@@ -18,7 +18,14 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-FROM node:20-bookworm-slim AS runner
+# Il Chromium incluso nel pacchetto richiede NSS/NSPR anche fuori da AWS Lambda.
+# Tenerle nello stage finale: le librerie del builder non arrivano nello standalone.
+FROM node:20-bookworm-slim AS pdf-runtime
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libnspr4 libnss3 libexpat1 ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+FROM pdf-runtime AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -30,6 +37,14 @@ COPY --from=builder /app/.next/standalone ./
 
 # Copy static assets where the standalone server expects them
 COPY --from=builder /app/.next/static ./.next/static
+
+# Verifica browser, librerie e pacchetti tracciati nell'immagine che sarà eseguita.
+# I binari decompressi della prova non vengono conservati nei layer dell'immagine.
+COPY --from=builder /app/scripts/check-pdf-runtime.mjs ./scripts/check-pdf-runtime.mjs
+COPY --from=builder /app/scripts/check-agency-pdf.mjs ./scripts/check-agency-pdf.mjs
+RUN mkdir -p /tmp/speaqi-pdf-runtime-check \
+    && TMPDIR=/tmp/speaqi-pdf-runtime-check node scripts/check-pdf-runtime.mjs \
+    && rm -rf /tmp/speaqi-pdf-runtime-check
 
 EXPOSE 3000
 

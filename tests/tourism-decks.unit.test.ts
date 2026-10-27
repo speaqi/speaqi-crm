@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test, { afterEach, beforeEach } from 'node:test'
 import sharp from 'sharp'
-import { DECK_TODO, DECK_TODO_PATTERN, DESTINATIONS_BASE, applyVars, DEFAULT_DECK_TEMPLATE, type DeckSlide } from '../src/lib/tourism-deck'
+import { DECK_TODO, DECK_TODO_PATTERN, DESTINATIONS_BASE, DESTINATIONS_BASE_PREVIOUS, applyVars, DEFAULT_DECK_TEMPLATE, type DeckSlide } from '../src/lib/tourism-deck'
 import { GENERIC } from './deck-template-fixture'
 
 // I numeri del territorio restano da verificare nel modello: per approvare li si scrive.
 const completed = (slides: DeckSlide[]) => slides.map((s) => JSON.parse(JSON.stringify(s).replace(DECK_TODO_PATTERN, '12')) as DeckSlide)
-import { addAssets, addPhotosToDeck, createDeck, deckRenderKey, getTemplate, saveTemplate, deleteDeck, generateIntoDeck, loadDeck, loadPublicDeck, saveDeckEdits, setApproval, type DeckRow } from '../src/lib/server/tourism-decks'
+import { addAssets, addPhotosToDeck, createDeck, deckRenderKey, getTemplate, isUneditedPreviousDestinations, saveTemplate, deleteDeck, generateIntoDeck, loadDeck, loadPublicDeck, saveDeckEdits, setApproval, type DeckRow } from '../src/lib/server/tourism-decks'
 
 type Row = Record<string, any>
 
@@ -166,6 +167,28 @@ test('l’agente legge note e documenti e il deck diventa pronto', async () => {
   assert.match(sent, /data:image\/jpeg;base64,/)
 })
 
+test('il sito pubblico dell’ente entra nei materiali con la fonte e i blocchi diventano avvisi', async () => {
+  seedGeneric()
+  const entityId = '99999999-9999-4999-8999-999999999999'
+  db.tables.tourism_entities.push({ id: entityId, user_id: USER, name: 'Fondazione', website: 'https://example.com', type_code: 'foundation', details: {} })
+  const row = await createDeck(db, USER, { ...fields, entity_id: entityId })
+  let sent = ''
+  globalThis.fetch = (async (_u: unknown, init: RequestInit) => {
+    sent = String(init.body)
+    return provider([{ id: 'cover', title: 'Capri con la Fondazione', body: 'Territorio e accoglienza', note: '', items: [], image_asset_id: null }])(_u as string, init)
+  }) as typeof fetch
+  const deck = await generateIntoDeck(db, db, row, undefined, undefined, undefined, {
+    readWebsite: async () => ({
+      pages: [{ url: 'https://www.example.com/chi-siamo', title: 'Chi siamo', text: 'La Fondazione promuove i sette comuni del territorio.' }],
+      warning: 'La home page non è accessibile.'
+    })
+  })
+  assert.equal(deck.status, 'ready')
+  assert.match(sent, /sette comuni del territorio/)
+  assert.match(sent, /https:\/\/www\.example\.com\/chi-siamo/)
+  assert.ok(deck.warnings.some((warning) => /Sito ufficiale non acquisito/.test(warning.message)))
+})
+
 test('se l’agente fallisce il deck resta modificabile a mano', async () => {
   const row = await createDeck(db, USER, fields)
   const before = JSON.stringify(row.slides)
@@ -305,4 +328,36 @@ test('foto da Telegram dopo: prendono il posto di quelle di Commons, una volta s
   const again = await addPhotosToDeck(db, db, first.deck, files)
   assert.equal(again.added, 0)
   assert.equal(again.deck.assets.filter((a) => a.source === 'telegram').length, 2)
+})
+
+test('la base destinazioni di prima della revisione del 26/10 passa alla nuova solo se nessuno l’ha modificata', async () => {
+  const previous = JSON.parse(readFileSync(new URL('./fixtures/tourism-deck-destinazioni-2026-10.json', import.meta.url), 'utf8'))
+  assert.equal(previous.base, DESTINATIONS_BASE_PREVIOUS)
+  assert.equal(isUneditedPreviousDestinations(previous), true)
+  db.tables.tourism_deck_templates.push({ user_id: USER, is_default: true, version: 4, content: previous })
+  const row = await createDeck(db, USER, fields)
+  assert.ok(row.slides.some((s) => s.id === 'chi-scegliamo'))
+  assert.ok(!row.slides.some((s) => s.id === 'come-si-parte'))
+  assert.equal(db.tables.tourism_deck_templates[0].version, 5)
+  assert.equal(db.tables.tourism_deck_templates[0].content.base, DESTINATIONS_BASE)
+  // Una seconda lettura non la sostituisce di nuovo.
+  await getTemplate(db, USER)
+  assert.equal(db.tables.tourism_deck_templates[0].version, 5)
+})
+
+test('una base di prima corretta a mano dal titolare resta com’è', async () => {
+  const edited = JSON.parse(readFileSync(new URL('./fixtures/tourism-deck-destinazioni-2026-10.json', import.meta.url), 'utf8'))
+  edited.slides[0].title = 'Il nostro titolo'
+  assert.equal(isUneditedPreviousDestinations(edited), false)
+  db.tables.tourism_deck_templates.push({ user_id: USER, is_default: true, version: 4, content: edited })
+  const { template, version } = await getTemplate(db, USER)
+  assert.equal(version, 4)
+  assert.equal(template.slides[0].title, 'Il nostro titolo')
+  assert.ok(template.slides.some((s) => s.id === 'requisiti'))
+})
+
+test('una base di prima con il solo preventivo corretto a mano resta com’è', async () => {
+  const edited = JSON.parse(readFileSync(new URL('./fixtures/tourism-deck-destinazioni-2026-10.json', import.meta.url), 'utf8'))
+  edited.quote_template = { ...(edited.quote_template || {}), public_note: 'Nota scritta dal titolare' }
+  assert.equal(isUneditedPreviousDestinations(edited), false)
 })

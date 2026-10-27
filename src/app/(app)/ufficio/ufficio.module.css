@@ -35,6 +35,10 @@
 .body ul { padding-left: 16px; margin: 0; }
 .effect { font-size: 12px; color: var(--text2); line-height: 1.45; }
 .actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.inboxHeading { display: flex; gap: 9px; align-items: flex-start; }
+.inboxHeading input { width: 17px; height: 17px; margin: 1px 0 0; flex: none; accent-color: var(--accent); }
+.inboxToolbar { display: grid; gap: 7px; padding: 12px; border: 1px solid var(--accent); border-radius: 8px; background: var(--surface); position: sticky; top: 32px; z-index: 2; font-size: 12px; }
+.inboxToolbar p { margin: 0; line-height: 1.5; color: var(--text2); }
 .more { font-size: 12px; color: var(--accent); text-decoration: none; margin-left: auto; }
 .more:hover { text-decoration: underline; }
 
@@ -43,6 +47,11 @@
 .chips button.on { background: var(--text); border-color: var(--text); color: var(--surface); }
 .agentTop { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
 .agentTop h3 { display: flex; align-items: center; gap: 7px; }
+.agentActivity { scroll-margin-top: 12px; }
+.agentActivity h2 { font-size: 18px; margin: 0; }
+.agentActivity > h3 { margin-top: 10px; }
+.agentActivity details > .card { margin-top: 6px; }
+.agentActivity .dot { display: inline-block; }
 .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: #8fc1ff; }
 .dot[data-state='running'] { background: #2fbf71; }
 .dot[data-state='attention'] { background: #f0a020; }
@@ -80,3 +89,17 @@
   .panel { overflow: visible; border-left: 0; border-top: 1px solid var(--border); }
   .tabs { top: 0; }
 }
+
+/* Lucchetto dell'Ufficio (UFFICIO_PASSWORD). */
+.lock { flex: 1; min-height: 0; display: grid; place-items: center; padding: 24px 16px; background: #101b26; }
+.lockCard { width: min(360px, 100%); display: grid; gap: 12px; background: var(--surface, #fff); color: var(--text); border-radius: 12px; padding: 24px; box-shadow: 0 12px 40px #0006; }
+.lockCard h1 { margin: 0; font-size: 20px; }
+.lockCard input { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 15px; background: var(--surface, #fff); color: var(--text); }
+.lockCard button { border: 0; border-radius: 8px; padding: 10px 12px; font-size: 14px; background: var(--accent, #4f6ef7); color: #fff; cursor: pointer; }
+.lockCard button:disabled { opacity: .6; cursor: default; }
+/* In basso a destra della scena, accanto al pannello: non copre né i padiglioni né le schede. */
+.lockButton { position: fixed; bottom: 14px; right: 434px; z-index: 5; border: 1px solid #ffffff2e; background: #0f1b26cc; color: #f4efe4;
+  padding: 6px 10px; border-radius: 8px; font-size: 12px; cursor: pointer; backdrop-filter: blur(6px); }
+.lockButton:hover { background: #0f1b26; }
+@media (max-width: 1100px) { .lockButton { right: 374px; } }
+@media (max-width: 800px) { .lockButton { right: 14px; } }

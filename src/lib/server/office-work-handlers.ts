@@ -11,7 +11,7 @@ import { officeAgentHandler } from './office-agents/registry'
 import { myMapsHandler } from './office-agents/mymaps'
 import { mapsQualityHandler } from './office-agents/maps-quality'
 import { languagesVoiceHandler, speaqiTranslationsApi } from './office-agents/languages-voice'
-import { presentationsHandler } from './office-agents/presentations'
+import { presentationEntities, presentationsHandler } from './office-agents/presentations'
 import { verifyTourismWork, preparePresentationWork } from './office-work-tourism'
 
 const checked = (value: any) => { if (value.error) throw value.error; return value.data }
@@ -42,13 +42,44 @@ export function planProposalWorks(work: OfficeWorkItem, outputs: Array<{ id: str
   })
 }
 
+/**
+ * Un ente già verificato, con prove proprie e una destinazione legata da una prova verificata,
+ * non si verifica di nuovo: rileggere il sito costerebbe una ricerca e, con un sito che non
+ * risponde, fermerebbe una presentazione che ha già tutto quello che serve.
+ */
+export async function verifiedPresentationSource(admin: any, userId: string, entityId: string) {
+  let source: Awaited<ReturnType<typeof presentationEntities>>
+  try { source = await presentationEntities(admin, userId, { entity_id: entityId }) } catch { return null }
+  // Un'etichetta VERIFIED senza prove proprie non basta: allora si verifica come sempre.
+  const proofs = checked(await admin.from('tourism_evidence').select('id').eq('user_id', userId)
+    .eq('entity_id', entityId).eq('status', 'VERIFIED').limit(1)) || []
+  return proofs.length ? source : null
+}
+
+const fold = (value: string) => value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z]+/g, ' ').trim()
+/** «Venezuela», «Italia», «Spain»: il nome di un paese, non di un ente. */
+export function isCountryName(target: string, countryCode: string | null) {
+  if (!countryCode) return false
+  const wanted = fold(target)
+  return ['it', 'en', 'es', 'fr'].some((lang) => {
+    try { return fold(new Intl.DisplayNames([lang], { type: 'region' }).of(countryCode) || '') === wanted } catch { return false }
+  })
+}
+
+/** L'ente nazionale del turismo di un paese, se nel catalogo ce n'è uno solo. */
+async function nationalTourismBody(admin: any, userId: string, countryCode: string) {
+  const rows = checked(await admin.from('tourism_entities').select('id,name,kind,status,website,email,phone,country_code,type_code,aliases,disabled,version')
+    .eq('user_id', userId).eq('kind', 'organization').eq('disabled', false).eq('country_code', countryCode)
+    .in('type_code', ['nto', 'ministry']).not('status', 'in', '(INACTIVE,DUPLICATE)').limit(3)) || []
+  return rows.length === 1 ? rows[0] : null
+}
+
 /** Il piano è validato contro l'ordine. Non viene eseguita una delega libera del modello. */
 export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem, admin: any,
   deps: { model?: typeof callModel; now?: () => Date } = {}): Promise<WorkOutcome> {
   const order = checked(await admin.from('office_director_orders').select('*').eq('id', work.order_id || work.payload.order_id)
     .eq('user_id', work.user_id).single()) as DirectorOrderRow
-  const text = typeof work.payload.text === 'string' ? work.payload.text : order.text
-  const currentOrder = { ...order, text }
+  let text = typeof work.payload.text === 'string' ? work.payload.text : order.text
   const now = deps.now?.() || new Date()
   if (!work.checkpoint?.plan && !order.attachments?.length && order.created_at) {
     const pending = await pendingDirectorQuestion(admin, work.user_id, { source: order.source,
@@ -71,8 +102,19 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
           result: { resumed_order_id: pending.id, resumed_work_id: previous.id },
           result_summary: 'Risposta collegata al lavoro originale: il Direttore riprende da lì.' }
       }
+      // Nessun lavoro da correggere (per esempio «lascia perdere il sito, fammi la presentazione»):
+      // la richiesta completa si lavora qui, e i lavori fermi dell'ordine di prima si chiudono.
+      text = resumedText
+      const stale = checked(await admin.from('office_work_items').select('id').eq('user_id', work.user_id)
+        .eq('order_id', pending.id).in('status', ['blocked', 'waiting'])) || []
+      for (const item of stale) {
+        await admin.rpc('office_work_owner_action', { p_user_id: work.user_id, p_work_id: item.id, p_action: 'cancel', p_patch: {} })
+      }
+      checked(await admin.from('office_director_orders').update({ interpretation: { resumed_from: pending.id } })
+        .eq('id', order.id).eq('user_id', work.user_id))
     }
   }
+  const currentOrder = { ...order, text }
   let plan: DirectorOrderPlan
   const saved = work.checkpoint?.payload_version === work.payload_version ? work.checkpoint?.plan : null
   if (saved) plan = saved as DirectorOrderPlan
@@ -117,6 +159,17 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
     }
     for (const [index, target] of targets.entries()) {
       let entity = await findEntity(admin, work.user_id, [target])
+      // «Presentazione per Venezuela»: il paese non è un ente da creare. Vale l'ente nazionale
+      // del turismo se ce n'è uno solo, altrimenti si chiede quale.
+      if (!entity && isCountryName(target, plan.country_code)) {
+        entity = await nationalTourismBody(admin, work.user_id, plan.country_code!)
+        if (!entity) {
+          checked(await admin.from('office_director_orders').update({ interpretation: { ...plan,
+            awaiting: { need: 'target', resume: 'presentazione per {}' } } }).eq('id', order.id).eq('user_id', work.user_id))
+          return blockedWork(`«${target}» è un paese: per quale ente del turismo preparo la presentazione?`,
+            'Rispondi con il nome dell’ente.', 'Titolare', 'needs_information')
+        }
+      }
       if (!entity && plan.country_code) {
         await checkpoint(admin, work, { phase: 'effect_started' })
         const found = await ensureCatalogEntity(admin, work.user_id, order.id, { name: target,
@@ -130,21 +183,30 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
           .eq('id', order.id).eq('user_id', work.user_id))
         return blockedWork(`Non trovo un ente univoco per «${target}» nel catalogo Tourism. Specifica il paese per aggiungerlo.`, 'Rispondi con il paese oppure indica l’ente del catalogo nello stesso lavoro.', 'Titolare', 'entity_missing')
       }
-      const city = typeof work.payload.city === 'string' ? work.payload.city : cityForEntity({ proposed: plan.city || null,
-        entityName: entity.name, orderText: text })
+      // Un ente già verificato con la sua destinazione non ha bisogno di una città dal titolare:
+      // vale il nome della destinazione legata. La città si chiede solo quando c'è da verificare.
+      const ready = await verifiedPresentationSource(admin, work.user_id, entity.id)
+      const city = ready?.destination.name || (typeof work.payload.city === 'string' ? work.payload.city : cityForEntity({ proposed: plan.city || null,
+        entityName: entity.name, orderText: text }))
       if (!city) {
         checked(await admin.from('office_director_orders').update({ interpretation: { ...plan,
           awaiting: { need: 'city', resume: `presentazione per ${target}` } } }).eq('id', order.id).eq('user_id', work.user_id))
         return blockedWork('Per quale città preparo la presentazione?', 'Rispondi con la città oppure completa il testo dello stesso lavoro.', 'Titolare', 'needs_information')
       }
       if (officeIsNaples(entity.name, city)) return blockedWork('Napoli è esclusa dal lavoro degli agenti.', 'Scegli una destinazione diversa nello stesso incarico.', 'Titolare', 'protected_destination')
+      const photos = targets.length === 1 ? { photos: (order.attachments || []).map((item) => item.path) } : {}
+      if (ready) {
+        children.push(child('presentations', 'prepare_presentation', { entity_id: entity.id, city: ready.destination.name || city,
+          destination_id: ready.destination.id, ...photos }, `presentation:${index}`))
+        continue
+      }
       // Anche un'etichetta VERIFIED priva di prove non aggira la verifica puntuale.
       const verifyId = randomUUID()
       const verify: OfficeWorkSpec = { ...child('entity_enricher', 'verify_tourism_entity', {
         entity_id: entity.id, city, website: websiteFromText(text) || entity.website || null, order_text: text,
       }, `verify:${index}`), id: verifyId }
       const presentation: OfficeWorkSpec = { ...child('presentations', 'prepare_presentation', { entity_id: entity.id, city,
-        ...(targets.length === 1 ? { photos: (order.attachments || []).map((item) => item.path) } : {}) }, `presentation:${index}`),
+        ...photos }, `presentation:${index}`),
         status: 'waiting', depends_on: [verifyId] }
       children.push(verify, presentation)
     }
@@ -166,7 +228,7 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
     reason: outcome.reply, reason_code: 'approval_required', required_action: 'Leggi e decidi la proposta collegata.', responsible: 'Titolare', next_check_at: null }
   if (outcome.status === 'failed') return blockedWork(outcome.reply, 'Completa i dati di questo lavoro.', 'Titolare')
   return { status: 'succeeded', phase: 'result_saved', close_plan: true, output_ids: outcome.outputs,
-    result: { intent: plan.intent, reply: outcome.reply }, result_summary: outcome.reply }
+    result: { ...outcome.result, intent: plan.intent, reply: outcome.reply }, result_summary: outcome.reply }
 }
 
 /** Dispatch chiuso; gli handler ricevono il solo incarico, mai tutta la coda di lavoro. */

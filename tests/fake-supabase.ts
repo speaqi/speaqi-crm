@@ -97,6 +97,13 @@ class FakeQuery {
   lt(column: string, value: any) { this.filters.push((row) => row[column] < value); return this }
   lte(column: string, value: any) { this.filters.push((row) => row[column] <= value); return this }
   is(column: string, value: any) { this.filters.push((row) => (row[column] ?? null) === value); return this }
+  /** Solo `cs` su un array con un valore, come lo scrive la ricerca negli alias: {"nome"}. */
+  filter(column: string, operator: string, value: string) {
+    if (operator !== 'cs') throw new Error(`FakeSupabase: filtro ${operator} non supportato`)
+    const wanted = value.replace(/^\{"|"\}$/g, '').replace(/\\(.)/g, '$1')
+    this.filters.push((row) => Array.isArray(row[column]) && row[column].includes(wanted))
+    return this
+  }
   in(column: string, values: any[]) { const set = new Set(values); this.filters.push((row) => set.has(row[column])); return this }
 
   /**

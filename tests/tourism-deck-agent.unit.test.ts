@@ -92,13 +92,13 @@ test('con la base destinazioni le slide fisse arrivano segnate e restano identic
   const body = buildAgentRequest(args({ template: DEFAULT_DECK_TEMPLATE, input: { destinazione: 'Bergamo', ente: 'Visit Bergamo' } }), 'm')
   const brief = JSON.parse(((body.input[1].content as Record<string, unknown>[])[0].text as string).replace('BRIEF (JSON):\n', ''))
   const fixed = brief.slide.filter((s: { testo_fisso?: boolean }) => s.testo_fisso).map((s: { id: string }) => s.id)
-  assert.ok(fixed.includes('requisiti') && fixed.includes('cover') && !fixed.includes('partenza'))
+  assert.ok(fixed.includes('chi-scegliamo') && fixed.includes('cover') && !fixed.includes('partenza'))
   const fetcher = (async () => reply([
-    { id: 'requisiti', title: 'Basta una presenza', body: '', note: '', items: [], image_asset_id: null },
+    { id: 'chi-scegliamo', title: 'Basta una presenza', body: '', note: '', items: [], image_asset_id: null },
     { id: 'cover', title: 'Bergamo, finalmente', body: '', note: '', items: [], image_asset_id: PHOTO }
   ])) as unknown as typeof fetch
   const r = await runDeckAgent(args({ template: DEFAULT_DECK_TEMPLATE, input: { destinazione: 'Bergamo', ente: 'Visit Bergamo' } }), fetcher)
-  assert.equal(r.slides.find((s) => s.id === 'requisiti')!.title, 'Chi può candidarsi.')
+  assert.equal(r.slides.find((s) => s.id === 'chi-scegliamo')!.title, 'Chi scegliamo.')
   assert.equal(r.slides[0].title, DEFAULT_DECK_TEMPLATE.slides[0].title)
   assert.equal(r.slides[0].image_asset_id, PHOTO)
 })

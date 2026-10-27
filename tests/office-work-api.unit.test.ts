@@ -95,10 +95,20 @@ test('elenco: filtri, ordine e paginazione conservano il vincolo del proprietari
   assert.equal(query.get('limit'), '25')
 })
 test('elenco: filtri non validi non avviano query operative', async () => {
-  for (const path of ['/api/office/work?order_id=altro', '/api/office/work?offset=-1', '/api/office/work?view=segreti']) {
+  for (const path of ['/api/office/work?order_id=altro', '/api/office/work?offset=-1', '/api/office/work?view=segreti', '/api/office/work?agent_id=', '/api/office/work?agent_id=finance,other']) {
     assert.equal((await listWork(request(path))).status, 400)
   }
   assert.ok(!calls.some((call) => call.url.pathname.includes('office_work')))
+})
+
+test('scheda personaggio: filtra nel database anche per agente, prima della paginazione', async () => {
+  const response = await listWork(request('/api/office/work?agent_id=presentations&view=all&offset=25'))
+  assert.equal(response.status, 200)
+  const query = calls.find((call) => call.url.pathname.endsWith('/office_work_items'))!.url.searchParams
+  assert.equal(query.get('user_id'), `eq.${OWNER}`)
+  assert.equal(query.get('agent_id'), 'eq.presentations')
+  assert.equal(query.get('offset'), '25')
+  assert.equal(query.get('status'), null)
 })
 test('schema non ancora applicato: elenco compatibile e modifiche non consumate', async () => {
   missing = true

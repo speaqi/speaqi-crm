@@ -14,7 +14,7 @@ export const DECK_TONES = ['light', 'dark', 'deep', 'accent'] as const
 export type DeckTone = (typeof DECK_TONES)[number]
 
 /** Icone disegnate dalla pagina (tratto, stile lucide): solo queste, mai un indirizzo. */
-export const DECK_ICONS = ['star', 'zap', 'clock', 'globe', 'users', 'shield', 'chat', 'send'] as const
+export const DECK_ICONS = ['star', 'zap', 'clock', 'globe', 'users', 'shield', 'chat', 'send', 'check', 'link'] as const
 export type DeckIcon = (typeof DECK_ICONS)[number]
 
 /**
@@ -30,11 +30,16 @@ export const DECK_ART = {
   telefoni: '/deck/destinazioni/telefoni.webp',
   azione: '/deck/destinazioni/azione.webp',
   'qr-napoli': '/deck/destinazioni/qr-napoli.png',
-  'qr-destinazioni': '/deck/destinazioni/qr-destinazioni.png'
+  'qr-destinazioni': '/deck/destinazioni/qr-destinazioni.png',
+  'catalogo-napoli': '/deck/destinazioni/catalogo-napoli.webp',
+  'catalogo-roma': '/deck/destinazioni/catalogo-roma.webp',
+  'catalogo-lisbona': '/deck/destinazioni/catalogo-lisbona.webp',
+  'catalogo-pompei': '/deck/destinazioni/catalogo-pompei.webp',
+  'catalogo-capri': '/deck/destinazioni/catalogo-capri.webp'
 } as const
 export type DeckArt = keyof typeof DECK_ART
 /** Foto di esempio generate con AI: la pagina lo dice quando non c'è una foto della destinazione. */
-export const DECK_AI_ART: readonly DeckArt[] = ['cover']
+export const DECK_AI_ART: readonly DeckArt[] = ['cover', 'partenza', 'proposta']
 /** Le immagini fisse che sono foto di un luogo: vanno sostituite con foto della destinazione. */
 export const DECK_PHOTO_ART: readonly DeckArt[] = ['cover', 'partenza', 'proposta']
 
@@ -76,6 +81,8 @@ export type DeckItem = {
   icon?: DeckIcon
   /** Scheda evidenziata (arancione o blu, secondo lo sfondo). */
   highlight?: boolean
+  /** Immagine fissa a tutta scheda (catalogo): solo una chiave di DECK_ART, mai un indirizzo. */
+  art?: DeckArt
 }
 export type DeckSlide = {
   id: string
@@ -131,8 +138,10 @@ const slide = (s: Partial<DeckSlide> & Pick<DeckSlide, 'id' | 'kind' | 'title'>)
   ...s
 })
 
-/** Base destinazioni: la presentazione «Speaqi Guides · Destinazioni» di ottobre 2026. */
-export const DESTINATIONS_BASE = 'destinazioni-2026-10'
+/** Base destinazioni: la presentazione «Speaqi Guides · Destinazioni» di ottobre 2026 (revisione del 26/10). */
+export const DESTINATIONS_BASE = 'destinazioni-2026-10-v2'
+/** La base di prima della revisione: un modello salvato così e mai modificato passa alla nuova (`getTemplate`). */
+export const DESTINATIONS_BASE_PREVIOUS = 'destinazioni-2026-10'
 
 /**
  * La presentazione base per le destinazioni («Speaqi Guides · Destinazioni», ottobre 2026):
@@ -216,13 +225,16 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
       kicker: 'Esempi dal catalogo Speaqi',
       title: 'Le mappe sono già online.',
       items: [
-        { title: 'Napoli', value: '488', text: 'luoghi da esplorare', highlight: true },
-        { title: 'Roma', value: '441', text: 'luoghi da esplorare' },
-        { title: 'Lisbona', value: '116', text: 'luoghi da esplorare' },
-        { title: 'Pompei', value: '112', text: 'luoghi da esplorare' },
-        { title: 'Capri', value: '104', text: 'luoghi da esplorare' }
+        { title: 'Napoli', text: '', art: 'catalogo-napoli' },
+        { title: 'Roma', text: '', art: 'catalogo-roma' },
+        { title: 'Lisbona', text: '', art: 'catalogo-lisbona' },
+        { title: 'Pompei', text: '', art: 'catalogo-pompei' },
+        { title: 'Capri', text: '', art: 'catalogo-capri' }
       ],
-      footnote: 'Fonte: guides.speaqi.com, ottobre 2026.',
+      // Fascia sotto le schede: l'etichetta (note) e l'elenco (body).
+      note: 'In produzione',
+      body: 'Costiera Amalfitana · Firenze · Milano · Venezia · e altre',
+      footnote: 'Immagini generate con AI.',
       fixed: true
     }),
     slide({
@@ -259,55 +271,67 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
       fixed: true
     }),
     slide({
-      id: 'requisiti',
-      kind: 'figures',
-      tone: 'deep',
-      kicker: 'I requisiti minimi',
-      title: 'Chi può candidarsi.',
-      items: [
-        { value: '250.000', title: 'presenze turistiche all’anno', text: 'pernottamenti documentabili' },
-        { value: '2', title: 'canali di distribuzione attivi', text: 'per esempio sito e infopoint' },
-        { value: '1', title: 'referente dedicato', text: 'per tutta la collaborazione' }
-      ],
-      note: 'In più: un ente che rappresenta il territorio (ente del turismo, DMO, DMC, comune, consorzio o rete territoriale) e un piano di distribuzione continuativo.',
-      fixed: true
-    }),
-    slide({
-      id: 'come-si-parte',
-      kind: 'steps',
-      kicker: 'Come si parte',
-      title: 'Tre passi. Candidarsi non costa nulla.',
-      items: [
-        { title: 'Candidi la destinazione', text: 'Destinazione, canali e piano di distribuzione. Nessun pagamento, nessun obbligo di acquisto.' },
-        { title: 'Definiamo la collaborazione', text: 'Distribuzione, contenuti, aggiornamenti, durata e perimetro gratuito.' },
-        { title: 'La mappa va online e cresce', text: 'Tu attivi i canali. Noi costruiamo e aggiorniamo la mappa con il tuo referente.', highlight: true }
-      ],
-      fixed: true
-    }),
-    slide({
       id: 'servizi',
       kind: 'cards',
       tone: 'dark',
-      kicker: 'Servizi opzionali',
-      title: 'Se vuoi andare oltre la mappa.',
+      kicker: 'Servizi aggiuntivi',
+      title: 'Il modello di Speaqi.',
       items: [
-        { value: 'Assistente AI', title: 'iConcierge', text: 'Risponde ai visitatori usando i contenuti della destinazione.', highlight: true },
-        { value: 'Eventi', title: 'Festival ed eventi', text: 'Contenuti dedicati agli eventi del territorio.' },
-        { value: 'Contenuti', title: 'Testi, audio e video', text: 'Contenuti editoriali multilingua, perimetro definito per progetto.' }
+        { value: 'Le attività', title: 'Servizi aggiuntivi per le attività', text: 'Per chi è nella guida: per esempio video multilingua. Chi paga: l’attività.' },
+        { value: 'I visitatori', title: 'Extra per chi acquista la guida', text: 'Concierge, eventi e altri contenuti extra. Chi paga: il visitatore.' },
+        { value: 'Gli sponsor', title: 'Visibilità per gli sponsor', text: 'Aziende e marchi che vogliono farsi vedere nella guida. Chi paga: lo sponsor.' }
       ],
-      note: 'Su proposta separata. Non servono per ricevere la mappa gratuita.',
+      note: 'La destinazione non paga mai nulla. I servizi sono facoltativi.',
+      fixed: true
+    }),
+    slide({
+      id: 'vantaggi',
+      kind: 'cards',
+      kicker: 'Cosa ci guadagna la destinazione',
+      title: 'Per la destinazione, solo vantaggi.',
+      items: [
+        { title: 'Zero costi', text: 'la mappa è gratuita e non ti vendiamo nulla', icon: 'check', highlight: true },
+        { title: 'Visitatori accolti meglio', text: 'nella loro lingua, dal telefono, senza app', icon: 'globe' },
+        { title: 'Una mappa professionale', text: 'costruita e aggiornata da Speaqi', icon: 'star' },
+        { title: 'Più visibilità per le attività', text: 'ristoranti, strutture e operatori nella guida', icon: 'users' },
+        { title: 'Un riferimento per la rete', text: 'infopoint, strutture e operatori sulla stessa mappa', icon: 'link' },
+        { title: 'Nessun rischio', text: 'nessun costo, nessun obbligo di acquisto', icon: 'shield' }
+      ],
+      note: 'Tu distribuisci la mappa. Al resto pensiamo noi.',
+      fixed: true
+    }),
+    // «Chi scegliamo» viene prima dei passi per candidarsi: i tre numeri sono la slide, i tre passi
+    // la fascia in basso. Le voci con `value` sono i numeri, quelle senza sono i passi (in ordine).
+    slide({
+      id: 'chi-scegliamo',
+      kind: 'figures',
+      tone: 'deep',
+      kicker: 'Requisiti e primi passi',
+      title: 'Chi scegliamo.',
+      items: [
+        { value: '250.000', title: 'presenze turistiche all’anno', text: '' },
+        { value: '2', title: 'canali di distribuzione attivi', text: '' },
+        { value: '1', title: 'referente dedicato', text: '' },
+        { title: 'Primo incontro', text: 'Verifichiamo insieme canali e piano di distribuzione.' },
+        { title: 'Accordo', text: 'Distribuzione, contenuti, aggiornamenti e durata.' },
+        { title: 'Mappa online', text: 'Tu attivi i canali, noi costruiamo e aggiorniamo la mappa.', highlight: true }
+      ],
+      note: 'In più: un ente che rappresenta il territorio e un piano di distribuzione continuativo.',
+      body: 'Come si parte · nessun costo per la destinazione',
       fixed: true
     }),
     slide({
       id: 'domande',
       kind: 'cards',
       kicker: 'Domande frequenti',
-      title: 'Le risposte che ci chiedono più spesso.',
+      title: 'I dubbi più comuni, e le risposte.',
       items: [
-        { title: 'La mappa è davvero gratuita?', text: 'Sì, per le destinazioni selezionate, con l’accordo di collaborazione. Candidarsi non garantisce l’ammissione.' },
-        { title: 'Dobbiamo vendere le guide?', text: 'No. Il tuo ruolo è distribuire e promuovere le guide Speaqi nei canali concordati.' },
-        { title: 'Quali guide distribuiamo?', text: 'Le definiamo insieme nell’accordo, in base ai tuoi visitatori e ai tuoi canali.' },
-        { title: 'Chi cura contenuti e aggiornamenti?', text: 'Speaqi crea e aggiorna la mappa; il tuo referente fornisce le informazioni locali.' }
+        { title: 'C’è qualcosa da pagare?', text: 'No. La mappa è gratuita e alla destinazione non vendiamo nulla, né ora né dopo.' },
+        { title: 'Dobbiamo vendere le guide?', text: 'No. Il tuo ruolo è far conoscere la mappa nei canali concordati.' },
+        { title: 'Quanto lavoro ci chiede?', text: 'Un referente che fornisce le informazioni locali. Costruzione e aggiornamenti li curiamo noi.' },
+        { title: 'Serve un’app o un tecnico?', text: 'No. Si apre dal browser con un link o un QR Code: niente da installare.' },
+        { title: 'Chi decide cosa c’è nella mappa?', text: 'La destinazione approva i contenuti prima della pubblicazione.' },
+        { title: 'Quanto dura la collaborazione?', text: 'Durata e perimetro li definiamo insieme nell’accordo, prima di partire.' }
       ],
       fixed: true
     }),
@@ -563,6 +587,7 @@ export function normalizeItem(raw: unknown): DeckItem {
   const icon = pick(DECK_ICONS, i.icon)
   if (icon) item.icon = icon
   if (i.highlight === true) item.highlight = true
+  if (Object.hasOwn(DECK_ART, String(i.art))) item.art = i.art as DeckArt
   return item
 }
 

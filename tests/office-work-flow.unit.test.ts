@@ -29,7 +29,7 @@ const enrichment = { identity_quote: identity, identity_url: SITE, coverage_rela
   coverage_url: SITE, email: 'info@tourisme.example.org', email_quote: email, email_url: SITE,
   phone: '', phone_quote: '', phone_url: '', decision_maker_type: '', decision_maker_quote: '', decision_maker_url: '' }
 
-function fixture() {
+function fixture(planned: Record<string, unknown> = { intent: 'presentation', target: 'Visit Marseille', city: 'Marsiglia' }) {
   const works: OfficeWorkItem[] = []
   const db = new FakeSupabase({ office_work_items: works, office_work_dependencies: [], office_director_orders: [], office_agent_outputs: [],
     office_presentation_tasks: [], tourism_decks: [], tourism_evidence: [], office_budget_ledger: [], email_drafts: [],
@@ -170,7 +170,7 @@ function fixture() {
     if (work.action === 'interpret_order') return interpretOrderWork(ctx, work, client, { now: () => clock,
       model: (async (context) => {
         const ledger = await context.reserve(1); paid++; await context.settle(ledger, 1)
-        return { text: JSON.stringify({ intent: 'presentation', target: 'Visit Marseille', city: 'Marsiglia' }), costCents: 1, tokensIn: 10, tokensOut: 10, citations: [] }
+        return { text: JSON.stringify(planned), costCents: 1, tokensIn: 10, tokensOut: 10, citations: [] }
       }) as typeof callModel })
     if (work.action === 'verify_tourism_entity') return verifyTourismWork(ctx, work, client, { model, readSite: async () => {
       reads++; if (!websiteReadable) throw Error('fonte non disponibile'); return [page]
@@ -294,4 +294,51 @@ test('fonte corretta dopo il blocco riprende lo stesso lavoro e lo stesso ordine
   assert.equal(f.db.tables.office_director_orders.length, 1)
   assert.equal(f.works.filter((work) => work.action === 'verify_tourism_entity').length, 1)
   assert.equal(f.db.tables.office_agent_outputs[0].output_key, `work:${verify.id}:proposal:v2`)
+})
+
+test('ente già verificato con la sua destinazione: niente seconda verifica, la presentazione parte subito', async () => {
+  const f = fixture()
+  Object.assign(f.db.tables.tourism_entities[0], { status: 'VERIFIED', website: SITE })
+  f.db.tables.tourism_entities.push({ id: PLACE, user_id: USER, kind: 'place', name: 'Marsiglia', country_code: 'FR', status: 'VERIFIED', disabled: false, aliases: [] })
+  f.db.tables.tourism_evidence.push({ id: 'ev-identity', user_id: USER, entity_id: ENTITY, status: 'VERIFIED', fields: ['name'], source_url: SITE, excerpt: identity },
+    { id: 'ev-coverage', user_id: USER, entity_id: ENTITY, status: 'VERIFIED', fields: ['coverage'], source_url: SITE, excerpt: coverage })
+  f.db.tables.tourism_relations = [{ id: 'rel', user_id: USER, from_id: ENTITY, to_id: PLACE, relation: 'PROMOTES', evidence_id: 'ev-coverage' }]
+  f.order()
+  await f.tick()
+  assert.equal(f.works.some((work) => work.action === 'verify_tourism_entity'), false)
+  const presentation = f.works.find((work) => work.action === 'prepare_presentation')!
+  assert.equal(presentation.payload.destination_id, PLACE)
+  await f.tick()
+  assert.equal(presentation.status, 'succeeded')
+  assert.equal(f.counters().reads, 0)
+  assert.equal(f.counters().generated, 1)
+})
+
+test('ente verificato con la sua destinazione: la città non si chiede, anche se dal nome non si ricava', async () => {
+  // «Costa dei Borghi»: nessun prefisso da togliere e nessuna città nell'ordine, ma la destinazione è già legata e verificata.
+  const f = fixture({ intent: 'presentation', target: 'Costa dei Borghi', city: null })
+  Object.assign(f.db.tables.tourism_entities[0], { name: 'Costa dei Borghi', status: 'VERIFIED', website: SITE })
+  f.db.tables.tourism_entities.push({ id: PLACE, user_id: USER, kind: 'place', name: 'Costa Fermana', country_code: 'FR', status: 'VERIFIED', disabled: false, aliases: [] })
+  f.db.tables.tourism_evidence.push({ id: 'ev-identity', user_id: USER, entity_id: ENTITY, status: 'VERIFIED', fields: ['name'], source_url: SITE, excerpt: identity },
+    { id: 'ev-coverage', user_id: USER, entity_id: ENTITY, status: 'VERIFIED', fields: ['coverage'], source_url: SITE, excerpt: coverage })
+  f.db.tables.tourism_relations = [{ id: 'rel', user_id: USER, from_id: ENTITY, to_id: PLACE, relation: 'COVERS', evidence_id: 'ev-coverage' }]
+  f.db.tables.office_director_orders.length = 0
+  const id = f.order()
+  f.db.tables.office_director_orders.find((o: any) => o.id === id)!.text = 'Puoi creare la presentazione per Costa dei Borghi?'
+  await f.tick()
+  assert.equal(f.works.some((work) => work.reason_code === 'needs_information'), false)
+  const presentation = f.works.find((work) => work.action === 'prepare_presentation')!
+  assert.equal(presentation.payload.destination_id, PLACE)
+  assert.equal(presentation.payload.city, 'Costa Fermana')
+})
+
+test('etichetta VERIFIED senza prove proprie: la verifica puntuale resta', async () => {
+  const f = fixture()
+  Object.assign(f.db.tables.tourism_entities[0], { status: 'VERIFIED', website: SITE })
+  f.db.tables.tourism_entities.push({ id: PLACE, user_id: USER, kind: 'place', name: 'Marsiglia', country_code: 'FR', status: 'VERIFIED', disabled: false, aliases: [] })
+  f.db.tables.tourism_evidence.push({ id: 'ev-coverage', user_id: USER, entity_id: PLACE, status: 'VERIFIED', fields: ['coverage'], source_url: SITE, excerpt: coverage })
+  f.db.tables.tourism_relations = [{ id: 'rel', user_id: USER, from_id: ENTITY, to_id: PLACE, relation: 'PROMOTES', evidence_id: 'ev-coverage' }]
+  f.order()
+  await f.tick()
+  assert.ok(f.works.some((work) => work.action === 'verify_tourism_entity'))
 })

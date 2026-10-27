@@ -277,6 +277,7 @@ async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, 
     // C'è già una presentazione pronta per questo ente: non si rifà, si manda.
     const ready = checked(await admin.from('tourism_decks').select('*').eq('user_id', userId).eq('entity_id', entity.id)
       .in('status', ['ready', 'approved', 'failed']).order('updated_at', { ascending: false }).limit(1).maybeSingle()) as DeckRow | null
+    if (ready?.status === 'failed') return retryFailedDeck(admin, ctx, ready, label, note)
     if (ready) {
       const sent = await sendDeckToTelegram(admin, ready)
       const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
@@ -290,6 +291,8 @@ async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, 
     if (existing) {
       const files = await directorPhotoFiles(admin, userId, photos)
       const { deck, added, skipped } = await addPhotosToDeck(admin, admin, existing, files)
+      // Una presentazione rimasta a metà, con le foto nuove dentro, si rifà: le foto da sole non bastano.
+      if (deck.status === 'failed') return retryFailedDeck(admin, ctx, deck, label, note)
       const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
       const extra = skipped ? ` ${skipped === 1 ? 'Una foto è rimasta fuori' : `${skipped} foto sono rimaste fuori`}: la presentazione ne tiene al massimo 8.` : ''
       const review = existing.status === 'approved' && added ? ' Era approvata: è tornata in revisione, riapprovala dopo averla guardata.' : ''
@@ -368,7 +371,7 @@ export async function invoiceFor(admin: Admin, userId: string, plan: Extract<Dir
   const { invoice, created } = await createInvoiceDraftFromQuote(admin, userId, quote.id)
   const { settings } = await loadInvoiceSettings(admin, userId)
   const draft = invoice.status === 'draft'
-  return { status: 'done', outputs: [], queued: [], reply: directorInvoiceReply({
+  return { status: 'done', outputs: [], queued: [], result: { invoice_id: invoice.id }, reply: directorInvoiceReply({
     quote, created, invoiceStatus: invoice.status, numero: invoice.numero || null, approvedNow,
     problems: draft ? invoiceProblems(invoice, settings) : [], warnings: draft && Array.isArray(invoice.warnings) ? invoice.warnings : [],
     link: `${base}/fatture?invoice=${invoice.id}`,
@@ -391,6 +394,30 @@ function combineOutcomes(outcomes: Outcome[], footer = ''): Outcome {
 /** La domanda dell'attivazione, nella forma che l'ordine salva. */
 function awaitingOf(result: { need?: 'site' | 'city'; resume?: string }): DirectorAwaiting | undefined {
   return result.need && result.resume ? { need: result.need, resume: result.resume } : undefined
+}
+
+/**
+ * Una presentazione rimasta «non riuscita» non si rimanda così com'è (sono le slide del modello):
+ * richiesta di nuovo dal titolare, il Direttore la rigenera lui, nel suo budget. È la sua richiesta
+ * esplicita a farla ripartire: nessun ritentativo automatico.
+ */
+async function retryFailedDeck(admin: Admin, ctx: AgentContext, failed: DeckRow, label: string, note: string): Promise<Outcome> {
+  const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+  const link = `${base}/tourism/presentazioni/${failed.id}`
+  let deck = failed
+  try {
+    deck = await generateIntoDeck(admin, admin, failed, undefined, officeDeckAgent(ctx), undefined, { onlyIfUnchanged: true })
+  } catch (error) {
+    if (error instanceof BudgetExceeded) return { status: 'failed', outputs: [], queued: [], reply: `Presentazione per ${label}: per rifarla serve budget e quello di oggi del Direttore è finito. Riprova domani o usa «Rigenera» nell’editor: ${link}` }
+    return { status: 'failed', outputs: [], queued: [], reply: `Presentazione per ${label}: ho riprovato a generarla ma non ci sono riuscito (${errorMessage(error, 'errore')}). Puoi usare «Rigenera» nell’editor: ${link}` }
+  }
+  if (deck.status !== 'ready') return { status: 'failed', outputs: [], queued: [], reply: `Presentazione per ${label}: ho riprovato ma non è riuscita (${deck.error || 'motivo non indicato'}). ${link}` }
+  // Il compito dell'agente Presentazioni segue il deck: pronto, come se l'avesse fatta lui.
+  const task = await admin.from('office_presentation_tasks').update({ state: 'ready' }).eq('id', deck.id).eq('state', 'failed')
+  // Il deck è rifatto comunque; se il compito resta «failed» la bozza email dell'ufficio non parte, e va detto.
+  const taskNote = task.error ? ` (Non ho aggiornato il compito dell’agente Presentazioni: ${task.error.message}. La bozza email dopo l’approvazione potrebbe non prepararsi da sola.)` : ''
+  const sent = await sendDeckToTelegram(admin, deck)
+  return { status: 'done', outputs: [], queued: [], reply: `Presentazione per ${label}: ${note}l’avevo lasciata a metà, l’ho rifatta adesso${sent.pdf ? ' e te l’ho mandata qui in PDF' : ''}. ${link}${taskNote}` }
 }
 
 /** La presentazione di un nome: ente del catalogo, contatto di un ente, oppure lavoro da agenzia. */
@@ -812,7 +839,7 @@ async function statusReport(admin: Admin, userId: string, now: Date) {
 }
 
 /** `awaiting`: il dato che il Direttore ha chiesto al titolare, per riprendere l'ordine quando arriva. */
-type Outcome = { status: DirectorOrderRow['status']; reply: string; outputs: string[]; queued: QueueResult[]; awaiting?: DirectorAwaiting }
+type Outcome = { status: DirectorOrderRow['status']; reply: string; outputs: string[]; queued: QueueResult[]; awaiting?: DirectorAwaiting; result?: { invoice_id: string } }
 
 /** Esegue il piano già validato. Scrive solo uscite, To Do e code. */
 export async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrderRow, plan: DirectorOrderPlan, now: Date): Promise<Outcome> {
@@ -898,7 +925,10 @@ export async function executePlan(admin: Admin, ctx: AgentContext, order: Direct
     const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
     return { status: 'done', outputs: [], queued: [], reply: ['Il piano di oggi', ...directorPlanBrief(plan), '', 'La situazione', ...status, '', `Tutto il dettaglio nell’Ufficio: ${base}/ufficio`].join('\n') }
   }
-  if (plan.intent === 'unknown') return { status: 'failed', outputs: [], queued: [], reply: plan.question }
+  // Una domanda con il dato da completare aspetta la risposta: il messaggio dopo riprende l'ordine.
+  if (plan.intent === 'unknown') return plan.awaiting
+    ? { status: 'waiting_you', outputs: [], queued: [], reply: plan.question, awaiting: plan.awaiting }
+    : { status: 'failed', outputs: [], queued: [], reply: plan.question }
   return { status: 'failed', outputs: [], queued: [], reply: 'Non ho capito cosa devo fare. Scrivimi «cosa posso chiederti?» per l’elenco dei comandi.' }
 }
 

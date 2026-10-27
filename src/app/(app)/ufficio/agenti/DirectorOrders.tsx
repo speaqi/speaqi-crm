@@ -74,6 +74,7 @@ export function DirectorOrders({ directorEnabled, onEnable, onChanged, compact =
       setText(''); setFiles([])
       if (fileInput.current) fileInput.current.value = ''
       await load()
+      changedCallback.current()
     } catch (err) { setError(err instanceof Error ? err.message : 'Ordine non inviato') }
     finally { setSending(false) }
   }

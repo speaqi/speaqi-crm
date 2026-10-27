@@ -1,7 +1,8 @@
-import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 import { quoteSummary } from '../agency'
 import {
   DEFAULT_DECK_TEMPLATE,
+  DESTINATIONS_BASE_PREVIOUS,
   PARTNER_DECK_TEMPLATE,
   deckModel,
   applyVars,
@@ -32,6 +33,7 @@ import {
 } from './tourism-deck-assets'
 import { runDeckAgent, type DeckAgentArgs, type DeckAgentResult, type DeckEntityContext, type DeckMaterials } from './tourism-deck-agent'
 import { findDestinationPhotos, type DestinationPhoto } from './tourism-deck-photos'
+import { readWebsiteMaterial } from './tourism-site-crawler'
 
 type Sb = any
 
@@ -65,12 +67,27 @@ const checked = <T extends { error: unknown }>(result: T): T => {
 
 // ---- Modello generico -----------------------------------------------------
 
+/** Impronta della base destinazioni «destinazioni-2026-10» così com'era prima della revisione del 26/10. */
+const PREVIOUS_DESTINATIONS_FINGERPRINT = '82ec6330b87e620e05e0f31d0bda1391f01ad6ce4370c6e4044bb23029614fc1'
+
+export const templateFingerprint = (raw: unknown) => {
+  const t = normalizeTemplate(raw)
+  return createHash('sha256').update(JSON.stringify({ vars: t.vars, slides: t.slides, quote_template: t.quote_template })).digest('hex')
+}
+
+/** Vero solo per la base di prima salvata tale e quale: l'ha scritta il codice, non il titolare. */
+export const isUneditedPreviousDestinations = (raw: unknown) =>
+  (raw as { base?: unknown } | null)?.base === DESTINATIONS_BASE_PREVIOUS && templateFingerprint(raw) === PREVIOUS_DESTINATIONS_FINGERPRINT
+
 export async function getTemplate(sb: Sb, userId: string): Promise<{ template: DeckTemplate; version: number }> {
   const found = checked(await sb.from('tourism_deck_templates').select('content,version').eq('user_id', userId).eq('is_default', true).maybeSingle())
   if (found.data) {
     // Un modello senza `base` è precedente alla presentazione destinazioni di ottobre 2026:
     // si sostituisce una volta con quella. Uno salvato dopo (anche la base aziende) resta.
-    if (found.data.content?.base) return { template: normalizeTemplate(found.data.content), version: found.data.version }
+    // Lo stesso vale per la base destinazioni di prima della revisione del 26/10, ma solo se
+    // nessuno l'ha modificata: una versione corretta a mano dal titolare non si tocca mai.
+    const stale = !found.data.content?.base || isUneditedPreviousDestinations(found.data.content)
+    if (!stale) return { template: normalizeTemplate(found.data.content), version: found.data.version }
     const upgraded = checked(
       await sb
         .from('tourism_deck_templates')
@@ -375,7 +392,8 @@ export const deckPhotoIds = (assets: DeckAsset[]) => {
  * si può sempre correggere a mano.
  */
 export async function generateIntoDeck(sb: Sb, service: Sb, row: DeckRow, instruction?: string,
-  agent: (args: DeckAgentArgs) => Promise<DeckAgentResult> = runDeckAgent, findPhotos: PhotoFinder = findDestinationPhotos): Promise<DeckRow> {
+  agent: (args: DeckAgentArgs) => Promise<DeckAgentResult> = runDeckAgent, findPhotos: PhotoFinder = findDestinationPhotos,
+  options: { onlyIfUnchanged?: boolean; readWebsite?: typeof readWebsiteMaterial } = {}): Promise<DeckRow> {
   const stale = new Date(Date.now() - GENERATING_STALE_MS).toISOString()
   // Due UPDATE condizionali, non un `.or()`: con PostgREST il filtro `or` di un UPDATE vale
   // anche per la risposta (la riga è già "generating"), e con select('id') la colonna
@@ -386,14 +404,30 @@ export async function generateIntoDeck(sb: Sb, service: Sb, row: DeckRow, instru
       .update({ status: 'generating', error: null, approved_at: null, updated_at: new Date().toISOString() })
       .eq('user_id', row.user_id)
       .eq('id', row.id)
-  let claimed = checked(await claim().neq('status', 'generating').select('id').maybeSingle())
-  if (!claimed.data) claimed = checked(await claim().eq('status', 'generating').lt('updated_at', stale).select('id').maybeSingle())
-  if (!claimed.data) throw new Error('Generazione già in corso per questa presentazione (already running)')
+  if (options.onlyIfUnchanged) {
+    // Si rigenera la riga letta, non una modificata nel frattempo (editor, foto): stesso stato e stessa versione.
+    const same = checked(await claim().eq('status', row.status).eq('version', row.version).select('id').maybeSingle())
+    if (!same.data) throw new Error('la presentazione è cambiata nel frattempo')
+  } else {
+    let claimed = checked(await claim().neq('status', 'generating').select('id').maybeSingle())
+    if (!claimed.data) claimed = checked(await claim().eq('status', 'generating').lt('updated_at', stale).select('id').maybeSingle())
+    if (!claimed.data) throw new Error('Generazione già in corso per questa presentazione (already running)')
+  }
   try {
     const template = await templateForDeck(sb, row.user_id, row.input)
     const photoNote = await addDestinationPhotos(sb, service, row, template, findPhotos)
     const { materials, skipped } = await loadMaterials(service, row)
     const entity = await entityContext(sb, row.user_id, row.entity_id)
+    if (entity?.website) {
+      const website = await (options.readWebsite || readWebsiteMaterial)(entity.website)
+      for (const page of website.pages) {
+        materials.documents.push({
+          name: `Sito ufficiale · ${page.title || page.url} · ${page.url}`,
+          text: page.text
+        })
+      }
+      if (website.warning) skipped.push(`Sito ufficiale non acquisito: ${website.warning}`)
+    }
     const result = await agent({
       template,
       input: row.input,

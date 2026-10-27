@@ -32,6 +32,7 @@ test('«SNAV ha approvato, fai la fattura»: accettato, bozza pronta, niente SDI
   assert.ok(d.tables.quotes[0].accepted_at)
   assert.equal(d.tables.invoices.length, 1)
   assert.equal(d.tables.invoices[0].status, 'draft')
+  assert.equal(out.result?.invoice_id, d.tables.invoices[0].id, 'la scheda del Direttore può aprire la bozza registrata')
   assert.match(out.reply, /segnato come accettato/)
   assert.match(out.reply, /Non l’ho inviata/)
   assert.equal(d.tables.activities.length, 1)

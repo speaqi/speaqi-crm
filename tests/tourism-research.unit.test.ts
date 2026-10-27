@@ -4,6 +4,7 @@ import {
   analyseTourismHtml,
   crawlTourismSite,
   publicAddress,
+  readWebsiteMaterial,
   robotsPolicy,
   type ResearchFetch
 } from '../src/lib/server/tourism-site-crawler'
@@ -119,6 +120,41 @@ test('public-only URLs and DNS exclude local, reserved and mapped private addres
     'https://example.com:22/'
   ])
     await assert.rejects(() => crawlTourismSite(url), /Public URL/)
+})
+test('presentation website reading follows canonical www and relevant links with source URLs', async () => {
+  const calls: string[] = []
+  const pages = {
+    'https://example.com/robots.txt': { status: 404 },
+    'https://example.com/': { status: 301, location: 'https://www.example.com/' },
+    'https://www.example.com/robots.txt': 'User-agent: *\nDisallow: /private',
+    'https://www.example.com/': '<title>Fondazione turistica</title><nav><a href="/chi-siamo">Chi siamo</a><a href="/private">Chi siamo privato</a></nav><main>Benvenuti nella destinazione.</main>',
+    'https://www.example.com/chi-siamo': '<title>La Fondazione</title><main>La fondazione promuove il territorio e i suoi sette comuni.</main>'
+  }
+  const material = await readWebsiteMaterial('example.com', { fetch: fake(pages, calls), pause: async () => {} })
+  assert.equal(material.pages.length, 2)
+  assert.equal(material.pages[0].url, 'https://www.example.com/')
+  assert.match(material.pages[1].text, /sette comuni/)
+  assert.ok(!calls.some((url) => url.includes('/private')))
+  assert.equal(material.warning, undefined)
+})
+test('presentation website reading reports blocked robots and refuses off-site redirects', async () => {
+  const blocked = await readWebsiteMaterial('https://blocked.example/', {
+    fetch: fake({ 'https://blocked.example/robots.txt': 'User-agent: *\nDisallow: /' }, []),
+    pause: async () => {}
+  })
+  assert.equal(blocked.pages.length, 0)
+  assert.match(blocked.warning || '', /robots.txt/)
+
+  const calls: string[] = []
+  const redirected = await readWebsiteMaterial('https://example.com/', {
+    fetch: fake({
+      'https://example.com/robots.txt': { status: 404 },
+      'https://example.com/': { status: 302, location: 'https://other.example/' }
+    }, calls),
+    pause: async () => {}
+  })
+  assert.match(redirected.warning || '', /reindirizza fuori/)
+  assert.ok(!calls.some((url) => url.includes('other.example')))
 })
 test('structured places preserve valid zero coordinates and ignore people, organizations and invalid geo', () => {
   const page = analyseTourismHtml(

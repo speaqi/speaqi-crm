@@ -476,3 +476,51 @@ describe('rinomina un ente', () => {
     assert.match(directorHelpText('https://crm.speaqi.com'), /Rinomina X in Y/)
   })
 })
+
+describe('domande «per chi?» e foto della presentazione', async () => {
+  const { directorFollowUp, readAwaiting } = await import('../src/lib/office/director-orders')
+  const { officeDeckInput } = await import('../src/lib/server/office-agents/presentations')
+
+  test('«mi serve la presentazione» chiede per chi, e il nome che arriva dopo completa l’ordine', () => {
+    const plan = interpretDirectorOrder(answer({ intent: 'presentation', targets: [] }), { text: 'mi serve la presentazione', today: TODAY })
+    assert.equal(plan.intent, 'unknown')
+    const awaiting = plan.intent === 'unknown' ? plan.awaiting ?? null : null
+    assert.deepEqual(awaiting, { need: 'target', resume: 'presentazione per {}' })
+    assert.equal(directorFollowUp(awaiting, 'Ministerio del Turismo de Venezuela'), 'presentazione per Ministerio del Turismo de Venezuela')
+    assert.equal(directorFollowUp(awaiting, 'per Visit Bergamo.'), 'presentazione per Visit Bergamo')
+    // Un altro lavoro, o un messaggio lungo, resta un ordine a sé.
+    assert.equal(directorFollowUp(awaiting, 'trovami 5 partner per Venezia'), null)
+    assert.equal(directorFollowUp(awaiting, 'x'.repeat(200)), null)
+    assert.equal(directorFollowUp(awaiting, 'presentazione per Visit Lima'), null)
+    // Una parola di comando dentro un nome non lo rende un ordine nuovo.
+    assert.equal(directorFollowUp(awaiting, 'Hotel Partner, Venezia'), 'presentazione per Hotel Partner, Venezia')
+    assert.equal(directorFollowUp(awaiting, 'Comune di Mappano'), 'presentazione per Comune di Mappano')
+    // Una domanda «per chi» senza il posto dove mettere la risposta non vale.
+    assert.equal(readAwaiting({ awaiting: { need: 'target', resume: 'presentazione per' } }), null)
+  })
+
+  test('anche partner, ente da aggiungere e fattura aspettano la risposta', () => {
+    const partners = interpretDirectorOrder(answer({ intent: 'find_partners' }), { text: '', today: TODAY })
+    assert.equal(partners.intent === 'unknown' && directorFollowUp(partners.awaiting ?? null, 'Venezia'), 'trovami 5 partner per Venezia')
+    // Il numero chiesto resta: «trovami 10 partner» ripreso non torna a 5.
+    const ten = interpretDirectorOrder(answer({ intent: 'find_partners', count: 10 }), { text: '', today: TODAY })
+    assert.equal(ten.intent === 'unknown' && directorFollowUp(ten.awaiting ?? null, 'Venezia'), 'trovami 10 partner per Venezia')
+    const country = interpretDirectorOrder(answer({ intent: 'add_entity', target: 'Visit Lima' }), { text: '', today: TODAY })
+    assert.equal(country.intent === 'unknown' && directorFollowUp(country.awaiting ?? null, 'Perù'), 'aggiungi Visit Lima a Tourism Intelligence e ai contatti, paese Perù')
+    const invoice = interpretDirectorOrder(answer({ intent: 'invoice' }), { text: 'fammi una fattura', today: TODAY })
+    assert.equal(invoice.intent === 'unknown' && directorFollowUp(invoice.awaiting ?? null, 'SNAV'), 'fammi la fattura per SNAV')
+  })
+
+  test('la richiesta dell’ufficio non porta le foto in base64: solo testo', () => {
+    const big = `data:image/jpeg;base64,${'A'.repeat(300_000)}`
+    const input = officeDeckInput([
+      { role: 'system', content: [{ type: 'input_text', text: 'regole' }] },
+      { role: 'user', content: [{ type: 'input_text', text: 'BRIEF' }, { type: 'input_text', text: 'FOTO id=f1 nome="Caracas":' },
+        { type: 'input_image', image_url: big }, { type: 'input_file', filename: 'brochure.pdf', file_data: big }] },
+    ])
+    assert.ok(input.length < 2000)
+    assert.doesNotMatch(input, /base64/)
+    assert.match(input, /FOTO id=f1/)
+    assert.match(input, /brochure\.pdf/)
+  })
+})

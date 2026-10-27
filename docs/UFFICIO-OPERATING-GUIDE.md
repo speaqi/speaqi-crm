@@ -4,11 +4,23 @@
 
 Accedi come titolare e apri **Ufficio**. Scrivi al Direttore oppure usa il bot Telegram già configurato. Un ordine viene salvato prima di interpretarlo; la scheda **Lavori** mostra gli incarichi dell'ufficio e ogni ordine può mostrare i propri lavori collegati. Il browser non deve restare aperto perché il worker esegua i turni.
 
+Nel campus 3D, clicca un personaggio o il suo cartellino per aprire la scheda nel pannello. **Cosa sta facendo** mostra gli incarichi assegnati, i blocchi e le azioni disponibili; **Anche conclusi** include lo storico dei lavori e i collegamenti ai documenti prodotti. **Cosa ha fatto** conserva risultati e corse del singolo agente, con pagine per lo storico precedente. Il pulsante **Attività e storico** nella Squadra apre la stessa scheda anche senza 3D.
+
+Colori e cartellini seguono il registro degli incarichi: un blocco o una decisione richiesta restano visibili dopo la conclusione della corsa. I messaggi animati rappresentano nuove assegnazioni del Direttore e risultati registrati; il caricamento iniziale non riproduce eventi passati. La pagina aggiorna i dati ogni cinque secondi mentre ci sono lavori pronti o in corso, altrimenti ogni trenta, e sospende le letture periodiche quando è nascosta. La preferenza di movimento ridotto disattiva i messaggi animati.
+
 Per una presentazione Tourism indica ente e destinazione. Se il sito o le prove mancano, Arricchimento lavora soltanto su quell'incarico e prepara una proposta con fonti. In **Aspetta te**, controlla e approva o rifiuta. L'approvazione valida gli effetti indicati, sblocca la presentazione e conserva l'ordine originale. La presentazione pronta resta da rivedere: il sistema non approva il deck né invia l'email al cliente al posto tuo.
 
 Un «sì» in chat non approva nulla. Gli agenti non possono accendersi, aumentare i propri budget, pubblicare o inviare documenti sulla base di una risposta libera del modello.
 
 ## Leggere gli stati
+
+### Smaltire «Aspetta te»
+
+La coda distingue **Decisioni**, **Documenti** e **Avvisi**. I rapporti sulla stessa presentazione sono raggruppati in una scheda con il titolo e lo stato attuale del documento. **Apri documento** porta all'editor, dove resta l'approvazione della presentazione.
+
+Usa **Seleziona questa vista** o le caselle delle singole schede. **Archivia avvisi selezionati** li segna come letti (`done`), conserva lo storico e lascia invariati documenti, lavori e autorizzazioni. Non archivia proposte o uscite che costituiscono una decisione richiesta da un lavoro. Per le **Decisioni**, **Approva selezionate** e **Rifiuta selezionate** applicano gli effetti descritti nelle proposte, con il medesimo servizio delle azioni singole e di Telegram. Eventuali errori restano sulle voci non gestite; quelle riuscite escono dalla coda.
+
+Selezione e filtri valgono per la pagina corrente (massimo 50 elementi). L'archiviazione richiede la migration additiva `office_inbox_acknowledge`, da distribuire prima del codice. La RPC è eseguibile soltanto dal servizio del server; le API mantengono il controllo del titolare e del workspace.
 
 | Stato mostrato | Cosa significa | Azione del titolare |
 |---|---|---|

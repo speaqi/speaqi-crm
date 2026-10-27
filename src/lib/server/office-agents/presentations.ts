@@ -12,11 +12,27 @@ import { sendDeckToTelegram } from '../office-deck-telegram'
 
 const checked = (result: any) => { if (result.error) throw result.error; return result.data }
 
+/**
+ * La richiesta dell'ufficio è solo testo: foto (Wikimedia, Telegram) e PDF restano fuori.
+ * Messe nel JSON erano centinaia di migliaia di caratteri di base64, e il controllo dei costi
+ * fermava la generazione («Testo troppo lungo») prima di spendere. Le foto le assegna il codice
+ * (`assignPhotos`), al modello basta sapere che esistono, con id e nome nel brief.
+ */
+export function officeDeckInput(input: unknown[]) {
+  return JSON.stringify(input.map((message: any) => ({
+    ...message,
+    content: (Array.isArray(message?.content) ? message.content : []).flatMap((part: any) =>
+      part?.type === 'input_image' ? []
+        : part?.type === 'input_file' ? [{ type: 'input_text', text: `(PDF «${String(part.filename || 'documento')}» non letto dall’ufficio)` }]
+          : [part]),
+  })))
+}
+
 /** L'agente delle slide che passa dal budget dell'ufficio (riserva prima, saldo dopo), senza retry. */
 export function officeDeckAgent(ctx: Parameters<AgentHandler>[0], model: typeof callModel = callModel) {
   return async (args: Parameters<typeof buildAgentRequest>[0]) => {
     const request = buildAgentRequest(args, ctx.agent.model)
-    const result = await model(ctx, { model: ctx.agent.model, input: JSON.stringify(request.input), maxOutputTokens: request.max_output_tokens,
+    const result = await model(ctx, { model: ctx.agent.model, input: officeDeckInput(request.input), maxOutputTokens: request.max_output_tokens,
       jsonSchema: { name: 'tourism_deck', schema: request.text.format.schema } })
     return validateDeckAgentResult(args, { output_text: result.text }, ctx.agent.model)
   }

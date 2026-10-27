@@ -35,7 +35,9 @@ const ICON_PATHS: Record<DeckIcon, string[]> = {
   users: ['M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z', 'M2.5 20c.4-3.4 3-5.5 6.5-5.5s6.1 2.1 6.5 5.5', 'M16 4.3a3.5 3.5 0 0 1 0 6.4', 'M18 14.8c2 .7 3.3 2.5 3.5 5.2'],
   shield: ['M12 3l8 3v6c0 4.6-3.3 8-8 9-4.7-1-8-4.4-8-9V6z', 'M8.5 12l2.5 2.5 4.5-4.5'],
   chat: ['M21 11.5a8.5 8.5 0 0 1-12.6 7.4L3 20.5l1.6-5A8.5 8.5 0 1 1 21 11.5z', 'M8.5 12.5c1.2-2 2.3-2 3.5 0s2.3 2 3.5 0'],
-  send: ['M5 4l15 8-15 8 3-8z', 'M8 12h12']
+  send: ['M5 4l15 8-15 8 3-8z', 'M8 12h12'],
+  check: ['M5 12.5l4.5 4.5L19 7.5'],
+  link: ['M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2', 'M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2']
 }
 function Icon({ name }: { name: DeckIcon }) {
   return (
@@ -103,6 +105,8 @@ export function SlideView({
   const picture = image || art
   const aiArt = !image && !!slide.art && DECK_AI_ART.includes(slide.art)
   const qr = slide.qr ? DECK_ART[slide.qr] : null
+  /** Credito sulla foto: autore e licenza di quella vera, altrimenti l'avviso sull'immagine di esempio. */
+  const photoLabel = image ? credit : aiArt ? 'Immagine generata con AI' : null
   const base = cls(d.slide, d[tone], d[slide.kind], active && d.active)
   const foot = <Foot footnote={slide.footnote} n={n} total={total} />
 
@@ -128,7 +132,7 @@ export function SlideView({
   if (slide.kind === 'list') {
     return (
       <section className={cls(base, !!picture && d.withSide)} aria-hidden={!active}>
-        {picture && <div className={d.side} style={photo(picture)}>{image && credit && <span className={d.photoCredit}>{credit}</span>}</div>}
+        {picture && <div className={d.side} style={photo(picture)}>{photoLabel && <span className={d.photoCredit}>{photoLabel}</span>}</div>}
         <div className={d.listText}>
           <Kicker value={slide.kicker} />
           <h2><Lines value={slide.title} /></h2>
@@ -178,37 +182,65 @@ export function SlideView({
       <section className={base} aria-hidden={!active}>
         <Kicker value={slide.kicker} />
         <h2><Lines value={slide.title} /></h2>
-        <div className={d.showcaseGrid} style={{ gridTemplateColumns: `repeat(${Math.max(slide.items.length, 1)}, minmax(0, 1fr))` }}>
+        <div className={cls(d.showcaseGrid, !!slide.body && d.withBand)} style={{ gridTemplateColumns: `repeat(${Math.max(slide.items.length, 1)}, minmax(0, 1fr))` }}>
           {slide.items.map((item, i) => (
-            <div className={cls(d.showcaseCard, item.highlight && d.hl)} key={i}>
+            <div
+              className={cls(d.showcaseCard, item.highlight && d.hl, !!item.art && d.showcasePhoto)}
+              style={item.art ? photo(DECK_ART[item.art]) : undefined}
+              key={i}
+            >
               <h3><Text value={item.title} /></h3>
-              <div>
-                {item.value && <div className={d.bigValue}>{item.value}</div>}
-                {item.text && <p><Text value={item.text} /></p>}
-              </div>
+              {(item.value || item.text) && (
+                <div>
+                  {item.value && <div className={d.bigValue}>{item.value}</div>}
+                  {item.text && <p><Text value={item.text} /></p>}
+                </div>
+              )}
             </div>
           ))}
         </div>
+        {slide.body && (
+          <div className={d.band}>
+            {slide.note && <span className={d.bandLabel}><Text value={slide.note} /></span>}
+            <span><Text value={slide.body} /></span>
+          </div>
+        )}
         {foot}
       </section>
     )
   }
 
   if (slide.kind === 'figures') {
+    // Le voci con un numero sono le cifre; quelle senza sono i passi della fascia in basso.
+    const figures = slide.items.filter((item) => item.value)
+    const steps = slide.items.filter((item) => !item.value)
     return (
-      <section className={base} aria-hidden={!active}>
+      <section className={cls(base, steps.length > 0 && d.withSteps)} aria-hidden={!active}>
         <Kicker value={slide.kicker} />
         <h2><Lines value={slide.title} /></h2>
-        <div className={d.figureRow} style={{ gridTemplateColumns: `repeat(${Math.max(slide.items.length, 1)}, minmax(0, 1fr))` }}>
-          {slide.items.map((item, i) => (
+        <div className={d.figureRow} style={{ gridTemplateColumns: `repeat(${Math.max(figures.length, 1)}, minmax(0, 1fr))` }}>
+          {figures.map((item, i) => (
             <div className={d.figure} key={i}>
-              {item.value && <div className={d.bigValue}>{item.value}</div>}
+              <div className={d.bigValue}>{item.value}</div>
               <h3><Text value={item.title} /></h3>
               {item.text && <p><Text value={item.text} /></p>}
             </div>
           ))}
         </div>
-        {slide.note && <div className={d.box}><p><Text value={slide.note} /></p></div>}
+        {slide.note && (steps.length > 0 ? <p className={d.figureNote}><Text value={slide.note} /></p> : <div className={d.box}><p><Text value={slide.note} /></p></div>)}
+        {steps.length > 0 && (
+          <div className={d.stepStrip}>
+            {slide.body && <div className={d.stepLabel}><Text value={slide.body} /></div>}
+            <div className={d.stepRow} style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}>
+              {steps.map((item, i) => (
+                <div className={cls(d.stepCard, item.highlight && d.hl)} key={i}>
+                  <h3><span>{String(i + 1).padStart(2, '0')}</span> <Text value={item.title} /></h3>
+                  {item.text && <p><Text value={item.text} /></p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {foot}
       </section>
     )
@@ -313,7 +345,7 @@ export function SlideView({
             <h2><Lines value={slide.title} /></h2>
             {slide.body && <p className={d.lead}><Text value={slide.body} /></p>}
           </div>
-          {picture && <div className={d.photo} style={photo(picture)}>{image && credit && <span className={d.photoCredit}>{credit}</span>}</div>}
+          {picture && <div className={d.photo} style={photo(picture)}>{photoLabel && <span className={d.photoCredit}>{photoLabel}</span>}</div>}
         </div>
         {slide.note && <div className={d.pill}><Text value={slide.note} /></div>}
         {foot}
@@ -323,15 +355,19 @@ export function SlideView({
 
   // Schede e passi.
   const count = slide.items.length
-  const columns = slide.kind === 'steps' ? Math.min(Math.max(count, 1), 6) : count === 4 ? 2 : count > 4 ? 3 : Math.max(count, 1)
+  // Domande e risposte (schede senza icone né etichette): due colonne anche con sei voci.
+  const faq = slide.kind === 'cards' && count > 4 && !slide.items.some((i) => i.icon || i.value)
+  const columns = slide.kind === 'steps' ? Math.min(Math.max(count, 1), 6) : faq || count === 4 ? 2 : count > 4 ? 3 : Math.max(count, 1)
   const labelled = slide.kind === 'cards' && slide.items.some((i) => i.value)
+  // Etichetta e titolo senza icone: le schede si leggono dall'alto, con i titoli allineati.
+  const plain = labelled && !slide.items.some((i) => i.icon)
   return (
     <section className={base} aria-hidden={!active}>
       <Kicker value={slide.kicker} />
       <h2><Lines value={slide.title} /></h2>
       {slide.body && <p className={d.lead}><Text value={slide.body} /></p>}
       <div
-        className={cls(d.grid, count > 3 && d.compact, labelled && d.labelled, slide.kind === 'steps' && count >= 5 && d.dense)}
+        className={cls(d.grid, count > 3 && d.compact, labelled && d.labelled, plain && d.plain, faq && d.faq, slide.kind === 'steps' && count >= 5 && d.dense)}
         style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
       >
         {slide.items.map((item, i) => (
@@ -346,7 +382,7 @@ export function SlideView({
           </div>
         ))}
       </div>
-      {slide.note && (slide.kind === 'cards' && tone !== 'light' ? <div className={d.afterLine}><Text value={slide.note} /></div> : <div className={d.pill}><Text value={slide.note} /></div>)}
+      {slide.note && (slide.kind === 'cards' ? <div className={d.statementLine}><Text value={slide.note} /></div> : <div className={d.pill}><Text value={slide.note} /></div>)}
       {foot}
     </section>
   )

@@ -1,0 +1,367 @@
+{
+  "version": 1,
+  "base": "destinazioni-2026-10",
+  "vars": {},
+  "slides": [
+    {
+      "body": "Una mappa digitale multilingua del tuo territorio, gratuita per le destinazioni selezionate.",
+      "items": [],
+      "note": "",
+      "image_asset_id": null,
+      "hint": "Scegli come foto la più rappresentativa della destinazione (un panorama, il centro storico), se ce n’è una. I testi non cambiano.",
+      "id": "cover",
+      "kind": "cover",
+      "kicker": "Speaqi Guides per {{destinazione}}",
+      "title": "Il tuo territorio.\nUna mappa.\nMolto più da vivere.",
+      "art": "cover",
+      "fixed": true
+    },
+    {
+      "body": "",
+      "items": [
+        {
+          "title": "Tante lingue",
+          "text": "visitatori da tutto il mondo, ognuno con la sua"
+        },
+        {
+          "title": "Tanti canali",
+          "text": "sito, infopoint, strutture ricettive, operatori"
+        },
+        {
+          "title": "Nessuna mappa comune",
+          "text": "ognuno racconta il territorio a modo suo"
+        }
+      ],
+      "note": "",
+      "image_asset_id": null,
+      "hint": "Tieni i tre titoli. Nel testo sotto puoi dire da dove arrivano i visitatori di {{destinazione}} e quali canali ha l’ente, solo se lo dicono i materiali o la scheda dell’ente; altrimenti lascia il testo com’è. Come foto, una via o una piazza della destinazione con visitatori, se c’è.",
+      "id": "partenza",
+      "kind": "list",
+      "tone": "light",
+      "kicker": "Il punto di partenza",
+      "title": "I visitatori arrivano.\nLe informazioni sono sparse.",
+      "art": "partenza"
+    },
+    {
+      "body": "",
+      "items": [
+        {
+          "title": "Luoghi, percorsi, punti di interesse",
+          "text": "in un’unica esperienza digitale",
+          "icon": "star"
+        },
+        {
+          "title": "Si apre da link o QR",
+          "text": "nessuna app da scaricare",
+          "icon": "zap"
+        },
+        {
+          "title": "Prima e durante il soggiorno",
+          "text": "sul telefono del visitatore",
+          "icon": "clock"
+        }
+      ],
+      "note": "",
+      "image_asset_id": null,
+      "hint": "Testi fissi. Come foto, un luogo simbolo della destinazione, se c’è.",
+      "id": "proposta",
+      "kind": "list",
+      "tone": "dark",
+      "kicker": "La proposta",
+      "title": "Una mappa del tuo territorio, nel telefono di ogni visitatore.",
+      "art": "proposta",
+      "fixed": true
+    },
+    {
+      "body": "",
+      "items": [
+        {
+          "title": "Una mappa del territorio",
+          "text": "luoghi, percorsi e punti di interesse",
+          "icon": "star"
+        },
+        {
+          "title": "Accoglienza multilingua",
+          "text": "senza una guida per ogni lingua",
+          "icon": "globe"
+        },
+        {
+          "title": "Aggiornamenti curati insieme",
+          "text": "con modalità concordate",
+          "icon": "clock"
+        },
+        {
+          "title": "Un riferimento per la rete",
+          "text": "infopoint, strutture e operatori",
+          "icon": "users"
+        },
+        {
+          "title": "Dal telefono, senza app",
+          "text": "con link o QR Code",
+          "icon": "zap"
+        },
+        {
+          "title": "Una collaborazione continuativa",
+          "text": "nel perimetro concordato",
+          "icon": "shield",
+          "highlight": true
+        }
+      ],
+      "note": "",
+      "image_asset_id": null,
+      "hint": "",
+      "id": "cosa-ottieni",
+      "kind": "cards",
+      "kicker": "Cosa ottieni",
+      "title": "Cosa ottiene {{destinazione}}.",
+      "fixed": true
+    },
+    {
+      "body": "Per i visitatori dall’estero, senza una guida separata per ogni lingua.",
+      "items": [],
+      "note": "Accoglienza multilingua",
+      "image_asset_id": null,
+      "hint": "",
+      "id": "lingue",
+      "kind": "languages",
+      "kicker": "Multilingua",
+      "title": "Una sola mappa, nella lingua di ogni visitatore.",
+      "art": "lingue",
+      "fixed": true
+    },
+    {
+      "body": "",
+      "items": [
+        {
+          "title": "Napoli",
+          "value": "488",
+          "text": "luoghi da esplorare",
+          "highlight": true
+        },
+        {
+          "title": "Roma",
+          "value": "441",
+          "text": "luoghi da esplorare"
+        },
+        {
+          "title": "Lisbona",
+          "value": "116",
+          "text": "luoghi da esplorare"
+        },
+        {
+          "title": "Pompei",
+          "value": "112",
+          "text": "luoghi da esplorare"
+        },
+        {
+          "title": "Capri",
+          "value": "104",
+          "text": "luoghi da esplorare"
+        }
+      ],
+      "note": "",
+      "image_asset_id": null,
+      "hint": "",
+      "id": "catalogo",
+      "kind": "showcase",
+      "kicker": "Esempi dal catalogo Speaqi",
+      "title": "Le mappe sono già online.",
+      "footnote": "Fonte: guides.speaqi.com, ottobre 2026.",
+      "fixed": true
+    },
+    {
+      "body": "Inquadra il QR dal telefono",
+      "items": [],
+      "note": "guides.speaqi.com/maps/napolimap",
+      "image_asset_id": null,
+      "hint": "",
+      "id": "provala",
+      "kind": "demo",
+      "tone": "accent",
+      "kicker": "Provala adesso",
+      "title": "Apri la mappa\ndi Napoli.",
+      "art": "telefoni",
+      "qr": "qr-napoli",
+      "fixed": true
+    },
+    {
+      "body": "",
+      "items": [],
+      "note": "",
+      "image_asset_id": null,
+      "hint": "",
+      "id": "in-azione",
+      "kind": "media",
+      "kicker": "Speaqi Guides in azione",
+      "title": "Speaqi Guides in azione",
+      "art": "azione",
+      "fixed": true
+    },
+    {
+      "body": "",
+      "items": [
+        {
+          "title": "La destinazione",
+          "text": "Distribuisce le guide Speaqi nei canali concordati\nCoinvolge la rete locale\nIndica un referente e fornisce le informazioni sul territorio"
+        },
+        {
+          "title": "Speaqi",
+          "text": "Realizza la mappa multilingua\nLa aggiorna nel perimetro concordato\nAccompagna l’evoluzione del progetto",
+          "highlight": true
+        }
+      ],
+      "note": "Per le destinazioni selezionate, la mappa è gratuita.",
+      "image_asset_id": null,
+      "hint": "",
+      "id": "collaborazione",
+      "kind": "compare",
+      "kicker": "Il modello di collaborazione",
+      "title": "Tu distribuisci. Noi costruiamo la mappa.",
+      "footnote": "Durata, perimetro e continuità dell’offerta gratuita sono definiti nell’accordo.",
+      "fixed": true
+    },
+    {
+      "body": "",
+      "items": [
+        {
+          "value": "250.000",
+          "title": "presenze turistiche all’anno",
+          "text": "pernottamenti documentabili"
+        },
+        {
+          "value": "2",
+          "title": "canali di distribuzione attivi",
+          "text": "per esempio sito e infopoint"
+        },
+        {
+          "value": "1",
+          "title": "referente dedicato",
+          "text": "per tutta la collaborazione"
+        }
+      ],
+      "note": "In più: un ente che rappresenta il territorio (ente del turismo, DMO, DMC, comune, consorzio o rete territoriale) e un piano di distribuzione continuativo.",
+      "image_asset_id": null,
+      "hint": "",
+      "id": "requisiti",
+      "kind": "figures",
+      "tone": "deep",
+      "kicker": "I requisiti minimi",
+      "title": "Chi può candidarsi.",
+      "fixed": true
+    },
+    {
+      "body": "",
+      "items": [
+        {
+          "title": "Candidi la destinazione",
+          "text": "Destinazione, canali e piano di distribuzione. Nessun pagamento, nessun obbligo di acquisto."
+        },
+        {
+          "title": "Definiamo la collaborazione",
+          "text": "Distribuzione, contenuti, aggiornamenti, durata e perimetro gratuito."
+        },
+        {
+          "title": "La mappa va online e cresce",
+          "text": "Tu attivi i canali. Noi costruiamo e aggiorniamo la mappa con il tuo referente.",
+          "highlight": true
+        }
+      ],
+      "note": "",
+      "image_asset_id": null,
+      "hint": "",
+      "id": "come-si-parte",
+      "kind": "steps",
+      "kicker": "Come si parte",
+      "title": "Tre passi. Candidarsi non costa nulla.",
+      "fixed": true
+    },
+    {
+      "body": "",
+      "items": [
+        {
+          "value": "Assistente AI",
+          "title": "iConcierge",
+          "text": "Risponde ai visitatori usando i contenuti della destinazione.",
+          "highlight": true
+        },
+        {
+          "value": "Eventi",
+          "title": "Festival ed eventi",
+          "text": "Contenuti dedicati agli eventi del territorio."
+        },
+        {
+          "value": "Contenuti",
+          "title": "Testi, audio e video",
+          "text": "Contenuti editoriali multilingua, perimetro definito per progetto."
+        }
+      ],
+      "note": "Su proposta separata. Non servono per ricevere la mappa gratuita.",
+      "image_asset_id": null,
+      "hint": "",
+      "id": "servizi",
+      "kind": "cards",
+      "tone": "dark",
+      "kicker": "Servizi opzionali",
+      "title": "Se vuoi andare oltre la mappa.",
+      "fixed": true
+    },
+    {
+      "body": "",
+      "items": [
+        {
+          "title": "La mappa è davvero gratuita?",
+          "text": "Sì, per le destinazioni selezionate, con l’accordo di collaborazione. Candidarsi non garantisce l’ammissione."
+        },
+        {
+          "title": "Dobbiamo vendere le guide?",
+          "text": "No. Il tuo ruolo è distribuire e promuovere le guide Speaqi nei canali concordati."
+        },
+        {
+          "title": "Quali guide distribuiamo?",
+          "text": "Le definiamo insieme nell’accordo, in base ai tuoi visitatori e ai tuoi canali."
+        },
+        {
+          "title": "Chi cura contenuti e aggiornamenti?",
+          "text": "Speaqi crea e aggiorna la mappa; il tuo referente fornisce le informazioni locali."
+        }
+      ],
+      "note": "",
+      "image_asset_id": null,
+      "hint": "",
+      "id": "domande",
+      "kind": "cards",
+      "kicker": "Domande frequenti",
+      "title": "Le risposte che ci chiedono più spesso.",
+      "fixed": true
+    },
+    {
+      "body": "Massimo Morgante",
+      "items": [
+        {
+          "title": "389 6868 162",
+          "text": "",
+          "icon": "chat"
+        },
+        {
+          "title": "info@speaqi.com",
+          "text": "",
+          "icon": "send"
+        },
+        {
+          "title": "guides.speaqi.com/destinations",
+          "text": "",
+          "icon": "globe"
+        }
+      ],
+      "note": "Founder & CEO, Speaqi",
+      "image_asset_id": null,
+      "hint": "",
+      "id": "chiusura",
+      "kind": "closing",
+      "title": "Hai il territorio. Hai i canali.\nFacciamo la mappa di {{destinazione}}.",
+      "qr": "qr-destinazioni",
+      "footnote": "Candida la tua destinazione",
+      "fixed": true
+    }
+  ]
+}

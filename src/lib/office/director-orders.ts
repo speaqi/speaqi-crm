@@ -38,7 +38,7 @@ export type DirectorOrderPlan =
   | { intent: 'events' }
   | { intent: 'invoice'; quote_number: string | null; customer: string | null; approved: boolean }
   | { intent: 'task'; items: DirectorTaskItem[]; dropped: number }
-  | { intent: 'unknown'; question: string }
+  | { intent: 'unknown'; question: string; awaiting?: DirectorAwaiting }
 
 /** Una cosa da fare letta dall'ordine: data e ora italiane, durata se detta. */
 export type DirectorTaskItem = { title: string; date: string | null; time: string | null; minutes: number | null }
@@ -220,9 +220,10 @@ export function interpretDirectorOrder(parsed: unknown, input: { text: string; t
     if (!targets.length) {
       if (skipped.length) return { intent: 'unknown', question: 'Napoli resta fuori dal lavoro degli agenti. Per quale altro ente preparo la presentazione?' }
       if (count && audience === 'destinazione') return { intent, targets: [], count, audience, brief: str(raw.brief, 1000), city: null, skipped, country_code: null, type_code: null }
-      return { intent: 'unknown', question: audience === 'partner'
-        ? 'Per quale partner preparo la presentazione? Scrivimi il nome e la città della guida (es. «presentazione partner per Hotel Laguna, Venezia»).'
-        : 'Per chi devo preparare la presentazione?' }
+      return audience === 'partner'
+        ? { intent: 'unknown', question: 'Per quale partner preparo la presentazione? Scrivimi il nome e la città della guida (es. «presentazione partner per Hotel Laguna, Venezia»).',
+          awaiting: { need: 'target', resume: 'presentazione partner per {}' } }
+        : { intent: 'unknown', question: 'Per chi devo preparare la presentazione?', awaiting: { need: 'target', resume: 'presentazione per {}' } }
     }
     const code = typeof raw.country_code === 'string' ? raw.country_code.trim().toUpperCase() : ''
     return { intent, targets, count: null, audience, brief: str(raw.brief, 1000), city, skipped,
@@ -230,16 +231,18 @@ export function interpretDirectorOrder(parsed: unknown, input: { text: string; t
   }
   if (intent === 'find_partners') {
     const city = str(raw.city, 80)
-    if (!city) return { intent: 'unknown', question: 'Per quale città cerco i partner?' }
     const count = Number.isInteger(raw.count) && raw.count > 0 ? Math.min(MAX_ORDER_PARTNERS, raw.count) : 5
+    // Il numero chiesto resta nella frase da riprendere: «trovami 10 partner» non torna a 5.
+    if (!city) return { intent: 'unknown', question: 'Per quale città cerco i partner?', awaiting: { need: 'target', resume: `trovami ${count} partner per {}` } }
     return { intent, city, count, brief: str(raw.brief, 300) }
   }
   if (intent === 'add_entity') {
     const name = str(raw.target, 160)
-    if (!name || name.length < 2) return { intent: 'unknown', question: 'Quale ente aggiungo? Scrivimi il nome.' }
+    if (!name || name.length < 2) return { intent: 'unknown', question: 'Quale ente aggiungo? Scrivimi il nome.', awaiting: { need: 'target', resume: 'aggiungi {} a Tourism Intelligence e ai contatti' } }
     if (officeIsNaples(name)) return { intent: 'unknown', question: 'Gli enti di Napoli restano fuori dal lavoro degli agenti: aggiungilo tu dalla scheda Tourism.' }
     const code = typeof raw.country_code === 'string' ? raw.country_code.trim().toUpperCase() : ''
-    if (!/^[A-Z]{2}$/.test(code)) return { intent: 'unknown', question: `Di quale paese è ${name}?` }
+    if (!/^[A-Z]{2}$/.test(code)) return { intent: 'unknown', question: `Di quale paese è ${name}?`,
+      awaiting: { need: 'country', resume: `aggiungi ${name} a Tourism Intelligence e ai contatti` } }
     const type_code = DIRECTOR_ENTITY_TYPES.includes(raw.entity_type) ? raw.entity_type as string : 'other'
     // Il sito vale solo se è scritto nell'ordine: altrimenti lo cerca l'attivazione, e lo verifica.
     return { intent, name: organizationName(name, str(raw.contact?.name, 120)), country_code: code, type_code, city: str(raw.city, 80),
@@ -266,7 +269,8 @@ export function interpretDirectorOrder(parsed: unknown, input: { text: string; t
     // Il numero del preventivo si legge dall'ordine, non dal modello.
     const quote_number = directorQuoteNumber(input.text)
     const customer = quote_number ? null : str(raw.target, 120)
-    if (!quote_number && !customer) return { intent: 'unknown', question: 'Per quale preventivo o cliente faccio la fattura? Scrivimi il numero (PREV-…) o il nome.' }
+    if (!quote_number && !customer) return { intent: 'unknown', question: 'Per quale preventivo o cliente faccio la fattura? Scrivimi il numero (PREV-…) o il nome.',
+      awaiting: { need: 'target', resume: 'fammi la fattura per {}' } }
     // Il preventivo si segna accettato solo se l'ordine lo dice con parole sue, non perché il modello lo pensa.
     const approved = raw.quote_approved === true && QUOTE_APPROVAL.test(input.text)
     return { intent, quote_number, customer, approved }
@@ -363,12 +367,21 @@ export function organizationName(name: string, person: string | null): string {
   return out.length >= 3 ? out : name
 }
 
-/** Cosa il Direttore ha chiesto al titolare per riprendere un ordine: il dato e la frase da completare. */
-export type DirectorAwaiting = { need: 'site' | 'city' | 'country'; resume: string }
+/**
+ * Cosa il Direttore ha chiesto al titolare per riprendere un ordine: il dato e la frase da
+ * completare. Con `target` (per chi, quale ente, quale città) la risposta prende il posto di `{}`.
+ */
+export type DirectorAwaiting = { need: 'site' | 'city' | 'country' | 'target'; resume: string }
 /** Una domanda in sospeso vale un giorno: dopo, una risposta breve è un ordine nuovo. */
 export const AWAITING_TTL_MS = 24 * 3600_000
 
 const NEW_COMMAND = /\b(presentazion\w*|aggiung\w*|trova\w*|mappa|mappe|fattur\w*|ricorda\w*|stato|partner|contatt\w*|preventiv\w*|segna|prepara\w*|controlla\w*)\b/i
+
+/**
+ * Per la risposta a «per chi?» conta come comincia: «presentazione per X», «trovami…» sono ordini
+ * nuovi, mentre «Hotel Partner, Venezia» è un nome che contiene una parola di comando.
+ */
+const COMMAND_START = /^(\/?direttore\b|presentazion|aggiung|trova|fammi|fai\b|prepara|crea\b|controlla|segna\b|ricorda|rinomina|mandami|dimmi|fattur|preventiv|stato\b|mappa\b|mappe\b)/i
 
 const OTHER_WORK = /\b(presentazion\w*|partner|fattur\w*|mappa|mappe|preventiv\w*|ricorda\w*)\b/i
 
@@ -376,10 +389,13 @@ export function readAwaiting(value: unknown): DirectorAwaiting | null {
   const raw = value && typeof value === 'object' ? (value as { awaiting?: unknown }).awaiting : null
   if (!raw || typeof raw !== 'object') return null
   const { need, resume } = raw as Record<string, unknown>
-  if (need !== 'site' && need !== 'city' && need !== 'country') return null
+  if (need !== 'site' && need !== 'city' && need !== 'country' && need !== 'target') return null
   if (typeof resume !== 'string' || !resume.trim() || resume.length > 300) return null
+  if (need === 'target' && !resume.includes('{}')) return null
   return { need, resume: resume.trim() }
 }
+
+const SKIP_SITE = /\b(?:senza|non\s+(?:usare|utilizzare|serve|cercare|leggere)|lascia\s+(?:perdere|stare)|salta|ignora)\b[^.?!]{0,40}\bsito\b|\bsito\b[^.?!]{0,20}\b(?:non\s+serve|lascia(?:lo)?\s+(?:perdere|stare))\b/i
 
 /**
  * La risposta del titolare alla domanda del Direttore diventa l'ordine completo, con le
@@ -392,10 +408,18 @@ export function directorFollowUp(awaiting: DirectorAwaiting | null, text: string
   if (!awaiting || !answer || answer.length > 300) return null
   if (awaiting.need === 'site') {
     const site = websiteFromText(answer)
-    if (!site) return null
+    // «Lascia perdere il sito, fammi la presentazione»: si riprende l'ordine com'era.
+    if (!site) return SKIP_SITE.test(answer) ? awaiting.resume : null
     // «Aggiungi questo sito: …» è la risposta; «presentazione per Y, sito …» è un ordine nuovo.
     const rest = answer.replace(/\S*\.[a-z]{2,}\S*/gi, ' ')
     return OTHER_WORK.test(rest) ? null : `${awaiting.resume}, sito ${site}`
+  }
+  if (awaiting.need === 'target') {
+    // «Ministerio del Turismo de Venezuela» dopo «Per chi devo preparare la presentazione?».
+    if (answer.length > 160 || answer.split(/\s+/).length > 14) return null
+    const target = answer.replace(new RegExp(`^(ecco|allora|ok|sì|si|per|a|è)(?=[\\s,:.!-]|$)[\\s,:.!-]*`, 'i'), '').replace(/[.!?]+$/, '').trim()
+    if (COMMAND_START.test(target)) return null
+    return target.length >= 2 ? awaiting.resume.replace('{}', target) : null
   }
   if (websiteFromText(answer) || NEW_COMMAND.test(answer) || answer.length > 80 || answer.split(/\s+/).length > 8) return null
   // Le parole accentate non hanno \b: il confine si guarda a mano.
