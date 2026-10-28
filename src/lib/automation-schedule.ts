@@ -43,6 +43,17 @@ export type ScheduledJob = {
 export const DEFAULT_STEP_TIMEOUT_MS = 180_000
 
 export const AUTOMATION_JOBS: ScheduledJob[] = [
+  // Wine Project, campagne hotel (Hospitality), promozione holding da Acumbamail e
+  // invii holding sono stati tolti il 28/10/2026: il commerciale lavora su
+  // Tourism Intelligence (enti, DMC, distributori). Le rotte restano e si
+  // possono ancora chiamare a mano; Wine e le campagne sono anche spenti nelle
+  // loro impostazioni.
+  {
+    name: 'tourism-opportunities',
+    cron: '15 * * * *',
+    description: 'Ogni ente Tourism nei contatti ha la sua opportunità (tourism o distribuzione)',
+    steps: [{ path: '/api/automation/tourism-opportunities', body: {} }],
+  },
   {name:'office-work',cron:'* * * * *',description:'Lavori persistenti dell’Ufficio: esecuzione, recupero ed esiti',steps:[{path:'/api/automation/office-work',timeoutMs:900_000}]},
   {name:'office-events-scout',cron:'30 6 * * *',everyDays:2,timeZone:'Europe/Rome',description:'Eventi e bandi: a giorni alterni, solo proposte da decidere',steps:[{path:'/api/automation/agents/events_scout/run',timeoutMs:900_000}]},
   {name:'office-news-watch',cron:'0 7 * * *',description:'Osservatorio: novità con fonti, nessun invio automatico',steps:[{path:'/api/automation/agents/news_watch/run'}]},
@@ -79,23 +90,6 @@ export const AUTOMATION_JOBS: ScheduledJob[] = [
     ],
   },
   {
-    name: 'wine-project',
-    cron: '*/30 * * * *',
-    description: 'Wine Project: sequenza, invii di gruppo, aperture e risposte',
-    steps: [
-      { path: '/api/automation/wine-project-followups', body: {} },
-      { path: '/api/automation/wine-project-campaigns', body: { limit: 150 } },
-      { path: '/api/automation/wine-project-engagement', body: {} },
-      { path: '/api/automation/wine-project-replies', body: {} },
-    ],
-  },
-  {
-    name: 'commercial-outreach',
-    cron: '*/30 * * * *',
-    description: 'Campagne commerciali (solo prova: dry_run)',
-    steps: [{ path: '/api/automation/commercial-outreach', body: { dry_run: true, limit: 100 } }],
-  },
-  {
     name: 'notifications-digest',
     cron: '5,35 7-21 * * *',
     description: 'Riepilogo notifiche su Telegram',
@@ -126,12 +120,6 @@ export const AUTOMATION_JOBS: ScheduledJob[] = [
     steps: [{ path: '/api/automation/score-leads', body: { limit: 500 } }],
   },
   {
-    name: 'acumbamail-qualification',
-    cron: '0 7 * * *',
-    description: 'Promozione holding → CRM',
-    steps: [{ path: '/api/automation/acumbamail-qualification', body: {} }],
-  },
-  {
     name: 'weekly-recap',
     cron: '30 7 * * 1',
     description: 'Recap settimanale via email (lunedì)',
@@ -148,12 +136,6 @@ export const AUTOMATION_JOBS: ScheduledJob[] = [
     cron: '0 9 * * *',
     description: 'Lead fermi da 5 giorni',
     steps: [{ path: '/api/automation/stale-leads', body: { stale_days: 5 } }],
-  },
-  {
-    name: 'send-holding',
-    cron: '0 9 * * 1-5',
-    description: 'Invii holding (solo prova: dry_run)',
-    steps: [{ path: '/api/automation/send-batch', body: { limit: 3, min_age_minutes: 60, dry_run: true } }],
   },
   {
     name: 'invoices-sdi',

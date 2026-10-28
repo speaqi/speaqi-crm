@@ -181,3 +181,30 @@ export function stuckReason(deal: Opportunity, step: NextStep, now: Date): strin
   }
   return null
 }
+
+/**
+ * Da tipo di ente di Tourism Intelligence a opportunità. Gli enti del turismo
+ * comprano la mappa della destinazione (pipeline `tourism`); chi vende viaggi,
+ * soggiorni o trasporti può distribuire le guide (`distribuzione`). Gli altri
+ * tipi (tecnologia, fondazioni, "altro") non aprono niente da soli.
+ */
+const TOURISM_DESTINATION_TYPES = new Set([
+  'nto', 'ministry', 'dmo', 'cvb', 'rto', 'local_office', 'municipality', 'development_authority', 'park', 'consortium', 'association',
+])
+const TOURISM_DISTRIBUTOR_TYPES = new Set([
+  'dmc', 'tour_operator', 'travel_agency', 'ota', 'cruise_line', 'ferry_operator', 'transport',
+  'accommodation', 'property_manager', 'tourism_supplier', 'attraction',
+])
+
+export type TourismOpportunityPlan = { pipeline: 'tourism' | 'distribuzione'; role: OpportunityRole; next_step: string; label: string }
+
+export function tourismOpportunityPlan(typeCode: string | null | undefined): TourismOpportunityPlan | null {
+  const code = String(typeCode || '').trim().toLowerCase()
+  if (TOURISM_DESTINATION_TYPES.has(code)) {
+    return { pipeline: 'tourism', role: 'destinazione', next_step: 'Preparare e mandare la presentazione', label: 'Tourism' }
+  }
+  if (TOURISM_DISTRIBUTOR_TYPES.has(code)) {
+    return { pipeline: 'distribuzione', role: 'distributore', next_step: 'Proporre come distribuire le guide e un pilota', label: 'Distribuzione' }
+  }
+  return null
+}

@@ -1,3 +1,4 @@
+import { openTourismOpportunity } from '@/lib/server/tourism-opportunity'
 import { NextRequest } from 'next/server'
 import {
   ENTITY_KINDS,
@@ -493,14 +494,21 @@ export async function POST(request: NextRequest) {
         p_payload: { origin: 'owner', version: body.version, email: email || null, website, city: textValue(body.city, 80) || null }
       })
       if (error) throw new TourismInputError(error.message)
-      return tourismResponse({ ...data, crm_error_text: crmErrorText(data?.crm_error) })
+      const opportunity = data?.contact_id
+        ? await openTourismOpportunity(createServiceRoleClient(), owner, { entityId: requireId(body.id), contactId: data.contact_id, origin: 'scheda' })
+        : null
+      return tourismResponse({ ...data, crm_error_text: crmErrorText(data?.crm_error), opportunity })
     }
     if (body.action === 'promote') {
       const { data, error } = await sb.rpc('tourism_promote', {
         p_entity_id: id
       })
       if (error) throw error
-      return tourismResponse(data)
+      const contactId = data && typeof data === 'object' ? (data as { contact_id?: string }).contact_id : null
+      const opportunity = contactId
+        ? await openTourismOpportunity(createServiceRoleClient(), owner, { entityId: id, contactId, origin: 'promozione' })
+        : null
+      return tourismResponse(opportunity ? { ...data, opportunity } : data)
     }
     if (body.action === 'sync') {
       if (

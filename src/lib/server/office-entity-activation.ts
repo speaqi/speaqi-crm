@@ -1,3 +1,4 @@
+import { openTourismOpportunity } from './tourism-opportunity'
 import { crmErrorText, cityForEntity, siteCandidates, siteMatchesEntity, websiteFromText } from '../office/entity-activation'
 import { ENRICHMENT_SCHEMA, enrichmentPrompt, validateEnrichment, type EnrichOrg, type EnrichPage, type ModelEnrichment } from '../office/entity-enricher'
 import { BudgetExceeded, callModel, type AgentContext } from './office-agents'
@@ -87,6 +88,10 @@ export async function activateEntityForOrder(admin: Admin, ctx: AgentContext, us
   if (result.filled?.includes('email')) notes.push(`ho aggiunto l’email ${parts?.fill.email}`)
   else if (!entity.email) notes.push('email non trovata sul sito')
   const crm = crmErrorText(result.crm_error)
+  const opportunity = result.contact_id
+    ? await openTourismOpportunity(admin, userId, { entityId: entity.id, contactId: result.contact_id, origin: 'direttore' })
+    : null
+  if (opportunity?.opened) notes.push(`aperta l’opportunità in ${opportunity.pipeline}`)
   notes.push(crm ? `non l’ho aggiunto ai contatti: ${crm}` : result.contact_created ? 'l’ho aggiunto ai contatti'
     : result.contact_linked ? 'l’ho collegato al contatto che c’era già' : 'era già nei contatti')
   return { ok: true, placeId: result.place_id, contactId: result.contact_id, note: `Ho attivato ${entity.name} (${city}): ${notes.join(', ')}.` }

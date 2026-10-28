@@ -20,6 +20,9 @@
 
 Il target principale è **Tourism Intelligence**: DMC, enti del turismo e chiunque possa **distribuire le guide** (pipeline `tourism` e `distribuzione`). Wine Project si esaurisce man mano (restano alcuni clienti, nessun nuovo investimento); i ~56 mila hotel in holding (`hospitality-project`) sono un archivio, non un bacino da lavorare. Nuove funzioni, agenti e ottimizzazioni partono da Tourism Intelligence; Tourism Intelligence resta un dato a parte rispetto ai contatti.
 
+- **Automazioni spente il 28/10/2026**: dal pianificatore sono stati tolti `wine-project` (sequenza, campagne, aperture, risposte), `commercial-outreach` (campagne Hospitality e verticali), `acumbamail-qualification` e `send-holding`. Le rotte restano chiamabili a mano; Wine è spento anche nelle sue impostazioni e le campagne sono `paused`.
+- **Ogni ente che entra nei contatti entra nel commerciale** (`src/lib/server/tourism-opportunity.ts`, regola in `tourismOpportunityPlan` di `src/lib/opportunities.ts`): enti del turismo (nto, ministry, dmo, cvb, rto, local_office, municipality, consortium, association…) → opportunità `tourism`, ruolo destinazione, «Preparare e mandare la presentazione»; chi vende viaggi o soggiorni (dmc, tour_operator, travel_agency, ota, crociere, traghetti, trasporti, accommodation…) → `distribuzione`, ruolo distributore. Prossimo passo fra due giorni, legata all'ente (`entity_id`). Si apre subito da «Conferma e aggiungi ai contatti», da «Add to CRM» e dall'attivazione del Direttore; il job orario `tourism-opportunities` (`syncTourismOpportunities`) la apre per ogni altro collegamento in `tourism_crm_links` (arricchimento approvato, collegamento manuale). Un'opportunità chiusa (persa, ferma) non si riapre da sola. Test: `tests/tourism-opportunity.unit.test.ts`.
+
 ## Project Overview
 
 **Speaqi CRM** is a production-grade sales pipeline CRM for lead management, follow-ups, and automation. Built with Next.js 15 + Supabase, deployed on Railway.app.

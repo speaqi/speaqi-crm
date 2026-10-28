@@ -45,7 +45,6 @@ describe('orari', () => {
 
   test('alle 8 italiane di un giovedi estivo (06:00 UTC) parte l orchestratore', () => {
     assert.deepEqual(names('2026-10-01T06:00:00Z'), [
-      'commercial-outreach',
       'db-maintenance',
       'followups',
       'office-autonomy',
@@ -53,8 +52,13 @@ describe('orari', () => {
       'office-work',
       'orchestrator',
       'replies',
-      'wine-project',
     ])
+  })
+
+  test('Wine, hotel e holding non partono più; le opportunità Tourism sì', () => {
+    const all = AUTOMATION_JOBS.map((job) => job.name)
+    for (const gone of ['wine-project', 'commercial-outreach', 'acumbamail-qualification', 'send-holding']) assert.ok(!all.includes(gone), gone)
+    assert.ok(names('2026-10-01T06:15:00Z').includes('tourism-opportunities'))
   })
 
   test('d inverno le 8 italiane sono le 07:00 UTC', () => {
