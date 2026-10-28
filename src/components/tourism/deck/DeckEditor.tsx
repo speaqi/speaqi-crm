@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/api'
@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase'
 import { countTodo, type DeckSlide } from '@/lib/tourism-deck'
 import { formatMoney } from '@/lib/agency'
 import type { DeckView } from '@/lib/server/tourism-decks'
+import type { WikimediaResult } from '@/lib/server/tourism-deck-photos'
 import DeckPlayer from './DeckPlayer'
 import SlideFields from './SlideFields'
 import { DECK_STATUS_LABELS } from './TourismDecks'
@@ -29,6 +30,9 @@ export default function DeckEditor({ id }: { id: string }) {
   const [notice, setNotice] = useState('')
   const [instruction, setInstruction] = useState('')
   const fileInput = useRef<HTMLInputElement>(null)
+  const [photoQuery, setPhotoQuery] = useState('')
+  const [photoResults, setPhotoResults] = useState<WikimediaResult[] | null>(null)
+  const [photoNote, setPhotoNote] = useState('')
 
   const adopt = useCallback((d: DeckView, keepEdits = false) => {
     setDeck(d)
@@ -111,6 +115,31 @@ export default function DeckEditor({ id }: { id: string }) {
       if (fileInput.current) fileInput.current.value = ''
     })
   }
+
+  const searchPhotos = (ev?: FormEvent) => {
+    ev?.preventDefault()
+    const q = (photoQuery || deck?.destination || '').trim()
+    if (!q) return
+    if (!photoQuery) setPhotoQuery(q)
+    return run('wikimedia', async () => {
+      const res = await apiFetch<{ results: WikimediaResult[]; note: string | null }>(`/api/tourism/decks/${id}/wikimedia?q=${encodeURIComponent(q)}`)
+      setPhotoResults(res.results)
+      setPhotoNote(res.note || '')
+    })
+  }
+
+  // La foto scelta va sulle slide (lo decide il server); le modifiche non salvate restano.
+  const addWikimedia = (title: string) =>
+    run(`wikimedia:${title}`, async () => {
+      const d = await apiFetch<DeckView>(`/api/tourism/decks/${id}/wikimedia`, json({ title }))
+      if (!dirty) adopt(d)
+      else {
+        adopt(d, true)
+        const images = new Map(d.slides.map((sl) => [sl.id, sl.image_asset_id]))
+        setSlides((cur) => cur.map((sl) => (images.has(sl.id) ? { ...sl, image_asset_id: images.get(sl.id) ?? null } : sl)))
+      }
+      setNotice('Foto aggiunta alla presentazione')
+    })
 
   const removeAsset = (assetId: string) =>
     run('asset', async () => {
@@ -255,6 +284,41 @@ export default function DeckEditor({ id }: { id: string }) {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+
+          <div className={e.fieldset}>
+            <header>
+              <strong>Cerca foto su Wikimedia Commons</strong>
+              <span className={e.tag}>licenze libere</span>
+            </header>
+            <form className={e.search} onSubmit={searchPhotos}>
+              <input value={photoQuery} maxLength={120} onChange={(ev) => setPhotoQuery(ev.target.value)} placeholder={deck.destination ? `Es. ${deck.destination}, un comune, una valle, un monumento` : 'Nome della località'} />
+              <button type="submit" className={s.secondary} disabled={!!busy || !(photoQuery || deck.destination).trim()}>{busy === 'wikimedia' ? <><span className={e.spin} /> Cerco…</> : 'Cerca'}</button>
+            </form>
+            <span className={e.help}>Se la destinazione non ha foto, prova il comune principale o un luogo vicino. La foto scelta va subito sulle slide, con autore e licenza.</span>
+            {photoNote && <span className={e.help}>{photoNote}</span>}
+            {photoResults && photoResults.length > 0 && (
+              <div className={e.results}>
+                {photoResults.map((r) => {
+                  const added = deck.assets.some((a) => a.source_url === r.source_url)
+                  return (
+                    <div className={e.result} key={r.title} data-added={added}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={r.preview} alt={r.title.replace(/^File:/, '')} loading="lazy" referrerPolicy="no-referrer" />
+                      <div className={e.meta}>
+                        <span title={r.credit}>{r.credit.replace(/ · Wikimedia Commons$/, '')}</span>
+                        <span>
+                          <a href={r.source_url} target="_blank" rel="noreferrer">Vedi su Commons</a> · {r.width}×{r.height}
+                        </span>
+                        <button type="button" className={s.secondary} onClick={() => addWikimedia(r.title)} disabled={!!busy || added || photos.length >= 8}>
+                          {busy === `wikimedia:${r.title}` ? <><span className={e.spin} /> Aggiungo…</> : added ? 'Già aggiunta' : 'Usa questa foto'}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
