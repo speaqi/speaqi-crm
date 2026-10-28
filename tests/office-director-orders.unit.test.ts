@@ -288,6 +288,14 @@ describe('i cinque comandi nuovi', async () => {
     assert.equal(plan.audience, 'destinazione')
   })
 
+  test('«in inglese»: la lingua vale solo se l’ordine la dice', () => {
+    const asked = interpretDirectorOrder(answer({ intent: 'presentation', targets: ['Sibiu'], language: 'en' }), { text: 'la presentazione di sibiu la devi fare in inglese', today: TODAY })
+    assert.equal(asked.intent === 'presentation' && asked.language, 'en')
+    // Il modello da solo non cambia la lingua: senza la parola nell'ordine resta quella di sempre.
+    const guessed = interpretDirectorOrder(answer({ intent: 'presentation', targets: ['Sibiu'], language: 'en' }), { text: 'presentazione per Sibiu', today: TODAY })
+    assert.equal(guessed.intent === 'presentation' && guessed.language, null)
+  })
+
   test('«preparami 5 presentazioni di destinazioni»: un numero senza nomi lo scelgo io', () => {
     const plan = interpretDirectorOrder(answer({ intent: 'presentation', targets: [], count: 9 }), { text: 'preparami 5 presentazioni di destinazioni', today: TODAY })
     assert.deepEqual(plan, { intent: 'presentation', targets: [], count: 5, audience: 'destinazione', brief: null, city: null, skipped: [], country_code: null, type_code: null })

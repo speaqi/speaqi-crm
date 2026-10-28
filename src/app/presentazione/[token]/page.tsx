@@ -26,5 +26,5 @@ export default async function PresentationPage({
   // render: la chiave con cui il server stampa in PDF una bozza (vedi deckRenderKey).
   const deck = await loadPublicDeck(createServiceRoleClient(), token, render)
   if (!deck) notFound()
-  return <DeckPlayer mode="full" slides={deck.slides} images={deck.images} credits={deck.credits} destination={deck.destination} printable pdfHref={render ? undefined : `/presentazione/${token}/pdf`} autoPrint={print === '1'} quoteHref={deck.quote?.public_token && !render ? `/preventivo?id=${encodeURIComponent(deck.quote.public_token)}` : undefined} />
+  return <DeckPlayer mode="full" slides={deck.slides} images={deck.images} credits={deck.credits} destination={deck.destination} lang={deck.lang} printable pdfHref={render ? undefined : `/presentazione/${token}/pdf`} autoPrint={print === '1'} quoteHref={deck.quote?.public_token && !render ? `/preventivo?id=${encodeURIComponent(deck.quote.public_token)}` : undefined} />
 }

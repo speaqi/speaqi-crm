@@ -5,6 +5,8 @@ import {
   DESTINATIONS_BASE_PREVIOUS,
   PARTNER_DECK_TEMPLATE,
   deckModel,
+  deckLanguage,
+  withContactsSlide,
   applyVars,
   assignPhotos,
   countTodo,
@@ -17,6 +19,7 @@ import {
   type DeckTemplate,
   type DeckWarning
 } from '../tourism-deck'
+import { DEFAULT_DECK_TEMPLATE_EN } from '../tourism-deck-en'
 import { TOURISM_TYPES, TourismInputError } from '../tourism'
 import {
   DECK_BUCKET,
@@ -138,12 +141,17 @@ export async function loadDeck(sb: Sb, userId: string, id: string): Promise<Deck
 
 /**
  * Il modello di un deck: per un partner la base partner (scritta nel codice, uguale per tutti),
- * per un ente il modello salvato dal titolare. Lo decide il deck, quindi una rigenerazione
+ * in inglese la base inglese, per un ente il modello salvato dal titolare. Lo decide il deck, quindi una rigenerazione
  * non cambia base.
  */
 export async function templateForDeck(sb: Sb, userId: string, input: DeckInput | null | undefined): Promise<DeckTemplate> {
-  if (deckModel(input) === 'partner') return structuredClone(PARTNER_DECK_TEMPLATE)
-  return (await getTemplate(sb, userId)).template
+  const lang = deckLanguage(input)
+  const template = deckModel(input) === 'partner'
+    ? structuredClone(PARTNER_DECK_TEMPLATE)
+    // In inglese vale la base inglese scritta nel codice: il modello salvato dal titolare è in italiano.
+    : lang === 'en' ? structuredClone(DEFAULT_DECK_TEMPLATE_EN) : (await getTemplate(sb, userId)).template
+  // L'ultima slide con i contatti c'è in ogni presentazione, qualunque sia la base (anche una salvata a mano).
+  return { ...template, slides: withContactsSlide(template.slides, lang) }
 }
 
 export type DeckFields = {
@@ -168,7 +176,7 @@ export async function createDeck(sb: Sb, userId: string, fields: DeckFields, id?
         ...(id ? { id } : {}),
         user_id: userId,
         entity_id: fields.entity_id,
-        title: `${fields.destination} · ${ente}`.slice(0, 200),
+        title: `${fields.destination} · ${ente}${deckLanguage(fields.input) === 'en' ? ' (EN)' : ''}`.slice(0, 200),
         destination: fields.destination,
         input: fields.input,
         notes: fields.notes,
@@ -652,7 +660,7 @@ export async function loadPublicDeck(service: Sb, token: string, render?: string
   const quotes = await deckQuotes(service, row)
   const quote = quoteSummary(quotes.find((q: any) => ['sent', 'accepted', 'paid'].includes(q.status)))
   const credits = Object.fromEntries(row.assets.filter((a) => a.credit && urls.has(a.id)).map((a) => [a.id, a.credit as string]))
-  return { title: row.title, destination: row.destination, slides: row.slides, images: Object.fromEntries(urls), credits, quote }
+  return { title: row.title, destination: row.destination, lang: deckLanguage(row.input), slides: row.slides, images: Object.fromEntries(urls), credits, quote }
 }
 
 /** Una migration non ancora applicata non deve oscurare le presentazioni esistenti. */
