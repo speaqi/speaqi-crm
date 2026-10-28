@@ -111,91 +111,92 @@ function pickMostRecentCandidate(candidates: TeamMemberCandidate[]) {
   )[0]
 }
 
-async function resolveTeamMemberWithUserClient(
-  userSb: ReturnType<typeof createUserClient>,
+type TeamMemberLookup = {
+  member: TeamMemberCandidate | null
+  /** Una query e' fallita: "nessun membro" non e' una risposta certa. */
+  failed: boolean
+}
+
+type TeamMemberClient = Pick<ReturnType<typeof createServiceRoleClient>, 'from'>
+
+/**
+ * Cerca la riga `team_members` di chi chiama: prima per `auth_user_id`, poi per
+ * email. Un errore non vale "nessun membro": un collaboratore non risolto
+ * diventerebbe il titolare del proprio spazio di lavoro.
+ */
+export async function lookupTeamMember(
+  client: TeamMemberClient,
   userId: string,
   emailLc: string
-): Promise<TeamMemberCandidate | null> {
-  const { data: linkedMembers, error: linkedError } = await userSb
+): Promise<TeamMemberLookup> {
+  let failed = false
+
+  const { data: linkedMembers, error: linkedError } = await client
     .from('team_members')
     .select('id, user_id, name, created_at')
     .eq('auth_user_id', userId)
     .limit(50)
+  if (linkedError) failed = true
+  const linked = linkedError ? null : pickMostRecentCandidate((linkedMembers || []) as TeamMemberCandidate[])
+  if (linked) return { member: linked, failed: false }
 
-  if (!linkedError && (linkedMembers || []).length >= 1) {
-    return pickMostRecentCandidate((linkedMembers || []) as TeamMemberCandidate[])
-  }
+  if (!emailLc) return { member: null, failed }
 
-  if (!emailLc) return null
-
-  const { data: matchedMembers, error: memberError } = await userSb
+  const { data: matchedMembers, error: memberError } = await client
     .from('team_members')
     .select('id, user_id, name, created_at')
     .eq('email', emailLc)
     .limit(50)
+  if (memberError) failed = true
+  const matched = memberError ? null : pickMostRecentCandidate((matchedMembers || []) as TeamMemberCandidate[])
+  if (matched) return { member: matched, failed: false }
 
-  if (!memberError && (matchedMembers || []).length >= 1) {
-    return pickMostRecentCandidate((matchedMembers || []) as TeamMemberCandidate[])
-  }
-
-  const { data: ilikeMembers, error: ilikeError } = await userSb
+  const { data: ilikeMembers, error: ilikeError } = await client
     .from('team_members')
     .select('id, user_id, name, created_at, email')
     .ilike('email', emailLc)
     .limit(50)
+  if (ilikeError) failed = true
+  const normalized = ilikeError
+    ? []
+    : ((ilikeMembers || []) as TeamMemberCandidate[]).filter(
+        (row) => String(row.email || '').trim().toLowerCase() === emailLc
+      )
+  const fromIlike = pickMostRecentCandidate(normalized)
+  if (fromIlike) return { member: fromIlike, failed: false }
 
-  if (!ilikeError && (ilikeMembers || []).length >= 1) {
-    const normalized = (ilikeMembers || []).filter(
-      (row: TeamMemberCandidate) => String(row.email || '').trim().toLowerCase() === emailLc
-    )
-    if (normalized.length) return pickMostRecentCandidate(normalized as TeamMemberCandidate[])
-  }
-
-  return null
+  return { member: null, failed }
 }
 
-async function resolveTeamMemberWithServiceRole(
+/**
+ * Chi e' chi chiama. `unresolved`: le ricerche sono fallite senza una risposta
+ * certa, quindi non si sa se e' il titolare o un collaboratore.
+ */
+export async function resolveCallerMember(
+  userClient: TeamMemberClient,
   userId: string,
-  emailLc: string
-): Promise<TeamMemberCandidate | null> {
-  const admin = createServiceRoleClient()
-
-  const { data: linkedMembers, error: linkedError } = await admin
-    .from('team_members')
-    .select('id, user_id, name, created_at')
-    .eq('auth_user_id', userId)
-    .limit(50)
-
-  if (!linkedError && (linkedMembers || []).length >= 1) {
-    return pickMostRecentCandidate((linkedMembers || []) as TeamMemberCandidate[])
+  emailLc: string,
+  serviceRoleClient: () => TeamMemberClient = createServiceRoleClient
+): Promise<{ member: TeamMemberCandidate | null; unresolved: boolean }> {
+  let userLookup: TeamMemberLookup
+  try {
+    userLookup = await lookupTeamMember(userClient, userId, emailLc)
+  } catch {
+    userLookup = { member: null, failed: true }
   }
+  if (userLookup.member) return { member: userLookup.member, unresolved: false }
 
-  if (emailLc) {
-    const { data: matchedMembers, error: memberError } = await admin
-      .from('team_members')
-      .select('id, user_id, name, created_at')
-      .eq('email', emailLc)
-      .limit(50)
-
-    if (!memberError && (matchedMembers || []).length >= 1) {
-      return pickMostRecentCandidate((matchedMembers || []) as TeamMemberCandidate[])
-    }
-
-    const { data: ilikeMembers, error: ilikeError } = await admin
-      .from('team_members')
-      .select('id, user_id, name, created_at, email')
-      .ilike('email', emailLc)
-      .limit(50)
-
-    if (!ilikeError && (ilikeMembers || []).length >= 1) {
-      const normalized = (ilikeMembers || []).filter(
-        (row: TeamMemberCandidate) => String(row.email || '').trim().toLowerCase() === emailLc
-      )
-      if (normalized.length) return pickMostRecentCandidate(normalized as TeamMemberCandidate[])
-    }
+  let serviceLookup: TeamMemberLookup
+  try {
+    serviceLookup = await lookupTeamMember(serviceRoleClient(), userId, emailLc)
+  } catch {
+    // Service role assente o irraggiungibile.
+    serviceLookup = { member: null, failed: true }
   }
+  if (serviceLookup.member) return { member: serviceLookup.member, unresolved: false }
 
-  return null
+  // "Nessun membro" e' certo se almeno una delle due ricerche e' andata a buon fine.
+  return { member: null, unresolved: userLookup.failed && serviceLookup.failed }
 }
 
 /**
@@ -292,26 +293,23 @@ export async function requireRouteUser(request: NextRequest) {
   let memberName: string | null = null
   let memberId: string | null = null
 
-  try {
-    let resolvedMember =
-      (await resolveTeamMemberWithUserClient(userSb, user.id, emailLc)) || null
-
-    if (!resolvedMember) {
-      try {
-        resolvedMember = await resolveTeamMemberWithServiceRole(user.id, emailLc)
-      } catch {
-        // No service role key or lookup failure; collaborator may be unresolved.
-      }
+  const resolution = await resolveCallerMember(userSb, user.id, emailLc)
+  if (resolution.unresolved) {
+    // Senza sapere chi e' non si concede il ruolo di titolare, e non si mette in cache.
+    return {
+      error: Response.json(
+        { error: 'Impossibile verificare i permessi in questo momento. Riprova tra poco.' },
+        { status: 503 }
+      ),
     }
+  }
 
-    if (resolvedMember?.user_id) {
-      workspaceUserId = resolvedMember.user_id
-      isAdmin = resolvedMember.user_id === user.id
-      memberName = resolvedMember.name?.trim() || null
-      memberId = resolvedMember.id || null
-    }
-  } catch {
-    // Keep default owner/admin mapping.
+  const resolvedMember = resolution.member
+  if (resolvedMember?.user_id) {
+    workspaceUserId = resolvedMember.user_id
+    isAdmin = resolvedMember.user_id === user.id
+    memberName = resolvedMember.name?.trim() || null
+    memberId = resolvedMember.id || null
   }
 
   if (isAdmin && !memberName?.trim()) {
