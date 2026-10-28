@@ -62,7 +62,8 @@ def clean_domain(value):
 
 def clean_text(value):
     # LeadOcean returns apostrophes escaped (\\') and descriptions cut with an ellipsis.
-    return re.sub(r'\s+', ' ', str(value or '').replace("\\'", "'")).strip()
+    value = re.sub(r'[\u200b-\u200d\ufeff]', '', str(value or '').replace("\\'", "'"))
+    return re.sub(r'\s+', ' ', value).strip()
 
 
 def classify(name, description):
