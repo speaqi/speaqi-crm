@@ -78,7 +78,7 @@ def to_record(item, country):
     name = clean_text(data.get('company_name'))
     domain = clean_domain(data.get('company_domain'))
     description = clean_text(data.get('company_description'))
-    if not 2 <= len(name) <= 200:
+    if not 2 <= len(name) <= 200 or not name_key(name):
         return None, 'missing_name'
     if not domain:
         return None, 'missing_domain'
