@@ -174,9 +174,24 @@ export async function POST(request: NextRequest) {
         gmailMessageId = sendError.gmailMessageId
         partialRecord = true
       } else if (sendError instanceof GmailSendOutcomeError) {
-        // Forse partita: resta "sending", cosi' nessuno la reinvia senza controllare.
+        // Forse partita: non torna in coda. La riconciliazione la cerca fra le
+        // inviate di Gmail e la chiude, o la rimette in coda se non e' partita.
+        // sent_at qui e' l'ora del tentativo: se e' partita, e' quella dell'invio.
+        await auth.supabase
+          .from('email_drafts')
+          .update({
+            status: 'unknown',
+            sent_via: 'crm',
+            sent_at: new Date().toISOString(),
+            last_send_error: sendError.message.slice(0, 1000),
+          })
+          .eq('id', draftId)
+          .eq('status', 'sending')
         return Response.json(
-          { error: 'Esito dell’invio incerto: controlla in Gmail se l’email è partita prima di riscriverla.' },
+          {
+            error:
+              'Esito dell’invio incerto: il CRM verifica in Gmail se l’email è partita e aggiorna la bozza entro mezz’ora. Non riscriverla nel frattempo.',
+          },
           { status: 502 }
         )
       } else {

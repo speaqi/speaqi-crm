@@ -69,3 +69,17 @@ describe('esito di sendContactEmail: si può reinviare solo se non è partita', 
     assert.equal(outcome.gmailMessageId, 'm1')
   })
 })
+
+describe('invio incerto: la riconciliazione decide quando Gmail lo sa', () => {
+  test('trovato fra le inviate: inviata; assente dopo mezz’ora: in coda; prima: si aspetta', async () => {
+    const { uncertainDraftDecision, UNCERTAIN_SEND_GRACE_MS } = await import('../src/lib/server/draft-reconcile')
+    const now = Date.parse('2026-10-28T10:00:00Z')
+    const recent = new Date(now - 5 * 60 * 1000).toISOString()
+    const old = new Date(now - UNCERTAIN_SEND_GRACE_MS - 1000).toISOString()
+    assert.equal(uncertainDraftDecision({ foundInGmail: true, attemptAt: recent, now }), 'sent')
+    assert.equal(uncertainDraftDecision({ foundInGmail: false, attemptAt: recent, now }), 'wait')
+    assert.equal(uncertainDraftDecision({ foundInGmail: false, attemptAt: old, now }), 'requeue')
+    // Senza ora del tentativo non si rimette in coda: meglio aspettare che reinviare.
+    assert.equal(uncertainDraftDecision({ foundInGmail: false, attemptAt: null, now }), 'wait')
+  })
+})
