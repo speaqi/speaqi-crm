@@ -96,6 +96,12 @@ async function handleOneOffPayment(admin: any, session: any) {
   const amount = Number(session?.amount_total || 0) / 100
   const currency = String(session?.currency || quote.currency || 'EUR').toUpperCase()
   const part = session?.metadata?.payment_part === 'total' ? 'saldo' : 'acconto'
+  if (!quote.contact_id) {
+    console.warn('[stripe-webhook] pagamento una tantum su preventivo senza contatto: nessuna attività registrata', {
+      quoteId: quote.id,
+      sessionId: session?.id,
+    })
+  }
   await logActivity(
     admin,
     quote,

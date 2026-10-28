@@ -35,6 +35,8 @@ describe('destinatari delle email scritte da chi chiama', () => {
     assert.equal(singleRecipient('Mario <mario@x.it>'), null)
     assert.equal(singleRecipient(['a@x.it']), null)
     assert.equal(singleRecipient(''), null)
+    // '*' e' un jolly per PostgREST: "a*@x.it" passerebbe grazie a "alice@x.it".
+    assert.equal(singleRecipient('a*@example.com'), null)
   })
 
   test('contatto o membro del team dello stesso workspace', async () => {

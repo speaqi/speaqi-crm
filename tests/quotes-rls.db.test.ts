@@ -99,6 +99,9 @@ test('dopo la firma righe e importi non cambiano, lo stato sì', async () => {
   assert.match(String(items), /già stato accettato/)
   const tax = await expectError(`update quotes set tax_rate = 0 where id = '${QUOTE_B}'`)
   assert.match(String(tax), /già stato accettato/)
+  // Azzerare l'accettazione non riapre le modifiche.
+  const cleared = await expectError(`update quotes set contract_accepted_at = null where id = '${QUOTE_B}'`)
+  assert.match(String(cleared), /già stato accettato/)
   // Anche chi ha l'area Preventivi, scrivendo con la sua sessione.
   const viaRest = await expectError(
     `set role authenticated; set request.jwt.claim.sub='${DARIO}'; update quotes set total_amount = 1 where id = '${QUOTE_B}'`

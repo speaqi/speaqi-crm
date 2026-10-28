@@ -143,8 +143,10 @@ language plpgsql
 set search_path = public, pg_temp
 as $$
 begin
+  -- Anche l'accettazione stessa: azzerata, la modifica successiva passerebbe.
   if old.contract_accepted_at is not null and (
-    new.items is distinct from old.items
+    new.contract_accepted_at is null
+    or new.items is distinct from old.items
     or new.currency is distinct from old.currency
     or new.subtotal_amount is distinct from old.subtotal_amount
     or new.discount_amount is distinct from old.discount_amount

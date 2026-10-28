@@ -359,10 +359,34 @@ export function appendEmailSignature(
   return { html, text }
 }
 
+/** Risposta d'errore di Google: lo stato dice se la richiesta e' stata rifiutata (4xx). */
+export class GmailRequestError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.status = status
+  }
+}
+
+/**
+ * sendContactEmail fallita quando il messaggio e' partito ("sent", con l'id
+ * Gmail: manca solo la registrazione nel CRM) o potrebbe esserlo ("unknown":
+ * rete o 5xx sulla richiesta di invio). In entrambi i casi non va reinviato.
+ */
+export class GmailSendOutcomeError extends Error {
+  outcome: 'sent' | 'unknown'
+  gmailMessageId: string | null
+  constructor(message: string, outcome: 'sent' | 'unknown', gmailMessageId: string | null) {
+    super(message)
+    this.outcome = outcome
+    this.gmailMessageId = gmailMessageId
+  }
+}
+
 async function parseResponse<T>(response: Response, fallback: string) {
   const payload = await response.json().catch(() => null)
   if (!response.ok) {
-    throw new Error(payload?.error?.message || payload?.error || fallback)
+    throw new GmailRequestError(payload?.error?.message || payload?.error || fallback, response.status)
   }
   return payload as T
 }
@@ -995,15 +1019,43 @@ export async function sendContactEmail(
       : input.followupAt
     : null
 
-  const sendResult = await gmailApiRequest<{ id: string; threadId?: string }>(
-    accessToken,
-    '/users/me/messages/send',
-    {
-      method: 'POST',
-      body: JSON.stringify({ raw }),
-    }
-  )
+  let sendResult: { id: string; threadId?: string }
+  try {
+    sendResult = await gmailApiRequest<{ id: string; threadId?: string }>(
+      accessToken,
+      '/users/me/messages/send',
+      {
+        method: 'POST',
+        body: JSON.stringify({ raw }),
+      }
+    )
+  } catch (error) {
+    // Un 4xx e' un rifiuto: il messaggio non e' partito. Rete o 5xx no.
+    if (error instanceof GmailRequestError && error.status >= 400 && error.status < 500) throw error
+    throw new GmailSendOutcomeError(error instanceof Error ? error.message : 'Esito invio Gmail incerto', 'unknown', null)
+  }
 
+  try {
+    return await recordSentEmail(supabase, userId, contact, account, accessToken, sendResult, input.subject, effectiveFollowupAt)
+  } catch (error) {
+    throw new GmailSendOutcomeError(
+      error instanceof Error ? error.message : 'Email inviata, registrazione nel CRM non riuscita',
+      'sent',
+      sendResult.id
+    )
+  }
+}
+
+async function recordSentEmail(
+  supabase: any,
+  userId: string,
+  contact: CRMContact,
+  account: GmailAccountRecord,
+  accessToken: string,
+  sendResult: { id: string; threadId?: string },
+  subject: string,
+  effectiveFollowupAt: string | null
+) {
   const fullMessage = await getMessage(accessToken, sendResult.id)
   const normalized = normalizeMessageRecord(account, fullMessage, userId, contact.id)
 
@@ -1022,18 +1074,18 @@ export async function sendContactEmail(
       user_id: userId,
       contact_id: contact.id,
       type: 'email_sent',
-      content: `Email inviata: ${input.subject}`,
+      content: `Email inviata: ${subject}`,
       metadata: {
         source: 'gmail_send',
         gmail_message_id: normalized.gmail_message_id,
         gmail_thread_id: normalized.gmail_thread_id,
-        subject: input.subject,
+        subject: subject,
         to: contact.email,
       },
     },
   ])
 
-  await updateContactSummary(supabase, contact.id, `Email inviata: ${input.subject}`, {
+  await updateContactSummary(supabase, contact.id, `Email inviata: ${subject}`, {
     nextFollowupAt: effectiveFollowupAt,
     touchLastContactAt: true,
   })
@@ -1042,7 +1094,7 @@ export async function sendContactEmail(
     await syncPendingCallTask(supabase, userId, contact.id, effectiveFollowupAt, {
       type: 'follow-up',
       priority: Number(contact.priority || 0) >= 3 ? 'high' : Number(contact.priority || 0) >= 2 ? 'medium' : 'low',
-      note: `Follow-up dopo email: ${input.subject}`,
+      note: `Follow-up dopo email: ${subject}`,
       overwriteNote: true,
     })
   }
@@ -1052,7 +1104,7 @@ export async function sendContactEmail(
     .insert({
       user_id: userId,
       to: contact.email,
-      subject: input.subject,
+      subject: subject,
       type: 'gmail',
       status: 'sent',
     })
@@ -1065,7 +1117,7 @@ export async function sendContactEmail(
     userId,
     type: 'email_sent',
     contact,
-    detail: input.subject,
+    detail: subject,
     source: 'gmail_send',
   })
 

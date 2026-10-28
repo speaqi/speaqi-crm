@@ -17,8 +17,9 @@ export async function POST(request: NextRequest) {
     if (!to) {
       return Response.json({ error: 'Serve un solo indirizzo email valido in "to"' }, { status: 400 })
     }
-    const ownEmail = auth.user.email?.trim().toLowerCase()
-    if (to !== ownEmail && !(await isWorkspaceRecipient(auth.supabase, auth.workspaceUserId, to))) {
+    // Nessuna eccezione per l'indirizzo di chi chiama: il titolare sta nel team,
+    // e un collaboratore la cui identita' non si risolve resta senza destinatari.
+    if (!(await isWorkspaceRecipient(auth.supabase, auth.workspaceUserId, to))) {
       return Response.json({ error: 'Il destinatario non è fra i contatti o nel team' }, { status: 403 })
     }
 

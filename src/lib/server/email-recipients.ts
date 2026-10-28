@@ -1,4 +1,6 @@
-const EMAIL_PATTERN = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/
+// Niente "*": nei filtri ilike di PostgREST e' un jolly, e "a*@x.it"
+// passerebbe il controllo grazie a "alice@x.it".
+const EMAIL_PATTERN = /^[^\s@,;<>*]+@[^\s@,;<>*]+\.[^\s@,;<>*]+$/
 
 /** Un solo indirizzo, senza liste ne' nomi: "a@x.it, b@y.it" non passa. */
 export function singleRecipient(value: unknown) {
