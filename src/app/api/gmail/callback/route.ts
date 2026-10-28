@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { encryptSecret, exchangeCodeForTokens, fetchGmailProfile, isMissingRelation } from '@/lib/server/gmail'
+import { GMAIL_OAUTH_STATE_COOKIE, checkGmailOAuthState, gmailOAuthCookieOptions } from '@/lib/server/gmail-oauth-state'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 
 function getAppOrigin(request: NextRequest) {
@@ -22,7 +23,10 @@ function redirectToStatus(request: NextRequest, status: 'connected' | 'error', m
   const url = new URL('/gmail', getAppOrigin(request))
   url.searchParams.set('gmail', status)
   if (message) url.searchParams.set('message', message)
-  return NextResponse.redirect(url)
+  const response = NextResponse.redirect(url)
+  // Lo state si usa una volta sola: il cookie se ne va con qualunque esito.
+  response.cookies.set(GMAIL_OAUTH_STATE_COOKIE, '', { ...gmailOAuthCookieOptions(), maxAge: 0 })
+  return response
 }
 
 export async function GET(request: NextRequest) {
@@ -40,15 +44,24 @@ export async function GET(request: NextRequest) {
 
   try {
     const admin = createServiceRoleClient()
+    // Letto e cancellato insieme: due ritorni con lo stesso state non collegano due volte.
     const { data: oauthState, error: stateError } = await admin
       .from('gmail_oauth_states')
-      .select('*')
+      .delete()
       .eq('state', state)
-      .single()
+      .select('*')
+      .maybeSingle()
 
-    if (stateError || !oauthState) {
-      throw stateError || new Error('OAuth state not found')
+    if (stateError) throw stateError
+    if (!oauthState) {
+      return redirectToStatus(request, 'error', 'Collegamento non valido o già usato: riprova')
     }
+    const check = checkGmailOAuthState({
+      state,
+      cookieState: request.cookies.get(GMAIL_OAUTH_STATE_COOKIE)?.value,
+      createdAt: oauthState.created_at,
+    })
+    if (!check.ok) return redirectToStatus(request, 'error', check.reason)
 
     const { data: existingAccount } = await admin
       .from('gmail_accounts')
@@ -84,11 +97,6 @@ export async function GET(request: NextRequest) {
       )
 
     if (upsertError) throw upsertError
-
-    await admin
-      .from('gmail_oauth_states')
-      .delete()
-      .eq('state', state)
 
     return redirectToStatus(request, 'connected')
   } catch (error) {

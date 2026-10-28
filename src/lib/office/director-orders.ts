@@ -8,7 +8,7 @@ import { websiteFromText } from './entity-activation'
  * decide cosa si fa. Puro e testato: nessun accesso a database o rete.
  */
 
-export const DIRECTOR_ORDER_INTENTS = ['new_contact', 'build_map', 'check_map', 'presentation', 'find_partners', 'add_entity', 'rename_entity', 'status', 'events', 'invoice', 'task', 'help', 'unknown'] as const
+export const DIRECTOR_ORDER_INTENTS = ['new_contact', 'build_map', 'check_map', 'presentation', 'find_partners', 'add_entity', 'rename_entity', 'status', 'events', 'event_sources', 'invoice', 'task', 'help', 'unknown'] as const
 export type DirectorOrderIntent = (typeof DIRECTOR_ORDER_INTENTS)[number]
 export const CONTACT_CATEGORIES = ['destinazione', 'partner', 'agenzia', 'cliente_mappe', 'dubbio'] as const
 export type ContactCategory = (typeof CONTACT_CATEGORIES)[number]
@@ -29,13 +29,14 @@ export type DirectorOrderPlan =
   | { intent: 'build_map'; city: string; slug: string; source: string | null }
   | { intent: 'check_map'; city: string; slug: string }
   | { intent: 'presentation'; targets: string[]; count: number | null; audience: PresentationAudience; brief: string | null; city: string | null; skipped: string[]
-      country_code: string | null; type_code: string | null }
+      country_code: string | null; type_code: string | null; language?: 'it' | 'en' | null }
   | { intent: 'find_partners'; city: string; count: number; brief: string | null }
   | { intent: 'add_entity'; name: string; country_code: string; type_code: string; city: string | null; website: string | null; presentation: boolean }
   | { intent: 'rename_entity'; from: string; to: string; website: string | null; presentation: boolean }
   | { intent: 'help' }
   | { intent: 'status' }
   | { intent: 'events' }
+  | { intent: 'event_sources'; city: string; slug: string }
   | { intent: 'invoice'; quote_number: string | null; customer: string | null; approved: boolean }
   | { intent: 'task'; items: DirectorTaskItem[]; dropped: number }
   | { intent: 'unknown'; question: string; awaiting?: DirectorAwaiting }
@@ -53,11 +54,14 @@ export const MAX_ORDER_PARTNERS = 10
 /** I tipi di ente che il Direttore può aggiungere al catalogo: un ente di persone non entra. */
 export const DIRECTOR_ENTITY_TYPES = Object.keys(TOURISM_TYPES) as Array<keyof typeof TOURISM_TYPES>
 
+/** Parole con cui un ordine chiede l'inglese: «in inglese», «in English», «versione inglese». */
+export const ENGLISH_ORDER = /\b(in\s+inglese|in\s+english|english|inglese)\b/i
+
 const nullableString = { type: ['string', 'null'] }
 export const DIRECTOR_ORDER_SCHEMA = {
   type: 'object', additionalProperties: false,
   required: ['intent', 'card_text', 'contact', 'category', 'category_reason', 'brief', 'city', 'map_link', 'target', 'targets', 'count', 'audience',
-    'country_code', 'entity_type', 'quote_approved', 'then_presentation', 'new_name', 'tasks', 'question'],
+    'country_code', 'entity_type', 'quote_approved', 'then_presentation', 'new_name', 'language', 'tasks', 'question'],
   properties: {
     intent: { type: 'string', enum: [...DIRECTOR_ORDER_INTENTS] },
     card_text: nullableString,
@@ -69,7 +73,7 @@ export const DIRECTOR_ORDER_SCHEMA = {
     category_reason: nullableString, brief: nullableString, city: nullableString, map_link: nullableString,
     target: nullableString, targets: { type: 'array', items: { type: 'string' } }, count: { type: ['integer', 'null'] },
     audience: { type: ['string', 'null'], enum: [...PRESENTATION_AUDIENCES, null] }, country_code: nullableString,
-    entity_type: { type: ['string', 'null'], enum: [...DIRECTOR_ENTITY_TYPES, null] }, quote_approved: { type: 'boolean' }, then_presentation: { type: 'boolean' }, new_name: nullableString,
+    entity_type: { type: ['string', 'null'], enum: [...DIRECTOR_ENTITY_TYPES, null] }, quote_approved: { type: 'boolean' }, then_presentation: { type: 'boolean' }, new_name: nullableString, language: { type: ['string', 'null'], enum: ['it', 'en', null] },
     tasks: {
       type: 'array',
       items: {
@@ -91,12 +95,13 @@ export function directorOrderPrompt(text: string, images: number, today: string)
     '  category: destinazione = ente del turismo, DMO, comune, consorzio, regione; partner = hotel, agenzia viaggi, tour operator, compagnia di navigazione, chi distribuisce le guide; agenzia = cliente che vuole un sito, branding, SEO, software, AI, marketing; cliente_mappe = attività che vuole comparire in una mappa; dubbio = non si capisce.',
     '- build_map: costruire una mappa di una città (di solito da una Google My Maps). city = la città, map_link = il link solo se c’è nel testo.',
     '- check_map: controllare la qualità della mappa di una città. city = la città.',
-    '- presentation: preparare una o più presentazioni per enti, destinazioni, partner o clienti, oppure mandare foto per una presentazione («foto per la presentazione di Bibione»). targets = i nomi degli enti o delle aziende come scritti, uno per voce (al massimo 5): se l’ordine nomina una persona e la sua organizzazione («Simina Manea, Sibiu County Tourism Association») il target è l’organizzazione, non la persona; count = quante presentazioni chiede se dice un numero senza nomi («preparami 5 presentazioni di destinazioni»), altrimenti null; audience = partner se sono per un hotel, un’agenzia, un tour operator, una compagnia o un altro partner che distribuisce le guide, destinazione se per un ente del turismo, una DMO, un comune; brief = cosa chiede; city = la città o il territorio se è detto o è nel nome («Visit Bergamo» → Bergamo, «Sibiu County Tourism Association» → Sibiu; per un partner, la città della guida che gli proponiamo); country_code ed entity_type dell’ente se li sai (servono ad aggiungerlo a Tourism Intelligence se non c’è). Foto di luoghi mandate con un ordine di presentazione sono foto per le slide, non un contatto.',
+    '- presentation: preparare una o più presentazioni per enti, destinazioni, partner o clienti, oppure mandare foto per una presentazione («foto per la presentazione di Bibione»). targets = i nomi degli enti o delle aziende come scritti, uno per voce (al massimo 5): se l’ordine nomina una persona e la sua organizzazione («Simina Manea, Sibiu County Tourism Association») il target è l’organizzazione, non la persona; count = quante presentazioni chiede se dice un numero senza nomi («preparami 5 presentazioni di destinazioni»), altrimenti null; audience = partner se sono per un hotel, un’agenzia, un tour operator, una compagnia o un altro partner che distribuisce le guide, destinazione se per un ente del turismo, una DMO, un comune; brief = cosa chiede; city = la città o il territorio se è detto o è nel nome («Visit Bergamo» → Bergamo, «Sibiu County Tourism Association» → Sibiu; per un partner, la città della guida che gli proponiamo); language = en se chiede la presentazione in inglese («in inglese», «in English»), it se la chiede in italiano, altrimenti null; country_code ed entity_type dell’ente se li sai (servono ad aggiungerlo a Tourism Intelligence se non c’è). Foto di luoghi mandate con un ordine di presentazione sono foto per le slide, non un contatto.',
     '- find_partners: trovare potenziali partner (hotel, agenzie, tour operator, compagnie, chi può distribuire le guide) per la mappa o la guida di una città. city = la città, count = quanti ne chiede (null se non lo dice), brief = che tipo di partner, se è detto.',
     '- add_entity: aggiungere un ente (ente del turismo, ufficio nazionale, DMO, comune, operatore) a Tourism Intelligence e ai contatti. target = il nome dell’organizzazione come scritto, senza la persona: se l’ordine o il bigliettino nominano una persona e il suo ente («Gustavo Cardenas, Ministerio del Poder Popular para el Turismo») il target è solo l’ente e la persona va in contact.name; then_presentation = true se chiede anche la presentazione («e poi fammi la presentazione»), altrimenti false; country_code = il codice ISO a due lettere del paese (Venezuela → VE), entity_type = il tipo (nto = ufficio nazionale del turismo, rto = regionale, dmo, cvb = convention bureau, municipality = comune, tour_operator, travel_agency, cruise_line, ferry_operator…), city = la città o il territorio che l’ente promuove (per un ente nazionale, il paese).',
     '- rename_entity: rinominare un ente di Tourism Intelligence («rinomina X in Y», «cambia il nome di X in Y»). target = il nome attuale come scritto, new_name = il nome nuovo come scritto, then_presentation = true se chiede anche la presentazione. Se c’è un sito nell’ordine è dello stesso ente.',
     '- help: chiede cosa può chiederti, quali comandi esistono, come funzioni.',
     '- status: come stanno andando pipeline, trattative, timeline, agenti.',
+    '- event_sources: trovare le fonti degli eventi di una città da mettere nella mappa (siti e calendari di teatri, musei, festival, enti del turismo: «trovami le fonti eventi di Marsiglia»). city = la città. Non è events: events chiede gli eventi già trovati, event_sources chiede di cercare i siti da cui leggerli.',
     '- events: chiede quali fiere, eventi, workshop o bandi ci sono in arrivo ("quali sono le prossime fiere?"). Non è un task: la risposta la dà l’ufficio.',
     '- invoice: fare, preparare o emettere la fattura di un preventivo o di un cliente ("fammi la fattura per PREV-…", "fattura a Rossi"). target = il numero del preventivo o il nome del cliente, come scritto. quote_approved = true se il titolare dice che il cliente ha approvato, accettato o confermato il preventivo ("SNAV ha approvato, fai la fattura"). Non è un task: la bozza la prepara l’ufficio.',
     '- task: una o più cose da fare, appuntamenti, chiamate o promemoria per il titolare ("ricordami di…", "segna che devo…", "domani alle 15 chiamo Rossi e giovedì riunione con SNAV"), non una domanda. tasks = una voce per ogni cosa da fare (al massimo 10): title breve e chiaro (chi e cosa), date in formato AAAA-MM-GG se è detto un giorno (oggi è ' + today + ', ' + weekdayIt(today) + '; "domani", "giovedì", "il 3" si calcolano da oggi), time in formato HH:MM (24 ore) solo se è detta un’ora, minutes = la durata solo se è detta ("per un’ora" → 60). Un dato non detto è null.',
@@ -196,13 +201,15 @@ export function interpretDirectorOrder(parsed: unknown, input: { text: string; t
     const decided = decideCategory(raw.category, contact, brief)
     return { intent, contact, evidence, dropped, category: decided.category, category_reason: decided.reason, brief, card_text: cardText }
   }
-  if (intent === 'build_map' || intent === 'check_map') {
+  if (intent === 'build_map' || intent === 'check_map' || intent === 'event_sources') {
     const city = str(raw.city, 80)
-    if (!city) return { intent: 'unknown', question: 'Di quale città parliamo?' }
+    if (!city) return intent === 'event_sources'
+      ? { intent: 'unknown', question: 'Di quale città cerco le fonti degli eventi?', awaiting: { need: 'city', resume: 'trovami le fonti eventi di {}' } }
+      : { intent: 'unknown', question: 'Di quale città parliamo?' }
     if (officeIsNaples(city)) return { intent: 'unknown', question: 'Napoli resta fuori dal lavoro degli agenti: la mappa in produzione non si tocca. Vuoi provare con un’altra città?' }
     const slug = directorSlug(city)
     if (!slug) return { intent: 'unknown', question: 'Il nome della città non è valido.' }
-    if (intent === 'check_map') return { intent, city, slug }
+    if (intent === 'check_map' || intent === 'event_sources') return { intent, city, slug }
     const link = str(raw.map_link, 2000)
     // Il link vale solo se è davvero nell'ordine e se è una My Maps.
     const source = link && input.text.includes(link) && /google\.[a-z.]+\/maps\/d\/|[?&]mid=/.test(link) ? link : null
@@ -226,8 +233,10 @@ export function interpretDirectorOrder(parsed: unknown, input: { text: string; t
         : { intent: 'unknown', question: 'Per chi devo preparare la presentazione?', awaiting: { need: 'target', resume: 'presentazione per {}' } }
     }
     const code = typeof raw.country_code === 'string' ? raw.country_code.trim().toUpperCase() : ''
+    // La lingua vale solo se l'ordine la dice davvero: il modello da solo non cambia la lingua di una presentazione.
+    const language = raw.language === 'en' && ENGLISH_ORDER.test(input.text) ? 'en' : null
     return { intent, targets, count: null, audience, brief: str(raw.brief, 1000), city, skipped,
-      country_code: /^[A-Z]{2}$/.test(code) ? code : null, type_code: DIRECTOR_ENTITY_TYPES.includes(raw.entity_type) ? raw.entity_type as string : null }
+      country_code: /^[A-Z]{2}$/.test(code) ? code : null, type_code: DIRECTOR_ENTITY_TYPES.includes(raw.entity_type) ? raw.entity_type as string : null, language }
   }
   if (intent === 'find_partners') {
     const city = str(raw.city, 80)
@@ -517,6 +526,33 @@ export function directorEventsReply(events: DirectorEventRow[], scout: { install
   return lines.join('\n')
 }
 
+/** Quello che restituisce StudioMap dopo la ricerca delle fonti eventi di una città. */
+export interface DirectorEventSourcesResult {
+  city: string; searched: boolean; proposed: number; added: number; total: number; enabled: number
+  new_sources: Array<{ name: string; home_url: string; agenda: string | null }>
+  cost_usd: number; error: string | null; warning: string | null; catalog_path: string
+}
+
+/** La risposta al titolare: quante fonti nuove, le prime per nome, e dove controllarle. */
+export function directorEventSourcesReply(r: DirectorEventSourcesResult, studioOrigin: string, spentCents: number): string {
+  const link = `${studioOrigin.replace(/\/$/, '')}${r.catalog_path}`
+  const spent = spentCents > 0 ? ` Spesa: ${(spentCents / 100).toFixed(2).replace('.', ',')} €.` : ''
+  if (!r.searched) {
+    return `${r.city}: la ricerca delle fonti eventi non è riuscita (${r.error || 'motivo sconosciuto'}). Non ho aggiunto niente.${spent} Puoi riprovare più tardi o aggiungere i siti a mano: ${link}`
+  }
+  const lines: string[] = []
+  if (!r.added) lines.push(`${r.city}: nessuna fonte eventi nuova. Nel catalogo ce ne sono ${r.total}.${spent}`)
+  else {
+    lines.push(`${r.city}: ho trovato ${r.added} ${r.added === 1 ? 'fonte eventi nuova' : 'fonti eventi nuove'} (ora ${r.total} nel catalogo).${spent}`)
+    for (const s of r.new_sources.slice(0, 8)) lines.push(`• ${s.name} — ${s.agenda || s.home_url}`)
+    if (r.added > 8) lines.push(`…e altre ${r.added - 8}.`)
+  }
+  if (r.warning) lines.push(r.warning)
+  lines.push('Sono candidate: controlla che le agende si leggano e disattiva quelle che non servono prima della raccolta degli eventi.')
+  lines.push(`Catalogo fonti in StudioMap: ${link}`)
+  return lines.join('\n')
+}
+
 export const QUOTE_APPROVAL = /\b(approvat\w*|accettat\w*|confermat\w*|firmat\w*|ha firmato|via libera|approved|accepted|signed)\b/i
 
 /** Il numero di un preventivo scritto nell'ordine (PREV-AAAAMMGG-XXXXXX), o null. */
@@ -631,6 +667,7 @@ export function directorHelpText(baseUrl: string) {
     'Mappe',
     '• «Costruisci la mappa di Marsiglia, https://www.google.com/maps/d/…» → il Costruttore My Maps importa i luoghi.',
     '• «Controlla la mappa di Barcellona» → il Controllo qualità fa il rapporto.',
+    '• «Trovami le fonti eventi di Marsiglia» → cerco sul web teatri, musei, festival e calendari della città e li metto nel catalogo fonti di StudioMap, da controllare.',
     '',
     'Soldi',
     '• «Fammi la fattura per PREV-2026-0012» → bozza pronta in Fatture, non la invio allo SDI.',

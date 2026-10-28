@@ -18,8 +18,12 @@ export type DeckAsset = {
   mime: string
   size: number
   path: string
-  /** Da dove viene: caricata a mano (assente), Wikimedia Commons o un ordine su Telegram. */
-  source?: 'wikimedia' | 'telegram'
+  /**
+   * Da dove viene: caricata a mano (assente), trovata da sola su Wikimedia Commons ('wikimedia'),
+   * scelta a mano dalla ricerca su Commons ('wikimedia_search', vale come una foto caricata) o
+   * arrivata con un ordine su Telegram.
+   */
+  source?: 'wikimedia' | 'wikimedia_search' | 'telegram'
   /** Autore e licenza, da mostrare sulla slide (le licenze Creative Commons lo chiedono). */
   credit?: string
   source_url?: string

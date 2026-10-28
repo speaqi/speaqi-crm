@@ -101,6 +101,11 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'draft_id oppure contact_id obbligatorio' }, { status: 400 })
     }
 
+    // Il kill switch vale anche per l'invio ad hoc: prima fermava solo il ramo draft_id.
+    if (!dryRun && process.env.AUTOMATION_SEND_ENABLED !== 'true') {
+      return Response.json({ error: 'Automatic sending disabled' }, { status: 503 })
+    }
+
     // ─── Bozza (opzionale: si puo inviare anche contenuto ad hoc) ───
     let draft: any = null
     if (draftId) {

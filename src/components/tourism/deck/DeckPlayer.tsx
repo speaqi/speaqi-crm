@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
-import { DECK_AI_ART, DECK_ART, DECK_TODO_PATTERN, type DeckIcon, type DeckSlide, type DeckTone } from '@/lib/tourism-deck'
+import { DECK_AI_ART, DECK_ART, DECK_TODO_PATTERN, type DeckIcon, type DeckLanguage, type DeckSlide, type DeckTone } from '@/lib/tourism-deck'
 import d from './deck.module.css'
 
 /** Testo con i segnaposto da completare ben visibili. */
@@ -87,7 +87,8 @@ export function SlideView({
   credit,
   n,
   total,
-  active
+  active,
+  lang = 'it'
 }: {
   slide: DeckSlide
   /** Foto caricata per questo deck: vince sull'immagine fissa del modello. */
@@ -99,6 +100,8 @@ export function SlideView({
   /** Non più mostrata a piè di slide; resta per compatibilità con chi la passa. */
   destination?: string
   active: boolean
+  /** Lingua del deck: decide la scritta sulle foto di esempio. */
+  lang?: DeckLanguage
 }) {
   const tone = slide.tone || DEFAULT_TONE[slide.kind]
   const art = slide.art ? DECK_ART[slide.art] : null
@@ -106,7 +109,8 @@ export function SlideView({
   const aiArt = !image && !!slide.art && DECK_AI_ART.includes(slide.art)
   const qr = slide.qr ? DECK_ART[slide.qr] : null
   /** Credito sulla foto: autore e licenza di quella vera, altrimenti l'avviso sull'immagine di esempio. */
-  const photoLabel = image ? credit : aiArt ? 'Immagine generata con AI' : null
+  const aiLabel = lang === 'en' ? 'Image generated with AI' : 'Immagine generata con AI'
+  const photoLabel = image ? credit : aiArt ? aiLabel : null
   const base = cls(d.slide, d[tone], d[slide.kind], active && d.active)
   const foot = <Foot footnote={slide.footnote} n={n} total={total} />
 
@@ -123,7 +127,7 @@ export function SlideView({
           {slide.body && <p className={d.sub}><Text value={slide.body} /></p>}
         </div>
         {(aiArt || slide.footnote || (image && credit)) && (
-          <div className={d.credit}>{slide.footnote ? <Text value={slide.footnote} /> : image && credit ? credit : 'Speaqi Guides · Immagine generata con AI'}</div>
+          <div className={d.credit}>{slide.footnote ? <Text value={slide.footnote} /> : image && credit ? credit : `Speaqi Guides · ${aiLabel}`}</div>
         )}
       </section>
     )
@@ -404,7 +408,8 @@ export default function DeckPlayer({
   printable = false,
   pdfHref,
   quoteHref,
-  autoPrint = false
+  autoPrint = false,
+  lang = 'it'
 }: {
   slides: DeckSlide[]
   images: Record<string, string>
@@ -418,6 +423,7 @@ export default function DeckPlayer({
   /** Se c'è, il pulsante PDF scarica questo file invece di aprire la stampa del browser. */
   pdfHref?: string
   quoteHref?: string
+  lang?: DeckLanguage
   autoPrint?: boolean
 }) {
   const [inner, setInner] = useState(0)
@@ -478,7 +484,7 @@ export default function DeckPlayer({
       <div className={d.bar}><span style={{ width: `${((current + 1) / Math.max(slides.length, 1)) * 100}%` }} /></div>
       <div className={d.stage} style={{ transform: `translate(${fit.x}px, ${fit.y}px) scale(${fit.scale})` }}>
         {slides.map((s, i) => (
-          <SlideView key={s.id} slide={s} image={s.image_asset_id ? images[s.image_asset_id] : null} credit={s.image_asset_id ? credits[s.image_asset_id] : null} n={i + 1} total={slides.length} active={i === current} />
+          <SlideView key={s.id} slide={s} image={s.image_asset_id ? images[s.image_asset_id] : null} credit={s.image_asset_id ? credits[s.image_asset_id] : null} n={i + 1} total={slides.length} active={i === current} lang={lang} />
         ))}
       </div>
       <div className={d.controls}>

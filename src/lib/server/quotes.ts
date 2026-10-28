@@ -200,6 +200,73 @@ export function calculateQuoteTotals(
   }
 }
 
+function moneyCents(value: unknown, fallback: number) {
+  return Math.round(normalizeNumber(value, fallback) * 100)
+}
+
+/** Cio' che di una riga conta per il prezzo: l'id no, perche' una riga senza id ne riceve uno a caso. */
+function itemFingerprint(items: unknown) {
+  return JSON.stringify(
+    normalizeQuoteItems(items).map((item) => [
+      item.description,
+      item.details,
+      item.quantity,
+      item.unit_price,
+      item.list_unit_price ?? null,
+      item.choice_group_id ?? null,
+      item.selected ?? null,
+    ])
+  )
+}
+
+/**
+ * Su un preventivo gia' accettato o firmato, i campi economici che il corpo
+ * di un PATCH chiede di cambiare. Si confrontano solo i campi presenti nel
+ * corpo, normalizzati come quando si salvano: chi rimanda il preventivo
+ * com'era (per segnarlo pagato, o per correggere i dati di fatturazione)
+ * non viene fermato.
+ */
+export function signedQuoteEconomicChanges(current: Record<string, any>, body: Record<string, unknown>) {
+  const changed: string[] = []
+  if (body.items !== undefined && itemFingerprint(body.items) !== itemFingerprint(current.items)) {
+    changed.push('righe')
+  }
+  if (body.discount_amount !== undefined && moneyCents(body.discount_amount, 0) !== moneyCents(current.discount_amount, 0)) {
+    changed.push('sconto')
+  }
+  if (body.tax_rate !== undefined && moneyCents(body.tax_rate, 22) !== moneyCents(current.tax_rate, 22)) {
+    changed.push('IVA')
+  }
+  const currentMode = normalizePaymentTermsMode(current.payment_terms_mode, 'percent')
+  const nextMode =
+    body.payment_terms_mode !== undefined ? normalizePaymentTermsMode(body.payment_terms_mode, 'percent') : currentMode
+  if (nextMode !== currentMode) {
+    changed.push('condizioni di pagamento')
+  } else if (
+    nextMode === 'percent' &&
+    body.deposit_percent !== undefined &&
+    moneyCents(body.deposit_percent, 30) !== moneyCents(current.deposit_percent, 30)
+  ) {
+    changed.push('acconto')
+  } else if (
+    nextMode === 'manual' &&
+    body.deposit_manual_amount !== undefined &&
+    moneyCents(body.deposit_manual_amount, 0) !== moneyCents(current.deposit_manual_amount, 0)
+  ) {
+    changed.push('acconto')
+  }
+  if (body.currency !== undefined && currencyCode(body.currency as string) !== currencyCode(current.currency)) {
+    changed.push('valuta')
+  }
+  if (
+    body.billing_interval !== undefined &&
+    normalizeBillingInterval(body.billing_interval) !== normalizeBillingInterval(current.billing_interval)
+  ) {
+    changed.push('tipo di pagamento (una tantum o annuale)')
+  }
+  return changed
+}
+
 export function buildQuoteNumber() {
   const now = new Date()
   const stamp = [

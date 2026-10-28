@@ -6,6 +6,7 @@ import {
   catalogAmountCents,
   catalogPriceCents,
   stripeFetch,
+  subscriptionCheckoutIdempotencyKey,
   toCents,
   type StripeCatalogPricing,
 } from '@/lib/server/stripe'
@@ -138,7 +139,15 @@ async function startSubscriptionCheckout(request: NextRequest, token: string) {
     origin: pickOrigin(request),
     catalog,
   })
-  const session = await stripeFetch<any>('/checkout/sessions', { params })
+  const session = await stripeFetch<any>('/checkout/sessions', {
+    params,
+    idempotencyKey: subscriptionCheckoutIdempotencyKey({
+      quoteId: quote.id,
+      totalCents: toCents(quote.total_amount),
+      pricing,
+      previousSessionId: quote.stripe_checkout_session_id,
+    }),
+  })
   const checkoutUrl = normalizeText(session?.url)
   const sessionId = normalizeText(session?.id)
   if (!checkoutUrl || !sessionId) {
@@ -158,7 +167,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const token = normalizeText(body.token)
-    const amountKind = normalizeText(body.amount) === 'total' ? 'total' : 'deposit'
 
     if (!token) return Response.json({ error: 'Token preventivo mancante' }, { status: 400 })
 
@@ -180,51 +188,14 @@ export async function POST(request: NextRequest) {
       return await startSubscriptionCheckout(request, token)
     }
 
-    if (quote.payment_method !== 'stripe' && quote.payment_method !== 'both') {
-      return Response.json({ error: 'Pagamento Stripe non previsto per questo preventivo' }, { status: 400 })
-    }
-
-    const amountCents = toCents(amountKind === 'total' ? quote.total_amount : quote.deposit_amount)
-    if (amountCents < 50) {
-      return Response.json({ error: 'Importo troppo basso per Stripe' }, { status: 400 })
-    }
-
-    const origin = pickOrigin(request)
-    const successUrl = `${origin}/preventivo?id=${encodeURIComponent(token)}&checkout=success`
-    const cancelUrl = `${origin}/preventivo?id=${encodeURIComponent(token)}&checkout=cancelled`
-
-    const params = new URLSearchParams()
-    params.set('mode', 'payment')
-    params.set('client_reference_id', token)
-    params.set('success_url', successUrl)
-    params.set('cancel_url', cancelUrl)
-    params.set('line_items[0][quantity]', '1')
-    params.set('line_items[0][price_data][currency]', String(quote.currency || 'EUR').toLowerCase())
-    params.set(
-      'line_items[0][price_data][product_data][name]',
-      `${amountKind === 'total' ? 'Saldo' : 'Acconto'} ${quote.quote_number}`
+    // Con la carta si pagano solo gli abbonamenti, dopo la firma. Un acconto o
+    // un saldo una tantum aperto qui non lo registrerebbe nessuno: il webhook
+    // aggiorna i preventivi solo dagli abbonamenti, e la pagina pubblica non
+    // offre questi pagamenti. Gli altri preventivi si pagano con bonifico.
+    return Response.json(
+      { error: 'Per questo preventivo il pagamento con carta non è previsto: usa il bonifico indicato nel preventivo.' },
+      { status: 400 }
     )
-    params.set('line_items[0][price_data][unit_amount]', String(amountCents))
-    params.set('metadata[quote_token]', token)
-    params.set('metadata[quote_number]', String(quote.quote_number || ''))
-    params.set('metadata[payment_part]', amountKind)
-    if (quote.customer_email) params.set('customer_email', String(quote.customer_email))
-
-    const stripePayload = await stripeFetch<any>('/checkout/sessions', { params })
-
-    const checkoutUrl = normalizeText(stripePayload?.url)
-    const sessionId = normalizeText(stripePayload?.id)
-    if (!checkoutUrl || !sessionId) {
-      return Response.json({ error: 'Stripe non ha restituito un link valido' }, { status: 502 })
-    }
-
-    await supabase.rpc('mark_quote_checkout_created', {
-      p_public_token: token,
-      p_session_id: sessionId,
-      p_checkout_url: checkoutUrl,
-    })
-
-    return Response.json({ url: checkoutUrl })
   } catch (error) {
     if (error instanceof StripeApiError) {
       return Response.json({ error: error.message }, { status: error.status })
