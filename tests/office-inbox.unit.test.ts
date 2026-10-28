@@ -30,7 +30,7 @@ beforeEach(() => {
     if (url.pathname.endsWith('/auth/v1/user')) return Response.json({ id: member ? OTHER : OWNER, email: 'owner@example.it', app_metadata: {}, user_metadata: {} })
     if (url.pathname.endsWith('/team_members')) return Response.json([{ id: OTHER, user_id: OWNER, name: 'Collaboratore', allowed_areas: ['oggi'] }])
     if (url.pathname.endsWith('/office_agent_outputs')) {
-      const rows = url.searchParams.get('body->>action') === 'eq.create_contact' ? [] : outputs
+      const rows = ['eq.create_contact', 'eq.enrich_company'].includes(url.searchParams.get('body->>action') || '') ? [] : outputs
       return Response.json(rows, { headers: { 'content-range': rows.length ? `0-${rows.length - 1}/${rows.length}` : '*/0' } })
     }
     if (url.pathname.endsWith('/tourism_decks')) return Response.json([{ id: DECK, title: 'Presentazione corrente', version: 4, status: 'approved' }])

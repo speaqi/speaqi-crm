@@ -90,13 +90,13 @@ class FakeQuery {
     return this
   }
 
-  eq(column: string, value: any) { this.filters.push((row) => row[column] === value); return this }
+  eq(column: string, value: any) { this.filters.push((row) => jsonPath(row, column) === value); return this }
   neq(column: string, value: any) { this.filters.push((row) => row[column] != null && row[column] !== value); return this }
   gt(column: string, value: any) { this.filters.push((row) => row[column] > value); return this }
   gte(column: string, value: any) { this.filters.push((row) => row[column] >= value); return this }
   lt(column: string, value: any) { this.filters.push((row) => row[column] < value); return this }
   lte(column: string, value: any) { this.filters.push((row) => row[column] <= value); return this }
-  is(column: string, value: any) { this.filters.push((row) => (row[column] ?? null) === value); return this }
+  is(column: string, value: any) { this.filters.push((row) => (jsonPath(row, column) ?? null) === value); return this }
   /** Solo `cs` su un array con un valore, come lo scrive la ricerca negli alias: {"nome"}. */
   filter(column: string, operator: string, value: string) {
     if (operator !== 'cs') throw new Error(`FakeSupabase: filtro ${operator} non supportato`)
@@ -198,4 +198,12 @@ class FakeQuery {
   then(resolve: (value: any) => any, reject?: (reason: any) => any) {
     return Promise.resolve(this.run()).then(resolve, reject)
   }
+}
+
+/** `body->>action` come lo legge PostgREST: il campo dentro la colonna jsonb, in testo. */
+function jsonPath(row: Row, column: string) {
+  if (!column.includes('->>')) return row[column]
+  const [base, key] = column.split('->>')
+  const value = row[base]?.[key]
+  return value === undefined || value === null ? null : typeof value === 'string' ? value : JSON.stringify(value)
 }

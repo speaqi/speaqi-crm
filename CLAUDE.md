@@ -1291,6 +1291,14 @@ Le quattro tabelle dell’ufficio sono incluse nel backup server e nello script 
   (migration vere del catalogo: approvazione completa, campo riempito nel frattempo, rollback se il CRM rifiuta,
   otto clic insieme, permessi).
 
+### Arricchimento aziende (stesso agente, ottobre 2026)
+
+- **Perché**: le aziende importate da LeadOcean (agenzie, DMC, tour operator, property manager, catene) arrivano senza email e telefono d'ufficio, e LeadOcean dà solo le email delle persone. I recapiti generali si leggono dal sito.
+- **Chi si legge** (`companyCandidates`, `src/lib/office/entity-enricher.ts`): tipi `property_manager`, `dmc`, `tour_operator`, `travel_agency` e `accommodation` solo con `details.hotel_group` (un hotel singolo non distribuisce); con un sito, non nel CRM, con email o telefono mancante, mai proposte (o rifiutate da più di 90 giorni), non lette negli ultimi 30. Prima property manager e DMC, poi per dipendenti. Gira **dopo** le città, nello stesso giro e nello stesso budget: 15 per corsa (`settings.companies_per_run`, massimo 50; `settings.companies: false` lo spegne). Anche senza città prioritarie il giro parte.
+- **Cosa si tiene** (`validateCompanyEnrichment`): la frase che nomina l'azienda e almeno un recapito **nuovo**. Email solo d'ufficio e **sul dominio del sito** (`isCompanyMailbox`: info@, sales@, booking@…; mai nome.cognome, gmail o PEC); ogni dato con la frase copiata dalla pagina letta; un campo già pieno non si propone.
+- **Proposta** `action: 'enrich_company'`, solo lettura prima del clic. **Il clic** (`approveEnrichedCompany`, `src/lib/server/office-company-enrichment.ts`, agganciato in `decideOfficeOutput` prima della RPC di decisione) prende la proposta (scrive `claimed_at` e lo rilegge: una sola richiesta lavora), chiama `tourism_activate` **senza città** con `origin: 'owner'` (campi vuoti riempiti, prova verificata con le frasi di identità ed email/telefono, azienda `VERIFIED`, nel CRM con `tourism_promote`: scope crm, nessuna campagna) e segna la proposta approvata. Un errore dell'attivazione lascia la proposta in attesa; un rifiuto del CRM (`crm_error`) no, si dice nella risposta. Nessuna migration.
+- Test: `office-company-enrichment.unit.test.ts`. `tests/fake-supabase.ts` ora legge i filtri `colonna->>chiave` (`eq`, `is`).
+
 ## Ufficio — Lingue e voce (Agente 03)
 
 - `languages_voice`, reparto Mappe, ogni notte alle 02:00 Europe/Rome (`office-languages-voice`),
