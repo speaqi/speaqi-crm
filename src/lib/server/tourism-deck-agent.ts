@@ -2,6 +2,7 @@ import {
   DECK_TODO,
   applyVars,
   buildCorpus,
+  deckLanguage,
   guardGenerated,
   mergeGenerated,
   type DeckInput,
@@ -42,6 +43,9 @@ export type DeckAgentArgs = {
 }
 
 export type DeckAgentResult = { slides: DeckSlide[]; warnings: DeckWarning[]; missing: string[]; model: string }
+
+/** In inglese cambia solo la lingua della scrittura: regole, limiti e guardie restano le stesse. */
+export const DECK_ENGLISH_RULE = 'LINGUA: questa presentazione è in INGLESE. Scrivi ogni testo (titoli, corpo, voci, note) in inglese chiaro e naturale, con il "you" diretto, frasi corte e verbi attivi. Non lasciare parole in italiano, tranne i nomi propri di luoghi, enti e persone.'
 
 export const DECK_SYSTEM_PROMPT = [
   'Personalizzi una presentazione commerciale di Speaqi per una destinazione turistica. Rispondi solo con il JSON richiesto.',
@@ -122,7 +126,7 @@ export function buildAgentRequest(args: DeckAgentArgs, model: string) {
     max_output_tokens: 6000,
     text: { format: { type: 'json_schema', name: 'tourism_deck', strict: true, schema: DECK_OUTPUT_SCHEMA } },
     input: [
-      { role: 'system', content: [{ type: 'input_text', text: DECK_SYSTEM_PROMPT }] },
+      { role: 'system', content: [{ type: 'input_text', text: deckLanguage(args.input) === 'en' ? `${DECK_SYSTEM_PROMPT}\n${DECK_ENGLISH_RULE}` : DECK_SYSTEM_PROMPT }] },
       { role: 'user', content }
     ]
   }

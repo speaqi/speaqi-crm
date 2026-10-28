@@ -31,12 +31,36 @@ type PendingDraftRow = {
   contact: { id: string; name: string | null; email: string | null } | null
 }
 
+type UncertainDraftRow = {
+  id: string
+  contact_id: string
+  subject: string | null
+  sent_at: string | null
+  contact: { id: string; name: string | null; email: string | null } | null
+}
+
+/** Oltre questa attesa, un invio incerto che Gmail non mostra fra le inviate non e' partito. */
+export const UNCERTAIN_SEND_GRACE_MS = 30 * 60 * 1000
+
+/**
+ * Invio manuale dall'esito incerto (send-draft, `status = 'unknown'`,
+ * `sent_via = 'crm'`): trovato fra le inviate di Gmail → inviata; assente dopo
+ * l'attesa → di nuovo in coda; prima → si aspetta (l'indice di ricerca di
+ * Gmail arriva con qualche minuto di ritardo).
+ */
+export function uncertainDraftDecision(input: { foundInGmail: boolean; attemptAt: string | null; now?: number }) {
+  if (input.foundInGmail) return 'sent' as const
+  const attemptAt = timestamp(input.attemptAt)
+  if (!attemptAt) return 'wait' as const
+  return (input.now ?? Date.now()) - attemptAt > UNCERTAIN_SEND_GRACE_MS ? ('requeue' as const) : ('wait' as const)
+}
+
 /** Solo le bozze che cambiano stato: le pending restano un semplice conteggio. */
 export type DraftReconcileOutcome = {
   draft_id: string
   contact_id: string
   contact_name: string | null
-  outcome: 'sent_from_gmail' | 'gmail_draft_removed'
+  outcome: 'sent_from_gmail' | 'gmail_draft_removed' | 'uncertain_send_confirmed' | 'uncertain_send_requeued'
   gmail_message_id?: string
   sent_at?: string | null
   subject?: string | null
@@ -48,6 +72,7 @@ export type DraftReconcileResult = {
   checked: number
   marked_sent: number
   gmail_drafts_removed: number
+  uncertain_requeued: number
   results: DraftReconcileOutcome[]
   errors: string[]
 }
@@ -103,13 +128,31 @@ export async function reconcileGmailSentDrafts(
     Boolean(normalizeEmail(draft.contact?.email))
   )
 
-  if (!pending.length) {
+  // Invii manuali dall'esito incerto: quelli del motore automatico
+  // (sent_via nullo) li risolve reconcile-sends, non questa funzione.
+  const { data: uncertainData, error: uncertainError } = await supabase
+    .from('email_drafts')
+    .select('id, contact_id, subject, sent_at, contact:contact_id ( id, name, email )')
+    .eq('user_id', userId)
+    .eq('status', 'unknown')
+    .eq('sent_via', 'crm')
+    .order('sent_at', { ascending: true })
+    .limit(25)
+
+  if (uncertainError) throw uncertainError
+
+  const uncertain = ((uncertainData || []) as UncertainDraftRow[]).filter((draft) =>
+    Boolean(normalizeEmail(draft.contact?.email))
+  )
+
+  if (!pending.length && !uncertain.length) {
     return {
       gmail_connected: true,
       dry_run: dryRun,
       checked: 0,
       marked_sent: 0,
       gmail_drafts_removed: 0,
+      uncertain_requeued: 0,
       results,
       errors,
     }
@@ -120,9 +163,10 @@ export async function reconcileGmailSentDrafts(
     return {
       gmail_connected: false,
       dry_run: dryRun,
-      checked: pending.length,
+      checked: pending.length + uncertain.length,
       marked_sent: 0,
       gmail_drafts_removed: 0,
+      uncertain_requeued: 0,
       results,
       errors,
     }
@@ -161,6 +205,70 @@ export async function reconcileGmailSentDrafts(
 
   for (const row of alreadyLinked || []) {
     if (row?.provider_message_id) usedMessageIds.add(String(row.provider_message_id))
+  }
+
+  // ─── 2a. Invii incerti: partiti o no? Lo dice la cartella inviate di Gmail ───
+  let markedSent = 0
+  let uncertainRequeued = 0
+  const closedContactIds = new Set<string>()
+
+  for (const draft of uncertain) {
+    try {
+      // Senza l'ora del tentativo una ricerca senza data troverebbe email vecchie.
+      const attemptAt = timestamp(draft.sent_at)
+      if (!attemptAt) continue
+      // Dieci minuti prima del tentativo: gli orologi di Gmail e del server non coincidono.
+      const after = Math.floor((attemptAt - 10 * 60 * 1000) / 1000)
+      const found = await findSentGmailMessageToRecipient(accessToken, String(draft.contact?.email), after)
+      const message = found && !usedMessageIds.has(found.id) ? found : null
+      const decision = uncertainDraftDecision({ foundInGmail: Boolean(message), attemptAt: draft.sent_at })
+      if (decision === 'wait') continue
+
+      if (!dryRun) {
+        const { error: updateError } = await supabase
+          .from('email_drafts')
+          .update(
+            decision === 'sent' && message
+              ? { status: 'sent', sent_at: message.sentAt || draft.sent_at, provider_message_id: message.id, gmail_draft_id: null, last_send_error: null }
+              : { status: 'pending', sent_via: null, sent_at: null, last_send_error: null }
+          )
+          .eq('id', draft.id)
+          .eq('user_id', userId)
+          .eq('status', 'unknown')
+          .eq('sent_via', 'crm')
+        if (updateError) {
+          errors.push(updateError.message || 'Aggiornamento invio incerto fallito')
+          continue
+        }
+      }
+
+      if (decision === 'sent' && message) {
+        usedMessageIds.add(message.id)
+        markedSent++
+        closedContactIds.add(draft.contact_id)
+        results.push({
+          draft_id: draft.id,
+          contact_id: draft.contact_id,
+          contact_name: draft.contact?.name || null,
+          outcome: 'uncertain_send_confirmed',
+          gmail_message_id: message.id,
+          sent_at: message.sentAt,
+          subject: draft.subject,
+        })
+      } else {
+        uncertainRequeued++
+        results.push({
+          draft_id: draft.id,
+          contact_id: draft.contact_id,
+          contact_name: draft.contact?.name || null,
+          outcome: 'uncertain_send_requeued',
+          subject: draft.subject,
+        })
+      }
+    } catch (err) {
+      // Gmail non risponde: nel dubbio la bozza resta incerta.
+      errors.push(err instanceof Error ? err.message : 'Verifica invio incerto fallita')
+    }
   }
 
   const matches: Array<{ draft: PendingDraftRow; message: SentGmailMessageInfo }> = []
@@ -218,8 +326,6 @@ export async function reconcileGmailSentDrafts(
   }
 
   // ─── 4. Chiusura delle bozze effettivamente spedite ───
-  let markedSent = 0
-  const closedContactIds = new Set<string>()
 
   for (const { draft, message } of matches) {
     // Il testo puo essere stato ritoccato in Gmail: in "Inviate" deve comparire
@@ -311,9 +417,10 @@ export async function reconcileGmailSentDrafts(
   return {
     gmail_connected: true,
     dry_run: dryRun,
-    checked: pending.length,
+    checked: pending.length + uncertain.length,
     marked_sent: markedSent,
     gmail_drafts_removed: gmailDraftsRemoved.length,
+    uncertain_requeued: uncertainRequeued,
     results,
     errors,
   }

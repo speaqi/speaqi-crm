@@ -61,8 +61,11 @@ export async function readContactForQuote(
 }
 
 export function normalizeQuoteRow(row: any) {
+  // Il token di accettazione e' la credenziale del cliente per firmare: non
+  // esce dalle API. Il link di firma si chiede a send-acceptance-email.
+  const { quote_acceptance_token: _acceptanceToken, ...quote } = row
   return {
-    ...row,
+    ...quote,
     contact: Array.isArray(row.contact) ? row.contact[0] : row.contact,
     items: Array.isArray(row.items) ? row.items : [],
   }

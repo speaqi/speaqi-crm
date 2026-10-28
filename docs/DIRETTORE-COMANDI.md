@@ -25,8 +25,10 @@ Regola fissa: il Direttore **non invia** email, fatture allo SDI o pubblicazioni
 | «Prepara la presentazione per Visit Bergamo» | Se l’ente non è attivo lo attiva (sito, email, contatto), poi lo passa all’agente Presentazioni. |
 | «Presentazione di Sibiu, il contatto è Simina Manea, Sibiu County Tourism Association» | Se l’ente non è in Tourism Intelligence lo aggiunge (paese dall’ordine, dal contatto o dal dominio dell’email), lo attiva, lo collega al contatto che hai già (Simina) e poi prepara la presentazione. |
 | «Presentazioni per Visit Bergamo, Bibione e Asiago» | Una per nome, al massimo cinque per ordine. |
+| «La presentazione di Sibiu la devi fare in inglese» | Fa un deck nuovo tutto in inglese (titolo «… (EN)») e te lo manda in PDF con il pulsante per approvarlo; la presentazione italiana resta com’è. Se quella inglese c’è già, te la rimanda. Per ora solo per le destinazioni, non per i partner. |
 | «Preparami 5 presentazioni di destinazioni» | Sceglie lui fra gli enti del turismo con un sito e senza presentazione, prima quelli con priorità e con una città leggibile dal nome. |
 | «Presentazione partner per Hotel Laguna, guida di Venezia» | Base **Partner** (QR e link con commissione, codici a tempo, vetrina, numeri nel portale). La prepara subito; le condizioni restano `[DA VERIFICARE]` finché non le scrivi nell’editor. |
+| «Abbiamo la presentazione per Visit Bergamo, creami la bozza da inviare e mettila in Gmail» | Prepara l’email col link della presentazione **approvata** (e il link al PDF) per il contatto CRM dell’ente, la salva fra le bozze del CRM e la copia fra le bozze di Gmail, con la firma. Non parte niente: la invii tu da Gmail. Se la presentazione non è approvata te la rimanda col pulsante; se l’ente non ha un contatto con email te lo dice. |
 | Foto con «foto per la presentazione di Bibione» | Finiscono nelle slide al posto di quelle di esempio. |
 
 Ogni presentazione pronta (dall’agente Presentazioni o dal Direttore) **arriva su Telegram in PDF**, anche in bozza, con «✅ Approva» se non resta niente da completare e «✏️ Modifica nel CRM». Se la chiedi e c’è già, te la rimanda invece di rifarla.
@@ -39,6 +41,7 @@ La base Partner si sceglie anche a mano: Tourism → Presentazioni → «Crea la
 |---|---|
 | «Costruisci la mappa di West of Sicily, https://www.google.com/maps/d/…» | Il Costruttore My Maps importa i luoghi. Senza link usa solo una fonte già collegata in StudioMap, altrimenti si ferma e lo dice. |
 | «Controlla la mappa di Barcellona» | Il Controllo qualità prepara il rapporto. |
+| «Trovami le fonti eventi di Marsiglia» | Cerco sul web teatri, musei, festival e calendari della città e li aggiungo al catalogo fonti di StudioMap, come candidate da controllare. Fino a 2,50 € dal budget del Direttore. La città deve già esistere in StudioMap; Napoli no. |
 
 ## Soldi
 

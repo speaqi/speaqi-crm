@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import sharp from 'sharp'
-import { freeLicense, photoCandidates, pickDestinationPhotos, photoCredit, photoFileName, commonsSearchUrl, wikiArticleImagesUrl } from '../src/lib/tourism-deck-photos'
-import { findDestinationPhotos } from '../src/lib/server/tourism-deck-photos'
+import { freeLicense, isCommonsFileTitle, previewUrl, photoCandidates, pickDestinationPhotos, photoCredit, photoFileName, commonsSearchUrl, wikiArticleImagesUrl } from '../src/lib/tourism-deck-photos'
+import { fetchWikimediaPhoto, findDestinationPhotos, searchWikimediaPhotos } from '../src/lib/server/tourism-deck-photos'
 import { assignPhotos, photoSlots, DEFAULT_DECK_TEMPLATE } from '../src/lib/tourism-deck'
 import { isDirectorPhotoPath } from '../src/lib/server/office-director-photos'
 import { presentationQueue } from '../src/lib/office/presentations'
@@ -96,4 +96,41 @@ test('foto da Telegram: solo percorsi del bucket del Direttore di quel proprieta
   const E = '44444444-4444-4444-8444-444444444444'
   assert.deepEqual(presentationQueue([{ entity_id: E, photos: [P, 'altro/x.jpg', 7] }]), [{ entity_id: E, photos: [P] }])
   assert.deepEqual(presentationQueue([{ entity_id: E, photos: ['x'] }]), [{ entity_id: E }])
+})
+
+test('ricerca a mano: niente virgolette, nessun filtro sul nome, miniatura piccola', async () => {
+  assert.doesNotMatch(commonsSearchUrl('Asiago 7 Comuni', false), /%22/)
+  assert.match(commonsSearchUrl('Asiago 7 Comuni'), /%22Asiago/)
+  assert.equal(previewUrl({ url: 'https://upload.wikimedia.org/a/b/1920px-Asiago.jpg' }), 'https://upload.wikimedia.org/a/b/480px-Asiago.jpg')
+  const asked: string[] = []
+  const fetcher = (async (url: string) => {
+    asked.push(url)
+    const pages = url.includes('commons.wikimedia') ? [page('File:Altopiano panorama.jpg'), page('File:Piccola.jpg', { width: 1300, height: 720 }), page('File:Altopiano panorama.jpg')]
+      : url.includes('it.wikipedia') ? [page('File:Gallio.jpg')] : []
+    return { ok: true, json: async () => ({ query: { pages } }) }
+  }) as unknown as typeof fetch
+  const { results, note } = await searchWikimediaPhotos('Asiago 7 Comuni', fetcher)
+  assert.equal(note, null)
+  // Il nome del file non deve nominare la località; un 1300x720 va bene a mano; nessun doppione.
+  assert.deepEqual(results.map((r) => r.title), ['File:Gallio.jpg', 'File:Altopiano panorama.jpg', 'File:Piccola.jpg'])
+  assert.match(results[0].credit, /Mario Rossi · CC BY-SA 4.0/)
+  assert.equal(asked.length, 3)
+  const empty = await searchWikimediaPhotos('Nessun posto', (async () => ({ ok: true, json: async () => ({}) })) as unknown as typeof fetch)
+  assert.match(empty.note!, /Nessuna foto libera/)
+  const down = await searchWikimediaPhotos('Asiago', (async () => { throw new Error('rete') }) as unknown as typeof fetch)
+  assert.match(down.note!, /Wikimedia non ha risposto/)
+})
+
+test('una foto scelta si rilegge da Commons: licenza chiusa o titolo strano no', async () => {
+  assert.equal(isCommonsFileTitle('File:Asiago.jpg'), true)
+  for (const bad of ['Asiago.jpg', 'File:a|b', 'File:x\ny', '', 7]) assert.equal(isCommonsFileTitle(bad), false, String(bad))
+  const jpeg = await sharp({ create: { width: 2400, height: 1500, channels: 3, background: '#3a7' } }).jpeg().toBuffer()
+  const make = (patch: Record<string, any>) => (async (url: string) => url.includes('/w/api.php')
+    ? { ok: true, json: async () => ({ query: { pages: [page('File:Asiago.jpg', patch)] } }) }
+    : { ok: true, arrayBuffer: async () => jpeg.buffer.slice(jpeg.byteOffset, jpeg.byteOffset + jpeg.length) }) as unknown as typeof fetch
+  const photo = await fetchWikimediaPhoto('File:Asiago.jpg', make({}))
+  assert.equal(photo.name, 'Asiago.jpg')
+  assert.ok(photo.buffer.length > 0)
+  await assert.rejects(fetchWikimediaPhoto('File:Asiago.jpg', make({ extmetadata: { LicenseShortName: { value: 'CC BY-NC 4.0' } } })), /licenza non libera/)
+  await assert.rejects(fetchWikimediaPhoto('Asiago.jpg', make({})), /non valida/)
 })

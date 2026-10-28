@@ -7,7 +7,7 @@ import { GENERIC } from './deck-template-fixture'
 
 // I numeri del territorio restano da verificare nel modello: per approvare li si scrive.
 const completed = (slides: DeckSlide[]) => slides.map((s) => JSON.parse(JSON.stringify(s).replace(DECK_TODO_PATTERN, '12')) as DeckSlide)
-import { addAssets, addPhotosToDeck, createDeck, deckRenderKey, getTemplate, isUneditedPreviousDestinations, saveTemplate, deleteDeck, generateIntoDeck, loadDeck, loadPublicDeck, saveDeckEdits, setApproval, type DeckRow } from '../src/lib/server/tourism-decks'
+import { addAssets, addPhotosToDeck, addWikimediaPhoto, createDeck, deckRenderKey, getTemplate, isUneditedPreviousDestinations, saveTemplate, deleteDeck, generateIntoDeck, loadDeck, loadPublicDeck, saveDeckEdits, setApproval, type DeckRow } from '../src/lib/server/tourism-decks'
 
 type Row = Record<string, any>
 
@@ -100,7 +100,9 @@ test('createDeck parte dalla base destinazioni con il nome riempito', async () =
   const row = await createDeck(db, USER, fields)
   assert.equal(row.status, 'draft')
   assert.equal(row.slides[0].kicker, 'Speaqi Guides per Capri')
-  assert.equal(row.slides.length, 14)
+  // Quattordici slide della base più l'ultima, con i contatti.
+  assert.equal(row.slides.length, 15)
+  assert.equal(row.slides[14].id, 'contatti')
   assert.equal(db.tables.tourism_deck_templates.length, 1)
   assert.equal(db.tables.tourism_deck_templates[0].content.base, DESTINATIONS_BASE)
 })
@@ -330,6 +332,21 @@ test('foto da Telegram dopo: prendono il posto di quelle di Commons, una volta s
   assert.equal(again.deck.assets.filter((a) => a.source === 'telegram').length, 2)
 })
 
+test('foto scelta dalla ricerca su Commons: va sulle slide al posto di una trovata da sola, una volta sola', async () => {
+  const row = await createDeck(db, USER, { ...fields, destination: 'Asiago 7 Comuni' })
+  globalThis.fetch = provider([])
+  let deck = await generateIntoDeck(db, db, row, undefined, undefined, finder(['a.jpg', 'b.jpg']))
+  const pick = async () => ({ name: 'Gallio.jpg', buffer: await jpegOf('#0af'), credit: 'Foto: Autore · CC BY-SA 4.0 · Wikimedia Commons', source_url: 'https://commons.wikimedia.org/wiki/File:Gallio.jpg' })
+  deck = await addWikimediaPhoto(db, db, deck, 'File:Gallio.jpg', pick)
+  const picked = deck.assets.find((a) => a.source === 'wikimedia_search')!
+  assert.equal(picked.credit, 'Foto: Autore · CC BY-SA 4.0 · Wikimedia Commons')
+  // Vale come una foto caricata: prima delle trovate da sole.
+  assert.equal(photoIds(deck)[0], picked.id)
+  assert.equal(new Set(photoIds(deck)).size, 3)
+  await assert.rejects(addWikimediaPhoto(db, db, deck, 'File:Gallio.jpg', pick), /già nella presentazione/)
+  await assert.rejects(addWikimediaPhoto(db, db, deck, 'File:X.jpg', async () => { throw new Error('licenza non libera') }), /licenza non libera/)
+})
+
 test('la base destinazioni di prima della revisione del 26/10 passa alla nuova solo se nessuno l’ha modificata', async () => {
   const previous = JSON.parse(readFileSync(new URL('./fixtures/tourism-deck-destinazioni-2026-10.json', import.meta.url), 'utf8'))
   assert.equal(previous.base, DESTINATIONS_BASE_PREVIOUS)
@@ -360,4 +377,21 @@ test('una base di prima con il solo preventivo corretto a mano resta com’è', 
   const edited = JSON.parse(readFileSync(new URL('./fixtures/tourism-deck-destinazioni-2026-10.json', import.meta.url), 'utf8'))
   edited.quote_template = { ...(edited.quote_template || {}), public_note: 'Nota scritta dal titolare' }
   assert.equal(isUneditedPreviousDestinations(edited), false)
+})
+
+test('la slide dei contatti c\u2019è in ogni presentazione nuova: italiano, inglese, partner e modello salvato a mano', async () => {
+  const last = (r: { slides: Array<{ id: string; title: string; items: Array<{ title: string }> }> }) => r.slides[r.slides.length - 1]
+  const italian = await createDeck(db, USER, fields)
+  assert.equal(last(italian).id, 'contatti')
+  assert.match(last(italian).title, /Parliamone/)
+  assert.ok(last(italian).items.some((i) => i.title === 'info@speaqi.com'))
+  const english = await createDeck(db, USER, { ...fields, input: { ...fields.input, lingua: 'en' } })
+  assert.match(last(english).title, /Let’s talk/)
+  const partner = await createDeck(db, USER, { ...fields, input: { ...fields.input, modello: 'partner' } })
+  assert.equal(last(partner).id, 'contatti')
+  // Un modello salvato e corretto a mano non ce l'ha: la riceve lo stesso, una volta sola.
+  db.tables.tourism_deck_templates.length = 0
+  db.tables.tourism_deck_templates.push({ user_id: USER, is_default: true, version: 3, content: { version: 1, base: 'mio', vars: {}, slides: [{ id: 'cover', kind: 'cover', title: 'Il mio titolo' }] } })
+  const custom = await createDeck(db, USER, fields)
+  assert.deepEqual(custom.slides.map((s) => s.id), ['cover', 'contatti'])
 })

@@ -1,17 +1,26 @@
 import { NextRequest } from 'next/server'
 import { sendCustomEmail, sendFollowupEmail, sendReminderEmail } from '@/lib/email'
+import { isWorkspaceRecipient, singleRecipient } from '@/lib/server/email-recipients'
 import { createServiceRoleClient, requireRouteUser } from '@/lib/server/supabase'
 
 export async function POST(request: NextRequest) {
   const auth = await requireRouteUser(request)
   if ('error' in auth) return auth.error
+  // Spedisce HTML scritto da chi chiama col mittente del CRM: solo il titolare.
+  if (!auth.isAdmin) return Response.json({ error: 'Solo il titolare può inviare email da qui' }, { status: 403 })
 
   try {
     const body = await request.json()
-    const { to, subject, html, type } = body
+    const { subject, html, type } = body
 
+    const to = singleRecipient(body.to)
     if (!to) {
-      return Response.json({ error: 'Missing required field: to' }, { status: 400 })
+      return Response.json({ error: 'Serve un solo indirizzo email valido in "to"' }, { status: 400 })
+    }
+    // Nessuna eccezione per l'indirizzo di chi chiama: il titolare sta nel team,
+    // e un collaboratore la cui identita' non si risolve resta senza destinatari.
+    if (!(await isWorkspaceRecipient(auth.supabase, auth.workspaceUserId, to))) {
+      return Response.json({ error: 'Il destinatario non è fra i contatti o nel team' }, { status: 403 })
     }
 
     let result

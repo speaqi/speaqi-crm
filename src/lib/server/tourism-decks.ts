@@ -5,6 +5,8 @@ import {
   DESTINATIONS_BASE_PREVIOUS,
   PARTNER_DECK_TEMPLATE,
   deckModel,
+  deckLanguage,
+  withContactsSlide,
   applyVars,
   assignPhotos,
   countTodo,
@@ -17,6 +19,7 @@ import {
   type DeckTemplate,
   type DeckWarning
 } from '../tourism-deck'
+import { DEFAULT_DECK_TEMPLATE_EN } from '../tourism-deck-en'
 import { TOURISM_TYPES, TourismInputError } from '../tourism'
 import {
   DECK_BUCKET,
@@ -32,7 +35,7 @@ import {
   type DeckAsset
 } from './tourism-deck-assets'
 import { runDeckAgent, type DeckAgentArgs, type DeckAgentResult, type DeckEntityContext, type DeckMaterials } from './tourism-deck-agent'
-import { findDestinationPhotos, type DestinationPhoto } from './tourism-deck-photos'
+import { fetchWikimediaPhoto, findDestinationPhotos, type DestinationPhoto } from './tourism-deck-photos'
 import { readWebsiteMaterial } from './tourism-site-crawler'
 
 type Sb = any
@@ -138,12 +141,17 @@ export async function loadDeck(sb: Sb, userId: string, id: string): Promise<Deck
 
 /**
  * Il modello di un deck: per un partner la base partner (scritta nel codice, uguale per tutti),
- * per un ente il modello salvato dal titolare. Lo decide il deck, quindi una rigenerazione
+ * in inglese la base inglese, per un ente il modello salvato dal titolare. Lo decide il deck, quindi una rigenerazione
  * non cambia base.
  */
 export async function templateForDeck(sb: Sb, userId: string, input: DeckInput | null | undefined): Promise<DeckTemplate> {
-  if (deckModel(input) === 'partner') return structuredClone(PARTNER_DECK_TEMPLATE)
-  return (await getTemplate(sb, userId)).template
+  const lang = deckLanguage(input)
+  const template = deckModel(input) === 'partner'
+    ? structuredClone(PARTNER_DECK_TEMPLATE)
+    // In inglese vale la base inglese scritta nel codice: il modello salvato dal titolare è in italiano.
+    : lang === 'en' ? structuredClone(DEFAULT_DECK_TEMPLATE_EN) : (await getTemplate(sb, userId)).template
+  // L'ultima slide con i contatti c'è in ogni presentazione, qualunque sia la base (anche una salvata a mano).
+  return { ...template, slides: withContactsSlide(template.slides, lang) }
 }
 
 export type DeckFields = {
@@ -168,7 +176,7 @@ export async function createDeck(sb: Sb, userId: string, fields: DeckFields, id?
         ...(id ? { id } : {}),
         user_id: userId,
         entity_id: fields.entity_id,
-        title: `${fields.destination} · ${ente}`.slice(0, 200),
+        title: `${fields.destination} · ${ente}${deckLanguage(fields.input) === 'en' ? ' (EN)' : ''}`.slice(0, 200),
         destination: fields.destination,
         input: fields.input,
         notes: fields.notes,
@@ -376,6 +384,25 @@ export async function addPhotosToDeck(sb: Sb, service: Sb, row: DeckRow, files: 
       .maybeSingle()
   )
   return { deck: (updated.data as DeckRow) || row, added: added.length, skipped: fresh.length - take.length }
+}
+
+/**
+ * Una foto scelta a mano dalla ricerca su Wikimedia Commons (editor della presentazione). Vale
+ * come una foto caricata: va subito sulle slide al posto delle immagini di esempio e di quelle
+ * trovate da sole, con autore e licenza. La stessa foto non entra due volte.
+ */
+export async function addWikimediaPhoto(sb: Sb, service: Sb, row: DeckRow, title: string,
+  fetchPhoto: (title: string) => Promise<DestinationPhoto> = fetchWikimediaPhoto): Promise<DeckRow> {
+  if (row.assets.filter((a) => a.kind === 'photo').length >= MAX_PHOTOS) throw new TourismInputError(`Al massimo ${MAX_PHOTOS} foto per presentazione: togline una prima di aggiungerne un'altra`)
+  let photo: DestinationPhoto
+  try {
+    photo = await fetchPhoto(title)
+  } catch (error) {
+    throw new TourismInputError(error instanceof Error ? error.message : 'Foto non scaricata da Wikimedia')
+  }
+  if (row.assets.some((a) => a.source_url && a.source_url === photo.source_url)) throw new TourismInputError('Questa foto è già nella presentazione')
+  const { deck } = await addPhotosToDeck(sb, service, row, [{ name: photo.name, buffer: photo.buffer, source: 'wikimedia_search', credit: photo.credit, source_url: photo.source_url }])
+  return deck
 }
 
 /** Le foto del deck in ordine di preferenza: prima quelle scelte da chi lavora, poi quelle trovate. */
@@ -633,7 +660,7 @@ export async function loadPublicDeck(service: Sb, token: string, render?: string
   const quotes = await deckQuotes(service, row)
   const quote = quoteSummary(quotes.find((q: any) => ['sent', 'accepted', 'paid'].includes(q.status)))
   const credits = Object.fromEntries(row.assets.filter((a) => a.credit && urls.has(a.id)).map((a) => [a.id, a.credit as string]))
-  return { title: row.title, destination: row.destination, slides: row.slides, images: Object.fromEntries(urls), credits, quote }
+  return { title: row.title, destination: row.destination, lang: deckLanguage(row.input), slides: row.slides, images: Object.fromEntries(urls), credits, quote }
 }
 
 /** Una migration non ancora applicata non deve oscurare le presentazioni esistenti. */
