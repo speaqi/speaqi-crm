@@ -1,6 +1,7 @@
 import crypto from 'crypto'
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { buildGmailConnectUrl, isMissingRelation } from '@/lib/server/gmail'
+import { GMAIL_OAUTH_STATE_COOKIE, gmailOAuthCookieOptions } from '@/lib/server/gmail-oauth-state'
 import { requireRouteUser, requireArea } from '@/lib/server/supabase'
 
 const GMAIL_MIGRATION_ERROR =
@@ -29,9 +30,11 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error
 
-    return Response.json({
+    const response = NextResponse.json({
       url: buildGmailConnectUrl(state),
     })
+    response.cookies.set(GMAIL_OAUTH_STATE_COOKIE, state, gmailOAuthCookieOptions())
+    return response
   } catch (error) {
     if (isMissingRelation(error)) {
       return Response.json({ error: GMAIL_MIGRATION_ERROR }, { status: 500 })

@@ -25,7 +25,7 @@ export class StripeApiError extends Error {
 
 export async function stripeFetch<T = any>(
   path: string,
-  options: { method?: 'GET' | 'POST'; params?: URLSearchParams } = {}
+  options: { method?: 'GET' | 'POST'; params?: URLSearchParams; idempotencyKey?: string } = {}
 ): Promise<T> {
   const secretKey = process.env.STRIPE_SECRET_KEY
   if (!secretKey) throw new StripeApiError('Stripe non configurato: imposta STRIPE_SECRET_KEY sul deploy', 501)
@@ -37,6 +37,7 @@ export async function stripeFetch<T = any>(
       Authorization: `Bearer ${secretKey}`,
       'Stripe-Version': STRIPE_API_VERSION,
       ...(method === 'POST' ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}),
+      ...(method === 'POST' && options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {}),
     },
     body: method === 'POST' ? options.params : undefined,
     cache: 'no-store',
@@ -47,6 +48,28 @@ export async function stripeFetch<T = any>(
     throw new StripeApiError(payload?.error?.message || `Stripe ha risposto ${response.status}`, 502)
   }
   return payload as T
+}
+
+/**
+ * Chiave di idempotenza per aprire la sessione di un abbonamento. Due clic
+ * insieme leggono la stessa sessione salvata (o nessuna) e con la stessa
+ * chiave Stripe restituisce la stessa sessione invece di crearne due. Quando
+ * la sessione salvata non e' piu' aperta la chiave cambia, quindi se ne apre
+ * una nuova; idem se cambiano importo o tipo di prezzo.
+ */
+export function subscriptionCheckoutIdempotencyKey(input: {
+  quoteId: string
+  totalCents: number
+  pricing: 'catalog' | 'inline'
+  previousSessionId?: string | null
+}) {
+  return [
+    'quote-subscription-checkout',
+    input.quoteId,
+    input.totalCents,
+    input.pricing,
+    input.previousSessionId || 'none',
+  ].join(':')
 }
 
 export type StripeSignatureCheck = { ok: true; timestamp: number } | { ok: false; reason: string }

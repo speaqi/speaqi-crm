@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { requireRouteUser } from '@/lib/server/supabase'
 import {
+  GmailSendOutcomeError,
   createContactDraft,
   sendContactEmail,
   simpleTextToHtml,
@@ -42,12 +43,17 @@ export async function POST(request: NextRequest) {
     }
 
     if (mode === 'dismiss') {
-      const { error: updateError } = await auth.supabase
+      const { data: dismissed, error: updateError } = await auth.supabase
         .from('email_drafts')
         .update({ status: 'dismissed' })
         .eq('id', draftId)
+        .eq('status', 'pending')
+        .select('id')
+        .maybeSingle()
 
       if (updateError) throw updateError
+      // Nel frattempo un'altra richiesta l'ha presa per inviarla.
+      if (!dismissed) return Response.json({ error: 'Bozza già in invio o inviata' }, { status: 409 })
 
       return Response.json({ draft_id: draftId, status: 'dismissed' })
     }
@@ -119,58 +125,108 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    if (editedSubject !== null || editedBodyText !== null) {
-      const { error: editError } = await auth.supabase
-        .from('email_drafts')
-        .update({
-          subject,
-          body_text: bodyText,
-          body_html: bodyHtml,
-        })
-        .eq('id', draftId)
-
-      if (editError) throw editError
-    }
-
     // Cadenza SLA centralizzata in @/lib/sla
     const followupAt = nextFollowupAfterEmail(contact.status)
 
-    // Send via Gmail
-    const result = await sendContactEmail(
-      auth.supabase,
-      auth.workspaceUserId,
-      contact as CRMContact,
-      {
-        subject,
-        html: bodyHtml,
-        text: bodyText,
-        followupAt: followupAt.toISOString(),
-        appendSignature: true,
-      }
-    )
-
-    // Mark draft as sent
-    const { error: updateError } = await auth.supabase
+    // Una richiesta sola invia: due clic o due schede trovano la bozza gia'
+    // presa. Le modifiche si salvano nello stesso passo, cosi' la bozza
+    // salvata e' quella che parte.
+    const { data: claimed, error: claimError } = await auth.supabase
       .from('email_drafts')
       .update({
-        status: 'sent',
-        sent_at: new Date().toISOString(),
-        sent_via: 'crm',
-        provider_message_id: result.message.gmail_message_id,
-        gmail_draft_id: null, // no longer a draft, it's sent
-        gmail_draft_message_id: null,
+        status: 'sending',
+        ...(editedSubject !== null || editedBodyText !== null
+          ? { subject, body_text: bodyText, body_html: bodyHtml }
+          : {}),
       })
       .eq('id', draftId)
+      .eq('user_id', auth.workspaceUserId)
+      .eq('status', 'pending')
+      .select('id')
+      .maybeSingle()
 
-    if (updateError) {
-      console.error('Failed to mark draft as sent', updateError)
+    if (claimError) throw claimError
+    if (!claimed) {
+      return Response.json({ error: 'Bozza già in invio o inviata' }, { status: 409 })
+    }
+
+    // Send via Gmail
+    let gmailMessageId: string
+    let partialRecord = false
+    try {
+      const result = await sendContactEmail(
+        auth.supabase,
+        auth.workspaceUserId,
+        contact as CRMContact,
+        {
+          subject,
+          html: bodyHtml,
+          text: bodyText,
+          followupAt: followupAt.toISOString(),
+          appendSignature: true,
+        }
+      )
+      gmailMessageId = result.message.gmail_message_id
+    } catch (sendError) {
+      if (sendError instanceof GmailSendOutcomeError && sendError.outcome === 'sent' && sendError.gmailMessageId) {
+        // Partita: manca solo la registrazione nel CRM. La bozza si chiude comunque.
+        console.error('send-draft: email inviata, registrazione incompleta', sendError)
+        gmailMessageId = sendError.gmailMessageId
+        partialRecord = true
+      } else if (sendError instanceof GmailSendOutcomeError) {
+        // Forse partita: non torna in coda. La riconciliazione la cerca fra le
+        // inviate di Gmail e la chiude, o la rimette in coda se non e' partita.
+        // sent_at qui e' l'ora del tentativo: se e' partita, e' quella dell'invio.
+        await auth.supabase
+          .from('email_drafts')
+          .update({
+            status: 'unknown',
+            sent_via: 'crm',
+            sent_at: new Date().toISOString(),
+            last_send_error: sendError.message.slice(0, 1000),
+          })
+          .eq('id', draftId)
+          .eq('status', 'sending')
+        return Response.json(
+          {
+            error:
+              'Esito dell’invio incerto: il CRM verifica in Gmail se l’email è partita e aggiorna la bozza entro mezz’ora. Non riscriverla nel frattempo.',
+          },
+          { status: 502 }
+        )
+      } else {
+        // Non partita: la bozza torna disponibile.
+        await auth.supabase
+          .from('email_drafts')
+          .update({ status: 'pending' })
+          .eq('id', draftId)
+          .eq('status', 'sending')
+        throw sendError
+      }
+    }
+
+    // L'email e' partita: non si risponde errore (inviterebbe a reinviarla).
+    // Se la bozza non si chiude, resta "sending" e non riparte.
+    const sentFields = {
+      status: 'sent',
+      sent_at: new Date().toISOString(),
+      sent_via: 'crm',
+      provider_message_id: gmailMessageId,
+      gmail_draft_id: null, // no longer a draft, it's sent
+      gmail_draft_message_id: null,
+    }
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      const { error: updateError } = await auth.supabase.from('email_drafts').update(sentFields).eq('id', draftId)
+      if (!updateError) break
+      console.error(`Failed to mark draft as sent (tentativo ${attempt})`, updateError)
     }
 
     return Response.json({
       draft_id: draftId,
       status: 'sent',
-      gmail_message_id: result.message.gmail_message_id,
+      gmail_message_id: gmailMessageId,
       followup_at: followupAt.toISOString(),
+      ...(partialRecord ? { warning: 'Email inviata, ma la registrazione nel CRM non è completa.' } : {}),
     })
   } catch (error) {
     console.error('send-draft failed', error)

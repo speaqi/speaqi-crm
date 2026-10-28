@@ -142,7 +142,9 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
   let children: OfficeWorkSpec[] = []
   if (plan.intent === 'build_map') children = [child('mymaps_builder', 'import_mymaps', { slug: plan.slug, city: plan.city, source: plan.source }, 'map')]
   if (plan.intent === 'check_map') children = [child('maps_quality', 'check_map', { slug: plan.slug, city: plan.city }, 'quality')]
-  if (plan.intent === 'presentation' && plan.audience !== 'partner') {
+  // In inglese la presentazione è un deck a parte, fatto dal Direttore stesso (`englishPresentation`, via `executePlan`):
+  // non passa dal compito dell'agente Presentazioni, che ha un solo lavoro per ente.
+  if (plan.intent === 'presentation' && plan.audience !== 'partner' && plan.language !== 'en') {
     let targets = plan.targets
     if (!targets.length && plan.count) {
       const decks = checked(await admin.from('tourism_decks').select('entity_id').eq('user_id', work.user_id)) || []

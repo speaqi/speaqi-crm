@@ -4,7 +4,7 @@ import { officeIsNaples } from '../office/director'
 import { EXONYMS, nameKey } from '../office/entity-enricher'
 import { TOURISM_TYPES } from '../tourism'
 import { readEntitySite } from './office-agents/entity-enricher'
-import { officeDeckAgent } from './office-agents/presentations'
+import { officeDeckAgent, presentationEntities } from './office-agents/presentations'
 import { sendDeckToTelegram } from './office-deck-telegram'
 import { officeAgentHandler } from './office-agents/registry'
 import { officeRows } from './office-read'
@@ -17,10 +17,10 @@ import { searchPattern } from '../command-center'
 import { officeRomeDay } from '../office/finance'
 import {
   CONTACT_CATEGORY_LABELS, DIRECTOR_ORDER_SCHEMA, contactNextStep, directorOrderPrompt, directorStatusLines,
-  directorEventsReply, directorInvoiceReply, directorQuoteLabel, interpretDirectorOrder, queuedWorkReport, quoteIsInvoiceable,
+  directorEventsReply, directorEventSourcesReply, directorInvoiceReply, directorQuoteLabel, interpretDirectorOrder, queuedWorkReport, quoteIsInvoiceable,
   directorHelpText, emailFromSite, looksLikeTourismBody, parsePartnerSearch, partnerSearchPrompt, PARTNER_SEARCH_SCHEMA, PARTNER_TYPE_CODES,
   directorTaskDue, directorTaskReply, pickPresentationRecipient, presentationEmail, directorFollowUp, readAwaiting, AWAITING_TTL_MS,
-  type DirectorAwaiting, type DirectorEventRow, type DirectorInvoiceQuote, type DirectorOrderPlan, type DirectorTaskItem, type DirectorTaskOutcome, type QueuedWork,
+  type DirectorAwaiting, type DirectorEventRow, type DirectorEventSourcesResult, type DirectorInvoiceQuote, type DirectorOrderPlan, type DirectorTaskItem, type DirectorTaskOutcome, type QueuedWork,
 } from '../office/director-orders'
 import { addTaskToCalendar } from './gcal'
 import { sendNotificationText } from './whatsapp'
@@ -29,6 +29,7 @@ import { activateEntityForOrder, verifiedDestination, type ActivationEntity } fr
 import { enqueueOfficeWork, missingWorkSchema, officeWorkEnabled, QUEUE_WORK_ACTION } from './office-work-routing'
 import { cityForEntity, compactName, entitySearchPattern, pickOrderEntity, siteMatchesEntity, websiteFromText } from '../office/entity-activation'
 import { DIRECTOR_BUCKET, directorPhotoFiles } from './office-director-photos'
+import { OfficeStudioError, officeStudioRequest } from './office-agents/maps-bridge'
 import { addPhotosToDeck, createDeck, generateIntoDeck, type DeckRow } from './tourism-decks'
 
 const TOURISM_TYPE_LABEL = (code: string | null) => (code && (TOURISM_TYPES as Record<string, string>)[code])
@@ -275,6 +276,8 @@ async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, 
     destination = activated.placeId
     note = `${activated.note} `
   }
+  // «Fammela in inglese»: un deck nuovo in inglese, quello italiano resta com'è.
+  if (plan.language === 'en') return englishPresentation(admin, ctx, userId, entity, destination, label, note, photos)
   if (!photos.length) {
     // C'è già una presentazione pronta per questo ente: non si rifà, si manda.
     const ready = checked(await admin.from('tourism_decks').select('*').eq('user_id', userId).eq('entity_id', entity.id)
@@ -376,6 +379,51 @@ export async function presentationEmailFor(admin: Admin, ctx: AgentContext, user
     const why = isGmailReconnectRequired(error) ? 'l’autorizzazione di Gmail è scaduta, ricollegalo dalle impostazioni' : `Gmail non ha risposto (${errorMessage(error, 'errore')})`
     return { status: 'done', outputs: [], queued: [], reply: `${crm} Non l’ho messa in Gmail: ${why}. La trovi fra le bozze del CRM, da lì «Prepara tutte in Gmail»: ${base}/email` }
   }
+}
+
+/**
+ * La presentazione di un ente in inglese: un deck a parte (`input.lingua = 'en'`, base inglese), così
+ * quella italiana resta com'è. Ce n'è una sola per ente: chiederla di nuovo rimanda quella che c'è.
+ * La genera il Direttore nel suo budget; l'approvazione resta un clic del titolare.
+ */
+async function englishPresentation(admin: Admin, ctx: AgentContext, userId: string, entity: ActivationEntity, destinationId: string | null,
+  label: string, note: string, photos: string[]): Promise<Outcome> {
+  const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+  let deck = checked(await admin.from('tourism_decks').select('*').eq('user_id', userId).eq('entity_id', entity.id).eq('input->>lingua', 'en')
+    .order('updated_at', { ascending: false }).limit(1).maybeSingle()) as DeckRow | null
+  const link = (row: DeckRow) => `${base}/tourism/presentazioni/${row.id}`
+  if (deck?.status === 'failed') return retryFailedDeck(admin, ctx, deck, `${label} (inglese)`, note)
+  if (!deck) {
+    if (!destinationId) return { status: 'waiting_you', outputs: [], queued: [], reply: `Presentazione in inglese per ${label}: non trovo la destinazione verificata dell’ente. Scrivimi la città.` }
+    let source: Awaited<ReturnType<typeof presentationEntities>>
+    try { source = await presentationEntities(admin, userId, { entity_id: entity.id, destination_id: destinationId }) }
+    catch (error) { return { status: 'failed', outputs: [], queued: [], reply: `Presentazione in inglese per ${label}: ${errorMessage(error, 'mancano i dati verificati')}.` } }
+    const { entity: org, destination } = source
+    const evidence = (checked(await admin.from('tourism_evidence').select('fields,source_url,excerpt').eq('user_id', userId).eq('status', 'VERIFIED')
+      .in('entity_id', [org.id, destination.id]).order('id').limit(100)) || []) as Array<{ fields: unknown; source_url: string | null; excerpt: string | null }>
+    const notes = JSON.stringify({ ente: org.name, destinazione: destination.name, lingua: 'inglese',
+      evidenze: evidence.map((e) => ({ fields: e.fields, excerpt: e.excerpt, source_url: e.source_url })) }).slice(0, 30000)
+    deck = await createDeck(admin, userId, { entity_id: org.id, destination: destination.name, notes,
+      input: { destinazione: destination.name, ente: org.name, paese: destination.country_code || org.country_code || '', prezzo: '', contatto: '[DA VERIFICARE]', lingua: 'en' } },
+      stableId(`en-deck:${org.id}`))
+  }
+  if (photos.length) deck = (await addPhotosToDeck(admin, admin, deck, await directorPhotoFiles(admin, userId, photos))).deck
+  let generated = deck.status !== 'draft'
+  if (!generated) {
+    try {
+      deck = await generateIntoDeck(admin, admin, deck, undefined, officeDeckAgent(ctx))
+      generated = true
+    } catch (error) {
+      if (error instanceof BudgetExceeded) throw error
+      console.error('[direttore] presentazione in inglese non generata', errorMessage(error, ''))
+    }
+  } else if (deck.status === 'ready' || deck.status === 'approved') {
+    const sent = await sendDeckToTelegram(admin, deck)
+    return { status: 'done', outputs: [], queued: [], reply: `Presentazione in inglese per ${label}: c’è già, «${deck.title}»${sent.pdf ? ', te l’ho mandata qui in PDF' : ''}. ${note}${link(deck)}` }
+  }
+  if (!generated || deck.status !== 'ready') return { status: 'failed', outputs: [], queued: [], reply: `Presentazione in inglese per ${label}: ho preparato il testo di base in inglese ma l’adattamento non è riuscito. Puoi rivederla e rigenerarla da qui: ${link(deck)}` }
+  const telegram = await sendDeckToTelegram(admin, deck)
+  return { status: 'done', outputs: [], queued: [], reply: `Presentazione in inglese per ${label} pronta da rivedere: l’ho fatta nuova, quella italiana resta com’è.${telegram.pdf ? ' Il PDF della bozza te l’ho mandato qui su Telegram.' : ''} ${note}${link(deck)}` }
 }
 
 /**
@@ -909,6 +957,63 @@ async function statusReport(admin: Admin, userId: string, now: Date) {
   }, { brief: true })
 }
 
+/** Tetto di una ricerca fonti in StudioMap (2 $, più margine) e attesa massima della risposta. */
+export const EVENT_SOURCES_RESERVE_USD = 2.5
+const EVENT_SOURCES_TIMEOUT_MS = 300_000
+
+/** La stessa richiesta per lo stesso ordine: rilavorarlo ritrova la ricevuta in StudioMap invece di ripagare. */
+export function eventSourcesRequestId(orderId: string) {
+  const h = createHash('sha256').update(`event-sources:${orderId}`).digest('hex')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`
+}
+
+/**
+ * «Trovami le fonti eventi di Marsiglia»: la ricerca la fa StudioMap (la stessa di
+ * «Cerca siti eventi»), il CRM la prenota nel budget del Direttore prima e la salda col
+ * costo dichiarato dopo. Un rifiuto di StudioMap (400: città assente, Napoli, ricerca già
+ * in corso) non ha speso niente; un altro errore lascia la riserva, perché l'esito è incerto.
+ */
+export async function eventSourcesFor(ctx: AgentContext, order: Pick<DirectorOrderRow, 'id'>,
+  plan: Extract<DirectorOrderPlan, { intent: 'event_sources' }>, request = officeStudioRequest): Promise<Outcome> {
+  const secret = process.env.OFFICE_BRIDGE_SECRET
+  if (!secret || secret.length < 32) return { status: 'failed', outputs: [], queued: [],
+    reply: 'Il collegamento con StudioMap non è configurato (OFFICE_BRIDGE_SECRET): non posso cercare le fonti degli eventi.' }
+  let origin: string
+  try {
+    const url = new URL(process.env.OFFICE_STUDIOMAP_URL || 'https://studiomap.speaqi.com')
+    if (url.protocol !== 'https:') throw new Error('protocollo')
+    origin = url.origin
+  } catch {
+    return { status: 'failed', outputs: [], queued: [], reply: 'L’indirizzo di StudioMap (OFFICE_STUDIOMAP_URL) non è valido.' }
+  }
+  const rate = Number(process.env.OFFICE_USD_TO_EUR || '1')
+  const usdToEur = Number.isFinite(rate) && rate > 0 ? rate : 1
+  let ledgerId: string
+  try { ledgerId = await ctx.reserve(Math.ceil(EVENT_SOURCES_RESERVE_USD * 100 * usdToEur)) }
+  catch (error) {
+    if (error instanceof BudgetExceeded) return { status: 'failed', outputs: [], queued: [],
+      reply: `Fonti eventi di ${plan.city}: il budget di oggi del Direttore non basta per la ricerca (fino a 2,50 €). Rimandamelo domani o alza il budget.` }
+    throw error
+  }
+  let result: DirectorEventSourcesResult
+  try {
+    result = await request('/api/office/event-sources/research',
+      { request_id: eventSourcesRequestId(order.id), slug: plan.slug, city: plan.city }, EVENT_SOURCES_TIMEOUT_MS) as DirectorEventSourcesResult
+  } catch (error) {
+    if (error instanceof OfficeStudioError && error.status === 400) {
+      await ctx.settle(ledgerId, 0)
+      const reason = errorMessage(error, '').replace(/^StudioMap HTTP 400 — /, '').replace(/: esito da verificare prima di riprovare$/, '')
+      return { status: 'failed', outputs: [], queued: [], reply: `Fonti eventi di ${plan.city}: ${reason}` }
+    }
+    ctx.log(`Fonti eventi ${plan.city}: esito incerto, riserva lasciata impegnata`)
+    return { status: 'failed', outputs: [], queued: [], reply: `Fonti eventi di ${plan.city}: StudioMap non ha risposto in modo chiaro (${errorMessage(error, 'errore')}). Controlla il catalogo fonti prima di rimandarmelo, la ricerca potrebbe essere già partita.` }
+  }
+  const usd = Number(result.cost_usd)
+  const cents = Number.isFinite(usd) && usd > 0 ? Math.ceil(usd * 100 * usdToEur) : 0
+  await ctx.settle(ledgerId, cents, { model: 'studiomap-event-sources' })
+  return { status: result.searched ? 'done' : 'failed', outputs: [], queued: [], reply: directorEventSourcesReply(result, origin, cents) }
+}
+
 /** `awaiting`: il dato che il Direttore ha chiesto al titolare, per riprendere l'ordine quando arriva. */
 type Outcome = { status: DirectorOrderRow['status']; reply: string; outputs: string[]; queued: QueueResult[]; awaiting?: DirectorAwaiting; result?: { invoice_id: string } }
 
@@ -985,6 +1090,7 @@ export async function executePlan(admin: Admin, ctx: AgentContext, order: Direct
     return { status: 'done', outputs: [], queued: [], reply: directorEventsReply((events.data || []) as DirectorEventRow[],
       { installed: !!scout.data, enabled: !!scout.data?.enabled, sources }) }
   }
+  if (plan.intent === 'event_sources') return eventSourcesFor(ctx, order, plan)
   if (plan.intent === 'invoice') return invoiceFor(admin, userId, plan)
   if (plan.intent === 'presentation_email') return presentationEmailFor(admin, ctx, userId, plan)
   if (plan.intent === 'task') {
