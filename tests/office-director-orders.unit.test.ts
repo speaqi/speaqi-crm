@@ -3,7 +3,7 @@ import { describe, test } from 'node:test'
 import {
   DIRECTOR_ORDER_SCHEMA, decideCategory, directorOrderPrompt, directorStatusLines, interpretDirectorOrder, queuedWorkReport, directorEventsReply,
   telegramDirectorReply, telegramDirectorRoute, directorInvoiceReply, directorQuoteNumber, quoteIsInvoiceable,
-  directorTaskItems, directorTaskDue, directorEventSourcesReply, directorHelpText, directorTaskReply, romeDateTimeToIso, weekdayIt, MAX_ORDER_TASKS,
+  directorTaskItems, directorTaskDue, directorEventSourcesReply, directorHelpText, directorTaskReply, romeDateTimeToIso, weekdayIt, MAX_ORDER_TASKS, pickPresentationRecipient, presentationEmail,
 } from '../src/lib/office/director-orders'
 import { allDayOf, calendarEventPayload } from '../src/lib/server/gcal'
 import { validateOrderFiles } from '../src/lib/server/office-director-orders'
@@ -530,6 +530,43 @@ describe('domande «per chi?» e foto della presentazione', async () => {
     assert.doesNotMatch(input, /base64/)
     assert.match(input, /FOTO id=f1/)
     assert.match(input, /brochure\.pdf/)
+  })
+})
+
+describe('Direttore: email con la presentazione', () => {
+  test('«creami la bozza da inviare» per Visit Bergamo è presentation_email, non una nuova presentazione', () => {
+    const plan = interpretDirectorOrder(answer({ intent: 'presentation_email', target: 'Visit Bergamo' }),
+      { text: 'Abbiamo preparato la presentazione per Visit Bergamo. Possiamo creare una bozza da inviare? E me la metti in Gmail?', today: TODAY })
+    assert.deepEqual(plan, { intent: 'presentation_email', target: 'Visit Bergamo' })
+  })
+  test('senza ente chiede per chi, e la risposta riprende l’ordine', () => {
+    const plan = interpretDirectorOrder(answer({ intent: 'presentation_email' }), { text: 'prepara la bozza', today: TODAY })
+    assert.equal(plan.intent, 'unknown')
+    assert.deepEqual((plan as any).awaiting, { need: 'target', resume: 'prepara la bozza email con la presentazione per {}' })
+  })
+  test('Napoli resta fuori', () => {
+    assert.equal(interpretDirectorOrder(answer({ intent: 'presentation_email', target: 'Comune di Napoli' }), { text: '', today: TODAY }).intent, 'unknown')
+  })
+  test('il destinatario: prima il contatto con l’email dell’ente, mai uno disiscritto o nascosto', () => {
+    const contacts = [
+      { id: 'a', name: 'Altro', email: 'altro@visitbergamo.net' },
+      { id: 'b', name: 'Ufficio', email: 'Info@VisitBergamo.net' },
+      { id: 'c', name: 'Via', email: 'x@y.it', email_unsubscribed_at: '2026-10-01' },
+    ]
+    assert.equal(pickPresentationRecipient(contacts, 'info@visitbergamo.net')?.id, 'b')
+    assert.equal(pickPresentationRecipient(contacts, null)?.id, 'a')
+    assert.equal(pickPresentationRecipient([contacts[2], { id: 'd', name: null, email: 'senza-chiocciola' }, { id: 'e', name: null, email: 'h@x.it', hidden: true }], null), null)
+  })
+  test('il testo: link, PDF, presentazione del mittente, nessun numero inventato', () => {
+    const { subject, text } = presentationEmail({ destination: 'Bergamo', link: 'https://crm.speaqi.com/presentazione/abc', pdf: 'https://crm.speaqi.com/presentazione/abc/pdf' })
+    assert.equal(subject, 'Speaqi Guides per Bergamo: la presentazione')
+    assert.match(text, /sono Massimo Morgante, fondatore di Speaqi\./)
+    assert.match(text, /La trovate qui: https:\/\/crm\.speaqi\.com\/presentazione\/abc\n/)
+    assert.match(text, /in PDF: https:\/\/crm\.speaqi\.com\/presentazione\/abc\/pdf/)
+    assert.doesNotMatch(text.replace(/https\S+/g, ''), /\d/)
+  })
+  test('nell’elenco dei comandi', () => {
+    assert.match(directorHelpText('https://crm.speaqi.com'), /bozza da inviare a Visit Bergamo/)
   })
 })
 

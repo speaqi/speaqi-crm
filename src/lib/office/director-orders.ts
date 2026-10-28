@@ -8,7 +8,7 @@ import { websiteFromText } from './entity-activation'
  * decide cosa si fa. Puro e testato: nessun accesso a database o rete.
  */
 
-export const DIRECTOR_ORDER_INTENTS = ['new_contact', 'build_map', 'check_map', 'presentation', 'find_partners', 'add_entity', 'rename_entity', 'status', 'events', 'event_sources', 'invoice', 'task', 'help', 'unknown'] as const
+export const DIRECTOR_ORDER_INTENTS = ['new_contact', 'build_map', 'check_map', 'presentation', 'find_partners', 'add_entity', 'rename_entity', 'presentation_email', 'status', 'events', 'event_sources', 'invoice', 'task', 'help', 'unknown'] as const
 export type DirectorOrderIntent = (typeof DIRECTOR_ORDER_INTENTS)[number]
 export const CONTACT_CATEGORIES = ['destinazione', 'partner', 'agenzia', 'cliente_mappe', 'dubbio'] as const
 export type ContactCategory = (typeof CONTACT_CATEGORIES)[number]
@@ -33,6 +33,7 @@ export type DirectorOrderPlan =
   | { intent: 'find_partners'; city: string; count: number; brief: string | null }
   | { intent: 'add_entity'; name: string; country_code: string; type_code: string; city: string | null; website: string | null; presentation: boolean }
   | { intent: 'rename_entity'; from: string; to: string; website: string | null; presentation: boolean }
+  | { intent: 'presentation_email'; target: string }
   | { intent: 'help' }
   | { intent: 'status' }
   | { intent: 'events' }
@@ -99,6 +100,7 @@ export function directorOrderPrompt(text: string, images: number, today: string)
     '- find_partners: trovare potenziali partner (hotel, agenzie, tour operator, compagnie, chi può distribuire le guide) per la mappa o la guida di una città. city = la città, count = quanti ne chiede (null se non lo dice), brief = che tipo di partner, se è detto.',
     '- add_entity: aggiungere un ente (ente del turismo, ufficio nazionale, DMO, comune, operatore) a Tourism Intelligence e ai contatti. target = il nome dell’organizzazione come scritto, senza la persona: se l’ordine o il bigliettino nominano una persona e il suo ente («Gustavo Cardenas, Ministerio del Poder Popular para el Turismo») il target è solo l’ente e la persona va in contact.name; then_presentation = true se chiede anche la presentazione («e poi fammi la presentazione»), altrimenti false; country_code = il codice ISO a due lettere del paese (Venezuela → VE), entity_type = il tipo (nto = ufficio nazionale del turismo, rto = regionale, dmo, cvb = convention bureau, municipality = comune, tour_operator, travel_agency, cruise_line, ferry_operator…), city = la città o il territorio che l’ente promuove (per un ente nazionale, il paese).',
     '- rename_entity: rinominare un ente di Tourism Intelligence («rinomina X in Y», «cambia il nome di X in Y»). target = il nome attuale come scritto, new_name = il nome nuovo come scritto, then_presentation = true se chiede anche la presentazione. Se c’è un sito nell’ordine è dello stesso ente.',
+    '- presentation_email: preparare l’email (la bozza da inviare) con una presentazione già fatta per un ente («abbiamo preparato la presentazione per Visit Bergamo, creami la bozza da inviare», «mettimela in Gmail», «prepara l’email per mandarla a Bibione»). target = il nome dell’ente come scritto. Non è presentation: la presentazione c’è già, serve l’email.',
     '- help: chiede cosa può chiederti, quali comandi esistono, come funzioni.',
     '- status: come stanno andando pipeline, trattative, timeline, agenti.',
     '- event_sources: trovare le fonti degli eventi di una città da mettere nella mappa (siti e calendari di teatri, musei, festival, enti del turismo: «trovami le fonti eventi di Marsiglia»). city = la città. Non è events: events chiede gli eventi già trovati, event_sources chiede di cercare i siti da cui leggerli.',
@@ -214,6 +216,12 @@ export function interpretDirectorOrder(parsed: unknown, input: { text: string; t
     // Il link vale solo se è davvero nell'ordine e se è una My Maps.
     const source = link && input.text.includes(link) && /google\.[a-z.]+\/maps\/d\/|[?&]mid=/.test(link) ? link : null
     return { intent, city, slug, source }
+  }
+  if (intent === 'presentation_email') {
+    const target = str(raw.target, 160) || (Array.isArray(raw.targets) ? str(raw.targets[0], 160) : null)
+    if (!target) return { intent: 'unknown', question: 'Per quale ente preparo l’email con la presentazione?', awaiting: { need: 'target', resume: 'prepara la bozza email con la presentazione per {}' } }
+    if (officeIsNaples(target)) return { intent: 'unknown', question: 'Napoli resta fuori dal lavoro degli agenti. Per quale altro ente preparo l’email?' }
+    return { intent, target }
   }
   if (intent === 'presentation') {
     const audience: PresentationAudience = raw.audience === 'partner' ? 'partner' : 'destinazione'
@@ -662,6 +670,7 @@ export function directorHelpText(baseUrl: string) {
     '• «Preparami 5 presentazioni di destinazioni» → scelgo io 5 enti del catalogo che non ne hanno ancora una.',
     '• «Presentazione partner per Hotel Laguna, guida di Venezia» → usa la base Partner (QR con commissione, codici, vetrina).',
     '• Foto con «foto per la presentazione di Bibione» → finiscono nelle slide.',
+    '• «Crea la bozza da inviare a Visit Bergamo con la presentazione, mettila in Gmail» → preparo l’email col link della presentazione approvata, al contatto dell’ente, e la metto fra le bozze di Gmail. La invii tu.',
     '• Ogni presentazione pronta ti arriva qui in PDF (anche in bozza), con «Approva» se non manca niente. «Mandami la presentazione di Bibione» te la rimanda.',
     '',
     'Mappe',
@@ -684,6 +693,38 @@ export function directorHelpText(baseUrl: string) {
   ].join('\n')
 }
 
+
+/** Il contatto a cui va l'email di una presentazione: prima quello con l'email dell'ente, poi il primo valido. */
+export type PresentationRecipient = { id: string; name: string | null; email: string | null; hidden?: boolean | null; email_unsubscribed_at?: string | null }
+export function pickPresentationRecipient<T extends PresentationRecipient>(contacts: T[], entityEmail: string | null): T | null {
+  const valid = contacts.filter((c) => !c.hidden && !c.email_unsubscribed_at && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((c.email || '').trim()))
+  const wanted = (entityEmail || '').trim().toLowerCase()
+  return valid.find((c) => wanted && c.email!.trim().toLowerCase() === wanted) || valid[0] || null
+}
+
+/**
+ * L'email che accompagna una presentazione approvata. Scritta dal codice, non dal modello:
+ * niente numeri o promesse che la presentazione non contiene. La firma la aggiunge Gmail.
+ */
+export function presentationEmail(input: { destination: string; link: string; pdf: string }) {
+  const destination = input.destination.trim() || 'la vostra destinazione'
+  const subject = `Speaqi Guides per ${destination}: la presentazione`.slice(0, 200)
+  const text = [
+    'Buongiorno,',
+    '',
+    'sono Massimo Morgante, fondatore di Speaqi.',
+    '',
+    `Abbiamo preparato una presentazione pensata per ${destination}: racconta come una guida Speaqi accompagna i visitatori nella loro lingua, con la mappa dei luoghi, i racconti audio e i video.`,
+    '',
+    `La trovate qui: ${input.link}`,
+    `Se preferite, potete scaricarla in PDF: ${input.pdf}`,
+    '',
+    'Mi farebbe piacere sapere cosa ne pensate e, se vi interessa, fissare una breve chiamata per capire insieme come partire.',
+    '',
+    'Un cordiale saluto',
+  ].join('\n')
+  return { subject, text }
+}
 
 const WEEKDAYS_IT = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato']
 /** Il giorno della settimana di una data AAAA-MM-GG: al modello serve per calcolare «giovedì». */
