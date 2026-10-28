@@ -17,10 +17,10 @@ import { searchPattern } from '../command-center'
 import { officeRomeDay } from '../office/finance'
 import {
   CONTACT_CATEGORY_LABELS, DIRECTOR_ORDER_SCHEMA, contactNextStep, directorOrderPrompt, directorStatusLines,
-  directorEventsReply, directorInvoiceReply, directorQuoteLabel, interpretDirectorOrder, queuedWorkReport, quoteIsInvoiceable,
+  directorEventsReply, directorEventSourcesReply, directorInvoiceReply, directorQuoteLabel, interpretDirectorOrder, queuedWorkReport, quoteIsInvoiceable,
   directorHelpText, emailFromSite, looksLikeTourismBody, parsePartnerSearch, partnerSearchPrompt, PARTNER_SEARCH_SCHEMA, PARTNER_TYPE_CODES,
   directorTaskDue, directorTaskReply, directorFollowUp, readAwaiting, AWAITING_TTL_MS,
-  type DirectorAwaiting, type DirectorEventRow, type DirectorInvoiceQuote, type DirectorOrderPlan, type DirectorTaskItem, type DirectorTaskOutcome, type QueuedWork,
+  type DirectorAwaiting, type DirectorEventRow, type DirectorEventSourcesResult, type DirectorInvoiceQuote, type DirectorOrderPlan, type DirectorTaskItem, type DirectorTaskOutcome, type QueuedWork,
 } from '../office/director-orders'
 import { addTaskToCalendar } from './gcal'
 import { sendNotificationText } from './whatsapp'
@@ -29,6 +29,7 @@ import { activateEntityForOrder, verifiedDestination, type ActivationEntity } fr
 import { enqueueOfficeWork, missingWorkSchema, officeWorkEnabled, QUEUE_WORK_ACTION } from './office-work-routing'
 import { cityForEntity, compactName, entitySearchPattern, pickOrderEntity, siteMatchesEntity, websiteFromText } from '../office/entity-activation'
 import { DIRECTOR_BUCKET, directorPhotoFiles } from './office-director-photos'
+import { OfficeStudioError, officeStudioRequest } from './office-agents/maps-bridge'
 import { addPhotosToDeck, createDeck, generateIntoDeck, type DeckRow } from './tourism-decks'
 
 const TOURISM_TYPE_LABEL = (code: string | null) => (code && (TOURISM_TYPES as Record<string, string>)[code])
@@ -885,6 +886,63 @@ async function statusReport(admin: Admin, userId: string, now: Date) {
   }, { brief: true })
 }
 
+/** Tetto di una ricerca fonti in StudioMap (2 $, più margine) e attesa massima della risposta. */
+export const EVENT_SOURCES_RESERVE_USD = 2.5
+const EVENT_SOURCES_TIMEOUT_MS = 300_000
+
+/** La stessa richiesta per lo stesso ordine: rilavorarlo ritrova la ricevuta in StudioMap invece di ripagare. */
+export function eventSourcesRequestId(orderId: string) {
+  const h = createHash('sha256').update(`event-sources:${orderId}`).digest('hex')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`
+}
+
+/**
+ * «Trovami le fonti eventi di Marsiglia»: la ricerca la fa StudioMap (la stessa di
+ * «Cerca siti eventi»), il CRM la prenota nel budget del Direttore prima e la salda col
+ * costo dichiarato dopo. Un rifiuto di StudioMap (400: città assente, Napoli, ricerca già
+ * in corso) non ha speso niente; un altro errore lascia la riserva, perché l'esito è incerto.
+ */
+export async function eventSourcesFor(ctx: AgentContext, order: Pick<DirectorOrderRow, 'id'>,
+  plan: Extract<DirectorOrderPlan, { intent: 'event_sources' }>, request = officeStudioRequest): Promise<Outcome> {
+  const secret = process.env.OFFICE_BRIDGE_SECRET
+  if (!secret || secret.length < 32) return { status: 'failed', outputs: [], queued: [],
+    reply: 'Il collegamento con StudioMap non è configurato (OFFICE_BRIDGE_SECRET): non posso cercare le fonti degli eventi.' }
+  let origin: string
+  try {
+    const url = new URL(process.env.OFFICE_STUDIOMAP_URL || 'https://studiomap.speaqi.com')
+    if (url.protocol !== 'https:') throw new Error('protocollo')
+    origin = url.origin
+  } catch {
+    return { status: 'failed', outputs: [], queued: [], reply: 'L’indirizzo di StudioMap (OFFICE_STUDIOMAP_URL) non è valido.' }
+  }
+  const rate = Number(process.env.OFFICE_USD_TO_EUR || '1')
+  const usdToEur = Number.isFinite(rate) && rate > 0 ? rate : 1
+  let ledgerId: string
+  try { ledgerId = await ctx.reserve(Math.ceil(EVENT_SOURCES_RESERVE_USD * 100 * usdToEur)) }
+  catch (error) {
+    if (error instanceof BudgetExceeded) return { status: 'failed', outputs: [], queued: [],
+      reply: `Fonti eventi di ${plan.city}: il budget di oggi del Direttore non basta per la ricerca (fino a 2,50 €). Rimandamelo domani o alza il budget.` }
+    throw error
+  }
+  let result: DirectorEventSourcesResult
+  try {
+    result = await request('/api/office/event-sources/research',
+      { request_id: eventSourcesRequestId(order.id), slug: plan.slug, city: plan.city }, EVENT_SOURCES_TIMEOUT_MS) as DirectorEventSourcesResult
+  } catch (error) {
+    if (error instanceof OfficeStudioError && error.status === 400) {
+      await ctx.settle(ledgerId, 0)
+      const reason = errorMessage(error, '').replace(/^StudioMap HTTP 400 — /, '').replace(/: esito da verificare prima di riprovare$/, '')
+      return { status: 'failed', outputs: [], queued: [], reply: `Fonti eventi di ${plan.city}: ${reason}` }
+    }
+    ctx.log(`Fonti eventi ${plan.city}: esito incerto, riserva lasciata impegnata`)
+    return { status: 'failed', outputs: [], queued: [], reply: `Fonti eventi di ${plan.city}: StudioMap non ha risposto in modo chiaro (${errorMessage(error, 'errore')}). Controlla il catalogo fonti prima di rimandarmelo, la ricerca potrebbe essere già partita.` }
+  }
+  const usd = Number(result.cost_usd)
+  const cents = Number.isFinite(usd) && usd > 0 ? Math.ceil(usd * 100 * usdToEur) : 0
+  await ctx.settle(ledgerId, cents, { model: 'studiomap-event-sources' })
+  return { status: result.searched ? 'done' : 'failed', outputs: [], queued: [], reply: directorEventSourcesReply(result, origin, cents) }
+}
+
 /** `awaiting`: il dato che il Direttore ha chiesto al titolare, per riprendere l'ordine quando arriva. */
 type Outcome = { status: DirectorOrderRow['status']; reply: string; outputs: string[]; queued: QueueResult[]; awaiting?: DirectorAwaiting; result?: { invoice_id: string } }
 
@@ -961,6 +1019,7 @@ export async function executePlan(admin: Admin, ctx: AgentContext, order: Direct
     return { status: 'done', outputs: [], queued: [], reply: directorEventsReply((events.data || []) as DirectorEventRow[],
       { installed: !!scout.data, enabled: !!scout.data?.enabled, sources }) }
   }
+  if (plan.intent === 'event_sources') return eventSourcesFor(ctx, order, plan)
   if (plan.intent === 'invoice') return invoiceFor(admin, userId, plan)
   if (plan.intent === 'task') {
     const outcomes = await createDirectorTasks(admin, userId, order, plan.items)

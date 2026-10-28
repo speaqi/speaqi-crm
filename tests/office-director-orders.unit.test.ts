@@ -3,7 +3,7 @@ import { describe, test } from 'node:test'
 import {
   DIRECTOR_ORDER_SCHEMA, decideCategory, directorOrderPrompt, directorStatusLines, interpretDirectorOrder, queuedWorkReport, directorEventsReply,
   telegramDirectorReply, telegramDirectorRoute, directorInvoiceReply, directorQuoteNumber, quoteIsInvoiceable,
-  directorTaskItems, directorTaskDue, directorTaskReply, romeDateTimeToIso, weekdayIt, MAX_ORDER_TASKS,
+  directorTaskItems, directorTaskDue, directorEventSourcesReply, directorHelpText, directorTaskReply, romeDateTimeToIso, weekdayIt, MAX_ORDER_TASKS,
 } from '../src/lib/office/director-orders'
 import { allDayOf, calendarEventPayload } from '../src/lib/server/gcal'
 import { validateOrderFiles } from '../src/lib/server/office-director-orders'
@@ -530,5 +530,96 @@ describe('domande «per chi?» e foto della presentazione', async () => {
     assert.doesNotMatch(input, /base64/)
     assert.match(input, /FOTO id=f1/)
     assert.match(input, /brochure\.pdf/)
+  })
+})
+
+describe('fonti eventi di una città (StudioMap)', async () => {
+  const { eventSourcesFor, eventSourcesRequestId, EVENT_SOURCES_RESERVE_USD } = await import('../src/lib/server/office-director-orders')
+  const { OfficeStudioError } = await import('../src/lib/server/office-agents/maps-bridge')
+  const { BudgetExceeded } = await import('../src/lib/server/office-agents')
+  const plan = { intent: 'event_sources' as const, city: 'Marsiglia', slug: 'marsiglia' }
+  const fakeCtx = (opts: { budget?: boolean } = {}) => {
+    const ledger: Array<{ op: string; cents: number }> = []
+    const ctx = {
+      agent: { id: 'director', model: 'gpt-5-mini', settings: {} }, runId: 'run',
+      async reserve(cents: number) { if (opts.budget === false) throw new BudgetExceeded(); ledger.push({ op: 'reserve', cents }); return 'l1' },
+      async settle(_id: string, cents: number) { ledger.push({ op: 'settle', cents }) },
+      async addOutput() { return 'o' }, log() {},
+    }
+    return { ctx: ctx as any, ledger }
+  }
+  const found = { city: 'Marsiglia', searched: true, proposed: 3, added: 2, total: 5, enabled: 5, cost_usd: 0.4312,
+    new_sources: [{ name: 'Opéra de Marseille', home_url: 'https://opera.marseille.fr', agenda: 'https://opera.marseille.fr/agenda' },
+      { name: 'MuCEM', home_url: 'https://www.mucem.org', agenda: null }],
+    error: null, warning: '1 proposte scartate perché prive di una citazione verificabile della ricerca.', catalog_path: '/?map=marseille' }
+  process.env.OFFICE_BRIDGE_SECRET = 'x'.repeat(40)
+  process.env.OFFICE_STUDIOMAP_URL = 'https://studio.example.org'
+  delete process.env.OFFICE_USD_TO_EUR
+
+  test('l’ordine si capisce, Napoli no, senza città si chiede e si riprende', () => {
+    assert.deepEqual(interpretDirectorOrder(answer({ intent: 'event_sources', city: 'Marsiglia' }), { text: 'trovami le fonti eventi di Marsiglia', today: TODAY }), plan)
+    assert.equal(interpretDirectorOrder(answer({ intent: 'event_sources', city: 'Napoli' }), { text: '', today: TODAY }).intent, 'unknown')
+    const asked = interpretDirectorOrder(answer({ intent: 'event_sources' }), { text: 'trovami le fonti eventi', today: TODAY })
+    assert.equal(asked.intent === 'unknown' && asked.awaiting?.resume, 'trovami le fonti eventi di {}')
+    assert.ok(DIRECTOR_ORDER_SCHEMA.properties.intent.enum.includes('event_sources'))
+    assert.match(directorOrderPrompt('x', 0, TODAY), /event_sources/)
+  })
+
+  test('prenota prima, salda col costo di StudioMap, la richiesta è stabile per ordine', async () => {
+    const { ctx, ledger } = fakeCtx()
+    const sent: any[] = []
+    const out = await eventSourcesFor(ctx, { id: 'ordine-1' }, plan, (async (path: string, body: unknown, timeout?: number) => {
+      sent.push({ path, body, timeout }); return found }) as any)
+    assert.deepEqual(ledger, [{ op: 'reserve', cents: Math.ceil(EVENT_SOURCES_RESERVE_USD * 100) }, { op: 'settle', cents: 44 }])
+    assert.equal(sent[0].path, '/api/office/event-sources/research')
+    assert.deepEqual(sent[0].body, { request_id: eventSourcesRequestId('ordine-1'), slug: 'marsiglia', city: 'Marsiglia' })
+    assert.match(sent[0].body.request_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-a[0-9a-f]{3}-[0-9a-f]{12}$/)
+    assert.equal(eventSourcesRequestId('ordine-1'), eventSourcesRequestId('ordine-1'))
+    assert.notEqual(eventSourcesRequestId('ordine-1'), eventSourcesRequestId('ordine-2'))
+    assert.equal(out.status, 'done')
+    assert.match(out.reply, /2 fonti eventi nuove \(ora 5 nel catalogo\)/)
+    assert.match(out.reply, /Opéra de Marseille — https:\/\/opera\.marseille\.fr\/agenda/)
+    assert.match(out.reply, /MuCEM — https:\/\/www\.mucem\.org/)
+    assert.match(out.reply, /0,44 €/)
+    assert.match(out.reply, /https:\/\/studio\.example\.org\/\?map=marseille/)
+    assert.match(out.reply, /candidate/)
+  })
+
+  test('rifiuto di StudioMap: riserva liberata, motivo pulito', async () => {
+    const { ctx, ledger } = fakeCtx()
+    const out = await eventSourcesFor(ctx, { id: 'o' }, plan, (async () => {
+      throw new OfficeStudioError('StudioMap HTTP 400 — Marsiglia non è ancora in StudioMap: crea prima la città.: esito da verificare prima di riprovare', 400) }) as any)
+    assert.equal(ledger.at(-1)?.cents, 0)
+    assert.equal(out.status, 'failed')
+    assert.equal(out.reply, 'Fonti eventi di Marsiglia: Marsiglia non è ancora in StudioMap: crea prima la città.')
+  })
+
+  test('esito incerto: la riserva resta impegnata, niente secondo tentativo', async () => {
+    const { ctx, ledger } = fakeCtx()
+    let calls = 0
+    const out = await eventSourcesFor(ctx, { id: 'o' }, plan, (async () => { calls++; throw new Error('timeout') }) as any)
+    assert.equal(calls, 1)
+    assert.deepEqual(ledger.map((l) => l.op), ['reserve'])
+    assert.match(out.reply, /potrebbe essere già partita/)
+  })
+
+  test('ricerca non riuscita in StudioMap, budget finito, bridge non configurato', async () => {
+    const { ctx } = fakeCtx()
+    const off = await eventSourcesFor(ctx, { id: 'o' }, plan, (async () => ({ ...found, searched: false, added: 0, new_sources: [], cost_usd: 0, error: 'offline' })) as any)
+    assert.equal(off.status, 'failed'); assert.match(off.reply, /non è riuscita \(offline\)/)
+    let called = false
+    const broke = await eventSourcesFor(fakeCtx({ budget: false }).ctx, { id: 'o' }, plan, (async () => { called = true; return found }) as any)
+    assert.equal(called, false); assert.match(broke.reply, /budget/)
+    process.env.OFFICE_BRIDGE_SECRET = 'corto'
+    const unset = await eventSourcesFor(fakeCtx().ctx, { id: 'o' }, plan, (async () => { called = true; return found }) as any)
+    assert.equal(called, false); assert.match(unset.reply, /OFFICE_BRIDGE_SECRET/)
+    process.env.OFFICE_BRIDGE_SECRET = 'x'.repeat(40)
+  })
+
+  test('nessuna fonte nuova: lo dice, e il comando sta nell’elenco dei comandi', () => {
+    const reply = directorEventSourcesReply({ ...found, added: 0, new_sources: [], warning: null }, 'https://studio.example.org/', 0)
+    assert.match(reply, /nessuna fonte eventi nuova\. Nel catalogo ce ne sono 5\./)
+    assert.doesNotMatch(reply, /Spesa/)
+    assert.match(directorHelpText('https://crm.example.org'), /fonti eventi di Marsiglia/)
   })
 })
