@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 import { sendCustomEmail } from '@/lib/email'
+import { escapeHtml } from '@/lib/server/commercial-campaigns'
+import { isWorkspaceRecipient, singleRecipient } from '@/lib/server/email-recipients'
 import { applyPipelineScope } from '@/lib/server/scope-filters'
 import { requireRouteUser } from '@/lib/server/supabase'
 
@@ -174,11 +176,16 @@ async function handleTool(request: NextRequest, name: string, args: Record<strin
     }
 
     case 'send_email': {
-      await sendCustomEmail(
-        String(args.to || ''),
-        String(args.subject || ''),
-        `<p>${String(args.body || '')}</p>`
-      )
+      // Stesse regole di /api/email: solo il titolare, solo a chi il workspace conosce.
+      if (!auth.isAdmin) return JSON.stringify({ error: 'Solo il titolare può inviare email' }, null, 2)
+      const to = singleRecipient(args.to)
+      if (!to) return JSON.stringify({ error: 'Serve un solo indirizzo email valido' }, null, 2)
+      if (!(await isWorkspaceRecipient(auth.supabase, auth.workspaceUserId, to))) {
+        return JSON.stringify({ error: 'Il destinatario non è fra i contatti o nel team' }, null, 2)
+      }
+      const subject = String(args.subject || '').trim()
+      if (!subject) return JSON.stringify({ error: 'Oggetto mancante' }, null, 2)
+      await sendCustomEmail(to, subject, `<p>${escapeHtml(String(args.body || '')).replace(/\n/g, '<br>')}</p>`)
       return JSON.stringify({ success: true }, null, 2)
     }
 

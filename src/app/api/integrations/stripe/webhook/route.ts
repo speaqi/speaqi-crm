@@ -26,8 +26,8 @@ export const dynamic = 'force-dynamic'
  *
  * Eventi da abilitare sull'endpoint: checkout.session.completed, invoice.paid,
  * invoice.payment_failed, customer.subscription.updated,
- * customer.subscription.deleted. I pagamenti una tantum (mode=payment) si
- * ignorano: per loro non cambia niente.
+ * customer.subscription.deleted. Un pagamento una tantum (mode=payment) non
+ * cambia il preventivo: diventa un'attivita' da registrare a mano.
  *
  * Idempotenza: ogni evento finisce in stripe_webhook_events e uno gia'
  * processato risponde 200 senza rifare nulla. In piu' ogni scrittura e' di
@@ -69,7 +69,65 @@ async function prepareInvoiceDraft(admin: any, quote: Pick<Quote, 'id' | 'user_i
   }
 }
 
+/**
+ * Acconto o saldo una tantum di un preventivo. Il checkout non ne apre piu',
+ * ma una sessione aperta prima puo' ancora essere pagata: prima si scartava e
+ * l'incasso non compariva da nessuna parte. Non si segna pagato da solo
+ * (un acconto non chiude il preventivo): resta nella timeline con un'attivita'
+ * per registrarlo.
+ */
+async function handleOneOffPayment(admin: any, session: any) {
+  if (session?.payment_status !== 'paid') return null
+  // Solo i checkout del CRM portano quote_token: l'endpoint riceve gli eventi
+  // di tutto l'account Stripe, e gli altri pagamenti non sono affari suoi.
+  const token = session?.metadata?.quote_token
+  if (!token) return null
+
+  const { data: quote } = await admin
+    .from('quotes')
+    .select('id, user_id, contact_id, quote_number, total_amount, currency, subscription_status')
+    .eq('public_token', token)
+    .maybeSingle()
+  if (!quote) {
+    console.warn('[stripe-webhook] pagamento una tantum senza preventivo', session?.id)
+    return null
+  }
+
+  const amount = Number(session?.amount_total || 0) / 100
+  const currency = String(session?.currency || quote.currency || 'EUR').toUpperCase()
+  const part = session?.metadata?.payment_part === 'total' ? 'saldo' : 'acconto'
+  if (!quote.contact_id) {
+    console.warn('[stripe-webhook] pagamento una tantum su preventivo senza contatto: nessuna attività registrata', {
+      quoteId: quote.id,
+      sessionId: session?.id,
+    })
+  }
+  await logActivity(
+    admin,
+    quote,
+    `Pagamento con carta una tantum ricevuto (${part}, preventivo ${quote.quote_number}): ${formatQuoteEuro(amount, currency)}. Il preventivo non è stato aggiornato in automatico: controlla l’incasso su Stripe e registralo.`,
+    {
+      stripe_checkout_session_id: session.id,
+      stripe_payment_intent_id: stripeObjectId(session.payment_intent),
+      payment_part: part,
+    }
+  )
+  if (quote.contact_id) {
+    await createLeadTask(admin, quote.user_id, {
+      leadId: quote.contact_id,
+      action: 'wait',
+      type: 'follow-up',
+      dueAt: new Date().toISOString(),
+      priority: 'high',
+      note: `Registrare l’incasso con carta di ${formatQuoteEuro(amount, currency)} (${part}) sul preventivo ${quote.quote_number} e preparare la fattura.`,
+      idempotencyKey: `stripe-session:${session.id}`,
+    })
+  }
+  return quote.id
+}
+
 async function handleCheckoutCompleted(admin: any, session: any) {
+  if (session?.mode === 'payment') return handleOneOffPayment(admin, session)
   if (session?.mode !== 'subscription') return null
   const quoteId = session?.metadata?.quote_id
   const quoteToken = session?.metadata?.quote_token
