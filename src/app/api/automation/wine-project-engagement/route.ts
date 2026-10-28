@@ -5,6 +5,7 @@ import { createActivities } from '@/lib/server/crm'
 import { errorMessage } from '@/lib/server/http'
 import { createServiceRoleClient } from '@/lib/server/supabase'
 import { recordWhatsappEvent } from '@/lib/server/whatsapp-notify'
+import { chunk, contactEngagementPatch, engagementRow, engagementRowChanged } from '@/lib/engagement-sync'
 
 /**
  * Quante campagne per giro.
@@ -88,6 +89,10 @@ export async function POST(request: NextRequest) {
   }
 }
 
+const PAGE = 1000
+const LOOKUP_CHUNK = 200
+const UPSERT_CHUNK = 500
+
 async function syncCampaign(supabase: any, token: string, campaign: CampaignRow) {
   const [opensPayload, clicksPayload] = await Promise.all([
     fetchAcumbamailFunction('getCampaignOpeners', token, String(campaign.campaign_id)),
@@ -96,59 +101,70 @@ async function syncCampaign(supabase: any, token: string, campaign: CampaignRow)
   const opens = collectEmailEvents(opensPayload)
   const clicks = collectEmailEvents(clicksPayload)
   const emails = [...new Set([...opens.keys(), ...clicks.keys()])]
+  if (!emails.length) return { updated: 0, opensNotified: 0, clicksNotified: 0 }
+  const now = new Date().toISOString()
+
+  // Righe gia' scritte per questa campagna: si riscrive solo cio' che e' cambiato,
+  // in blocchi, invece di un upsert per indirizzo a ogni giro.
+  const existing = new Map<string, Record<string, any>>()
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase.from('acumbamail_campaign_engagements')
+      .select('email,name,open_count,click_count,last_open_at')
+      .eq('user_id', campaign.user_id).eq('campaign_key', campaign.campaign_key)
+      .order('email').range(from, from + PAGE - 1)
+    if (error) throw error
+    for (const row of data || []) existing.set(row.email, row)
+    if (!data || data.length < PAGE) break
+  }
+  const changedRows = emails
+    .map((email) => engagementRow(email, opens.get(email), clicks.get(email)))
+    .filter((row) => engagementRowChanged(existing.get(row.email), row))
+    .map((row) => ({ ...row, user_id: campaign.user_id, campaign_key: campaign.campaign_key, updated_at: now }))
+  for (const rows of chunk(changedRows, UPSERT_CHUNK)) {
+    const { error } = await supabase.from('acumbamail_campaign_engagements').upsert(rows, { onConflict: 'user_id,campaign_key,email' })
+    if (error) throw error
+  }
+
+  // Contatti in blocchi con `in`, non una select per indirizzo.
+  const byEmail = new Map<string, Array<Record<string, any>>>()
+  const normalized = [...new Set(emails.map((email) => normalizeEmail(email)).filter(Boolean) as string[])]
+  for (const batch of chunk(normalized, LOOKUP_CHUNK)) {
+    const { data, error } = await supabase.from('contacts')
+      .select('id,name,company,email,responsible,assigned_agent,event_tag,list_name,email_open_count,email_click_count,last_email_open_at,last_email_click_at')
+      .eq('user_id', campaign.user_id).eq('event_tag', 'wine-project').in('email', batch)
+    if (error) throw error
+    for (const contact of data || []) {
+      const list = byEmail.get(contact.email) || []
+      list.push(contact)
+      byEmail.set(contact.email, list)
+    }
+  }
 
   let updated = 0
   let opensNotified = 0
   let clicksNotified = 0
+  const campaignLabel = campaign.name || 'Wine Project'
 
   for (const email of emails) {
+    const key = normalizeEmail(email)
+    const matches = key ? byEmail.get(key) : undefined
+    // Due schede Wine con lo stesso indirizzo: come prima (maybeSingle) non si
+    // sceglie a caso a quale attribuire l'apertura.
+    if (!matches || matches.length !== 1) continue
+    const contact = matches[0]
     const open = opens.get(email)
     const click = clicks.get(email)
-    const now = new Date().toISOString()
-    await supabase.from('acumbamail_campaign_engagements').upsert({
-      user_id: campaign.user_id,
-      campaign_key: campaign.campaign_key,
-      email,
-      name: open?.name || click?.name || null,
-      open_count: Number(open?.count || 0),
-      click_count: Number(click?.count || 0),
-      last_open_at: open?.lastAt || null,
-      updated_at: now,
-    }, { onConflict: 'user_id,campaign_key,email' })
+    const { patch, newOpens, newClicks } = contactEngagementPatch(contact, open, click)
+    if (!patch) continue
 
-    const normalized = normalizeEmail(email)
-    if (!normalized) continue
-    const { data: contact } = await supabase
-      .from('contacts')
-      .select('id,name,company,email,responsible,assigned_agent,event_tag,list_name,email_open_count,email_click_count')
-      .eq('user_id', campaign.user_id)
-      .eq('event_tag', 'wine-project')
-      .eq('email', normalized)
-      .maybeSingle()
-    if (!contact) continue
-
-    const previousOpens = Math.max(0, Number(contact.email_open_count || 0))
-    const previousClicks = Math.max(0, Number(contact.email_click_count || 0))
-    const nextOpens = Math.max(previousOpens, Number(open?.count || 0))
-    const nextClicks = Math.max(previousClicks, Number(click?.count || 0))
-
-    await supabase.from('contacts').update({
-      email_open_count: nextOpens,
-      email_click_count: nextClicks,
-      last_email_open_at: open?.lastAt || null,
-      last_email_click_at: click?.lastAt || null,
-      updated_at: now,
-    }).eq('id', contact.id)
+    const { error } = await supabase.from('contacts').update({ ...patch, updated_at: now }).eq('id', contact.id)
+    if (error) throw error
     updated += 1
 
     // Solo l'incremento e' un fatto nuovo. Il sync rilegge a ogni giro gli
     // stessi apritori: notificare sul valore assoluto avrebbe rimandato la
     // stessa apertura ogni mezz'ora, per sempre. Quando il webhook della lista
     // ha gia' registrato l'evento i contatori coincidono e qui non parte nulla.
-    const newOpens = nextOpens - previousOpens
-    const newClicks = nextClicks - previousClicks
-    const campaignLabel = campaign.name || 'Wine Project'
-
     if (newOpens > 0) {
       await recordEngagement(supabase, campaign.user_id, contact, 'email_open', newOpens, campaignLabel, open?.lastAt || now)
       opensNotified += 1
