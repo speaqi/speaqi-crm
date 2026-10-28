@@ -23,11 +23,33 @@ export function wikiArticleImagesUrl(lang: 'it' | 'en', destination: string) {
   return `https://${lang}.wikipedia.org/w/api.php?action=query&${API_PARAMS}&generator=images&gimlimit=50&redirects=1&titles=${encodeURIComponent(destination)}`
 }
 
-/** Ricerca per nome fra i file di Commons, solo immagini bitmap. */
-export function commonsSearchUrl(destination: string) {
-  const query = `"${destination}" filetype:bitmap`
+/**
+ * Ricerca per nome fra i file di Commons, solo immagini bitmap. `exact` mette il nome fra
+ * virgolette (la ricerca automatica); quella scritta a mano no: "Asiago 7 Comuni" fra
+ * virgolette non trova niente, senza trova l'Altopiano.
+ */
+export function commonsSearchUrl(destination: string, exact = true) {
+  const query = `${exact ? `"${destination}"` : destination} filetype:bitmap`
   return `https://commons.wikimedia.org/w/api.php?action=query&${API_PARAMS}&generator=search&gsrnamespace=6&gsrlimit=40&gsrsearch=${encodeURIComponent(query)}`
 }
+
+/** Un file di Commons per titolo ("File:…"): si rilegge prima di scaricarlo, mai fidandosi del browser. */
+export function commonsFileUrl(title: string) {
+  return `https://commons.wikimedia.org/w/api.php?action=query&${API_PARAMS}&titles=${encodeURIComponent(title)}`
+}
+
+/** Un titolo di file di Commons accettabile: "File:" e niente che non sia un nome. */
+export function isCommonsFileTitle(value: unknown): value is string {
+  return typeof value === 'string' && /^File:[^\n\r#<>[\]{}|]{1,240}$/i.test(value.trim())
+}
+
+/** La miniatura piccola per scegliere: stessa immagine, 480 px invece di 1920. */
+export function previewUrl(photo: Pick<PhotoCandidate, 'url'>) {
+  return photo.url.replace(/\/1920px-/, '/480px-')
+}
+
+/** Soglie della ricerca a mano: chi sceglie guarda la foto, si accetta qualcosa di più piccolo. */
+export const MANUAL_PHOTO_LIMITS = { minWidth: 1200, minHeight: 675 }
 
 const stripHtml = (value: unknown) =>
   String(value ?? '')
@@ -53,7 +75,7 @@ export const compactText = (value: string) =>
   value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '')
 
 /** Legge una risposta dell'API (formatversion=2) e tiene solo le foto utilizzabili. */
-export function photoCandidates(payload: unknown, fromArticle: boolean): PhotoCandidate[] {
+export function photoCandidates(payload: unknown, fromArticle: boolean, limits: { minWidth: number; minHeight: number } = { minWidth: 1400, minHeight: 800 }): PhotoCandidate[] {
   const pages = ((payload as { query?: { pages?: unknown[] } })?.query?.pages || []) as Array<Record<string, any>>
   const out: PhotoCandidate[] = []
   for (const page of pages) {
@@ -67,7 +89,7 @@ export function photoCandidates(payload: unknown, fromArticle: boolean): PhotoCa
     if (info.mime !== 'image/jpeg' || !url.startsWith('https://upload.wikimedia.org/')) continue
     if (!freeLicense(license) || NOT_A_PHOTO.test(page.title)) continue
     // Orizzontale e grande: va a tutta altezza su un palco 16:9.
-    if (width < 1400 || height < 800 || width / height < 1.2) continue
+    if (width < limits.minWidth || height < limits.minHeight || width / height < 1.2) continue
     const author = stripHtml(meta.Artist?.value).slice(0, 80) || 'autore su Wikimedia Commons'
     out.push({
       title: page.title,

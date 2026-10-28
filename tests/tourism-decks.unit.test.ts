@@ -7,7 +7,7 @@ import { GENERIC } from './deck-template-fixture'
 
 // I numeri del territorio restano da verificare nel modello: per approvare li si scrive.
 const completed = (slides: DeckSlide[]) => slides.map((s) => JSON.parse(JSON.stringify(s).replace(DECK_TODO_PATTERN, '12')) as DeckSlide)
-import { addAssets, addPhotosToDeck, createDeck, deckRenderKey, getTemplate, isUneditedPreviousDestinations, saveTemplate, deleteDeck, generateIntoDeck, loadDeck, loadPublicDeck, saveDeckEdits, setApproval, type DeckRow } from '../src/lib/server/tourism-decks'
+import { addAssets, addPhotosToDeck, addWikimediaPhoto, createDeck, deckRenderKey, getTemplate, isUneditedPreviousDestinations, saveTemplate, deleteDeck, generateIntoDeck, loadDeck, loadPublicDeck, saveDeckEdits, setApproval, type DeckRow } from '../src/lib/server/tourism-decks'
 
 type Row = Record<string, any>
 
@@ -328,6 +328,21 @@ test('foto da Telegram dopo: prendono il posto di quelle di Commons, una volta s
   const again = await addPhotosToDeck(db, db, first.deck, files)
   assert.equal(again.added, 0)
   assert.equal(again.deck.assets.filter((a) => a.source === 'telegram').length, 2)
+})
+
+test('foto scelta dalla ricerca su Commons: va sulle slide al posto di una trovata da sola, una volta sola', async () => {
+  const row = await createDeck(db, USER, { ...fields, destination: 'Asiago 7 Comuni' })
+  globalThis.fetch = provider([])
+  let deck = await generateIntoDeck(db, db, row, undefined, undefined, finder(['a.jpg', 'b.jpg']))
+  const pick = async () => ({ name: 'Gallio.jpg', buffer: await jpegOf('#0af'), credit: 'Foto: Autore · CC BY-SA 4.0 · Wikimedia Commons', source_url: 'https://commons.wikimedia.org/wiki/File:Gallio.jpg' })
+  deck = await addWikimediaPhoto(db, db, deck, 'File:Gallio.jpg', pick)
+  const picked = deck.assets.find((a) => a.source === 'wikimedia_search')!
+  assert.equal(picked.credit, 'Foto: Autore · CC BY-SA 4.0 · Wikimedia Commons')
+  // Vale come una foto caricata: prima delle trovate da sole.
+  assert.equal(photoIds(deck)[0], picked.id)
+  assert.equal(new Set(photoIds(deck)).size, 3)
+  await assert.rejects(addWikimediaPhoto(db, db, deck, 'File:Gallio.jpg', pick), /già nella presentazione/)
+  await assert.rejects(addWikimediaPhoto(db, db, deck, 'File:X.jpg', async () => { throw new Error('licenza non libera') }), /licenza non libera/)
 })
 
 test('la base destinazioni di prima della revisione del 26/10 passa alla nuova solo se nessuno l’ha modificata', async () => {
