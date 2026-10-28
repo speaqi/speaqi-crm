@@ -19,7 +19,7 @@ import {
   CONTACT_CATEGORY_LABELS, DIRECTOR_ORDER_SCHEMA, contactNextStep, directorOrderPrompt, directorStatusLines,
   directorEventsReply, directorInvoiceReply, directorQuoteLabel, interpretDirectorOrder, queuedWorkReport, quoteIsInvoiceable,
   directorHelpText, emailFromSite, looksLikeTourismBody, parsePartnerSearch, partnerSearchPrompt, PARTNER_SEARCH_SCHEMA, PARTNER_TYPE_CODES,
-  directorTaskDue, directorTaskReply, directorFollowUp, readAwaiting, AWAITING_TTL_MS,
+  directorTaskDue, directorTaskReply, pickPresentationRecipient, presentationEmail, directorFollowUp, readAwaiting, AWAITING_TTL_MS,
   type DirectorAwaiting, type DirectorEventRow, type DirectorInvoiceQuote, type DirectorOrderPlan, type DirectorTaskItem, type DirectorTaskOutcome, type QueuedWork,
 } from '../office/director-orders'
 import { addTaskToCalendar } from './gcal'
@@ -33,6 +33,8 @@ import { addPhotosToDeck, createDeck, generateIntoDeck, type DeckRow } from './t
 
 const TOURISM_TYPE_LABEL = (code: string | null) => (code && (TOURISM_TYPES as Record<string, string>)[code])
   || (code === 'accommodation' ? 'Struttura ricettiva' : code === 'transport' ? 'Trasporti' : 'Operatore')
+import { isGmailReconnectRequired, openGmailDraftSession, saveContactDraftWithSession, simpleTextToHtml } from './gmail'
+import { gmailDraftUrl } from './trade-fair-gmail-draft'
 import { createInvoiceDraftFromQuote, invoiceProblems, loadInvoiceSettings } from './invoices'
 
 /**
@@ -281,7 +283,7 @@ async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, 
     if (ready) {
       const sent = await sendDeckToTelegram(admin, ready)
       const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
-      return { status: 'done', outputs: [], queued: [], reply: `Presentazione per ${label}: c’è già, «${ready.title}»${sent.pdf ? ', te l’ho mandata qui in PDF' : ''}. ${note}Per rifarla da capo usa «Rigenera» nell’editor: ${base}/tourism/presentazioni/${ready.id}` }
+      return { status: 'done', outputs: [], queued: [], reply: `Presentazione per ${label}: c’è già, «${ready.title}»${sent.pdf ? ', te l’ho mandata qui in PDF' : ''}. ${note}${ready.status === 'approved' ? `Per l’email da mandare scrivimi «prepara la bozza per ${label}». ` : ''}Per rifarla da capo usa «Rigenera» nell’editor: ${base}/tourism/presentazioni/${ready.id}` }
     }
   }
   if (photos.length) {
@@ -305,6 +307,75 @@ async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, 
     ...(destination ? { destination_id: destination } : {}), ...(photos.length ? { photos } : {}) })
   const withPhotos = photos.length ? ` Le ${photos.length === 1 ? 'foto che mi hai mandato andrà' : `${photos.length} foto che mi hai mandato andranno`} nella presentazione.` : ''
   return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `Presentazione per ${label}: ${note}${queueSentence(result)}${withPhotos}${result.enabled && result.reason !== 'agent_missing' ? ' Quando è pronta ti arriva qui in PDF, con il pulsante per approvarla.' : ''}` }
+}
+
+/**
+ * «Abbiamo la presentazione per Visit Bergamo, creami la bozza e mettila in Gmail»: l'email col
+ * link della presentazione approvata, al contatto CRM dell'ente. Nasce come bozza del CRM
+ * (`source = 'office'`, stessa chiave della bozza che prepara l'approvazione) e si copia fra le
+ * bozze di Gmail. Non parte niente: la invia il titolare.
+ */
+export async function presentationEmailFor(admin: Admin, ctx: AgentContext, userId: string,
+  plan: Extract<DirectorOrderPlan, { intent: 'presentation_email' }>): Promise<Outcome> {
+  const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+  const fail = (reply: string): Outcome => ({ status: 'failed', outputs: [], queued: [], reply })
+  const entity = await findEntity(admin, userId, [plan.target])
+  if (!entity) return fail(`Non trovo «${plan.target}» in Tourism Intelligence. Scrivimi il nome come è nel catalogo.`)
+  const deck = checked(await admin.from('tourism_decks').select('*').eq('user_id', userId).eq('entity_id', entity.id)
+    .order('updated_at', { ascending: false }).limit(1).maybeSingle()) as DeckRow | null
+  if (!deck) return fail(`Per ${entity.name} non c’è ancora una presentazione. Scrivimi «presentazione per ${entity.name}» e poi la mandiamo.`)
+  const editor = `${base}/tourism/presentazioni/${deck.id}`
+  if (deck.status !== 'approved') {
+    // Il link pubblico funziona solo da approvata: un'email con un link chiuso non serve.
+    const sent = deck.status === 'ready' ? await sendDeckToTelegram(admin, deck).catch(() => ({ pdf: false })) : { pdf: false }
+    return { status: 'waiting_you', outputs: [], queued: [], reply: `La presentazione per ${entity.name} non è ancora approvata, e il link si apre solo dopo.${sent.pdf ? ' Te l’ho rimandata qui: approvala col pulsante,' : ' Approvala dall’editor,'} poi riscrivimi e preparo l’email. ${editor}` }
+  }
+
+  const links = (checked(await admin.from('tourism_crm_links').select('contact_id').eq('user_id', userId).eq('entity_id', entity.id)) || []) as Array<{ contact_id: string }>
+  const contacts = links.length ? (checked(await admin.from('contacts').select('id,name,email,hidden,email_unsubscribed_at')
+    .eq('user_id', userId).in('id', links.map((l) => l.contact_id))) || []) : []
+  const recipient = pickPresentationRecipient(contacts as Array<{ id: string; name: string | null; email: string | null; hidden: boolean | null; email_unsubscribed_at: string | null }>, entity.email)
+  if (!recipient) return fail(links.length
+    ? `${entity.name} è collegato a un contatto senza un’email utilizzabile (manca, oppure si è disiscritto). Sistemala nella scheda e riscrivimi: ${base}/tourism?entity=${entity.id}`
+    : `${entity.name} non ha un contatto nel CRM. Aprilo e usa «Conferma e aggiungi ai contatti», poi riscrivimi: ${base}/tourism?entity=${entity.id}`)
+
+  const key = `presentation:${deck.id}`
+  let draft = checked(await admin.from('email_drafts').select('id,status,subject,body_text,body_html,gmail_draft_id,sent_at,contact_id')
+    .eq('user_id', userId).eq('office_key', key).maybeSingle()) as { id: string; status: string; subject: string; body_text: string | null; body_html: string | null; gmail_draft_id: string | null; sent_at: string | null; contact_id: string } | null
+  if (draft?.status === 'sent') return { status: 'done', outputs: [], queued: [], reply: `L’email con la presentazione per ${entity.name} risulta già inviata. Le bozze sono in ${base}/email` }
+  if (draft && draft.status !== 'pending') draft = null
+  if (!draft) {
+    const link = `${base}/presentazione/${deck.public_token}`
+    const email = presentationEmail({ destination: deck.destination || entity.name, link, pdf: `${link}/pdf` })
+    const html = simpleTextToHtml(email.text)
+    const { data, error } = await admin.rpc('create_office_email_draft', { p_run_id: ctx.runId, p_contact_id: recipient.id, p_key: key,
+      p_subject: email.subject, p_text: email.text, p_html: html, p_note: 'Preparata dal Direttore su richiesta del titolare. Rileggila e inviala tu.' })
+    if (error) throw error
+    if (!data?.id) return fail(data?.reason === 'pending_draft'
+      ? `${recipient.name || recipient.email} ha già una bozza in attesa nel CRM: inviala o scartala, poi riscrivimi. ${base}/email`
+      : `Non sono riuscito a preparare la bozza per ${entity.name}.`)
+    draft = checked(await admin.from('email_drafts').select('id,status,subject,body_text,body_html,gmail_draft_id,sent_at,contact_id').eq('id', data.id).eq('user_id', userId).single())
+  }
+  const to = String(recipient.email).trim()
+  const crm = `Bozza per ${entity.name} pronta, a ${to}, con il link della presentazione «${deck.title}».`
+
+  // In Gmail: così l'invio passa dalla finestra di Gmail (firma, tracciamento) e la riconciliazione la chiude da sola.
+  try {
+    const session = await openGmailDraftSession(admin, userId)
+    if (!session) return { status: 'done', outputs: [], queued: [], reply: `${crm} Gmail non è collegato al CRM, quindi è solo fra le bozze del CRM: ${base}/email` }
+    const text = String(draft!.body_text || '')
+    const saved = await saveContactDraftWithSession(session, { email: to, name: recipient.name || '' }, {
+      subject: draft!.subject || '(nessun oggetto)', html: String(draft!.body_html || '') || simpleTextToHtml(text), text,
+      appendSignature: true, gmailDraftId: draft!.gmail_draft_id,
+    })
+    checked(await admin.from('email_drafts').update({ gmail_draft_id: saved.draftId, gmail_draft_message_id: saved.messageId })
+      .eq('id', draft!.id).eq('user_id', userId).eq('status', 'pending'))
+    const url = saved.messageId ? gmailDraftUrl(session.account.email, saved.messageId) : 'https://mail.google.com/mail/#drafts'
+    return { status: 'done', outputs: [], queued: [], reply: `${crm} È fra le bozze di Gmail (${session.account.email}): rileggila e inviala tu, da sola non parte. ${url}` }
+  } catch (error) {
+    const why = isGmailReconnectRequired(error) ? 'l’autorizzazione di Gmail è scaduta, ricollegalo dalle impostazioni' : `Gmail non ha risposto (${errorMessage(error, 'errore')})`
+    return { status: 'done', outputs: [], queued: [], reply: `${crm} Non l’ho messa in Gmail: ${why}. La trovi fra le bozze del CRM, da lì «Prepara tutte in Gmail»: ${base}/email` }
+  }
 }
 
 /**
@@ -915,6 +986,7 @@ export async function executePlan(admin: Admin, ctx: AgentContext, order: Direct
       { installed: !!scout.data, enabled: !!scout.data?.enabled, sources }) }
   }
   if (plan.intent === 'invoice') return invoiceFor(admin, userId, plan)
+  if (plan.intent === 'presentation_email') return presentationEmailFor(admin, ctx, userId, plan)
   if (plan.intent === 'task') {
     const outcomes = await createDirectorTasks(admin, userId, order, plan.items)
     return { status: 'done', outputs: [], queued: [], reply: directorTaskReply(outcomes, plan.dropped) }
