@@ -16,6 +16,10 @@
 - Le istruzioni storiche sugli avvii in memoria qui sotto descrivono il percorso precedente, valido soltanto con il flag spento e prima del passaggio. Dopo la migrazione non tornare a consumare le stesse vecchie code.
 - Per ambito, collaudo e rilascio leggere `docs/AI-SYSTEM-AUDIT.md`, `docs/UFFICIO-TEST-REPORT.md`, `docs/UFFICIO-OPERATING-GUIDE.md` e `docs/UFFICIO-RELEASE-2026-10-25.md`. La migration è applicata in produzione; attivazione del worker e verifica del deploy restano distinte.
 
+## Priorità commerciale (ottobre 2026)
+
+Il target principale è **Tourism Intelligence**: DMC, enti del turismo e chiunque possa **distribuire le guide** (pipeline `tourism` e `distribuzione`). Wine Project si esaurisce man mano (restano alcuni clienti, nessun nuovo investimento); i ~56 mila hotel in holding (`hospitality-project`) sono un archivio, non un bacino da lavorare. Nuove funzioni, agenti e ottimizzazioni partono da Tourism Intelligence; Tourism Intelligence resta un dato a parte rispetto ai contatti.
+
 ## Project Overview
 
 **Speaqi CRM** is a production-grade sales pipeline CRM for lead management, follow-ups, and automation. Built with Next.js 15 + Supabase, deployed on Railway.app.
@@ -321,6 +325,7 @@ Il workspace contiene decine di migliaia di contatti (quasi tutti `holding`, imp
 - **Render a finestra**: `/contacts` monta `CONTACTS_PAGE_SIZE` righe per volta (IntersectionObserver + "Mostra altri"); `/kanban` monta `COLUMN_PAGE_SIZE` card per colonna. Filtri, selezione e azioni di massa lavorano sull'insieme filtrato completo, non su quello montato.
 - **Identità in cache**: `requireRouteUser` mette in cache `auth.getUser` (30 s) e la risoluzione del membro team (60 s) per token; `invalidateRouteUserCaches()` le svuota.
 - **Email senza maiuscole**: le ricerche `.ilike('email', …)` (stop sequenza Wine, webhook Acumbamail, lead, Direttore) usano l'indice trigram `contacts_email_trgm_idx` (migration `20261028090000_contacts_query_performance.sql`, che toglie anche nove indici mai usati). Senza, ogni ricerca scansionava i 62 mila contatti (~100 ms, fino a 2,8 s a freddo); con, pochi millisecondi. Un indice nuovo su `contacts` costa su ogni UPDATE: aggiungerlo solo per una query che c'è davvero.
+- **Contatori (barra laterale, schede, cartelle)**: `GET /api/contacts/summary` tiene il risultato di `contact_workspace_summary` in memoria (`src/lib/server/summary-cache.ts`): fresco 15 s, poi si risponde subito coi numeri di prima e si ricalcola dietro (fino a 10 minuti), una richiesta sola per chiave. La RPC legge tutti i contatti e sul piano Free costa ~2,5 s anche con tutto in cache: un qualunque scan completo di `contacts` costa così, quindi non metterne uno su un percorso che parte a ogni pagina.
 - **Sync aperture Wine** (`wine-project-engagement`): righe campagna e contatti si leggono in blocchi e si scrivono solo se cambiano (`src/lib/engagement-sync.ts`). Prima ogni giro riscriveva tutti gli apritori: ~150 mila UPDATE inutili su `contacts`.
 - Su liste grandi usa sempre `Set`/`Map` per le appartenenze: `Array.includes` dentro un `filter` diventa quadratico.
 
