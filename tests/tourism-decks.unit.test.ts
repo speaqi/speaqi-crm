@@ -100,9 +100,10 @@ test('createDeck parte dalla base destinazioni con il nome riempito', async () =
   const row = await createDeck(db, USER, fields)
   assert.equal(row.status, 'draft')
   assert.equal(row.slides[0].kicker, 'Speaqi Guides per Capri')
-  // Quattordici slide della base più l'ultima, con i contatti.
-  assert.equal(row.slides.length, 15)
-  assert.equal(row.slides[14].id, 'contatti')
+  // Quattordici slide: l'ultima, la chiusura, ha già i contatti di Speaqi, quindi non se ne aggiunge una seconda.
+  assert.equal(row.slides.length, 14)
+  assert.equal(row.slides[13].id, 'chiusura')
+  assert.equal(row.slides.filter((s: { id: string }) => s.id === 'contatti').length, 0)
   assert.equal(db.tables.tourism_deck_templates.length, 1)
   assert.equal(db.tables.tourism_deck_templates[0].content.base, DESTINATIONS_BASE)
 })
@@ -379,19 +380,32 @@ test('una base di prima con il solo preventivo corretto a mano resta com’è', 
   assert.equal(isUneditedPreviousDestinations(edited), false)
 })
 
-test('la slide dei contatti c\u2019è in ogni presentazione nuova: italiano, inglese, partner e modello salvato a mano', async () => {
-  const last = (r: { slides: Array<{ id: string; title: string; items: Array<{ title: string }> }> }) => r.slides[r.slides.length - 1]
+test('i contatti di Speaqi compaiono una volta sola: le basi hanno già la chiusura, un modello a mano riceve la slide', async () => {
+  const withContacts = (r: { slides: Array<{ id: string; kind: string; items: Array<{ title: string }> }> }) =>
+    r.slides.filter((s) => s.id === 'contatti' || (s.kind === 'closing' && s.items.some((i) => i.title === 'info@speaqi.com')))
   const italian = await createDeck(db, USER, fields)
-  assert.equal(last(italian).id, 'contatti')
-  assert.match(last(italian).title, /Parliamone/)
-  assert.ok(last(italian).items.some((i) => i.title === 'info@speaqi.com'))
+  assert.equal(withContacts(italian).length, 1)
+  assert.equal(italian.slides[italian.slides.length - 1].id, 'chiusura')
   const english = await createDeck(db, USER, { ...fields, input: { ...fields.input, lingua: 'en' } })
-  assert.match(last(english).title, /Let’s talk/)
+  assert.equal(withContacts(english).length, 1)
+  assert.equal(english.slides[english.slides.length - 1].id, 'chiusura')
   const partner = await createDeck(db, USER, { ...fields, input: { ...fields.input, modello: 'partner' } })
-  assert.equal(last(partner).id, 'contatti')
-  // Un modello salvato e corretto a mano non ce l'ha: la riceve lo stesso, una volta sola.
+  assert.equal(withContacts(partner).length, 1)
+  assert.equal(partner.slides[partner.slides.length - 1].id, 'chiusura')
+  // Un modello salvato e corretto a mano, senza chiusura, riceve la slide dei contatti, una volta sola.
   db.tables.tourism_deck_templates.length = 0
   db.tables.tourism_deck_templates.push({ user_id: USER, is_default: true, version: 3, content: { version: 1, base: 'mio', vars: {}, slides: [{ id: 'cover', kind: 'cover', title: 'Il mio titolo' }] } })
   const custom = await createDeck(db, USER, fields)
   assert.deepEqual(custom.slides.map((s) => s.id), ['cover', 'contatti'])
+})
+
+test('salvare le modifiche non taglia le slide: restano tutte quelle della base, e una tolta resta tolta', async () => {
+  const row = await createDeck(db, USER, fields)
+  assert.equal(row.slides.length, 14)
+  const kept = await saveDeckEdits(db, row, { version: row.version, slides: row.slides })
+  assert.equal(kept.slides.length, 14)
+  assert.equal(kept.slides[13].id, 'chiusura')
+  const fewer = await saveDeckEdits(db, kept, { version: kept.version, slides: kept.slides.filter((s: { id: string }) => s.id !== 'domande') })
+  assert.equal(fewer.slides.length, 13)
+  assert.equal(fewer.slides.some((s: { id: string }) => s.id === 'domande'), false)
 })
