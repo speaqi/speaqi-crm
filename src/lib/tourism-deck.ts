@@ -387,9 +387,18 @@ export function contactsSlide(lang: DeckLanguage = 'it'): DeckSlide {
   })
 }
 
-/** Aggiunge in fondo la slide dei contatti se manca; una presentazione che ce l'ha già non cambia. */
+/** Una slide finale che porta già i contatti di Speaqi: la `chiusura` delle basi destinazioni, partner e inglese. */
+export function hasSpeaqiContacts(slide: DeckSlide): boolean {
+  return slide.id === CONTACTS_SLIDE_ID
+    || (slide.kind === 'closing' && (slide.items || []).some((item) => /info@speaqi\.com/i.test(item.title || '')))
+}
+
+/**
+ * Aggiunge in fondo la slide dei contatti solo se nessuna slide ha già quelli di Speaqi:
+ * le basi di Speaqi finiscono già con la loro chiusura, e una seconda pagina sarebbe un doppione.
+ */
 export function withContactsSlide(slides: DeckSlide[], lang: DeckLanguage = 'it'): DeckSlide[] {
-  return slides.some((s) => s.id === CONTACTS_SLIDE_ID) ? slides : [...slides, contactsSlide(lang)]
+  return slides.some(hasSpeaqiContacts) ? slides : [...slides, contactsSlide(lang)]
 }
 
 /** Base partner: hotel, agenzie, compagnie e chi porta le guide Speaqi ai propri ospiti. */
