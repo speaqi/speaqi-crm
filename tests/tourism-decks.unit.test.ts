@@ -398,3 +398,14 @@ test('i contatti di Speaqi compaiono una volta sola: le basi hanno già la chius
   const custom = await createDeck(db, USER, fields)
   assert.deepEqual(custom.slides.map((s) => s.id), ['cover', 'contatti'])
 })
+
+test('salvare le modifiche non taglia le slide: restano tutte quelle della base, e una tolta resta tolta', async () => {
+  const row = await createDeck(db, USER, fields)
+  assert.equal(row.slides.length, 14)
+  const kept = await saveDeckEdits(db, row, { version: row.version, slides: row.slides })
+  assert.equal(kept.slides.length, 14)
+  assert.equal(kept.slides[13].id, 'chiusura')
+  const fewer = await saveDeckEdits(db, kept, { version: kept.version, slides: kept.slides.filter((s: { id: string }) => s.id !== 'domande') })
+  assert.equal(fewer.slides.length, 13)
+  assert.equal(fewer.slides.some((s: { id: string }) => s.id === 'domande'), false)
+})
