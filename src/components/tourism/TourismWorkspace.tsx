@@ -65,6 +65,8 @@ const acquisitionSourceLabel = (source: string) =>
         } as Record<string, string>
       )[source] || source
 type Row = TourismEntity & {
+  destination_places?: string[]
+  destination_relations?: string[]
   evidence: Evidence[]
   crm: { contact_id: string }[]
   matches?: { contact_id: string; score: number; state: string }[]
@@ -155,6 +157,25 @@ type Filters = {
   sort: string
   crm: string
   fair: string
+  destination: string
+  subareas: string
+  size: string
+}
+type DestinationOption = {
+  id: string
+  name: string
+  country_code: string
+  parent: string | null
+  map_slug: string | null
+  total: number
+  by_type: Record<string, number>
+}
+// Gli operatori che distribuiscono una mappa: la scelta rapida della categoria.
+const OPERATOR_TYPES = 'dmc,tour_operator,property_manager'
+const OPERATOR_TYPE_LABELS: Record<string, string> = {
+  dmc: 'DMC',
+  tour_operator: 'tour operator',
+  property_manager: 'property manager'
 }
 const INITIAL: Filters = {
   availability: 'active',
@@ -167,7 +188,10 @@ const INITIAL: Filters = {
   kind: 'organization',
   sort: 'name',
   crm: '',
-  fair: ''
+  fair: '',
+  destination: '',
+  subareas: '1',
+  size: '50'
 }
 const OUTREACH_LABELS: Record<1 | 2 | 3, string> = {
   1: 'Top · contattare prima',
@@ -328,7 +352,8 @@ export default function TourismWorkspace() {
     [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
     [busy, setBusy] = useState(false),
-    [reload, setReload] = useState(0)
+    [reload, setReload] = useState(0),
+    [destinations, setDestinations] = useState<DestinationOption[]>([])
   const [selected, setSelected] = useState<string[]>([]),
     [detailId, setDetailId] = useState<string | null>(null),
     [detail, setDetail] = useState<Detail | null>(null),
@@ -402,6 +427,21 @@ export default function TourismWorkspace() {
       })
       .catch((e) => {
         if (live) setError(e.message)
+      })
+    return () => {
+      live = false
+    }
+  }, [reload])
+  useEffect(() => {
+    let live = true
+    apiFetch<{ destinations: DestinationOption[] }>(
+      '/api/tourism?view=destinations'
+    )
+      .then((r) => {
+        if (live) setDestinations(r.destinations)
+      })
+      .catch(() => {
+        // Senza le destinazioni la directory resta usabile: il filtro non si disegna.
       })
     return () => {
       live = false
@@ -509,8 +549,43 @@ export default function TourismWorkspace() {
     }
   }, [tab, reload])
   const setFilter = (key: keyof Filters, value: string) => {
-    setFilters((f) => ({ ...f, [key]: value }))
+    setFilters((f) => ({
+      ...f,
+      [key]: value,
+      // La destinazione lavora sulle organizzazioni e non si combina con questi filtri.
+      ...(key === 'destination' && value
+        ? { crm: '', fair: '', target: '', outreach: '', kind: 'organization' }
+        : {})
+    }))
     setPage(0)
+  }
+  const promoteSelection = () => {
+    const chosen = rows.filter((r) => selected.includes(r.id))
+    if (!chosen.length) return
+    setConfirmation({
+      label: `Portare ${chosen.length} enti nei contatti? Solo gli enti verificati entrano; nessuna email parte e nessuna campagna viene attivata.`,
+      run: async () => {
+        const r = await apiFetch<{
+          added: number
+          already: number
+          refused: number
+          results: { id: string; ok: boolean; error?: string }[]
+        }>('/api/tourism', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'promote_many',
+            entity_ids: chosen.map((c) => c.id)
+          })
+        })
+        refresh()
+        const firstRefusal = r.results.find((x) => !x.ok)
+        notify(
+          `${r.added} nuovi contatti, ${r.already} già nei contatti, ${r.refused} non entrati` +
+            (firstRefusal?.error ? ` (es.: ${firstRefusal.error})` : '')
+        )
+      }
+    })
   }
   const selectCountry = useCallback((country: string) => {
     setFilters({ ...INITIAL, country })
@@ -976,12 +1051,46 @@ export default function TourismWorkspace() {
                   </option>
                 ))}
               </select>
+              {destinations.length > 0 && (
+                <select
+                  aria-label="Destinazione"
+                  value={filters.destination}
+                  onChange={(e) => setFilter('destination', e.target.value)}
+                >
+                  <option value="">Tutte le destinazioni</option>
+                  {destinations.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.map_slug ? '🗺 ' : ''}
+                      {d.name}
+                      {d.parent ? ` · ${d.parent}` : ''} ({fmt(d.total)})
+                    </option>
+                  ))}
+                </select>
+              )}
+              {filters.destination && (
+                <label className={s.muted}>
+                  <input
+                    type="checkbox"
+                    checked={filters.subareas !== '0'}
+                    onChange={(e) =>
+                      setFilter('subareas', e.target.checked ? '1' : '0')
+                    }
+                  />{' '}
+                  Includi sotto-aree
+                </label>
+              )}
               <select
                 aria-label="Categoria"
                 value={filters.type}
                 onChange={(e) => setFilter('type', e.target.value)}
               >
                 <option value="">Tutte le categorie</option>
+                <option value={OPERATOR_TYPES}>
+                  Operatori: DMC + tour operator + property manager
+                </option>
+                <option value="dmc,tour_operator">
+                  DMC + tour operator
+                </option>
                 {Object.entries(TOURISM_TYPES).map(([k, v]) => (
                   <option key={k} value={k}>
                     {v}
@@ -1013,6 +1122,7 @@ export default function TourismWorkspace() {
               </select>
               <select
                 aria-label="Ordine di contatto"
+                disabled={Boolean(filters.destination)}
                 value={filters.outreach || ''}
                 onChange={(e) => setFilter('outreach', e.target.value)}
               >
@@ -1022,6 +1132,7 @@ export default function TourismWorkspace() {
               </select>
               <select
                 aria-label="Fiera"
+                disabled={Boolean(filters.destination)}
                 value={filters.fair || ''}
                 onChange={(e) => setFilter('fair', e.target.value)}
               >
@@ -1034,6 +1145,7 @@ export default function TourismWorkspace() {
               </select>
               <select
                 aria-label="Controllo del sito"
+                disabled={Boolean(filters.destination)}
                 value={filters.target || ''}
                 onChange={(e) => setFilter('target', e.target.value)}
               >
@@ -1046,6 +1158,7 @@ export default function TourismWorkspace() {
               </select>
               <select
                 aria-label="Corrispondenze CRM"
+                disabled={Boolean(filters.destination)}
                 value={filters.crm || ''}
                 onChange={(event) => setFilter('crm', event.target.value)}
               >
@@ -1075,12 +1188,28 @@ export default function TourismWorkspace() {
               <span className={s.muted}>
                 {selected.length} selezionate in questa pagina
               </span>
+              <select
+                aria-label="Righe per pagina"
+                value={filters.size}
+                onChange={(e) => setFilter('size', e.target.value)}
+              >
+                <option value="50">50 per pagina</option>
+                <option value="100">100 per pagina</option>
+                <option value="200">200 per pagina</option>
+              </select>
               <button
                 className={s.textButton}
                 disabled={!selected.length}
                 onClick={exportSelection}
               >
                 Esporta selezione
+              </button>
+              <button
+                className={s.textButton}
+                disabled={!selected.length || busy}
+                onClick={promoteSelection}
+              >
+                Porta nei contatti
               </button>
               <button
                 className={s.textButton}
@@ -1182,6 +1311,9 @@ export default function TourismWorkspace() {
                                 {r.website
                                   ? new URL(r.website).hostname
                                   : KIND_LABELS[r.kind]}
+                                {r.destination_places?.length
+                                  ? ` · ${r.destination_places.slice(0, 3).join(', ')}${r.destination_places.length > 3 ? '…' : ''}`
+                                  : ''}
                               </small>
                             </span>
                           </button>
@@ -1334,7 +1466,7 @@ export default function TourismWorkspace() {
             <footer className={s.pagination}>
               <span>
                 {total
-                  ? `${page * 50 + 1}–${Math.min(total, (page + 1) * 50)} di ${fmt(total)}`
+                  ? `${page * Number(filters.size) + 1}–${Math.min(total, (page + 1) * Number(filters.size))} di ${fmt(total)}`
                   : '0 risultati'}
               </span>
               <button
@@ -1346,7 +1478,7 @@ export default function TourismWorkspace() {
               </button>
               <button
                 className={s.secondary}
-                disabled={(page + 1) * 50 >= total || loading}
+                disabled={(page + 1) * Number(filters.size) >= total || loading}
                 onClick={() => setPage((p) => p + 1)}
               >
                 Successiva →

@@ -461,6 +461,14 @@ Un solo percorso per tutte le opportunità, dentro `deals` (non un secondo CRM).
 - **Prova del legame ente → città**: se il sito non dà una frase che li leghi, la prova è l'ordine (Direttore) o la conferma (scheda) del titolare, scritta come prova di copertura (`20261025080000_tourism_activate_coverage.sql`): il catalogo rifiuta una relazione con la sola prova d'identità («Relationship evidence required»).
 - **Ordine di deploy**: prima le migration `20261024140000_office_queue_update.sql` e `20261024150000_tourism_activate.sql` (e la correzione `20261025080000_tourism_activate_coverage.sql`), poi il codice.
 
+## Tourism Intelligence — enti per destinazione
+
+- **Filtro «Destinazione»** nella directory (`/tourism`): sceglie un luogo e mostra gli enti legati a quel luogo **e alle sue sotto-aree** (`PART_OF`: Positano dentro la Costiera Amalfitana dentro la Campania; «Includi sotto-aree» si spegne). I legami che contano sono `COVERS`, `MANAGES`, `PROMOTES`, `SELLS`, `OPERATES_IN`, ognuno con la sua prova. Le destinazioni con una mappa Speaqi (`tourism_destinations.speaqi_map_slug`) compaiono col 🗺 anche se ancora vuote: sono quelle da popolare.
+- **Categoria multipla**: `type` accetta più codici separati da virgola; la scelta rapida «Operatori» è `dmc,tour_operator,property_manager`.
+- **Migration `20261029100000_tourism_destination_scope.sql`** (solo letture, security invoker, quindi RLS del proprietario): `tourism_place_scope` (luogo + discendenti), `tourism_destination_options` (luoghi con conteggi per tipo, anche tramite le sotto-aree) e `tourism_destination_entities` (pagina di enti con i luoghi per cui sono stati trovati). Con una destinazione scelta non si combinano i filtri CRM, fiera, sito e lista contatti (il server risponde 400, la pagina li spegne). **Prima la migration, poi il codice.**
+- **«Porta nei contatti»** sulla selezione (`POST /api/tourism` `action: 'promote_many'`, al massimo 200 enti): chiama `tourism_promote` uno per uno, quindi un rifiuto (non verificato, nome ambiguo, email già usata) non ferma gli altri e la risposta li conta. Nessuna email parte e nessuna campagna si attiva (`marketing_eligibility = review`). La pagina può mostrare 50, 100 o 200 righe.
+- Test: `tests/tourism-destinations.db.test.ts` (PGlite con le migration vere: discesa della gerarchia, tipi, isolamento fra proprietari, ricerca e pagina).
+
 ## Presentazioni per destinazione (Tourism Intelligence)
 
 Il tasto **Crea la presentazione** (scheda di un ente, o tab **Presentazioni** di `/tourism`) genera la presentazione «Speaqi Guides · Destinazioni» per un ente o un DMC: le quattordici slide della presentazione base di ottobre 2026, con il nome e le foto della destinazione. Si rivede, si approva e si condivide con un link (o si salva in PDF dal browser). Tutto riservato al proprietario del workspace (`requireTourismOwner`), come il resto del modulo.
