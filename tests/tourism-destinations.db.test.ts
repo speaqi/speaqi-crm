@@ -162,3 +162,21 @@ test('ricerca, ordine, pagina e disattivati', async () => {
   assert.equal((await list(roma, true))!.total, 1)
   assert.equal(await scalar<number>(`select (tourism_destination_entities($1,true,null,null,'all') ->> 'total')::int as v`, [roma]), 2)
 })
+
+test('la sede dichiarata (hq_city) collega l ente alla citta, anche con il nome inglese', async () => {
+  await db.exec('reset role')
+  await db.exec(`update tourism_entities set aliases = array['Rome'] where id = '${roma}'`)
+  const viaggi = await scalar<string>(
+    `insert into tourism_entities(user_id,kind,name,country_code,type_code,status,details)
+     values('${OWNER}','organization','Rome Travel Srl','IT','travel_agency','UNVERIFIED','{"hq_city":"Rome"}') returning id as v`)
+  const nessuna = await scalar<string>(
+    `insert into tourism_entities(user_id,kind,name,country_code,type_code,status,details)
+     values('${OWNER}','organization','Altrove Viaggi','IT','travel_agency','UNVERIFIED','{"hq_city":"Torino"}') returning id as v`)
+  await asUser(OWNER)
+  const found = await list(roma, true, ['travel_agency'])
+  assert.deepEqual(found!.items.map((i) => i.id), [viaggi])
+  assert.deepEqual(found!.items[0].relations, ['HQ'])
+  assert.ok(!found!.items.some((i) => i.id === nessuna))
+  const options = await scalar<{ name: string; by_type: Record<string, number> }[]>('select tourism_destination_options() as v')
+  assert.equal(options!.find((o) => o.name === 'Roma')!.by_type.travel_agency, 1)
+})

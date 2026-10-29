@@ -7,6 +7,13 @@
 -- la ricerca che scende per la gerarchia. Solo letture, nessuna tabella nuova:
 -- sono funzioni security invoker, quindi valgono la RLS e il proprietario.
 
+-- Le chiavi con cui un luogo si riconosce: il nome e gli alias ("Rome" per Roma).
+create or replace function public.tourism_place_keys(p_name_key text, p_aliases text[])
+returns text[]
+language sql immutable set search_path = public as $$
+  select array_remove(array[p_name_key] || coalesce((select array_agg(public.tourism_name_key(a)) from unnest(p_aliases) a), '{}'::text[]), '')
+$$;
+
 -- Il luogo e, se richiesto, tutti i luoghi che ne fanno parte (a qualunque livello).
 create or replace function public.tourism_place_scope(p_place uuid, p_children boolean default true)
 returns uuid[]
@@ -45,6 +52,14 @@ language sql stable set search_path = public as $$
        and r.relation in ('COVERS','MANAGES','PROMOTES','SELLS','OPERATES_IN')
       join public.tourism_entities o on o.id = r.from_id and o.user_id = auth.uid()
        and o.kind = 'organization' and not o.disabled
+    union
+    -- La sede dichiarata (details.hq_city) vale come legame debole con la citta'.
+    select distinct c.anc, o.id, o.type_code
+      from closure c
+      join public.tourism_entities pl on pl.id = c.node and pl.user_id = auth.uid()
+      join public.tourism_entities o on o.user_id = auth.uid() and o.kind = 'organization' and not o.disabled
+       and nullif(o.details ->> 'hq_city', '') is not null
+       and public.tourism_name_key(o.details ->> 'hq_city') = any (public.tourism_place_keys(pl.name_key, pl.aliases))
   ),
   by_type as (
     select anc, type_code, count(*)::int as n from cov group by anc, type_code
@@ -88,15 +103,25 @@ language sql stable set search_path = public as $$
   with scope as (
     select unnest(public.tourism_place_scope(p_place, p_children)) as id
   ),
-  hits as (
-    select r.from_id as entity_id,
-           array_agg(distinct pe.name order by pe.name) as places,
-           array_agg(distinct r.relation order by r.relation) as relations
+  raw(entity_id, place, relation) as (
+    select r.from_id, pe.name, r.relation
       from scope s
       join public.tourism_relations r on r.to_id = s.id and r.user_id = auth.uid()
        and r.relation in ('COVERS','MANAGES','PROMOTES','SELLS','OPERATES_IN')
       join public.tourism_entities pe on pe.id = s.id and pe.user_id = auth.uid()
-     group by r.from_id
+    union all
+    select o.id, pe.name, 'HQ'
+      from scope s
+      join public.tourism_entities pe on pe.id = s.id and pe.user_id = auth.uid()
+      join public.tourism_entities o on o.user_id = auth.uid() and o.kind = 'organization'
+       and nullif(o.details ->> 'hq_city', '') is not null
+       and public.tourism_name_key(o.details ->> 'hq_city') = any (public.tourism_place_keys(pe.name_key, pe.aliases))
+  ),
+  hits as (
+    select entity_id,
+           array_agg(distinct place order by place) as places,
+           array_agg(distinct relation order by relation) as relations
+      from raw group by entity_id
   ),
   filtered as (
     select e.id, e.name, e.created_at, e.outreach_priority, h.places, h.relations
@@ -130,11 +155,13 @@ language sql stable set search_path = public as $$
   )
 $$;
 
-revoke all on function public.tourism_place_scope(uuid, boolean),
+revoke all on function public.tourism_place_keys(text, text[]),
+  public.tourism_place_scope(uuid, boolean),
   public.tourism_destination_options(),
   public.tourism_destination_entities(uuid, boolean, text[], text, text, text, text, text, integer, integer)
   from public, anon, authenticated;
-grant execute on function public.tourism_place_scope(uuid, boolean),
+grant execute on function public.tourism_place_keys(text, text[]),
+  public.tourism_place_scope(uuid, boolean),
   public.tourism_destination_options(),
   public.tourism_destination_entities(uuid, boolean, text[], text, text, text, text, text, integer, integer)
   to authenticated;
