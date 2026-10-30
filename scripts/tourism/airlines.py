@@ -102,8 +102,12 @@ WIKI_COUNTRIES = {
 # Cessata: la lista Wikipedia lo scrive nelle note. "Formerly", "renamed" o "ICAO code no longer allocated"
 # non bastano: la compagnia puo' essere viva sotto un altro nome o codice.
 WIKI_DEAD = re.compile(r'defunct|ceased|bankrupt|liquidat|merged (with|into)|no longer operat|dissolved|shut down|collapsed|insolven|operations (suspended|terminated)', re.I)
-WIKI_NOT_AIRLINE = re.compile(r'\b(squadron|air force|navy|army|police|ministry|cargo|freight|logistic|helicopt|flying club|flight school|aero ?club|reservation|travel network|it group)\b', re.I)
+WIKI_NOT_AIRLINE = re.compile(r'\b(squadron|air force|navy|army|police|ministry|airbus|boeing|\w*cargo\w*|fedex|dhl|ups airlines|freight\w*|logistic\w*|courier|helicopt\w*|flying club|flight school|aero ?club|reservation|travel network|it group|carga|fret)\b', re.I)
 WIKI_NO_COUNTRY = {'', 'Global', 'APAC', 'Multiple', 'International'}
+
+
+def clean_ref(text):
+    return re.sub(r'\s*\[[^\]]*\]', '', text).strip()
 
 
 def wiki_rows(path):
@@ -156,7 +160,7 @@ def wiki_catalog(html_path, data, known_path=None):
             'kind': 'organization', 'name': name, 'country_code': iso[country], 'type_code': 'airline',
             'website': None, 'email': None, 'phone': None, 'aliases': [icao],
             'external_ids': {k: v for k, v in {'iata': iata, 'icao': icao, 'openflights': openflights.get(icao)}.items() if v},
-            'details': {'iata': iata, 'icao': icao, 'callsign': callsign.title() or None, 'note': note or None,
+            'details': {'iata': iata, 'icao': icao, 'callsign': clean_ref(callsign).title() or None, 'note': clean_ref(note) or None,
                         'acquisition': {'source': 'wikipedia:list-of-airline-codes', 'list_edited': edited,
                                         'classification_rule': 'iata_icao_no_defunct_note', 'verified_alive': False}},
             'evidence': ev, 'source_evidence': [ev],

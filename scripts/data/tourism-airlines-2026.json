@@ -388,7 +388,7 @@
     "iata": "AN",
     "icao": "WSN",
     "callsign": "Wingspan",
-    "note": "2015[2]",
+    "note": "2015",
     "acquisition": {
      "source": "wikipedia:list-of-airline-codes",
      "list_edited": "14 August 2026",
@@ -2077,7 +2077,7 @@
    "details": {
     "iata": "3L",
     "icao": "ADY",
-    "callsign": "Nawras [6]",
+    "callsign": "Nawras",
     "note": null,
     "acquisition": {
      "source": "wikipedia:list-of-airline-codes",
@@ -2155,59 +2155,6 @@
      "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
      "title": "Wikipedia: List of airline codes — Air Alpha Greenland",
      "excerpt": "Vettore con codice IATA GD e ICAO AHA, paese Denmark. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-     "fields": [
-      "name",
-      "country_code",
-      "type_code"
-     ],
-     "method": "import"
-    }
-   ]
-  },
-  {
-   "kind": "organization",
-   "name": "Airbus Industrie",
-   "country_code": "FR",
-   "type_code": "airline",
-   "website": null,
-   "email": null,
-   "phone": null,
-   "aliases": [
-    "AIB"
-   ],
-   "external_ids": {
-    "iata": "4Y",
-    "icao": "AIB",
-    "openflights": "199"
-   },
-   "details": {
-    "iata": "4Y",
-    "icao": "AIB",
-    "callsign": "Airbus Industrie",
-    "note": null,
-    "acquisition": {
-     "source": "wikipedia:list-of-airline-codes",
-     "list_edited": "14 August 2026",
-     "classification_rule": "iata_icao_no_defunct_note",
-     "verified_alive": false
-    }
-   },
-   "evidence": {
-    "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-    "title": "Wikipedia: List of airline codes — Airbus Industrie",
-    "excerpt": "Vettore con codice IATA 4Y e ICAO AIB, paese France. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-    "fields": [
-     "name",
-     "country_code",
-     "type_code"
-    ],
-    "method": "import"
-   },
-   "source_evidence": [
-    {
-     "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-     "title": "Wikipedia: List of airline codes — Airbus Industrie",
-     "excerpt": "Vettore con codice IATA 4Y e ICAO AIB, paese France. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
      "fields": [
       "name",
       "country_code",
@@ -2473,59 +2420,6 @@
      "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
      "title": "Wikipedia: List of airline codes — Amerijet International",
      "excerpt": "Vettore con codice IATA M6 e ICAO AJT, paese United States. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-     "fields": [
-      "name",
-      "country_code",
-      "type_code"
-     ],
-     "method": "import"
-    }
-   ]
-  },
-  {
-   "kind": "organization",
-   "name": "Aerotransporte de Carga Union",
-   "country_code": "MX",
-   "type_code": "airline",
-   "website": null,
-   "email": null,
-   "phone": null,
-   "aliases": [
-    "TNO"
-   ],
-   "external_ids": {
-    "iata": "6R",
-    "icao": "TNO",
-    "openflights": "283"
-   },
-   "details": {
-    "iata": "6R",
-    "icao": "TNO",
-    "callsign": "Aerounion",
-    "note": null,
-    "acquisition": {
-     "source": "wikipedia:list-of-airline-codes",
-     "list_edited": "14 August 2026",
-     "classification_rule": "iata_icao_no_defunct_note",
-     "verified_alive": false
-    }
-   },
-   "evidence": {
-    "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-    "title": "Wikipedia: List of airline codes — Aerotransporte de Carga Union",
-    "excerpt": "Vettore con codice IATA 6R e ICAO TNO, paese Mexico. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-    "fields": [
-     "name",
-     "country_code",
-     "type_code"
-    ],
-    "method": "import"
-   },
-   "source_evidence": [
-    {
-     "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-     "title": "Wikipedia: List of airline codes — Aerotransporte de Carga Union",
-     "excerpt": "Vettore con codice IATA 6R e ICAO TNO, paese Mexico. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
      "fields": [
       "name",
       "country_code",
@@ -3056,59 +2950,6 @@
      "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
      "title": "Wikipedia: List of airline codes — Airlink Zambia",
      "excerpt": "Vettore con codice IATA K8 e ICAO ZAK, paese Zambia. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-     "fields": [
-      "name",
-      "country_code",
-      "type_code"
-     ],
-     "method": "import"
-    }
-   ]
-  },
-  {
-   "kind": "organization",
-   "name": "Airbus Transport International",
-   "country_code": "FR",
-   "type_code": "airline",
-   "website": null,
-   "email": null,
-   "phone": null,
-   "aliases": [
-    "BGA"
-   ],
-   "external_ids": {
-    "iata": "4Y",
-    "icao": "BGA",
-    "openflights": "542"
-   },
-   "details": {
-    "iata": "4Y",
-    "icao": "BGA",
-    "callsign": "Beluga",
-    "note": null,
-    "acquisition": {
-     "source": "wikipedia:list-of-airline-codes",
-     "list_edited": "14 August 2026",
-     "classification_rule": "iata_icao_no_defunct_note",
-     "verified_alive": false
-    }
-   },
-   "evidence": {
-    "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-    "title": "Wikipedia: List of airline codes — Airbus Transport International",
-    "excerpt": "Vettore con codice IATA 4Y e ICAO BGA, paese France. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-    "fields": [
-     "name",
-     "country_code",
-     "type_code"
-    ],
-    "method": "import"
-   },
-   "source_evidence": [
-    {
-     "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-     "title": "Wikipedia: List of airline codes — Airbus Transport International",
-     "excerpt": "Vettore con codice IATA 4Y e ICAO BGA, paese France. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
      "fields": [
       "name",
       "country_code",
@@ -4566,7 +4407,7 @@
     "iata": "FL",
     "icao": "LPA",
     "callsign": "Leap",
-    "note": "[citation needed]",
+    "note": null,
     "acquisition": {
      "source": "wikipedia:list-of-airline-codes",
      "list_edited": "14 August 2026",
@@ -5120,59 +4961,6 @@
      "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
      "title": "Wikipedia: List of airline codes — African Safari Airways",
      "excerpt": "Vettore con codice IATA QS e ICAO QSC, paese Kenya. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-     "fields": [
-      "name",
-      "country_code",
-      "type_code"
-     ],
-     "method": "import"
-    }
-   ]
-  },
-  {
-   "kind": "organization",
-   "name": "Airbus France",
-   "country_code": "FR",
-   "type_code": "airline",
-   "website": null,
-   "email": null,
-   "phone": null,
-   "aliases": [
-    "RBU"
-   ],
-   "external_ids": {
-    "iata": "4Y",
-    "icao": "RBU",
-    "openflights": "1173"
-   },
-   "details": {
-    "iata": "4Y",
-    "icao": "RBU",
-    "callsign": "Airbus France",
-    "note": null,
-    "acquisition": {
-     "source": "wikipedia:list-of-airline-codes",
-     "list_edited": "14 August 2026",
-     "classification_rule": "iata_icao_no_defunct_note",
-     "verified_alive": false
-    }
-   },
-   "evidence": {
-    "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-    "title": "Wikipedia: List of airline codes — Airbus France",
-    "excerpt": "Vettore con codice IATA 4Y e ICAO RBU, paese France. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-    "fields": [
-     "name",
-     "country_code",
-     "type_code"
-    ],
-    "method": "import"
-   },
-   "source_evidence": [
-    {
-     "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-     "title": "Wikipedia: List of airline codes — Airbus France",
-     "excerpt": "Vettore con codice IATA 4Y e ICAO RBU, paese France. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
      "fields": [
       "name",
       "country_code",
@@ -6313,7 +6101,7 @@
     "iata": "BQ",
     "icao": "BTL",
     "callsign": "Baltia",
-    "note": "Callsign changed from \"BALTIA FLIGHT\" in 2015[10]",
+    "note": "Callsign changed from \"BALTIA FLIGHT\" in 2015",
     "acquisition": {
      "source": "wikipedia:list-of-airline-codes",
      "list_edited": "14 August 2026",
@@ -6971,59 +6759,6 @@
      "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
      "title": "Wikipedia: List of airline codes — Buddha Air",
      "excerpt": "Vettore con codice IATA U4 e ICAO BHA, paese Nepal. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-     "fields": [
-      "name",
-      "country_code",
-      "type_code"
-     ],
-     "method": "import"
-    }
-   ]
-  },
-  {
-   "kind": "organization",
-   "name": "Bristow Helicopters",
-   "country_code": "GB",
-   "type_code": "airline",
-   "website": null,
-   "email": null,
-   "phone": null,
-   "aliases": [
-    "BHL"
-   ],
-   "external_ids": {
-    "iata": "UH",
-    "icao": "BHL",
-    "openflights": "1398"
-   },
-   "details": {
-    "iata": "UH",
-    "icao": "BHL",
-    "callsign": "Bristow",
-    "note": null,
-    "acquisition": {
-     "source": "wikipedia:list-of-airline-codes",
-     "list_edited": "14 August 2026",
-     "classification_rule": "iata_icao_no_defunct_note",
-     "verified_alive": false
-    }
-   },
-   "evidence": {
-    "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-    "title": "Wikipedia: List of airline codes — Bristow Helicopters",
-    "excerpt": "Vettore con codice IATA UH e ICAO BHL, paese United Kingdom. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-    "fields": [
-     "name",
-     "country_code",
-     "type_code"
-    ],
-    "method": "import"
-   },
-   "source_evidence": [
-    {
-     "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-     "title": "Wikipedia: List of airline codes — Bristow Helicopters",
-     "excerpt": "Vettore con codice IATA UH e ICAO BHL, paese United Kingdom. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
      "fields": [
       "name",
       "country_code",
@@ -8001,7 +7736,7 @@
     "iata": "VL",
     "icao": "LHX",
     "callsign": "Cityair",
-    "note": "LH subsidiary Allocated in 2023[11]",
+    "note": "LH subsidiary Allocated in 2023",
     "acquisition": {
      "source": "wikipedia:list-of-airline-codes",
      "list_edited": "14 August 2026",
@@ -8615,217 +8350,6 @@
   },
   {
    "kind": "organization",
-   "name": "Cargoitalia",
-   "country_code": "IT",
-   "type_code": "airline",
-   "website": null,
-   "email": null,
-   "phone": null,
-   "aliases": [
-    "CRG"
-   ],
-   "external_ids": {
-    "iata": "2G",
-    "icao": "CRG",
-    "openflights": "1654"
-   },
-   "details": {
-    "iata": "2G",
-    "icao": "CRG",
-    "callsign": "White Pelican",
-    "note": null,
-    "acquisition": {
-     "source": "wikipedia:list-of-airline-codes",
-     "list_edited": "14 August 2026",
-     "classification_rule": "iata_icao_no_defunct_note",
-     "verified_alive": false
-    }
-   },
-   "evidence": {
-    "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-    "title": "Wikipedia: List of airline codes — Cargoitalia",
-    "excerpt": "Vettore con codice IATA 2G e ICAO CRG, paese Italy. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-    "fields": [
-     "name",
-     "country_code",
-     "type_code"
-    ],
-    "method": "import"
-   },
-   "source_evidence": [
-    {
-     "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-     "title": "Wikipedia: List of airline codes — Cargoitalia",
-     "excerpt": "Vettore con codice IATA 2G e ICAO CRG, paese Italy. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-     "fields": [
-      "name",
-      "country_code",
-      "type_code"
-     ],
-     "method": "import"
-    }
-   ]
-  },
-  {
-   "kind": "organization",
-   "name": "Cargojet Airways",
-   "country_code": "CA",
-   "type_code": "airline",
-   "website": null,
-   "email": null,
-   "phone": null,
-   "aliases": [
-    "CJT"
-   ],
-   "external_ids": {
-    "iata": "W8",
-    "icao": "CJT",
-    "openflights": "1655"
-   },
-   "details": {
-    "iata": "W8",
-    "icao": "CJT",
-    "callsign": "Cargojet",
-    "note": null,
-    "acquisition": {
-     "source": "wikipedia:list-of-airline-codes",
-     "list_edited": "14 August 2026",
-     "classification_rule": "iata_icao_no_defunct_note",
-     "verified_alive": false
-    }
-   },
-   "evidence": {
-    "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-    "title": "Wikipedia: List of airline codes — Cargojet Airways",
-    "excerpt": "Vettore con codice IATA W8 e ICAO CJT, paese Canada. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-    "fields": [
-     "name",
-     "country_code",
-     "type_code"
-    ],
-    "method": "import"
-   },
-   "source_evidence": [
-    {
-     "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-     "title": "Wikipedia: List of airline codes — Cargojet Airways",
-     "excerpt": "Vettore con codice IATA W8 e ICAO CJT, paese Canada. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-     "fields": [
-      "name",
-      "country_code",
-      "type_code"
-     ],
-     "method": "import"
-    }
-   ]
-  },
-  {
-   "kind": "organization",
-   "name": "Cargolux",
-   "country_code": "LU",
-   "type_code": "airline",
-   "website": null,
-   "email": null,
-   "phone": null,
-   "aliases": [
-    "CLX"
-   ],
-   "external_ids": {
-    "iata": "CV",
-    "icao": "CLX",
-    "openflights": "1656"
-   },
-   "details": {
-    "iata": "CV",
-    "icao": "CLX",
-    "callsign": "Cargolux",
-    "note": null,
-    "acquisition": {
-     "source": "wikipedia:list-of-airline-codes",
-     "list_edited": "14 August 2026",
-     "classification_rule": "iata_icao_no_defunct_note",
-     "verified_alive": false
-    }
-   },
-   "evidence": {
-    "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-    "title": "Wikipedia: List of airline codes — Cargolux",
-    "excerpt": "Vettore con codice IATA CV e ICAO CLX, paese Luxembourg. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-    "fields": [
-     "name",
-     "country_code",
-     "type_code"
-    ],
-    "method": "import"
-   },
-   "source_evidence": [
-    {
-     "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-     "title": "Wikipedia: List of airline codes — Cargolux",
-     "excerpt": "Vettore con codice IATA CV e ICAO CLX, paese Luxembourg. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-     "fields": [
-      "name",
-      "country_code",
-      "type_code"
-     ],
-     "method": "import"
-    }
-   ]
-  },
-  {
-   "kind": "organization",
-   "name": "Cargolux Italia",
-   "country_code": "IT",
-   "type_code": "airline",
-   "website": null,
-   "email": null,
-   "phone": null,
-   "aliases": [
-    "ICV"
-   ],
-   "external_ids": {
-    "iata": "C8",
-    "icao": "ICV"
-   },
-   "details": {
-    "iata": "C8",
-    "icao": "ICV",
-    "callsign": "Cargo Med",
-    "note": null,
-    "acquisition": {
-     "source": "wikipedia:list-of-airline-codes",
-     "list_edited": "14 August 2026",
-     "classification_rule": "iata_icao_no_defunct_note",
-     "verified_alive": false
-    }
-   },
-   "evidence": {
-    "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-    "title": "Wikipedia: List of airline codes — Cargolux Italia",
-    "excerpt": "Vettore con codice IATA C8 e ICAO ICV, paese Italy. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-    "fields": [
-     "name",
-     "country_code",
-     "type_code"
-    ],
-    "method": "import"
-   },
-   "source_evidence": [
-    {
-     "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-     "title": "Wikipedia: List of airline codes — Cargolux Italia",
-     "excerpt": "Vettore con codice IATA C8 e ICAO ICV, paese Italy. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-     "fields": [
-      "name",
-      "country_code",
-      "type_code"
-     ],
-     "method": "import"
-    }
-   ]
-  },
-  {
-   "kind": "organization",
    "name": "Caribbean Star Airlines",
    "country_code": "AG",
    "type_code": "airline",
@@ -8921,59 +8445,6 @@
      "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
      "title": "Wikipedia: List of airline codes — Cathay Pacific",
      "excerpt": "Vettore con codice IATA CX e ICAO CPA, paese Hong Kong. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-     "fields": [
-      "name",
-      "country_code",
-      "type_code"
-     ],
-     "method": "import"
-    }
-   ]
-  },
-  {
-   "kind": "organization",
-   "name": "CMA-CGM AIRCARGO",
-   "country_code": "FR",
-   "type_code": "airline",
-   "website": null,
-   "email": null,
-   "phone": null,
-   "aliases": [
-    "CMA"
-   ],
-   "external_ids": {
-    "iata": "2C",
-    "icao": "CMA",
-    "openflights": "1702"
-   },
-   "details": {
-    "iata": "2C",
-    "icao": "CMA",
-    "callsign": "French Cargo",
-    "note": null,
-    "acquisition": {
-     "source": "wikipedia:list-of-airline-codes",
-     "list_edited": "14 August 2026",
-     "classification_rule": "iata_icao_no_defunct_note",
-     "verified_alive": false
-    }
-   },
-   "evidence": {
-    "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-    "title": "Wikipedia: List of airline codes — CMA-CGM AIRCARGO",
-    "excerpt": "Vettore con codice IATA 2C e ICAO CMA, paese France. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-    "fields": [
-     "name",
-     "country_code",
-     "type_code"
-    ],
-    "method": "import"
-   },
-   "source_evidence": [
-    {
-     "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-     "title": "Wikipedia: List of airline codes — CMA-CGM AIRCARGO",
-     "excerpt": "Vettore con codice IATA 2C e ICAO CMA, paese France. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
      "fields": [
       "name",
       "country_code",
@@ -10467,165 +9938,6 @@
   },
   {
    "kind": "organization",
-   "name": "DHL Air Limited",
-   "country_code": "GB",
-   "type_code": "airline",
-   "website": null,
-   "email": null,
-   "phone": null,
-   "aliases": [
-    "DHK"
-   ],
-   "external_ids": {
-    "iata": "D0",
-    "icao": "DHK",
-    "openflights": "1961"
-   },
-   "details": {
-    "iata": "D0",
-    "icao": "DHK",
-    "callsign": "World Express",
-    "note": "DHL Air UK",
-    "acquisition": {
-     "source": "wikipedia:list-of-airline-codes",
-     "list_edited": "14 August 2026",
-     "classification_rule": "iata_icao_no_defunct_note",
-     "verified_alive": false
-    }
-   },
-   "evidence": {
-    "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-    "title": "Wikipedia: List of airline codes — DHL Air Limited",
-    "excerpt": "Vettore con codice IATA D0 e ICAO DHK, paese United Kingdom. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-    "fields": [
-     "name",
-     "country_code",
-     "type_code"
-    ],
-    "method": "import"
-   },
-   "source_evidence": [
-    {
-     "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-     "title": "Wikipedia: List of airline codes — DHL Air Limited",
-     "excerpt": "Vettore con codice IATA D0 e ICAO DHK, paese United Kingdom. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-     "fields": [
-      "name",
-      "country_code",
-      "type_code"
-     ],
-     "method": "import"
-    }
-   ]
-  },
-  {
-   "kind": "organization",
-   "name": "DHL International",
-   "country_code": "BH",
-   "type_code": "airline",
-   "website": null,
-   "email": null,
-   "phone": null,
-   "aliases": [
-    "DHX"
-   ],
-   "external_ids": {
-    "iata": "ES",
-    "icao": "DHX",
-    "openflights": "1963"
-   },
-   "details": {
-    "iata": "ES",
-    "icao": "DHX",
-    "callsign": "Dilmun",
-    "note": null,
-    "acquisition": {
-     "source": "wikipedia:list-of-airline-codes",
-     "list_edited": "14 August 2026",
-     "classification_rule": "iata_icao_no_defunct_note",
-     "verified_alive": false
-    }
-   },
-   "evidence": {
-    "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-    "title": "Wikipedia: List of airline codes — DHL International",
-    "excerpt": "Vettore con codice IATA ES e ICAO DHX, paese Bahrain. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-    "fields": [
-     "name",
-     "country_code",
-     "type_code"
-    ],
-    "method": "import"
-   },
-   "source_evidence": [
-    {
-     "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-     "title": "Wikipedia: List of airline codes — DHL International",
-     "excerpt": "Vettore con codice IATA ES e ICAO DHX, paese Bahrain. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-     "fields": [
-      "name",
-      "country_code",
-      "type_code"
-     ],
-     "method": "import"
-    }
-   ]
-  },
-  {
-   "kind": "organization",
-   "name": "DHL de Guatemala",
-   "country_code": "GT",
-   "type_code": "airline",
-   "website": null,
-   "email": null,
-   "phone": null,
-   "aliases": [
-    "JOS"
-   ],
-   "external_ids": {
-    "iata": "L3",
-    "icao": "JOS",
-    "openflights": "1964"
-   },
-   "details": {
-    "iata": "L3",
-    "icao": "JOS",
-    "callsign": null,
-    "note": null,
-    "acquisition": {
-     "source": "wikipedia:list-of-airline-codes",
-     "list_edited": "14 August 2026",
-     "classification_rule": "iata_icao_no_defunct_note",
-     "verified_alive": false
-    }
-   },
-   "evidence": {
-    "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-    "title": "Wikipedia: List of airline codes — DHL de Guatemala",
-    "excerpt": "Vettore con codice IATA L3 e ICAO JOS, paese Guatemala. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-    "fields": [
-     "name",
-     "country_code",
-     "type_code"
-    ],
-    "method": "import"
-   },
-   "source_evidence": [
-    {
-     "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-     "title": "Wikipedia: List of airline codes — DHL de Guatemala",
-     "excerpt": "Vettore con codice IATA L3 e ICAO JOS, paese Guatemala. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-     "fields": [
-      "name",
-      "country_code",
-      "type_code"
-     ],
-     "method": "import"
-    }
-   ]
-  },
-  {
-   "kind": "organization",
    "name": "Dagestan Airlines",
    "country_code": "RU",
    "type_code": "airline",
@@ -11173,7 +10485,7 @@
     "iata": "MQ",
     "icao": "ENY",
     "callsign": "Envoy",
-    "note": "2014[18]",
+    "note": "2014",
     "acquisition": {
      "source": "wikipedia:list-of-airline-codes",
      "list_edited": "14 August 2026",
@@ -12051,59 +11363,6 @@
   },
   {
    "kind": "organization",
-   "name": "Estafeta Carga Aérea",
-   "country_code": "MX",
-   "type_code": "airline",
-   "website": null,
-   "email": null,
-   "phone": null,
-   "aliases": [
-    "ESF"
-   ],
-   "external_ids": {
-    "iata": "E7",
-    "icao": "ESF",
-    "openflights": "2217"
-   },
-   "details": {
-    "iata": "E7",
-    "icao": "ESF",
-    "callsign": null,
-    "note": null,
-    "acquisition": {
-     "source": "wikipedia:list-of-airline-codes",
-     "list_edited": "14 August 2026",
-     "classification_rule": "iata_icao_no_defunct_note",
-     "verified_alive": false
-    }
-   },
-   "evidence": {
-    "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-    "title": "Wikipedia: List of airline codes — Estafeta Carga Aérea",
-    "excerpt": "Vettore con codice IATA E7 e ICAO ESF, paese Mexico. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-    "fields": [
-     "name",
-     "country_code",
-     "type_code"
-    ],
-    "method": "import"
-   },
-   "source_evidence": [
-    {
-     "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-     "title": "Wikipedia: List of airline codes — Estafeta Carga Aérea",
-     "excerpt": "Vettore con codice IATA E7 e ICAO ESF, paese Mexico. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-     "fields": [
-      "name",
-      "country_code",
-      "type_code"
-     ],
-     "method": "import"
-    }
-   ]
-  },
-  {
-   "kind": "organization",
    "name": "EuroAtlantic Airways",
    "country_code": "PT",
    "type_code": "airline",
@@ -12884,59 +12143,6 @@
      "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
      "title": "Wikipedia: List of airline codes — Faso Airways",
      "excerpt": "Vettore con codice IATA F3 e ICAO FSW, paese Burkina Faso. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-     "fields": [
-      "name",
-      "country_code",
-      "type_code"
-     ],
-     "method": "import"
-    }
-   ]
-  },
-  {
-   "kind": "organization",
-   "name": "FedEx Express",
-   "country_code": "US",
-   "type_code": "airline",
-   "website": null,
-   "email": null,
-   "phone": null,
-   "aliases": [
-    "FDX"
-   ],
-   "external_ids": {
-    "iata": "FX",
-    "icao": "FDX",
-    "openflights": "2342"
-   },
-   "details": {
-    "iata": "FX",
-    "icao": "FDX",
-    "callsign": "Fedex",
-    "note": null,
-    "acquisition": {
-     "source": "wikipedia:list-of-airline-codes",
-     "list_edited": "14 August 2026",
-     "classification_rule": "iata_icao_no_defunct_note",
-     "verified_alive": false
-    }
-   },
-   "evidence": {
-    "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-    "title": "Wikipedia: List of airline codes — FedEx Express",
-    "excerpt": "Vettore con codice IATA FX e ICAO FDX, paese United States. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-    "fields": [
-     "name",
-     "country_code",
-     "type_code"
-    ],
-    "method": "import"
-   },
-   "source_evidence": [
-    {
-     "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-     "title": "Wikipedia: List of airline codes — FedEx Express",
-     "excerpt": "Vettore con codice IATA FX e ICAO FDX, paese United States. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
      "fields": [
       "name",
       "country_code",
@@ -15338,8 +14544,8 @@
    "details": {
     "iata": "VM",
     "icao": "VMS",
-    "callsign": "Victor Mike[25]",
-    "note": "holding airline, renamed on his accession.[citation needed]",
+    "callsign": "Victor Mike",
+    "note": "holding airline, renamed on his accession.",
     "acquisition": {
      "source": "wikipedia:list-of-airline-codes",
      "list_edited": "14 August 2026",
@@ -15812,7 +15018,7 @@
     "iata": "I4",
     "icao": "EXP",
     "callsign": "Island Express",
-    "note": "2014[26]",
+    "note": "2014",
     "acquisition": {
      "source": "wikipedia:list-of-airline-codes",
      "list_edited": "14 August 2026",
@@ -20126,58 +19332,6 @@
   },
   {
    "kind": "organization",
-   "name": "Modern Transporte Aereo De Carga",
-   "country_code": "BR",
-   "type_code": "airline",
-   "website": null,
-   "email": null,
-   "phone": null,
-   "aliases": [
-    "MWM"
-   ],
-   "external_ids": {
-    "iata": "WD",
-    "icao": "MWM"
-   },
-   "details": {
-    "iata": "WD",
-    "icao": "MWM",
-    "callsign": "Modernair",
-    "note": null,
-    "acquisition": {
-     "source": "wikipedia:list-of-airline-codes",
-     "list_edited": "14 August 2026",
-     "classification_rule": "iata_icao_no_defunct_note",
-     "verified_alive": false
-    }
-   },
-   "evidence": {
-    "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-    "title": "Wikipedia: List of airline codes — Modern Transporte Aereo De Carga",
-    "excerpt": "Vettore con codice IATA WD e ICAO MWM, paese Brazil. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-    "fields": [
-     "name",
-     "country_code",
-     "type_code"
-    ],
-    "method": "import"
-   },
-   "source_evidence": [
-    {
-     "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-     "title": "Wikipedia: List of airline codes — Modern Transporte Aereo De Carga",
-     "excerpt": "Vettore con codice IATA WD e ICAO MWM, paese Brazil. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-     "fields": [
-      "name",
-      "country_code",
-      "type_code"
-     ],
-     "method": "import"
-    }
-   ]
-  },
-  {
-   "kind": "organization",
    "name": "MAP-Management and Planung",
    "country_code": "AT",
    "type_code": "airline",
@@ -22513,7 +21667,7 @@
     "iata": "DH",
     "icao": "NAN",
     "callsign": "Norship",
-    "note": "subsidiary of Norwegian Air Shuttle (transferred sole aircraft back to Norwegian Air Shuttle AOC in 2023)[citation needed]",
+    "note": "subsidiary of Norwegian Air Shuttle (transferred sole aircraft back to Norwegian Air Shuttle AOC in 2023)",
     "acquisition": {
      "source": "wikipedia:list-of-airline-codes",
      "list_edited": "14 August 2026",
@@ -23833,7 +22987,7 @@
     "iata": "OG",
     "icao": "FPY",
     "callsign": "Player",
-    "note": "[citation needed]",
+    "note": null,
     "acquisition": {
      "source": "wikipedia:list-of-airline-codes",
      "list_edited": "14 August 2026",
@@ -24518,7 +23672,7 @@
     "iata": "7H",
     "icao": "RVF",
     "callsign": "Raven Flight",
-    "note": "2014[46]",
+    "note": "2014",
     "acquisition": {
      "source": "wikipedia:list-of-airline-codes",
      "list_edited": "14 August 2026",
@@ -25099,7 +24253,7 @@
     "iata": "RK",
     "icao": "RCT",
     "callsign": "Greensky",
-    "note": "2014[46]",
+    "note": "2014",
     "acquisition": {
      "source": "wikipedia:list-of-airline-codes",
      "list_edited": "14 August 2026",
@@ -26417,7 +25571,7 @@
     "iata": "FP",
     "icao": "AND",
     "callsign": "Servi Andes",
-    "note": "2014[47]",
+    "note": "2014",
     "acquisition": {
      "source": "wikipedia:list-of-airline-codes",
      "list_edited": "14 August 2026",
@@ -30787,59 +29941,6 @@
   },
   {
    "kind": "organization",
-   "name": "US Helicopter",
-   "country_code": "US",
-   "type_code": "airline",
-   "website": null,
-   "email": null,
-   "phone": null,
-   "aliases": [
-    "USH"
-   ],
-   "external_ids": {
-    "iata": "UH",
-    "icao": "USH",
-    "openflights": "5268"
-   },
-   "details": {
-    "iata": "UH",
-    "icao": "USH",
-    "callsign": "Us-Heli",
-    "note": null,
-    "acquisition": {
-     "source": "wikipedia:list-of-airline-codes",
-     "list_edited": "14 August 2026",
-     "classification_rule": "iata_icao_no_defunct_note",
-     "verified_alive": false
-    }
-   },
-   "evidence": {
-    "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-    "title": "Wikipedia: List of airline codes — US Helicopter",
-    "excerpt": "Vettore con codice IATA UH e ICAO USH, paese United States. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-    "fields": [
-     "name",
-     "country_code",
-     "type_code"
-    ],
-    "method": "import"
-   },
-   "source_evidence": [
-    {
-     "source_url": "https://en.wikipedia.org/wiki/List_of_airline_codes",
-     "title": "Wikipedia: List of airline codes — US Helicopter",
-     "excerpt": "Vettore con codice IATA UH e ICAO USH, paese United States. Elenco Wikipedia aggiornato al 14 August 2026; stato operativo e sito da verificare.",
-     "fields": [
-      "name",
-      "country_code",
-      "type_code"
-     ],
-     "method": "import"
-    }
-   ]
-  },
-  {
-   "kind": "organization",
    "name": "Skyline Express",
    "country_code": "UA",
    "type_code": "airline",
@@ -32882,6 +31983,7 @@
   "BER",
   "BGD",
   "BIE",
+  "BIH",
   "BMA",
   "BMI",
   "BMM",
