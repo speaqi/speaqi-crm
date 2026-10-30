@@ -608,6 +608,7 @@ export default function TourismWorkspace() {
               )}
             </button>
           ))}
+          <Link href="/navigazione">🚢 Navigazione</Link>
         </nav>
         {error && (
           <div className={s.error} role="alert">
