@@ -4,7 +4,8 @@ export class OfficeStudioError extends Error {
 }
 
 /** Il bridge parla soltanto con l'origine configurata, mai con URL della coda. */
-export async function officeStudioRequest(path: '/api/office/mymaps/run' | '/api/office/quality/read' | '/api/office/event-sources/research',
+export async function officeStudioRequest(path: '/api/office/mymaps/run' | '/api/office/quality/read' | '/api/office/event-sources/research'
+  | '/api/office/review/read' | '/api/office/review/decide',
   body: unknown, timeoutMs = 120_000) {
   const secret = process.env.OFFICE_BRIDGE_SECRET
   if (!secret || secret.length < 32) throw new Error('OFFICE_BRIDGE_SECRET mancante o troppo corto')
