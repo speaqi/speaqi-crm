@@ -189,7 +189,11 @@
 
 /* Il video o la schermata del prodotto, grande e centrata. */
 .media { padding-top: 62px; }
-.mediaArt { display: block; margin: 0 auto; width: 1580px; height: auto; border-radius: 28px; }
+.mediaFrame { position: relative; width: 1580px; margin: 0 auto; }
+.mediaArt { display: block; width: 1580px; height: auto; border-radius: 28px; }
+.playButton { position: absolute; left: 50%; top: 50%; width: 190px; height: 190px; margin: -95px 0 0 -95px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255, 255, 255, 0.94); color: #ff5a1f; box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45); transition: transform 0.15s ease; }
+.playButton:hover { transform: scale(1.06); }
+.playButton svg { width: 84px; height: 84px; margin-left: 10px; }
 
 /* Chiusura: contatti a sinistra, QR a destra. */
 .closingGrid { display: grid; grid-template-columns: 1fr 500px; gap: 70px; align-items: center; flex: 1; }

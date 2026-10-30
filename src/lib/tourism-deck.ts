@@ -84,6 +84,15 @@ export type DeckItem = {
   /** Immagine fissa a tutta scheda (catalogo): solo una chiave di DECK_ART, mai un indirizzo. */
   art?: DeckArt
 }
+/** Il video di Speaqi Guides in azione: il play della slide «in azione» porta qui. */
+export const SPEAQI_DEMO_VIDEO = 'https://youtu.be/5tSMbcFKlek'
+/** Solo indirizzi YouTube: un link libero non entra mai in una presentazione. */
+export const isYouTubeUrl = (value: unknown): value is string =>
+  typeof value === 'string' && /^https:\/\/(www\.)?(youtube\.com\/(watch\?v=|embed\/|shorts\/)|youtu\.be\/)[\w-]{6,20}([?&#][\w=&%.-]*)?$/.test(value)
+/** Il video di una slide; le presentazioni già create non lo portano scritto, la slide «in azione» sì per costruzione. */
+export const slideVideo = (slide: Pick<DeckSlide, 'id' | 'kind' | 'video' | 'art'>): string | undefined =>
+  slide.kind !== 'media' ? undefined : isYouTubeUrl(slide.video) ? slide.video : slide.id === 'in-azione' || slide.art === 'azione' ? SPEAQI_DEMO_VIDEO : undefined
+
 export type DeckSlide = {
   id: string
   kind: DeckSlideKind
@@ -105,6 +114,8 @@ export type DeckSlide = {
   art?: DeckArt
   /** QR fisso del modello. */
   qr?: DeckArt
+  /** Video di YouTube che si apre dal play al centro dell'immagine (slide `media`). */
+  video?: string
   /** Testi fissi: l'agente sceglie al più la foto, le parole restano quelle del modello. */
   fixed?: boolean
 }
@@ -259,6 +270,7 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
       kicker: 'Speaqi Guides in azione',
       title: 'Speaqi Guides in azione',
       art: 'azione',
+      video: SPEAQI_DEMO_VIDEO,
       fixed: true
     }),
     slide({
@@ -666,6 +678,7 @@ export function normalizeSlide(raw: unknown, index: number): DeckSlide {
   if (art) out.art = art
   const qr = Object.hasOwn(DECK_ART, String(r.qr)) ? (r.qr as DeckArt) : undefined
   if (qr) out.qr = qr
+  if (isYouTubeUrl(r.video)) out.video = r.video
   if (r.fixed === true) out.fixed = true
   return out
 }
