@@ -116,7 +116,7 @@ test('un modello salvato prima della base destinazioni si sostituisce una volta;
   assert.equal(db.tables.tourism_deck_templates[0].content.base, DESTINATIONS_BASE)
   db.tables.tourism_deck_templates[0].content = GENERIC
   const again = await createDeck(db, USER, fields)
-  assert.equal(again.slides[0].title, 'La mappa perfetta per Capri Tourism')
+  assert.equal(again.slides[0].title, 'La guida perfetta per Capri Tourism')
   assert.equal(db.tables.tourism_deck_templates[0].version, 2)
 })
 
