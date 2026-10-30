@@ -19,7 +19,7 @@ import {
   CONTACT_CATEGORY_LABELS, DIRECTOR_ORDER_SCHEMA, contactNextStep, directorOrderPrompt, directorStatusLines,
   directorEventsReply, directorEventSourcesReply, directorInvoiceReply, directorQuoteLabel, interpretDirectorOrder, queuedWorkReport, quoteIsInvoiceable,
   directorHelpText, emailFromSite, looksLikeTourismBody, parsePartnerSearch, partnerSearchPrompt, PARTNER_SEARCH_SCHEMA, PARTNER_TYPE_CODES,
-  directorTaskDue, directorTaskReply, pickPresentationRecipient, presentationEmail, directorFollowUp, readAwaiting, AWAITING_TTL_MS,
+  directorTaskDue, directorTaskReply, pickPresentationRecipient, presentationEmail, presentationEmailPrompt, acceptPresentationEmail, PRESENTATION_EMAIL_SCHEMA, directorFollowUp, readAwaiting, AWAITING_TTL_MS,
   type DirectorAwaiting, type DirectorEventRow, type DirectorEventSourcesResult, type DirectorInvoiceQuote, type DirectorOrderPlan, type DirectorTaskItem, type DirectorTaskOutcome, type QueuedWork,
 } from '../office/director-orders'
 import { addTaskToCalendar } from './gcal'
@@ -313,17 +313,64 @@ async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, 
 }
 
 /**
- * «Abbiamo la presentazione per Visit Bergamo, creami la bozza e mettila in Gmail»: l'email col
- * link della presentazione approvata, al contatto CRM dell'ente. Nasce come bozza del CRM
- * (`source = 'office'`, stessa chiave della bozza che prepara l'approvazione) e si copia fra le
- * bozze di Gmail. Non parte niente: la invia il titolare.
+ * «Abbiamo la presentazione per Visit Bergamo, creami la bozza e mettila in Gmail» (anche per più
+ * enti insieme): l'email col link della presentazione approvata, al contatto CRM dell'ente. Nasce
+ * come bozza del CRM (`source = 'office'`, stessa chiave della bozza che prepara l'approvazione) e si
+ * copia fra le bozze di Gmail. Con `note` (quello che il titolare vuole dire: «ci siamo conosciuti
+ * al TTG») i paragrafi centrali li scrive il modello, controllati dal codice; una bozza ancora in
+ * attesa si riscrive. Non parte niente: la invia il titolare.
  */
 export async function presentationEmailFor(admin: Admin, ctx: AgentContext, userId: string,
   plan: Extract<DirectorOrderPlan, { intent: 'presentation_email' }>): Promise<Outcome> {
+  const results: Outcome[] = []
+  for (const target of plan.targets) {
+    try { results.push(await presentationEmailOne(admin, ctx, userId, target, plan.note)) }
+    catch (error) {
+      if (error instanceof BudgetExceeded) { results.push({ status: 'failed', outputs: [], queued: [], reply: `${target}: budget di oggi del Direttore finito, riprova domani.` }); break }
+      results.push({ status: 'failed', outputs: [], queued: [], reply: `${target}: non ci sono riuscito (${errorMessage(error, 'errore')}).` })
+    }
+  }
+  const skipped = plan.skipped.length ? ['Napoli resta fuori dal lavoro degli agenti: per lei non preparo niente.'] : []
+  const status: Outcome['status'] = results.some((r) => r.status === 'done') ? 'done' : results.some((r) => r.status === 'waiting_you') ? 'waiting_you' : 'failed'
+  if (results.length === 1 && !skipped.length) return results[0]
+  return { status, outputs: [], queued: [], reply: [...results.map((r) => `• ${r.reply}`), ...skipped].join('\n\n') }
+}
+
+type PresentationContact = { id: string; name: string | null; email: string | null; hidden: boolean | null; email_unsubscribed_at: string | null }
+
+/** Il contatto dell'ente: prima quelli collegati in Tourism, poi i contatti con la sua email o il suo nome come azienda. */
+async function presentationContacts(admin: Admin, userId: string, entity: ActivationEntity): Promise<{ linked: boolean; contacts: PresentationContact[] }> {
+  const fields = 'id,name,email,hidden,email_unsubscribed_at'
+  const links = (checked(await admin.from('tourism_crm_links').select('contact_id').eq('user_id', userId).eq('entity_id', entity.id)) || []) as Array<{ contact_id: string }>
+  const linked = links.length ? (checked(await admin.from('contacts').select(fields).eq('user_id', userId).in('id', links.map((l) => l.contact_id))) || []) as PresentationContact[] : []
+  if (pickPresentationRecipient(linked, entity.email)) return { linked: true, contacts: linked }
+  const found: PresentationContact[] = []
+  const email = (entity.email || '').trim().toLowerCase()
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    found.push(...((checked(await admin.from('contacts').select(fields).eq('user_id', userId).ilike('email', email.replace(/[%_\\]/g, (c) => `\\${c}`)).limit(5)) || []) as PresentationContact[]))
+  }
+  const pattern = searchPattern(entity.name)
+  if (pattern) {
+    const rows = (checked(await admin.from('contacts').select(`${fields},company`).eq('user_id', userId).ilike('company', pattern).limit(10)) || []) as Array<PresentationContact & { company: string | null }>
+    found.push(...rows.filter((r) => r.company && compactName(r.company) === compactName(entity.name)))
+  }
+  return { linked: links.length > 0, contacts: [...linked, ...found.filter((c, i) => found.findIndex((o) => o.id === c.id) === i)] }
+}
+
+async function personalPresentationEmail(ctx: AgentContext, entity: string, destination: string, note: string) {
+  const model = typeof ctx.agent.settings?.model === 'string' ? ctx.agent.settings.model : ctx.agent.model
+  const answer = await callModel(ctx, { model, maxOutputTokens: 900, input: presentationEmailPrompt({ destination, entity, note }),
+    jsonSchema: { name: 'presentation_email', schema: PRESENTATION_EMAIL_SCHEMA as unknown as Record<string, unknown> } })
+  let parsed: unknown = null
+  try { parsed = JSON.parse(answer.text) } catch { /* Illeggibile: si torna al testo standard. */ }
+  return acceptPresentationEmail(parsed, note)
+}
+
+async function presentationEmailOne(admin: Admin, ctx: AgentContext, userId: string, target: string, note: string | null): Promise<Outcome> {
   const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
   const fail = (reply: string): Outcome => ({ status: 'failed', outputs: [], queued: [], reply })
-  const entity = await findEntity(admin, userId, [plan.target])
-  if (!entity) return fail(`Non trovo «${plan.target}» in Tourism Intelligence. Scrivimi il nome come è nel catalogo.`)
+  const entity = await findEntity(admin, userId, [target])
+  if (!entity) return fail(`Non trovo «${target}» in Tourism Intelligence. Scrivimi il nome come è nel catalogo.`)
   const deck = checked(await admin.from('tourism_decks').select('*').eq('user_id', userId).eq('entity_id', entity.id)
     .order('updated_at', { ascending: false }).limit(1).maybeSingle()) as DeckRow | null
   if (!deck) return fail(`Per ${entity.name} non c’è ancora una presentazione. Scrivimi «presentazione per ${entity.name}» e poi la mandiamo.`)
@@ -334,33 +381,46 @@ export async function presentationEmailFor(admin: Admin, ctx: AgentContext, user
     return { status: 'waiting_you', outputs: [], queued: [], reply: `La presentazione per ${entity.name} non è ancora approvata, e il link si apre solo dopo.${sent.pdf ? ' Te l’ho rimandata qui: approvala col pulsante,' : ' Approvala dall’editor,'} poi riscrivimi e preparo l’email. ${editor}` }
   }
 
-  const links = (checked(await admin.from('tourism_crm_links').select('contact_id').eq('user_id', userId).eq('entity_id', entity.id)) || []) as Array<{ contact_id: string }>
-  const contacts = links.length ? (checked(await admin.from('contacts').select('id,name,email,hidden,email_unsubscribed_at')
-    .eq('user_id', userId).in('id', links.map((l) => l.contact_id))) || []) : []
-  const recipient = pickPresentationRecipient(contacts as Array<{ id: string; name: string | null; email: string | null; hidden: boolean | null; email_unsubscribed_at: string | null }>, entity.email)
-  if (!recipient) return fail(links.length
-    ? `${entity.name} è collegato a un contatto senza un’email utilizzabile (manca, oppure si è disiscritto). Sistemala nella scheda e riscrivimi: ${base}/tourism?entity=${entity.id}`
-    : `${entity.name} non ha un contatto nel CRM. Aprilo e usa «Conferma e aggiungi ai contatti», poi riscrivimi: ${base}/tourism?entity=${entity.id}`)
+  const { linked, contacts } = await presentationContacts(admin, userId, entity)
+  const recipient = pickPresentationRecipient(contacts, entity.email)
+  if (!recipient) return fail(linked || contacts.length
+    ? `${entity.name} ha un contatto senza un’email utilizzabile (manca, oppure si è disiscritto). Sistemala nella scheda e riscrivimi: ${base}/tourism?entity=${entity.id}`
+    : `${entity.name} non ha un contatto nel CRM con un’email. Aprilo e usa «Conferma e aggiungi ai contatti», poi riscrivimi: ${base}/tourism?entity=${entity.id}`)
 
   const key = `presentation:${deck.id}`
-  let draft = checked(await admin.from('email_drafts').select('id,status,subject,body_text,body_html,gmail_draft_id,sent_at,contact_id')
-    .eq('user_id', userId).eq('office_key', key).maybeSingle()) as { id: string; status: string; subject: string; body_text: string | null; body_html: string | null; gmail_draft_id: string | null; sent_at: string | null; contact_id: string } | null
+  const draftFields = 'id,status,subject,body_text,body_html,gmail_draft_id,sent_at,contact_id'
+  type Draft = { id: string; status: string; subject: string; body_text: string | null; body_html: string | null; gmail_draft_id: string | null; sent_at: string | null; contact_id: string }
+  let draft = checked(await admin.from('email_drafts').select(draftFields).eq('user_id', userId).eq('office_key', key).maybeSingle()) as Draft | null
   if (draft?.status === 'sent') return { status: 'done', outputs: [], queued: [], reply: `L’email con la presentazione per ${entity.name} risulta già inviata. Le bozze sono in ${base}/email` }
   if (draft && draft.status !== 'pending') draft = null
+
+  const link = `${base}/presentazione/${deck.public_token}`
+  const destination = deck.destination || entity.name
+  let personal: Awaited<ReturnType<typeof personalPresentationEmail>> = null
+  let personalNote = ''
+  if (note) {
+    try { personal = await personalPresentationEmail(ctx, entity.name, destination, note) }
+    catch (error) { if (error instanceof BudgetExceeded) throw error }
+    personalNote = personal ? ' con quello che mi hai chiesto di dire' : ' (il messaggio personale non mi è venuto bene: c’è il testo standard, aggiungilo tu prima di inviare)'
+  }
+  const email = presentationEmail({ destination, link, pdf: `${link}/pdf`, personal })
+  const html = simpleTextToHtml(email.text)
   if (!draft) {
-    const link = `${base}/presentazione/${deck.public_token}`
-    const email = presentationEmail({ destination: deck.destination || entity.name, link, pdf: `${link}/pdf` })
-    const html = simpleTextToHtml(email.text)
     const { data, error } = await admin.rpc('create_office_email_draft', { p_run_id: ctx.runId, p_contact_id: recipient.id, p_key: key,
       p_subject: email.subject, p_text: email.text, p_html: html, p_note: 'Preparata dal Direttore su richiesta del titolare. Rileggila e inviala tu.' })
     if (error) throw error
     if (!data?.id) return fail(data?.reason === 'pending_draft'
       ? `${recipient.name || recipient.email} ha già una bozza in attesa nel CRM: inviala o scartala, poi riscrivimi. ${base}/email`
       : `Non sono riuscito a preparare la bozza per ${entity.name}.`)
-    draft = checked(await admin.from('email_drafts').select('id,status,subject,body_text,body_html,gmail_draft_id,sent_at,contact_id').eq('id', data.id).eq('user_id', userId).single())
+    draft = checked(await admin.from('email_drafts').select(draftFields).eq('id', data.id).eq('user_id', userId).single()) as Draft
+  } else if (note) {
+    // La bozza c'era già, col testo standard: il titolare ora vuole dire altro, quindi si riscrive (finché non è inviata).
+    const updated = checked(await admin.from('email_drafts').update({ subject: email.subject, body_text: email.text, body_html: html })
+      .eq('id', draft.id).eq('user_id', userId).eq('status', 'pending').select(draftFields)) as Draft[] | null
+    if (updated?.[0]) draft = updated[0]
   }
   const to = String(recipient.email).trim()
-  const crm = `Bozza per ${entity.name} pronta, a ${to}, con il link della presentazione «${deck.title}».`
+  const crm = `Bozza per ${entity.name} pronta${personalNote}, a ${to}, con il link della presentazione «${deck.title}».`
 
   // In Gmail: così l'invio passa dalla finestra di Gmail (firma, tracciamento) e la riconciliazione la chiude da sola.
   try {

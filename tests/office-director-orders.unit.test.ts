@@ -3,7 +3,7 @@ import { describe, test } from 'node:test'
 import {
   DIRECTOR_ORDER_SCHEMA, decideCategory, directorOrderPrompt, directorStatusLines, interpretDirectorOrder, queuedWorkReport, directorEventsReply,
   telegramDirectorReply, telegramDirectorRoute, directorInvoiceReply, directorQuoteNumber, quoteIsInvoiceable,
-  directorTaskItems, directorTaskDue, directorEventSourcesReply, directorHelpText, directorTaskReply, romeDateTimeToIso, weekdayIt, MAX_ORDER_TASKS, pickPresentationRecipient, presentationEmail,
+  directorTaskItems, directorTaskDue, directorEventSourcesReply, directorHelpText, directorTaskReply, romeDateTimeToIso, weekdayIt, MAX_ORDER_TASKS, pickPresentationRecipient, presentationEmail, acceptPresentationEmail,
 } from '../src/lib/office/director-orders'
 import { allDayOf, calendarEventPayload } from '../src/lib/server/gcal'
 import { validateOrderFiles } from '../src/lib/server/office-director-orders'
@@ -537,7 +537,29 @@ describe('Direttore: email con la presentazione', () => {
   test('«creami la bozza da inviare» per Visit Bergamo è presentation_email, non una nuova presentazione', () => {
     const plan = interpretDirectorOrder(answer({ intent: 'presentation_email', target: 'Visit Bergamo' }),
       { text: 'Abbiamo preparato la presentazione per Visit Bergamo. Possiamo creare una bozza da inviare? E me la metti in Gmail?', today: TODAY })
-    assert.deepEqual(plan, { intent: 'presentation_email', target: 'Visit Bergamo' })
+    assert.deepEqual(plan, { intent: 'presentation_email', targets: ['Visit Bergamo'], note: null, skipped: [] })
+  })
+  test('più enti e il messaggio personale: tutti, non solo il primo', () => {
+    const text = 'Preparami le email in bozza per visitbergamo, bibione, Costa dei Borghi e Asiago 7 Comuni. Scrivi che ci siamo conosciuti al TTG di Rimini e che vorrei una call la settimana prossima.'
+    const plan = interpretDirectorOrder(answer({ intent: 'presentation_email', targets: ['visitbergamo', 'bibione', 'Costa dei Borghi', 'Asiago 7 Comuni', 'Bibione'],
+      email_note: 'Ci siamo conosciuti al TTG di Rimini, ti mando la presentazione; vorrei organizzare una call la settimana prossima.' }), { text, today: TODAY })
+    assert.equal(plan.intent, 'presentation_email')
+    assert.deepEqual((plan as any).targets, ['visitbergamo', 'bibione', 'Costa dei Borghi', 'Asiago 7 Comuni'])
+    assert.match((plan as any).note, /TTG di Rimini/)
+  })
+  test('il messaggio scritto dal modello: cifre e link fuori dalle indicazioni lo fanno scartare', () => {
+    const note = 'Ci siamo conosciuti al TTG di Rimini, vorrei una call la settimana prossima.'
+    const ok = acceptPresentationEmail({ subject: 'Dopo il TTG di Rimini', paragraphs: ['È stato un piacere conoscervi al TTG di Rimini: come promesso vi mando la presentazione.', 'Mi farebbe piacere organizzare una call la settimana prossima.'] }, note)
+    assert.equal(ok?.paragraphs.length, 2)
+    assert.equal(ok?.subject, 'Dopo il TTG di Rimini')
+    assert.equal(acceptPresentationEmail({ subject: 'x', paragraphs: ['Con noi crescete del 40% in un anno, garantito davvero.'] }, note), null)
+    assert.equal(acceptPresentationEmail({ subject: 'x', paragraphs: ['Scrivetemi a massimo@speaqi.com quando volete, a presto.'] }, note), null)
+    const greeting = acceptPresentationEmail({ subject: 'Speaqi 2027', paragraphs: ['Buongiorno, sono Massimo Morgante di Speaqi.', 'È stato un piacere conoscervi al TTG di Rimini.'] }, note)
+    assert.deepEqual(greeting, { subject: null, paragraphs: ['È stato un piacere conoscervi al TTG di Rimini.'] })
+    const { subject, text } = presentationEmail({ destination: 'Bergamo', link: 'https://crm.speaqi.com/presentazione/abc', pdf: 'https://crm.speaqi.com/presentazione/abc/pdf', personal: ok })
+    assert.equal(subject, 'Dopo il TTG di Rimini')
+    assert.match(text, /^Buongiorno,\n\nsono Massimo Morgante, fondatore di Speaqi\.\n\nÈ stato un piacere/)
+    assert.match(text, /TTG di Rimini[\s\S]*la trovate qui: https:\/\/crm\.speaqi\.com\/presentazione\/abc\n/)
   })
   test('senza ente chiede per chi, e la risposta riprende l’ordine', () => {
     const plan = interpretDirectorOrder(answer({ intent: 'presentation_email' }), { text: 'prepara la bozza', today: TODAY })
@@ -561,7 +583,7 @@ describe('Direttore: email con la presentazione', () => {
     const { subject, text } = presentationEmail({ destination: 'Bergamo', link: 'https://crm.speaqi.com/presentazione/abc', pdf: 'https://crm.speaqi.com/presentazione/abc/pdf' })
     assert.equal(subject, 'Speaqi Guides per Bergamo: la presentazione')
     assert.match(text, /sono Massimo Morgante, fondatore di Speaqi\./)
-    assert.match(text, /La trovate qui: https:\/\/crm\.speaqi\.com\/presentazione\/abc\n/)
+    assert.match(text, /La presentazione la trovate qui: https:\/\/crm\.speaqi\.com\/presentazione\/abc\n/)
     assert.match(text, /in PDF: https:\/\/crm\.speaqi\.com\/presentazione\/abc\/pdf/)
     assert.doesNotMatch(text.replace(/https\S+/g, ''), /\d/)
   })
