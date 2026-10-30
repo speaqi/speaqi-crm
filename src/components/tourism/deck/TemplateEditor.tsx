@@ -94,7 +94,7 @@ export default function TemplateEditor({ onClose }: { onClose: () => void }) {
           <button type="button" className={s.secondary} onClick={() => confirm('Caricare la base Tourism per aziende? Slide, voci e contratto del modello saranno sostituiti. Le presentazioni già create restano invariate.') && edit(structuredClone(TOURISM_COMPANY_TEMPLATE))}>Carica la base Tourism per aziende</button>
           <div className={e.scroll}>
             <details className={e.fieldset}><summary>Preventivo e contratto Tourism di base</summary>
-              <p className={e.help}>Segnaposto: {'{{cliente}}, {{progetto}}, {{destinazione}}, {{ente}}, {{paese}}, {{contatto}}, {{prezzo}}'}. Le condizioni della mappa gratuita valgono solo per accordi di distribuzione espliciti.</p>
+              <p className={e.help}>Segnaposto: {'{{cliente}}, {{progetto}}, {{destinazione}}, {{ente}}, {{paese}}, {{contatto}}, {{prezzo}}'}. Le condizioni della guida gratuita valgono solo per accordi di distribuzione espliciti.</p>
               <QuoteTemplateFields value={normalizeQuoteTemplate(template.quote_template, 'tourism')} onChange={quote_template => edit({ ...template, quote_template })} />
             </details>
             <div className={e.fieldset}>

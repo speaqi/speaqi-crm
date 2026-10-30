@@ -175,7 +175,7 @@ export function SlideView({
           )}
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {art && <img className={d.langArt} src={art} alt="Le lingue della mappa" />}
+        {art && <img className={d.langArt} src={art} alt="Le lingue della guida" />}
         {foot}
       </section>
     )

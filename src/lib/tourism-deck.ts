@@ -174,8 +174,8 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
       id: 'cover',
       kind: 'cover',
       kicker: 'Speaqi Guides per {{destinazione}}',
-      title: 'Il tuo territorio.\nUna mappa.\nMolto più da vivere.',
-      body: 'Una mappa digitale multilingua del tuo territorio, gratuita per le destinazioni selezionate.',
+      title: 'Il tuo territorio.\nUna guida.\nMolto più da vivere.',
+      body: 'Una guida digitale multilingua del tuo territorio, gratuita per le destinazioni selezionate.',
       art: 'cover',
       fixed: true,
       hint: 'Scegli come foto la più rappresentativa della destinazione (un panorama, il centro storico), se ce n’è una. I testi non cambiano.'
@@ -189,7 +189,7 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
       items: [
         { title: 'Tante lingue', text: 'visitatori da tutto il mondo, ognuno con la sua' },
         { title: 'Tanti canali', text: 'sito, infopoint, strutture ricettive, operatori' },
-        { title: 'Nessuna mappa comune', text: 'ognuno racconta il territorio a modo suo' }
+        { title: 'Nessuna guida comune', text: 'ognuno racconta il territorio a modo suo' }
       ],
       art: 'partenza',
       hint: 'Tieni i tre titoli. Nel testo sotto puoi dire da dove arrivano i visitatori di {{destinazione}} e quali canali ha l’ente, solo se lo dicono i materiali o la scheda dell’ente; altrimenti lascia il testo com’è. Come foto, una via o una piazza della destinazione con visitatori, se c’è.'
@@ -199,7 +199,7 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
       kind: 'list',
       tone: 'dark',
       kicker: 'La proposta',
-      title: 'Una mappa del tuo territorio, nel telefono di ogni visitatore.',
+      title: 'Una guida del tuo territorio, nel telefono di ogni visitatore.',
       items: [
         { title: 'Luoghi, percorsi, punti di interesse', text: 'in un’unica esperienza digitale', icon: 'star' },
         { title: 'Si apre da link o QR', text: 'nessuna app da scaricare', icon: 'zap' },
@@ -215,7 +215,7 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
       kicker: 'Cosa ottieni',
       title: 'Cosa ottiene {{destinazione}}.',
       items: [
-        { title: 'Una mappa del territorio', text: 'luoghi, percorsi e punti di interesse', icon: 'star' },
+        { title: 'Una guida del territorio', text: 'luoghi, percorsi e punti di interesse', icon: 'star' },
         { title: 'Accoglienza multilingua', text: 'senza una guida per ogni lingua', icon: 'globe' },
         { title: 'Aggiornamenti curati insieme', text: 'con modalità concordate', icon: 'clock' },
         { title: 'Un riferimento per la rete', text: 'infopoint, strutture e operatori', icon: 'users' },
@@ -228,7 +228,7 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
       id: 'lingue',
       kind: 'languages',
       kicker: 'Multilingua',
-      title: 'Una sola mappa, nella lingua di ogni visitatore.',
+      title: 'Una sola guida, nella lingua di ogni visitatore.',
       note: 'Accoglienza multilingua',
       body: 'Per i visitatori dall’estero, senza una guida separata per ogni lingua.',
       art: 'lingue',
@@ -238,7 +238,7 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
       id: 'catalogo',
       kind: 'showcase',
       kicker: 'Esempi dal catalogo Speaqi',
-      title: 'Le mappe sono già online.',
+      title: 'Le guide sono già online.',
       items: [
         { title: 'Napoli', text: '', art: 'catalogo-napoli' },
         { title: 'Roma', text: '', art: 'catalogo-roma' },
@@ -257,7 +257,7 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
       kind: 'demo',
       tone: 'accent',
       kicker: 'Provala adesso',
-      title: 'Apri la mappa\ndi Napoli.',
+      title: 'Apri la guida\ndi Napoli.',
       body: 'Inquadra il QR dal telefono',
       note: 'guides.speaqi.com/maps/napolimap',
       art: 'telefoni',
@@ -277,12 +277,12 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
       id: 'collaborazione',
       kind: 'compare',
       kicker: 'Il modello di collaborazione',
-      title: 'Tu distribuisci. Noi costruiamo la mappa.',
+      title: 'Tu distribuisci. Noi costruiamo la guida.',
       items: [
         { title: 'La destinazione', text: 'Distribuisce le guide Speaqi nei canali concordati\nCoinvolge la rete locale\nIndica un referente e fornisce le informazioni sul territorio' },
-        { title: 'Speaqi', text: 'Realizza la mappa multilingua\nLa aggiorna nel perimetro concordato\nAccompagna l’evoluzione del progetto', highlight: true }
+        { title: 'Speaqi', text: 'Realizza la guida multilingua\nLa aggiorna nel perimetro concordato\nAccompagna l’evoluzione del progetto', highlight: true }
       ],
-      note: 'Per le destinazioni selezionate, la mappa è gratuita.',
+      note: 'Per le destinazioni selezionate, la guida è gratuita.',
       footnote: 'Durata, perimetro e continuità dell’offerta gratuita sono definiti nell’accordo.',
       fixed: true
     }),
@@ -306,14 +306,14 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
       kicker: 'Cosa ci guadagna la destinazione',
       title: 'Per la destinazione, solo vantaggi.',
       items: [
-        { title: 'Zero costi', text: 'la mappa è gratuita e non ti vendiamo nulla', icon: 'check', highlight: true },
+        { title: 'Zero costi', text: 'la guida è gratuita e non ti vendiamo nulla', icon: 'check', highlight: true },
         { title: 'Visitatori accolti meglio', text: 'nella loro lingua, dal telefono, senza app', icon: 'globe' },
-        { title: 'Una mappa professionale', text: 'costruita e aggiornata da Speaqi', icon: 'star' },
+        { title: 'Una guida professionale', text: 'costruita e aggiornata da Speaqi', icon: 'star' },
         { title: 'Più visibilità per le attività', text: 'ristoranti, strutture e operatori nella guida', icon: 'users' },
-        { title: 'Un riferimento per la rete', text: 'infopoint, strutture e operatori sulla stessa mappa', icon: 'link' },
+        { title: 'Un riferimento per la rete', text: 'infopoint, strutture e operatori sulla stessa guida', icon: 'link' },
         { title: 'Nessun rischio', text: 'nessun costo, nessun obbligo di acquisto', icon: 'shield' }
       ],
-      note: 'Tu distribuisci la mappa. Al resto pensiamo noi.',
+      note: 'Tu distribuisci la guida. Al resto pensiamo noi.',
       fixed: true
     }),
     // «Chi scegliamo» viene prima dei passi per candidarsi: i tre numeri sono la slide, i tre passi
@@ -330,7 +330,7 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
         { value: '1', title: 'referente dedicato', text: '' },
         { title: 'Primo incontro', text: 'Verifichiamo insieme canali e piano di distribuzione.' },
         { title: 'Accordo', text: 'Distribuzione, contenuti, aggiornamenti e durata.' },
-        { title: 'Mappa online', text: 'Tu attivi i canali, noi costruiamo e aggiorniamo la mappa.', highlight: true }
+        { title: 'Guida online', text: 'Tu attivi i canali, noi costruiamo e aggiorniamo la guida.', highlight: true }
       ],
       note: 'In più: un ente che rappresenta il territorio e un piano di distribuzione continuativo.',
       body: 'Come si parte · nessun costo per la destinazione',
@@ -342,11 +342,11 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
       kicker: 'Domande frequenti',
       title: 'I dubbi più comuni, e le risposte.',
       items: [
-        { title: 'C’è qualcosa da pagare?', text: 'No. La mappa è gratuita e alla destinazione non vendiamo nulla, né ora né dopo.' },
-        { title: 'Dobbiamo vendere le guide?', text: 'No. Il tuo ruolo è far conoscere la mappa nei canali concordati.' },
+        { title: 'C’è qualcosa da pagare?', text: 'No. La guida è gratuita e alla destinazione non vendiamo nulla, né ora né dopo.' },
+        { title: 'Dobbiamo vendere le guide?', text: 'No. Il tuo ruolo è far conoscere la guida nei canali concordati.' },
         { title: 'Quanto lavoro ci chiede?', text: 'Un referente che fornisce le informazioni locali. Costruzione e aggiornamenti li curiamo noi.' },
         { title: 'Serve un’app o un tecnico?', text: 'No. Si apre dal browser con un link o un QR Code: niente da installare.' },
-        { title: 'Chi decide cosa c’è nella mappa?', text: 'La destinazione approva i contenuti prima della pubblicazione.' },
+        { title: 'Chi decide cosa c’è nella guida?', text: 'La destinazione approva i contenuti prima della pubblicazione.' },
         { title: 'Quanto dura la collaborazione?', text: 'Durata e perimetro li definiamo insieme nell’accordo, prima di partire.' }
       ],
       fixed: true
@@ -354,7 +354,7 @@ export const DEFAULT_DECK_TEMPLATE: DeckTemplate = {
     slide({
       id: 'chiusura',
       kind: 'closing',
-      title: 'Hai il territorio. Hai i canali.\nFacciamo la mappa di {{destinazione}}.',
+      title: 'Hai il territorio. Hai i canali.\nFacciamo la guida di {{destinazione}}.',
       body: 'Massimo Morgante',
       note: 'Founder & CEO, Speaqi',
       items: [
@@ -433,7 +433,7 @@ export const PARTNER_DECK_TEMPLATE: DeckTemplate = {
       kind: 'cover',
       kicker: 'Speaqi Guides per {{ente}}',
       title: 'La guida della città,\nofferta ai vostri ospiti.',
-      body: 'Una mappa digitale multilingua di {{destinazione}}, da dare a chi arriva da voi. Con il vostro nome.',
+      body: 'Una guida digitale multilingua di {{destinazione}}, da dare a chi arriva da voi. Con il vostro nome.',
       art: 'cover',
       hint: 'Adatta «ospiti» a chi serve il partner: ospiti per un hotel, passeggeri per una compagnia di navigazione o di trasporto, clienti per un’agenzia o un tour operator. Come foto, la più rappresentativa di {{destinazione}}.'
     }),
@@ -458,7 +458,7 @@ export const PARTNER_DECK_TEMPLATE: DeckTemplate = {
       kicker: 'La proposta',
       title: 'Una guida di {{destinazione}} nel telefono di ogni ospite.',
       items: [
-        { title: 'Luoghi, percorsi e racconti audio', text: 'in un’unica mappa', icon: 'star' },
+        { title: 'Luoghi, percorsi e racconti audio', text: 'in un’unica guida', icon: 'star' },
         { title: 'Si apre da QR o link', text: 'nessuna app da scaricare', icon: 'zap' },
         { title: 'Con il vostro nome', text: '«Offerto da {{ente}}» quando l’ospite apre la guida', icon: 'shield' }
       ],

@@ -34,7 +34,7 @@ test('la richiesta porta testo, documenti, PDF e foto, e dice che sono dati', ()
   // Ogni slide del modello è nel brief, con la sua istruzione.
   const brief = JSON.parse((user[0].text as string).replace('BRIEF (JSON):\n', ''))
   assert.equal(brief.slide.length, GENERIC.slides.length)
-  assert.equal(brief.slide[0].testo_attuale.title, 'La mappa perfetta per Capri Tourism')
+  assert.equal(brief.slide[0].testo_attuale.title, 'La guida perfetta per Capri Tourism')
   assert.equal(brief.foto[0].id, PHOTO)
 })
 

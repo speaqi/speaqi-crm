@@ -23,7 +23,7 @@ test('i segnaposto restano dove stavano e le parole italiane non restano', () =>
   const placeholders = (t: typeof DEFAULT_DECK_TEMPLATE) => all(t).join('\n').match(/\{\{\w+\}\}/g)
   assert.deepEqual(placeholders(DEFAULT_DECK_TEMPLATE_EN), placeholders(DEFAULT_DECK_TEMPLATE))
   const text = all(DEFAULT_DECK_TEMPLATE_EN).join('\n')
-  for (const word of ['Il tuo', 'mappa digitale', 'visitatori', 'gratuita', 'Domande', 'destinazione.', 'Candida']) assert.ok(!text.includes(word), `resta italiano: ${word}`)
+  for (const word of ['Il tuo', 'guida digitale', 'visitatori', 'gratuita', 'Domande', 'destinazione.', 'Candida']) assert.ok(!text.includes(word), `resta italiano: ${word}`)
 })
 
 test('la lingua di un deck: inglese solo se lo dice l’input', () => {
