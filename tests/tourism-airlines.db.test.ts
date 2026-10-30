@@ -87,3 +87,17 @@ test('le OTA, i bedbank e i marketplace curati entrano senza toccare le compagni
   )
   assert.ok(Number(await scalar(`select count(*) as v from tourism_entities where type_code='airline'`)) > 700)
 })
+
+test('il catalogo Wikipedia 2026 aggiunge solo compagnie nuove, con la data dell elenco', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'airlines2026-'))
+  execFileSync('python3', ['scripts/tourism/airlines.py', 'sql', '--catalog', 'scripts/data/tourism-airlines-2026.json', '--owner', OWNER, '--out', dir])
+  const before = Number(await scalar(`select count(*) as v from tourism_entities where type_code='airline'`))
+  for (const file of (await readdir(dir)).sort()) await db.exec(await readFile(join(dir, file), 'utf8'))
+  await db.exec('reset role')
+  const catalog = JSON.parse(await readFile(new URL('../scripts/data/tourism-airlines-2026.json', import.meta.url), 'utf8'))
+  const after = Number(await scalar(`select count(*) as v from tourism_entities where type_code='airline'`))
+  // qualche nome e' gia' presente con un altro codice ICAO: l'import lo salta, non lo duplica
+  assert.ok(after - before >= catalog.records.length - 15 && after - before <= catalog.records.length)
+  assert.ok(catalog.stale_icao.length > 100)
+  assert.equal(await scalar(`select details->'acquisition'->>'list_edited' as v from tourism_entities where name='Arajet'`), '14 August 2026')
+})
