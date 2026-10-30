@@ -58,3 +58,12 @@ La base Partner si sceglie anche a mano: Tourism → Presentazioni → «Crea la
 | «Quali sono le prossime fiere?» | Eventi e bandi trovati dal Ricercatore eventi. |
 | «Ricordami di chiamare Rossi venerdì» | Attività nel To Do con la data, e in Google Calendar come evento di tutto il giorno. |
 | «Domani alle 15 chiamo Rossi, giovedì alle 10 riunione con SNAV per un'ora, e devo mandare il preventivo a Bibione» | Tre attività nel To Do (al massimo 10 per messaggio). Quelle con un giorno vanno anche in Google Calendar: all'ora detta, con la durata detta (altrimenti 30 minuti), o tutto il giorno se l'ora non c'è. Quella senza giorno resta solo nel To Do. |
+
+## Le decisioni di StudioMap da Telegram
+
+Non passa dal Direttore: lo capisce il bot da solo.
+
+| Scrivi | Cosa succede |
+|---|---|
+| «dubbi» | Le mappe di StudioMap con schede da decidere, e quante. |
+| «dubbi Marsiglia» | Cinque schede della coda «Da decidere», una per messaggio, con ✅ Tieni e 🗑 Togli. In fondo «Le prossime →». Tieni: resta in mappa e nessun agente la ripropone. Togli: esce dalla mappa (si recupera dalla cronologia di StudioMap). |
