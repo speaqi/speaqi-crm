@@ -20,7 +20,7 @@ test('riserva prima del job e attende la ricevuta senza ripetere la spesa', asyn
   const bridge = (async (_path: string, body: { request_id: string }) => {
     calls++; assert.equal(body.request_id, workId)
     return calls === 1 ? { job_id: `office-demo-${workId}`, done: false }
-      : { job_id: `office-demo-${workId}`, done: true, result: { slug: 'demo-buenos-aires-2222222222224222', city: 'Buenos Aires', complete: true,
+      : { job_id: `office-demo-${workId}`, done: true, result: { slug: 'buenos-aires', city: 'Buenos Aires', complete: true,
         point_count: 10, theme_count: 7, google_usd: 1, theme_usd: 0.5, map_ai_usd: 2 } }
   }) as never
   const first = await createDemoWork(context, work, db, bridge)
@@ -33,7 +33,7 @@ test('riserva prima del job e attende la ricevuta senza ripetere la spesa', asyn
 
 test('una ricevuta incompleta non viene dichiarata riuscita', async () => {
   const db = new FakeSupabase({ office_budget_ledger: [{ id: ledger, user_id: user, agent_id: 'demo_builder', reserved_cents: 900, actual_cents: null }] }, { settle_agent_budget: () => null })
-  const bridge = (async () => ({ job_id: `office-demo-${workId}`, done: true, result: { slug: 'demo-buenos-aires-2222222222224222', city: 'Buenos Aires', complete: false,
+  const bridge = (async () => ({ job_id: `office-demo-${workId}`, done: true, result: { slug: 'buenos-aires', city: 'Buenos Aires', complete: false,
     point_count: 8, theme_count: 7, google_usd: 1, theme_usd: 0.5, map_ai_usd: 2 } })) as never
   assert.equal((await createDemoWork(context, { ...work, checkpoint: { demo_ledger_id: ledger } }, db, bridge)).status, 'blocked')
 })
@@ -51,9 +51,17 @@ test('la migrazione consente la demo senza cambiare le azioni precedenti', async
 
 test('una spesa superiore alla riserva viene registrata e richiede verifica', async () => {
   const db = new FakeSupabase({ office_budget_ledger: [{ id: ledger, user_id: user, agent_id: 'demo_builder', reserved_cents: 900, actual_cents: null }] }, { settle_agent_budget: () => null })
-  const bridge = (async () => ({ job_id: `office-demo-${workId}`, done: true, result: { slug: 'demo-buenos-aires-2222222222224222', city: 'Buenos Aires', complete: true,
+  const bridge = (async () => ({ job_id: `office-demo-${workId}`, done: true, result: { slug: 'buenos-aires', city: 'Buenos Aires', complete: true,
     point_count: 10, theme_count: 7, google_usd: 3, theme_usd: 2, map_ai_usd: 5 } })) as never
   const result = await createDemoWork(context, { ...work, checkpoint: { demo_ledger_id: ledger } }, db, bridge)
   assert.equal(result.reason_code, 'demo_cost_overrun')
   assert.equal(db.calls.find((c) => c.rpc === 'settle_agent_budget')?.args.p_actual_cents, 1000)
+})
+
+test('accetta la mappa esistente senza chiedere una copia né ridurre i luoghi già presenti', async () => {
+  const db = new FakeSupabase({ office_budget_ledger: [{ id: ledger, user_id: user, agent_id: 'demo_builder', reserved_cents: 900, actual_cents: null }] }, { settle_agent_budget: () => null })
+  const bridge = (async () => ({ job_id: `office-demo-${workId}`, done: true, result: { slug: 'buenos-aires', city: 'Buenos Aires', complete: true,
+    point_count: 12, theme_count: 7, google_usd: 0, theme_usd: 0.5, map_ai_usd: 0 } })) as never
+  const result = await createDemoWork(context, { ...work, checkpoint: { demo_ledger_id: ledger } }, db, bridge)
+  assert.equal(result.status, 'succeeded'); assert.equal(result.result?.map_slug, 'buenos-aires'); assert.equal(result.result?.point_count, 12)
 })

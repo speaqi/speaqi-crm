@@ -36,8 +36,8 @@ export async function createDemoWork(ctx: AgentContext, work: OfficeWorkItem, ad
   if (response.error || response.interrupted || !response.result) throw new Error(`Riserva mantenuta: demo interrotta (${String(response.error || 'esito da verificare')}).`)
   const result = response.result
   const costs = [result.google_usd, result.theme_usd, result.map_ai_usd]
-  if (typeof result.slug !== 'string' || !/^demo-[a-z0-9_-]+$/.test(result.slug) || result.city !== city
-    || typeof result.complete !== 'boolean' || !Number.isSafeInteger(result.point_count) || result.point_count < 0 || result.point_count > 10 || !Number.isSafeInteger(result.theme_count) || result.theme_count < 0 || result.theme_count > 7 || (result.complete && (result.point_count !== 10 || result.theme_count !== 7))
+  if (typeof result.slug !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,99}$/.test(result.slug) || officeIsNaples(result.slug) || result.city !== city
+    || typeof result.complete !== 'boolean' || !Number.isSafeInteger(result.point_count) || result.point_count < 0 || result.point_count > 100000 || !Number.isSafeInteger(result.theme_count) || result.theme_count < 0 || result.theme_count > 7 || (result.complete && (result.point_count < 10 || result.theme_count !== 7))
     || costs.some((v) => typeof v !== 'number' || !Number.isFinite(v) || v < 0)) throw new Error('Ricevuta demo non valida: riconcilia prima di riprovare')
   const cents = Math.ceil(costs.reduce((a, b) => a + b, 0) * 100)
   await ctx.assertActive?.()

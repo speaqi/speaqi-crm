@@ -33,7 +33,7 @@ export function officeAgentActivity(agent: Pick<OfficeAgent, 'id' | 'enabled'> &
 /** Solo collegamenti interni a risultati identificati, mai URL suggeriti dal modello. */
 export function officeResultLink(result: Record<string, unknown>): { href: string; label: string } | null {
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  if (typeof result.map_slug === 'string' && /^demo-[a-z0-9_-]{1,100}$/.test(result.map_slug)) return { href: `https://studiomap.speaqi.com/?map=${encodeURIComponent(result.map_slug)}`, label: 'Apri demo in StudioMap' }
+  if (typeof result.map_slug === 'string' && /^[a-z0-9][a-z0-9_-]{0,99}$/.test(result.map_slug) && !/napoli|naples/i.test(result.map_slug)) return { href: `https://studiomap.speaqi.com/?map=${encodeURIComponent(result.map_slug)}`, label: 'Apri demo in StudioMap' }
   if (typeof result.deck_id === 'string' && uuid.test(result.deck_id)) return { href: `/tourism/presentazioni/${result.deck_id}`, label: 'Apri presentazione' }
   if (typeof result.invoice_id === 'string' && uuid.test(result.invoice_id)) return { href: `/fatture?invoice=${result.invoice_id}`, label: 'Apri fattura' }
   return null
