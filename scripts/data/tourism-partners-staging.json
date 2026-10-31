@@ -1,0 +1,3677 @@
+{
+ "source": "Leadocean, ottobre 2026: grandi partner da rivedere (non importati)",
+ "records": [
+  {
+   "name": "Costa Crociere S.P.A",
+   "country": "IT",
+   "type_code": "cruise_line",
+   "domain": "costacrociere.it",
+   "employees": 11169,
+   "priority": 1,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Hotel Management",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "hotelmanagement.biz",
+   "employees": 878,
+   "priority": 1,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Uvet American Express Global Business Travel",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "uvetgbt.com",
+   "employees": 447,
+   "priority": 1,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Bluvacanze",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "bluvacanze.it",
+   "employees": 184,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Cisalpina Tours Spa",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "cisalpinatours.it",
+   "employees": 349,
+   "priority": 1,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Evolution Travel Italia S.R.L",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "evolutiontravel.eu",
+   "employees": 22,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Veratour",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "veratour.it",
+   "employees": 226,
+   "priority": 1,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Touring Club Italiano",
+   "country": "IT",
+   "type_code": "transport",
+   "domain": "touringclub.it",
+   "employees": 223,
+   "priority": 1,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Eurotours",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "eurotours.at",
+   "employees": 241,
+   "priority": 1,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Boscolo Tours Spa",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "boscolo.com",
+   "employees": 258,
+   "priority": 1,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Idee Per Viaggiare",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "ideeperviaggiare.it",
+   "employees": 127,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Welcome Travel Group S.P.A",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "vacanzewelcometravel.it",
+   "employees": 166,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Futura Vacanze Tour Operator",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "futuravacanze.it",
+   "employees": 154,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Eden Viaggi Spa",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "edenviaggi.it",
+   "employees": 206,
+   "priority": 1,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Quality Group Viaggi",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "qualitygroup.it",
+   "employees": 96,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Trumpy Tours Srl",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "trumpytours.com",
+   "employees": 135,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Michelangelo International Travel",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "michelangelo.travel",
+   "employees": 125,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Bus2alps",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "bus2alps.com",
+   "employees": 36,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Carrani Tours",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "carrani.com",
+   "employees": 100,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Kel 12 Tour Operator",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "kel12.com",
+   "employees": 48,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Fantastic Florence By Francesca Papi, Private Tour Guide Of Florence",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "fantasticflorence.com",
+   "employees": 45,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Tourist Travel Service S.R.L",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "ttservice.it",
+   "employees": 54,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Viaggi Nel Mondo S.R.L",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "viaggiavventurenelmondo.it",
+   "employees": 88,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "6tour",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "6tour.com",
+   "employees": 48,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "The Travel Expert",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "thetravelexpert.it",
+   "employees": 53,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Towns Of Italy Tour Operator",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "townsofitaly.com",
+   "employees": 62,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Guiness Travel Tour Operator",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "guinesstravel.com",
+   "employees": 71,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Acampora Travel",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "acamporatravel.it",
+   "employees": 66,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Albatravel",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "albatravel.com",
+   "employees": 62,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Emma Villas Tour Operator",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "emmavillas.com",
+   "employees": 67,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Giramondo Viaggi",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "giramondo.it",
+   "employees": 49,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Happy Travel",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "happy-travel.it",
+   "employees": 20,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Imago Artis Travel",
+   "country": "IT",
+   "type_code": "tour_operator",
+   "domain": "iatravel.com",
+   "employees": 40,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Trinity Viaggistudio Srl",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "trinityviaggistudio.it",
+   "employees": 34,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "King Holidays",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "kingholidays.it",
+   "employees": 27,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Utravel",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "utravel.it",
+   "employees": 63,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Benarrivati Travel Services",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "benarrivati.com",
+   "employees": 26,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Rentalinrome",
+   "country": "IT",
+   "type_code": "transport",
+   "domain": "rentalinrome.com",
+   "employees": 24,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Studytours International",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "studytours.it",
+   "employees": 38,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Viaggi Del Mappamondo S.R.L",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "mappamondo.com",
+   "employees": 26,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Green Line Tours",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "greenlinetours.com",
+   "employees": 35,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "I Need Tours",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "ineedtours.com",
+   "employees": 35,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Turismo 85 S.R.L",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "turismo85.it",
+   "employees": 26,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Tourismotion Srls",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "tourismotion.com",
+   "employees": 29,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Sireontours",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "sireontours.com",
+   "employees": 30,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Vit Incoming",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "vit.travel",
+   "employees": 20,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "I2travel Meg Italia",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "i2travelmeg.com",
+   "employees": 38,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Through Eternity Tours",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "througheternity.com",
+   "employees": 26,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Traveldesk",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "traveldesk.it",
+   "employees": 43,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Vagabondo Viaggi S.R.L",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "vagabondo.net",
+   "employees": 24,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Caf Tour & Travel",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "caftours.com",
+   "employees": 27,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Saistours S.R.L",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "saistours.com",
+   "employees": 30,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "181travel",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "181travel.com",
+   "employees": 25,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Carpe Diem Tours",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "carpediemtours.com",
+   "employees": 66,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Smart Trip Europe",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "smarttrip.it",
+   "employees": 35,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Target Travel - Tailor-Made Tours",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "target.travel",
+   "employees": 38,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Uvet Travel Designer",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "personaltravelspecialist.info",
+   "employees": 22,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Caldana Europe Travel",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "caldana.it",
+   "employees": 26,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Ltp.Travel - Your Luxury Travel Partner",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "ltp.travel",
+   "employees": 30,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Alltours.It",
+   "country": "IT",
+   "type_code": "tour_operator",
+   "domain": "alltours.it",
+   "employees": 20,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Askos Tours",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "askostours.com",
+   "employees": 22,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Acquaforte Travel Designer",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "acquaforte.eu",
+   "employees": 20,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "I.D.I. Travel Italy & France",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "iditravel.com",
+   "employees": 21,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Gruppo Turmo Travel",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "gruppoturmotravel.com",
+   "employees": 24,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Crocierissime",
+   "country": "IT",
+   "type_code": "cruise_line",
+   "domain": "crocierissime.it",
+   "employees": 32,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Fto - Federazione Turismo Organizzato",
+   "country": "IT",
+   "type_code": "transport",
+   "domain": "ftoitalia.it",
+   "employees": 28,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Go4sea Tour Operator",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "go4sea.com",
+   "employees": 21,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Hotel Cruise",
+   "country": "IT",
+   "type_code": "cruise_line",
+   "domain": "hotelcruise.it",
+   "employees": 35,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Travel Friends",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "travel-friends.it",
+   "employees": 21,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Ehma - European Hotel Managers Association",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "ehma.com",
+   "employees": 38,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Travelbuy Italia Group Viaggi E Turismo",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "travelbuy.it",
+   "employees": 48,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Culture Discovery Vacations",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "culturediscovery.com",
+   "employees": 28,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Jet Hotel",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "jethotel.com",
+   "employees": 34,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Medtravel Srl",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "medtravel.it",
+   "employees": 20,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Livtours",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "livtours.com",
+   "employees": 83,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Fruit Viaggi",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "fruitviaggi.it",
+   "employees": 24,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Fa Travel - 1981",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "fatravel.it",
+   "employees": 32,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Miki Travel Italy",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "mikitraveldmc.com",
+   "employees": 52,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Rusconi Dmc",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "rusconiviaggi.com",
+   "employees": 25,
+   "priority": 3,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Naar Bespoke Travel",
+   "country": "IT",
+   "type_code": "travel_agency",
+   "domain": "naar.com",
+   "employees": 75,
+   "priority": 2,
+   "cat": "it_agenzie"
+  },
+  {
+   "name": "Carnival Cruise Line",
+   "country": "US",
+   "type_code": "cruise_line",
+   "domain": "carnival.com",
+   "employees": 26220,
+   "priority": 1,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Bcd Travel",
+   "country": "NL",
+   "type_code": "travel_agency",
+   "domain": "bcdtravel.com",
+   "employees": 16457,
+   "priority": 1,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Norwegian Cruise Line Holdings Ltd",
+   "country": "US",
+   "type_code": "cruise_line",
+   "domain": "nclhltd.com",
+   "employees": 16413,
+   "priority": 1,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Expedia Group",
+   "country": "US",
+   "type_code": "ota",
+   "domain": "expediagroup.com",
+   "employees": 21862,
+   "priority": 1,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Msc Cruises",
+   "country": "CH",
+   "type_code": "cruise_line",
+   "domain": "msccruises.com",
+   "employees": 17805,
+   "priority": 1,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Tui",
+   "country": "DE",
+   "type_code": "travel_agency",
+   "domain": "tuigroup.com",
+   "employees": 26940,
+   "priority": 1,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "American Express Global Business Travel",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "amexgbt.com",
+   "employees": 28389,
+   "priority": 1,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Celebrity Cruises",
+   "country": "US",
+   "type_code": "cruise_line",
+   "domain": "celebritycruises.com",
+   "employees": 9183,
+   "priority": 1,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Royal Caribbean International",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "royalcaribbean.com",
+   "employees": 8944,
+   "priority": 1,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Princess Cruises",
+   "country": "US",
+   "type_code": "cruise_line",
+   "domain": "princess.com",
+   "employees": 14363,
+   "priority": 1,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Thomas Cook",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "thomascook.com",
+   "employees": 6187,
+   "priority": 1,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Lagardère Travel Retail",
+   "country": "FR",
+   "type_code": "travel_agency",
+   "domain": "lagardere-tr.com",
+   "employees": 8175,
+   "priority": 1,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Makemytrip",
+   "country": "IN",
+   "type_code": "travel_agency",
+   "domain": "makemytrip.com",
+   "employees": 7011,
+   "priority": 1,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Egencia",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "egencia.com",
+   "employees": 2716,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Carnival Corporation",
+   "country": "US",
+   "type_code": "tour_operator",
+   "domain": "carnivalcorp.com",
+   "employees": 2969,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Hotelbeds",
+   "country": "ES",
+   "type_code": "ota",
+   "domain": "hotelbeds.com",
+   "employees": 4595,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Trip.Com Group",
+   "country": "VN",
+   "type_code": "ota",
+   "domain": "trip.com",
+   "employees": 11533,
+   "priority": 1,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Virgin Voyages",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "virginvoyages.com",
+   "employees": 3702,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Inteletravel",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "inteletravel.com",
+   "employees": 4446,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Corporate Travel Management Group",
+   "country": "HK",
+   "type_code": "travel_agency",
+   "domain": "travelctm.com",
+   "employees": 3492,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Expedia Cruises",
+   "country": "CA",
+   "type_code": "cruise_line",
+   "domain": "expediacruises.com",
+   "employees": 3040,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Travel Counsellors",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "travelcounsellors.com",
+   "employees": 3277,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Despegar",
+   "country": "AR",
+   "type_code": "travel_agency",
+   "domain": "despegar.com",
+   "employees": 4769,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Seabourn Cruise Line",
+   "country": "US",
+   "type_code": "cruise_line",
+   "domain": "seabourn.com",
+   "employees": 2294,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Traveloka",
+   "country": "JP",
+   "type_code": "travel_agency",
+   "domain": "traveloka.com",
+   "employees": 3565,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Thomas Cook India Limited",
+   "country": "IN",
+   "type_code": "travel_agency",
+   "domain": "thomascook.in",
+   "employees": 4035,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Norwegian Cruise Line",
+   "country": "US",
+   "type_code": "cruise_line",
+   "domain": "ncl.com",
+   "employees": 1572,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Viajes El Corte Ingles",
+   "country": "ES",
+   "type_code": "travel_agency",
+   "domain": "viajeselcorteingles.es",
+   "employees": 3588,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Navan",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "navan.com",
+   "employees": 2845,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Fcm Travel India",
+   "country": "IN",
+   "type_code": "travel_agency",
+   "domain": "fcmtravel.com",
+   "employees": 1515,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Regent Seven Seas Cruises",
+   "country": "US",
+   "type_code": "cruise_line",
+   "domain": "rssc.com",
+   "employees": 2335,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Oceania Cruises",
+   "country": "US",
+   "type_code": "cruise_line",
+   "domain": "oceaniacruises.com",
+   "employees": 2528,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Liberty Travel",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "libertytravel.com",
+   "employees": 630,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Priceline",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "priceline.com",
+   "employees": 1843,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Sta Travel",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "statravel.com",
+   "employees": 753,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Frosch",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "frosch.com",
+   "employees": 1142,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Cruise Planners Travel Agency",
+   "country": "US",
+   "type_code": "cruise_line",
+   "domain": "cruisewithafriend.com",
+   "employees": 1155,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Booking Holdings",
+   "country": "US",
+   "type_code": "ota",
+   "domain": "bookingholdings.com",
+   "employees": 19107,
+   "priority": 1,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Fora Travel",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "foratravel.com",
+   "employees": 3808,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Intercruises Shoreside And Port Services",
+   "country": "ES",
+   "type_code": "cruise_line",
+   "domain": "intercruises.com",
+   "employees": 1622,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Travel Leaders Network",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "travelleaders.com",
+   "employees": 1305,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Cox & Kings",
+   "country": "IN",
+   "type_code": "travel_agency",
+   "domain": "coxandkings.com",
+   "employees": 1953,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Transat",
+   "country": "CA",
+   "type_code": "travel_agency",
+   "domain": "transat.com",
+   "employees": 1331,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Yatra Online Ltd",
+   "country": "IN",
+   "type_code": "ota",
+   "domain": "yatra.com",
+   "employees": 2597,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Arrivia",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "arrivia.com",
+   "employees": 1123,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Apple Vacations",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "applevacations.com",
+   "employees": 564,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Intrepid Travel",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "intrepidtravel.com",
+   "employees": 2350,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Sotc Travel Ltd",
+   "country": "IN",
+   "type_code": "travel_agency",
+   "domain": "sotc.in",
+   "employees": 1513,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Incruises",
+   "country": "US",
+   "type_code": "cruise_line",
+   "domain": "incruises.com",
+   "employees": 2152,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "P&o Cruises",
+   "country": "GB",
+   "type_code": "cruise_line",
+   "domain": "pocruises.com",
+   "employees": 2932,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Dnata Travel Group",
+   "country": "AE",
+   "type_code": "travel_agency",
+   "domain": "dnata.com",
+   "employees": 2571,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Travelperk",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "travelperk.com",
+   "employees": 1972,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Cruiseone",
+   "country": "US",
+   "type_code": "cruise_line",
+   "domain": "cruiseone.com",
+   "employees": 845,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Crystal Cruises",
+   "country": "US",
+   "type_code": "cruise_line",
+   "domain": "crystalcruises.com",
+   "employees": 1357,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Tbo.Com",
+   "country": "IN",
+   "type_code": "travel_agency",
+   "domain": "tbo.com",
+   "employees": 2712,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Webbeds",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "webbeds.com",
+   "employees": 1453,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "American Cruise Lines",
+   "country": "US",
+   "type_code": "cruise_line",
+   "domain": "americancruiselines.com",
+   "employees": 1516,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Star Cruises",
+   "country": "PH",
+   "type_code": "cruise_line",
+   "domain": "starcruises.com",
+   "employees": 1625,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Costco Travel",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "costcotravel.com",
+   "employees": 989,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "G Adventures",
+   "country": "CA",
+   "type_code": "tour_operator",
+   "domain": "gadventures.com",
+   "employees": 1400,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Scenic - Luxury Cruises & Tours",
+   "country": "AU",
+   "type_code": "cruise_line",
+   "domain": "scenic.com.au",
+   "employees": 1573,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Protravel International",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "protravelinc.com",
+   "employees": 855,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Plaza Premium Group",
+   "country": "CN",
+   "type_code": "travel_agency",
+   "domain": "plazapremiumgroup.com",
+   "employees": 3087,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Archer Travel Group",
+   "country": "US",
+   "type_code": "tour_operator",
+   "domain": "archertravel.com",
+   "employees": 2402,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Audley Travel",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "audleytravel.com",
+   "employees": 877,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Tiket.Com",
+   "country": "ID",
+   "type_code": "travel_agency",
+   "domain": "tiket.com",
+   "employees": 2273,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Uniworld Boutique River Cruises",
+   "country": "US",
+   "type_code": "cruise_line",
+   "domain": "uniworld.com",
+   "employees": 696,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Vacations To Go",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "vacationstogo.com",
+   "employees": 582,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Serena Hotels",
+   "country": "KE",
+   "type_code": "travel_agency",
+   "domain": "serenahotels.com",
+   "employees": 2782,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Cunard",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "cunard.com",
+   "employees": 1552,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Windstar Cruises",
+   "country": "US",
+   "type_code": "cruise_line",
+   "domain": "windstarcruises.com",
+   "employees": 1022,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Aviatur",
+   "country": "CO",
+   "type_code": "travel_agency",
+   "domain": "aviatur.com",
+   "employees": 1750,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "北京环球度假区",
+   "country": "CN",
+   "type_code": "tour_operator",
+   "domain": "universalbeijingresort.com",
+   "employees": 1577,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Brittany Ferries",
+   "country": "FR",
+   "type_code": "tour_operator",
+   "domain": "brittanyferries.com",
+   "employees": 1500,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Ef Educational Tours",
+   "country": "CH",
+   "type_code": "travel_agency",
+   "domain": "eftours.com",
+   "employees": 1063,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Terranea Resort",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "terranea.com",
+   "employees": 556,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Virtuoso Travel",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "virtuoso.com",
+   "employees": 624,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Hurtigruten",
+   "country": "DE",
+   "type_code": "tour_operator",
+   "domain": "hurtigruten.com",
+   "employees": 1524,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Tour & Travel Organizers Ltd",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "tour-travel-organizers.travel",
+   "employees": 927,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Copastur Viagens E Turismo",
+   "country": "BR",
+   "type_code": "travel_agency",
+   "domain": "copastur.com.br",
+   "employees": 947,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Hays Travel",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "haystravel.co.uk",
+   "employees": 2163,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Setur",
+   "country": "TR",
+   "type_code": "travel_agency",
+   "domain": "setur.com.tr",
+   "employees": 1078,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Globus Family Of Brands",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "globusjourneys.com",
+   "employees": 614,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Sunwing",
+   "country": "CA",
+   "type_code": "travel_agency",
+   "domain": "sunwing.ca",
+   "employees": 1078,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Independent Agent",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "directionsintravel.co.uk",
+   "employees": 1504,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Riya - The Travel Expert",
+   "country": "IN",
+   "type_code": "travel_agency",
+   "domain": "riyagroup.travel",
+   "employees": 2277,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Travelopia",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "travelopia.com",
+   "employees": 2432,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "G2 Travel",
+   "country": "GB",
+   "type_code": "tour_operator",
+   "domain": "g2-travel.com",
+   "employees": 1021,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Pt Kereta Api Pariwisata Kawisata",
+   "country": "ID",
+   "type_code": "travel_agency",
+   "domain": "kaiwisata.id",
+   "employees": 1058,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Landal Greenparks",
+   "country": "NL",
+   "type_code": "travel_agency",
+   "domain": "landal.nl",
+   "employees": 1123,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Amawaterways River Cruises",
+   "country": "US",
+   "type_code": "cruise_line",
+   "domain": "amawaterways.com",
+   "employees": 663,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Royal Holiday",
+   "country": "MX",
+   "type_code": "travel_agency",
+   "domain": "royal-holiday.com",
+   "employees": 1090,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Gate 1 Travel",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "gate1travel.com",
+   "employees": 631,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Rayna Tours",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "raynatours.com",
+   "employees": 921,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Dream Cruises",
+   "country": "HK",
+   "type_code": "cruise_line",
+   "domain": "dreamcruiseline.com",
+   "employees": 788,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Voyageurs Du Monde",
+   "country": "FR",
+   "type_code": "travel_agency",
+   "domain": "voyageursdumonde.fr",
+   "employees": 625,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Almosafer",
+   "country": "SA",
+   "type_code": "travel_agency",
+   "domain": "almosafer.com",
+   "employees": 1913,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Vision Travel Group",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "visiontravel.net",
+   "employees": 775,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Northstar Travel Group",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "northstartravelgroup.com",
+   "employees": 774,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Tour And Travel",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "agency.org.uk",
+   "employees": 1383,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Pickyourtrail",
+   "country": "IN",
+   "type_code": "travel_agency",
+   "domain": "pickyourtrail.com",
+   "employees": 570,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Cruise Brothers",
+   "country": "US",
+   "type_code": "cruise_line",
+   "domain": "cruisebrothers.com",
+   "employees": 647,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Dp World Tour",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "europeantour.com",
+   "employees": 743,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "The Bahamas Ministry Of Tourism, Investments & Aviation",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "bahamas.com",
+   "employees": 504,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Zenith Leisure Holidays Ltd",
+   "country": "IN",
+   "type_code": "travel_agency",
+   "domain": "zenithholidays.com",
+   "employees": 647,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Air Canada Vacations",
+   "country": "CA",
+   "type_code": "travel_agency",
+   "domain": "aircanadavacations.com",
+   "employees": 573,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Cordelia Cruises",
+   "country": "IN",
+   "type_code": "cruise_line",
+   "domain": "cordeliacruises.com",
+   "employees": 648,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Flight Centre Travel Group South Africa",
+   "country": "ZA",
+   "type_code": "travel_agency",
+   "domain": "flightcentre.co.za",
+   "employees": 786,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Explora Journeys",
+   "country": "CH",
+   "type_code": "travel_agency",
+   "domain": "explorajourneys.com",
+   "employees": 1181,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Easemytrip.Com",
+   "country": "IN",
+   "type_code": "ota",
+   "domain": "easemytrip.com",
+   "employees": 1210,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Tours & Travel Network",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "ttravelnetwork.com",
+   "employees": 595,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Amstar Dmc",
+   "country": "MX",
+   "type_code": "travel_agency",
+   "domain": "amstardmc.com",
+   "employees": 673,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Marlin Travel",
+   "country": "CA",
+   "type_code": "travel_agency",
+   "domain": "marlintravel.ca",
+   "employees": 543,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Belambra",
+   "country": "FR",
+   "type_code": "travel_agency",
+   "domain": "belambra.fr",
+   "employees": 1111,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Travelmation",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "travelmation.net",
+   "employees": 787,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Holiday Extras",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "holidayextras.com",
+   "employees": 525,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Odeon Tours",
+   "country": "TR",
+   "type_code": "travel_agency",
+   "domain": "odeontours.com",
+   "employees": 977,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Pgl Travel",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "pgl.co.uk",
+   "employees": 921,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Metropolitan Touring",
+   "country": "EC",
+   "type_code": "travel_agency",
+   "domain": "metropolitan-touring.com",
+   "employees": 613,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Leclerc Voyages",
+   "country": "FR",
+   "type_code": "travel_agency",
+   "domain": "leclercvoyages.com",
+   "employees": 1117,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Emerging Travel Group",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "emergingtravel.com",
+   "employees": 1626,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Unlimited Vacation Club",
+   "country": "MX",
+   "type_code": "travel_agency",
+   "domain": "unlimitedvacationclub.com",
+   "employees": 1211,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Alshaya Group International Hotels Arabia",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "hotelsarabia.com",
+   "employees": 519,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Travel With Flair",
+   "country": "ZA",
+   "type_code": "travel_agency",
+   "domain": "travelwithflair.co.za",
+   "employees": 736,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Kesari Tours Pvt Ltd",
+   "country": "IN",
+   "type_code": "tour_operator",
+   "domain": "kesari.in",
+   "employees": 1002,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Rainbow Tours S.A",
+   "country": "US",
+   "type_code": "tour_operator",
+   "domain": "r.pl",
+   "employees": 618,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Couples Resorts",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "couples.com",
+   "employees": 645,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Tag",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "tag-group.com",
+   "employees": 1830,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Internova Travel Group",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "internova.com",
+   "employees": 5452,
+   "priority": 1,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Butlin's",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "butlins.com",
+   "employees": 1305,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Plannet Marketing Travel",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "travelwithzamir.co.uk",
+   "employees": 670,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Fred. Olsen Cruise Lines",
+   "country": "GB",
+   "type_code": "cruise_line",
+   "domain": "fredolsencruises.com",
+   "employees": 1119,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Tripjack",
+   "country": "IN",
+   "type_code": "travel_agency",
+   "domain": "tripjack.com",
+   "employees": 670,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Disney Vacation Club",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "disneyvacationclub.disney.go.com",
+   "employees": 590,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Not Just Travel",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "notjusttravel.com",
+   "employees": 526,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "City Cruises",
+   "country": "US",
+   "type_code": "cruise_line",
+   "domain": "cityexperiences.com",
+   "employees": 783,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Kanoo Travel",
+   "country": "BH",
+   "type_code": "travel_agency",
+   "domain": "kanootravel.com",
+   "employees": 591,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Tourvest Travel Services",
+   "country": "ZA",
+   "type_code": "travel_agency",
+   "domain": "tourvest.co.za",
+   "employees": 956,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Al Tayyar Travel Group",
+   "country": "SA",
+   "type_code": "travel_agency",
+   "domain": "seera.sa",
+   "employees": 550,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Andbeyond Travel",
+   "country": "ZA",
+   "type_code": "travel_agency",
+   "domain": "andbeyond.com",
+   "employees": 885,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Nautalia Viajes",
+   "country": "ES",
+   "type_code": "travel_agency",
+   "domain": "nautaliaviajes.com",
+   "employees": 574,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Dertour Suisse",
+   "country": "CH",
+   "type_code": "travel_agency",
+   "domain": "dertouristik.ch",
+   "employees": 968,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "House Of Travel",
+   "country": "NZ",
+   "type_code": "travel_agency",
+   "domain": "houseoftravel.co.nz",
+   "employees": 612,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Away Resorts Ltd",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "awayresorts.co.uk",
+   "employees": 651,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Nexustours",
+   "country": "MX",
+   "type_code": "travel_agency",
+   "domain": "nexustours.com",
+   "employees": 588,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Travel Leaders Group",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "travelleadersgroup.com",
+   "employees": 514,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "하나투어 Hanatour",
+   "country": "KR",
+   "type_code": "travel_agency",
+   "domain": "hanatourcompany.com",
+   "employees": 587,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Esky Group",
+   "country": "PL",
+   "type_code": "travel_agency",
+   "domain": "esky.com",
+   "employees": 5542,
+   "priority": 1,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Anex Tour",
+   "country": "TR",
+   "type_code": "travel_agency",
+   "domain": "anextour.com",
+   "employees": 1787,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "On Location",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "onlocationexp.com",
+   "employees": 1735,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Exo Travel",
+   "country": "KR",
+   "type_code": "travel_agency",
+   "domain": "exotravel.com",
+   "employees": 877,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Cozmo Travel",
+   "country": "AE",
+   "type_code": "travel_agency",
+   "domain": "cozmotravel.com",
+   "employees": 725,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "International Travel House Limited",
+   "country": "IN",
+   "type_code": "travel_agency",
+   "domain": "internationaltravelhouse.in",
+   "employees": 595,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Tourvest Destination Management",
+   "country": "ZA",
+   "type_code": "travel_agency",
+   "domain": "tourvestdm.com",
+   "employees": 511,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Tuniu.Com",
+   "country": "CN",
+   "type_code": "travel_agency",
+   "domain": "tuniu.com",
+   "employees": 1487,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Ávoris Corporación Empresarial",
+   "country": "ES",
+   "type_code": "travel_agency",
+   "domain": "avoristravel.com",
+   "employees": 4290,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Hornblower Group",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "hornblowercorp.com",
+   "employees": 1413,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Tourlane",
+   "country": "DE",
+   "type_code": "travel_agency",
+   "domain": "tourlane.de",
+   "employees": 585,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Clarity Business Travel",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "claritybusinesstravel.com",
+   "employees": 555,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Hotel Sheraton",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "hotelsheraton.co.uk",
+   "employees": 712,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Travel",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "journeyko.com",
+   "employees": 531,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Coral Travel Group",
+   "country": "TR",
+   "type_code": "travel_agency",
+   "domain": "coraltg.com",
+   "employees": 2861,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Sunrise Resorts & Cruises",
+   "country": "EG",
+   "type_code": "cruise_line",
+   "domain": "sunrise-resorts.com",
+   "employees": 784,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Isrotel Hotel Chain רשת מלונות ישרוטל",
+   "country": "IL",
+   "type_code": "travel_agency",
+   "domain": "isrotel.co.il",
+   "employees": 612,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Tour&travel",
+   "country": "MX",
+   "type_code": "travel_agency",
+   "domain": "tourandtravel.mx",
+   "employees": 586,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Miki Travel Europe",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "miki.co.uk",
+   "employees": 544,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Etihad International Hospitality Llc",
+   "country": "AE",
+   "type_code": "travel_agency",
+   "domain": "etihadhospitality.ae",
+   "employees": 1124,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Corporate Travel Management Ctm Au Nz",
+   "country": "AU",
+   "type_code": "travel_agency",
+   "domain": "au.travelctm.com",
+   "employees": 706,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Fursan Travel",
+   "country": "SA",
+   "type_code": "travel_agency",
+   "domain": "fursan.com.sa",
+   "employees": 878,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Morpho Travel Experience",
+   "country": "CR",
+   "type_code": "travel_agency",
+   "domain": "morphotr.com",
+   "employees": 766,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Satguru Travel And Tourism Services",
+   "country": "AE",
+   "type_code": "travel_agency",
+   "domain": "satgurutravel.com",
+   "employees": 2248,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Círculo De Viajes Universal S.A",
+   "country": "CO",
+   "type_code": "travel_agency",
+   "domain": "cvu.com.co",
+   "employees": 772,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Helloworld Travel Limited",
+   "country": "NZ",
+   "type_code": "travel_agency",
+   "domain": "helloworldlimited.com.au",
+   "employees": 821,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Travel And Tours",
+   "country": "ZA",
+   "type_code": "travel_agency",
+   "domain": "travelandtours.co.za",
+   "employees": 641,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Go Global Travel",
+   "country": "RO",
+   "type_code": "travel_agency",
+   "domain": "goglobal.travel",
+   "employees": 731,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Der Touristik",
+   "country": "DE",
+   "type_code": "travel_agency",
+   "domain": "dertouristik.com",
+   "employees": 820,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "同程旅行",
+   "country": "US",
+   "type_code": "travel_agency",
+   "domain": "ly.com",
+   "employees": 2208,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Ponant",
+   "country": "FR",
+   "type_code": "travel_agency",
+   "domain": "ponant.com",
+   "employees": 1732,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Reed & Mackay",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "reedmackay.com",
+   "employees": 1145,
+   "priority": 2,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Virgin Holidays Hip Hotels",
+   "country": "GB",
+   "type_code": "travel_agency",
+   "domain": "vhiphotels.co.uk",
+   "employees": 508,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Alibaba Travels Co",
+   "country": "IR",
+   "type_code": "travel_agency",
+   "domain": "alibabatravels.co",
+   "employees": 591,
+   "priority": 3,
+   "cat": "mondo_agenzie"
+  },
+  {
+   "name": "Hilton",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "hilton.com",
+   "employees": 143997,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Accor",
+   "country": "FR",
+   "type_code": "accommodation",
+   "domain": "accor.com",
+   "employees": 90736,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Sheraton Hotels & Resorts",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "sheraton.com",
+   "employees": 20371,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Marriott Hotels",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "marriotthotels.com",
+   "employees": 41146,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Four Seasons",
+   "country": "CA",
+   "type_code": "accommodation",
+   "domain": "fourseasons.com",
+   "employees": 43847,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Ihg Hotels & Resorts",
+   "country": "GB",
+   "type_code": "accommodation",
+   "domain": "ihg.com",
+   "employees": 18592,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "The Ritz-Carlton Hotel Company, L.L.C",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "ritzcarlton.com",
+   "employees": 17996,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Mandarin Oriental",
+   "country": "HK",
+   "type_code": "accommodation",
+   "domain": "mandarinoriental.com",
+   "employees": 13619,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Club Med",
+   "country": "FR",
+   "type_code": "accommodation",
+   "domain": "clubmed.com",
+   "employees": 10400,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Wyndham Hotels & Resorts",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "wyndhamhotels.com",
+   "employees": 9525,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Aimbridge Hospitality",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "aimbridgehospitality.com",
+   "employees": 7486,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Taj Hotels",
+   "country": "IN",
+   "type_code": "accommodation",
+   "domain": "tajhotels.com",
+   "employees": 23720,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Holiday Inn",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "holidayinn.com",
+   "employees": 11675,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Wyndham Destinations",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "wyndhamdestinations.com",
+   "employees": 9082,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Hampton",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "hampton.com",
+   "employees": 11194,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Itc Hotels Limited",
+   "country": "IN",
+   "type_code": "accommodation",
+   "domain": "itchotels.com",
+   "employees": 12258,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Hilton Grand Vacations",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "hgv.com",
+   "employees": 14006,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Westgate Resorts",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "westgateresorts.com",
+   "employees": 4892,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Minor Hotels",
+   "country": "TH",
+   "type_code": "accommodation",
+   "domain": "minorhotels.com",
+   "employees": 23586,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Four Points By Sheraton",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "fourpoints.com",
+   "employees": 5541,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Oberoi Hotels & Resorts",
+   "country": "IN",
+   "type_code": "accommodation",
+   "domain": "oberoihotels.com",
+   "employees": 5440,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Novotel Hotels",
+   "country": "FR",
+   "type_code": "accommodation",
+   "domain": "all.accor.com",
+   "employees": 10173,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Best Western Hotels & Resorts",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "bestwestern.com",
+   "employees": 17238,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Bluegreen Vacations",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "bluegreenvacations.com",
+   "employees": 3891,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Mövenpick Hotels & Resorts",
+   "country": "CH",
+   "type_code": "accommodation",
+   "domain": "movenpick.accor.com",
+   "employees": 7644,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Vacasa",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "vacasa.com",
+   "employees": 4421,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Loews Hotels & Co",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "loewshotels.com",
+   "employees": 4302,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Millennium Hotels And Resorts",
+   "country": "GB",
+   "type_code": "accommodation",
+   "domain": "millenniumhotels.com",
+   "employees": 8710,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Doubletree By Hilton",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "doubletree.com",
+   "employees": 14991,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Crowne Plaza Hotels & Resorts",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "ihg.co",
+   "employees": 7955,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Rotana Hotel Management Corporation Pjsc",
+   "country": "AE",
+   "type_code": "accommodation",
+   "domain": "rotana.com",
+   "employees": 11451,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Tie Hotels",
+   "country": "ES",
+   "type_code": "accommodation",
+   "domain": "tiehotels.com",
+   "employees": 4585,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Sonesta International Hotels",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "sonesta.com",
+   "employees": 3530,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "The Peninsula Hotels",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "peninsula.com",
+   "employees": 3178,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Highgate",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "highgate.com",
+   "employees": 3750,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Paradies Lagardère",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "paradieslagardere.com",
+   "employees": 2823,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Marriott Vacations Worldwide",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "welcometobluegreen.com",
+   "employees": 8635,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Anantara Hotels, Resorts And Spas",
+   "country": "TH",
+   "type_code": "accommodation",
+   "domain": "anantara.com",
+   "employees": 5226,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Rixos Hotels",
+   "country": "NL",
+   "type_code": "accommodation",
+   "domain": "rixos.com",
+   "employees": 6936,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Drury Hotels",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "druryhotels.com",
+   "employees": 2572,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Le Méridien Hotels & Resorts",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "lemeridien.com",
+   "employees": 4905,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Sofitel",
+   "country": "FR",
+   "type_code": "accommodation",
+   "domain": "sofitel.accor.com",
+   "employees": 9014,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Mahindra Holidays & Resorts India Limited",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "clubmahindra.com",
+   "employees": 9094,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Holiday Inn Club Vacations",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "hicv.com",
+   "employees": 3498,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "The Cosmopolitan Of Las Vegas",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "cosmopolitanlasvegas.com",
+   "employees": 2001,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Resorts World Sentosa",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "rwsentosa.com",
+   "employees": 5097,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Melco Resorts & Entertainment",
+   "country": "MO",
+   "type_code": "accommodation",
+   "domain": "melco-resorts.com",
+   "employees": 7932,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "The Leela Palaces, Hotels And Resorts",
+   "country": "IN",
+   "type_code": "accommodation",
+   "domain": "theleela.com",
+   "employees": 4434,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Renaissance Hotels",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "renhotels.com",
+   "employees": 3807,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Palladium Hotel Group",
+   "country": "ES",
+   "type_code": "accommodation",
+   "domain": "palladiumhotelgroup.com",
+   "employees": 4637,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Golden Tulip Hotels, Suites & Resorts",
+   "country": "FR",
+   "type_code": "accommodation",
+   "domain": "goldentulip.com",
+   "employees": 3381,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Solaire Resort",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "solaireresort.com",
+   "employees": 6531,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Seminole Hard Rock Hotel & Casino Hollywood",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "seminolehardrockhollywood.com",
+   "employees": 2175,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Aloft Hotels",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "alofthotels.com",
+   "employees": 2995,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Dorchester Collection",
+   "country": "GB",
+   "type_code": "accommodation",
+   "domain": "dorchestercollection.com",
+   "employees": 3618,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Premier Inn",
+   "country": "GB",
+   "type_code": "accommodation",
+   "domain": "premierinn.com",
+   "employees": 6727,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Decameron All Inclusive Hotels & Resorts",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "decameron.com",
+   "employees": 2384,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Travelodge Hotels Limited",
+   "country": "GB",
+   "type_code": "accommodation",
+   "domain": "travelodge.co.uk",
+   "employees": 4736,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Swiss-Belhotel International",
+   "country": "HK",
+   "type_code": "accommodation",
+   "domain": "swiss-belhotel.com",
+   "employees": 3382,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Aman",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "aman.com",
+   "employees": 4101,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Leonardo Hotels",
+   "country": "DE",
+   "type_code": "accommodation",
+   "domain": "leonardo-hotels.com",
+   "employees": 2168,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "The Indian Hotels Company Limited Ihcl",
+   "country": "IN",
+   "type_code": "accommodation",
+   "domain": "ihcltata.com",
+   "employees": 8451,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "W Hotels",
+   "country": null,
+   "type_code": "accommodation",
+   "domain": "theangle.whotels.com",
+   "employees": 5551,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Home2 Suites By Hilton",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "home2suites.com",
+   "employees": 2517,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Scandic Hotels",
+   "country": "SE",
+   "type_code": "accommodation",
+   "domain": "scandichotels.com",
+   "employees": 6636,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Abu Dhabi National Hotels",
+   "country": "AE",
+   "type_code": "accommodation",
+   "domain": "adnh.com",
+   "employees": 2267,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Louvre Hotels Group",
+   "country": "FR",
+   "type_code": "accommodation",
+   "domain": "louvrehotels.com",
+   "employees": 3050,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "G6 Hospitality Llc",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "g6hospitality.com",
+   "employees": 8356,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Lemon Tree Hotels",
+   "country": "IN",
+   "type_code": "accommodation",
+   "domain": "lemontreehotels.com",
+   "employees": 6626,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "1 Hotels",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "1hotels.com",
+   "employees": 3357,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Kerzner International",
+   "country": "AE",
+   "type_code": "accommodation",
+   "domain": "kerzner.com",
+   "employees": 16187,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Grand Hyatt",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "hyatt.com",
+   "employees": 6073,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Posadas",
+   "country": "MX",
+   "type_code": "accommodation",
+   "domain": "posadas.com",
+   "employees": 2955,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Montage International",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "montageinternational.com",
+   "employees": 2704,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "One&only Resorts",
+   "country": "MX",
+   "type_code": "accommodation",
+   "domain": "oneandonlyresorts.com",
+   "employees": 4002,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "The Lalit Suri Hospitality Group",
+   "country": "IN",
+   "type_code": "accommodation",
+   "domain": "thelalit.com",
+   "employees": 3695,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Davidson Hospitality Group",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "davidsonhospitality.com",
+   "employees": 6412,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Newport World Resorts",
+   "country": "PH",
+   "type_code": "accommodation",
+   "domain": "newportworldresorts.com",
+   "employees": 3704,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "H World Group Limited",
+   "country": "CN",
+   "type_code": "accommodation",
+   "domain": "hworld.com",
+   "employees": 3547,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Langham Hospitality Group",
+   "country": "CN",
+   "type_code": "accommodation",
+   "domain": "langhamhospitalitygroup.com",
+   "employees": 2386,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Sterling Holiday Resorts Limited",
+   "country": "IN",
+   "type_code": "accommodation",
+   "domain": "sterlingholidays.com",
+   "employees": 2347,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Nh Hotel Group",
+   "country": "ES",
+   "type_code": "accommodation",
+   "domain": "nh-hotels.com",
+   "employees": 10135,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Pyramid Global Hospitality",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "pyramidglobal.com",
+   "employees": 3019,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "The Park Hotels",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "theparkhotels.com",
+   "employees": 2551,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Iberostar Group",
+   "country": "ES",
+   "type_code": "accommodation",
+   "domain": "grupoiberostar.com",
+   "employees": 6030,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Pullman Hotels & Resorts",
+   "country": "FR",
+   "type_code": "accommodation",
+   "domain": "pullman.accor.com",
+   "employees": 4510,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Sandals Resorts International",
+   "country": "JM",
+   "type_code": "accommodation",
+   "domain": "uvi.com",
+   "employees": 5476,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Bahia Principe Hotels & Resorts",
+   "country": "ES",
+   "type_code": "accommodation",
+   "domain": "bahia-principe.com",
+   "employees": 3043,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Emaar Hospitality Group",
+   "country": "AE",
+   "type_code": "accommodation",
+   "domain": "emaarhospitality.com",
+   "employees": 4431,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Fortune Park Hotels Ltd",
+   "country": "IN",
+   "type_code": "accommodation",
+   "domain": "fortunehotels.in",
+   "employees": 2481,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Royal Orchid Hotels",
+   "country": "IN",
+   "type_code": "accommodation",
+   "domain": "royalorchidhotels.com",
+   "employees": 3761,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "B&b Hotels Group",
+   "country": "FR",
+   "type_code": "accommodation",
+   "domain": "hotel-bb.com",
+   "employees": 2260,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Address Hotels Resorts",
+   "country": "AE",
+   "type_code": "accommodation",
+   "domain": "addresshotels.com",
+   "employees": 2253,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Pphe Hotel Group",
+   "country": "NL",
+   "type_code": "accommodation",
+   "domain": "pphe.com",
+   "employees": 2050,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "City Of Dreams Manila",
+   "country": "PH",
+   "type_code": "accommodation",
+   "domain": "cityofdreamsmanila.com",
+   "employees": 3235,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Village Hotels",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "village-hotels.co.uk",
+   "employees": 2335,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Rosewood Hotel Group",
+   "country": "HK",
+   "type_code": "accommodation",
+   "domain": "rosewoodhotelgroup.com",
+   "employees": 11067,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Atlantica Hotels International",
+   "country": "BR",
+   "type_code": "accommodation",
+   "domain": "ahi.com.br",
+   "employees": 2007,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Northland Properties",
+   "country": "CA",
+   "type_code": "accommodation",
+   "domain": "northland.ca",
+   "employees": 5560,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Mayfair Hotels & Resorts",
+   "country": "IN",
+   "type_code": "accommodation",
+   "domain": "mayfairhotels.com",
+   "employees": 2192,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Southern Sun",
+   "country": "ZA",
+   "type_code": "accommodation",
+   "domain": "southernsun.com",
+   "employees": 2741,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Jaz Hotel Group",
+   "country": "EG",
+   "type_code": "accommodation",
+   "domain": "jazhotels.com",
+   "employees": 2037,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Radisson",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "radissonhotels.com",
+   "employees": 6140,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Tsk",
+   "country": "CH",
+   "type_code": "accommodation",
+   "domain": "tsk.ch",
+   "employees": 2447,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Coraltree Hospitality",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "coraltreehospitality.com",
+   "employees": 2375,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "K Hospitality Corp",
+   "country": "IN",
+   "type_code": "accommodation",
+   "domain": "k-hospitality.com",
+   "employees": 2518,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Great Canadian Entertainment",
+   "country": "CA",
+   "type_code": "accommodation",
+   "domain": "greatcanadian.com",
+   "employees": 2017,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Sunset Hospitality Group",
+   "country": "AE",
+   "type_code": "accommodation",
+   "domain": "sunsethospitality.com",
+   "employees": 2488,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Silversea",
+   "country": "US",
+   "type_code": "accommodation",
+   "domain": "silversea.com",
+   "employees": 3675,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "The Hongkong And Shanghai Hotels, Limited",
+   "country": "HK",
+   "type_code": "accommodation",
+   "domain": "hshgroup.com",
+   "employees": 3598,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Peter And Pauls Hospitality Group",
+   "country": "CA",
+   "type_code": "accommodation",
+   "domain": "bypeterandpauls.com",
+   "employees": 2022,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Double Tree By Hilton",
+   "country": "PE",
+   "type_code": "accommodation",
+   "domain": "eldoradohoteles.com",
+   "employees": 2799,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Azzurri Group",
+   "country": "GB",
+   "type_code": "accommodation",
+   "domain": "azzurrigroup.co.uk",
+   "employees": 2448,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Archipelago International",
+   "country": "ID",
+   "type_code": "accommodation",
+   "domain": "archipelagointernational.com",
+   "employees": 7221,
+   "priority": 1,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "H10 Hotels",
+   "country": "ES",
+   "type_code": "accommodation",
+   "domain": "h10hotels.com",
+   "employees": 2223,
+   "priority": 2,
+   "cat": "mondo_hotel"
+  },
+  {
+   "name": "Bluserena Hotels & Resorts",
+   "country": "IT",
+   "type_code": "accommodation",
+   "domain": "bluserena.it",
+   "employees": 766,
+   "priority": 1,
+   "cat": "it_hotel"
+  },
+  {
+   "name": "Forte Village Resort",
+   "country": "IT",
+   "type_code": "accommodation",
+   "domain": "fortevillageresort.com",
+   "employees": 225,
+   "priority": 1,
+   "cat": "it_hotel"
+  },
+  {
+   "name": "Sheraton Milan Malpensa Airport Hotel & Conference Center",
+   "country": "IT",
+   "type_code": "accommodation",
+   "domain": "sheratonmilanmalpensa.com",
+   "employees": 240,
+   "priority": 1,
+   "cat": "it_hotel"
+  },
+  {
+   "name": "Rome Cavalieri, A Waldorf Astoria Hotel",
+   "country": "IT",
+   "type_code": "accommodation",
+   "domain": "romecavalieri.com",
+   "employees": 251,
+   "priority": 1,
+   "cat": "it_hotel"
+  },
+  {
+   "name": "Lefay Resorts & Residences",
+   "country": "IT",
+   "type_code": "accommodation",
+   "domain": "lefayresorts.com",
+   "employees": 242,
+   "priority": 1,
+   "cat": "it_hotel"
+  },
+  {
+   "name": "Hnh Hospitality",
+   "country": "IT",
+   "type_code": "accommodation",
+   "domain": "hnh.it",
+   "employees": 568,
+   "priority": 1,
+   "cat": "it_hotel"
+  },
+  {
+   "name": "Palace Hotel",
+   "country": "IT",
+   "type_code": "accommodation",
+   "domain": "palacehotel.it",
+   "employees": 386,
+   "priority": 1,
+   "cat": "it_hotel"
+  },
+  {
+   "name": "Delphina Hotels & Resorts",
+   "country": "IT",
+   "type_code": "accommodation",
+   "domain": "delphina.it",
+   "employees": 418,
+   "priority": 1,
+   "cat": "it_hotel"
+  },
+  {
+   "name": "ADLER Spa Resorts & Retreats",
+   "country": "IT",
+   "type_code": "accommodation",
+   "domain": "adler-resorts.com",
+   "employees": 321,
+   "priority": 1,
+   "cat": "it_hotel"
+  },
+  {
+   "name": "Royal Group Hotels & Resorts",
+   "country": "IT",
+   "type_code": "accommodation",
+   "domain": "royalgroup.it",
+   "employees": 348,
+   "priority": 1,
+   "cat": "it_hotel"
+  },
+  {
+   "name": "Gruppo Una Hotels & Resorts",
+   "country": "IT",
+   "type_code": "accommodation",
+   "domain": "gruppouna.it",
+   "employees": 590,
+   "priority": 1,
+   "cat": "it_hotel"
+  },
+  {
+   "name": "Amtrak",
+   "country": "US",
+   "type_code": "transport",
+   "domain": "amtrak.com",
+   "employees": 13629,
+   "priority": 1,
+   "cat": "trasporti"
+  },
+  {
+   "name": "Groupe Sncf",
+   "country": "FR",
+   "type_code": "transport",
+   "domain": "groupe-sncf.com",
+   "employees": 59013,
+   "priority": 1,
+   "cat": "trasporti"
+  },
+  {
+   "name": "Greyhound Lines, Inc",
+   "country": "US",
+   "type_code": "transport",
+   "domain": "greyhound.com",
+   "employees": 2795,
+   "priority": 2,
+   "cat": "trasporti"
+  },
+  {
+   "name": "Trenitalia",
+   "country": "IT",
+   "type_code": "transport",
+   "domain": "trenitalia.com",
+   "employees": 9732,
+   "priority": 1,
+   "cat": "trasporti"
+  },
+  {
+   "name": "Kansas City Southern",
+   "country": "US",
+   "type_code": "transport",
+   "domain": "kcsouthern.com",
+   "employees": 1165,
+   "priority": 2,
+   "cat": "trasporti"
+  },
+  {
+   "name": "National Car Rental",
+   "country": "US",
+   "type_code": "transport",
+   "domain": "nationalcar.com",
+   "employees": 1324,
+   "priority": 2,
+   "cat": "trasporti"
+  },
+  {
+   "name": "Avis Southern Africa",
+   "country": "ZA",
+   "type_code": "transport",
+   "domain": "avis.co.za",
+   "employees": 2645,
+   "priority": 2,
+   "cat": "trasporti"
+  },
+  {
+   "name": "Iarnród Éireann Irish Rail",
+   "country": "IE",
+   "type_code": "transport",
+   "domain": "irishrail.ie",
+   "employees": 2047,
+   "priority": 2,
+   "cat": "trasporti"
+  },
+  {
+   "name": "Southeastern Railway",
+   "country": "GB",
+   "type_code": "transport",
+   "domain": "southeasternrailway.co.uk",
+   "employees": 1955,
+   "priority": 2,
+   "cat": "trasporti"
+  },
+  {
+   "name": "Great Western Railway",
+   "country": "GB",
+   "type_code": "transport",
+   "domain": "gwr.com",
+   "employees": 2525,
+   "priority": 2,
+   "cat": "trasporti"
+  },
+  {
+   "name": "Northern",
+   "country": "GB",
+   "type_code": "transport",
+   "domain": "northernrailway.co.uk",
+   "employees": 1890,
+   "priority": 2,
+   "cat": "trasporti"
+  },
+  {
+   "name": "České Dráhy, A.S",
+   "country": "CZ",
+   "type_code": "transport",
+   "domain": "ceskedrahy.cz",
+   "employees": 1467,
+   "priority": 2,
+   "cat": "trasporti"
+  },
+  {
+   "name": "Trenord",
+   "country": "IT",
+   "type_code": "transport",
+   "domain": "trenord.it",
+   "employees": 1656,
+   "priority": 1,
+   "cat": "trasporti"
+  },
+  {
+   "name": "Etihad Rail",
+   "country": "AE",
+   "type_code": "transport",
+   "domain": "etihadrail.ae",
+   "employees": 1191,
+   "priority": 2,
+   "cat": "trasporti"
+  },
+  {
+   "name": "East Midlands Railway",
+   "country": "GB",
+   "type_code": "transport",
+   "domain": "eastmidlandsrailway.co.uk",
+   "employees": 1156,
+   "priority": 2,
+   "cat": "trasporti"
+  },
+  {
+   "name": "Car Inc",
+   "country": "CN",
+   "type_code": "transport",
+   "domain": "zuche.com",
+   "employees": 1696,
+   "priority": 2,
+   "cat": "trasporti"
+  },
+  {
+   "name": "Tso",
+   "country": "FR",
+   "type_code": "transport",
+   "domain": "tso.fr",
+   "employees": 2288,
+   "priority": 2,
+   "cat": "trasporti"
+  },
+  {
+   "name": "Metroline Ltd",
+   "country": "GB",
+   "type_code": "transport",
+   "domain": "metroline.co.uk",
+   "employees": 1327,
+   "priority": 2,
+   "cat": "trasporti"
+  },
+  {
+   "name": "Flix",
+   "country": "DE",
+   "type_code": "transport",
+   "domain": "flixbus.com",
+   "employees": 2473,
+   "priority": 2,
+   "cat": "trasporti"
+  },
+  {
+   "name": "Italo Treno Ntv",
+   "country": "IT",
+   "type_code": "transport",
+   "domain": "italotreno.it",
+   "employees": 1194,
+   "priority": 1,
+   "cat": "trasporti"
+  },
+  {
+   "name": "Taxis Libres",
+   "country": "CO",
+   "type_code": "transport",
+   "domain": "taxislibres.com.co",
+   "employees": 1327,
+   "priority": 2,
+   "cat": "trasporti"
+  }
+ ]
+}
