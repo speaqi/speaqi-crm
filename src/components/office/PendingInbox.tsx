@@ -7,6 +7,7 @@ import { officeApprovalEffect, type OfficeOverview } from '@/lib/office'
 import { INBOX_DOCUMENT_STATES, officeInboxGroups, type InboxAction, type InboxCategory, type InboxPage, type InboxResult } from '@/lib/office-inbox'
 import { CONTACT_HIDDEN_KEYS, OutputBody } from './OutputBody'
 import { OfficeReportBody } from './OfficeReportBody'
+import { DirectorReply } from './DirectorReply'
 import styles from '@/app/(app)/ufficio/ufficio.module.css'
 
 const date = (value: string) => new Date(value).toLocaleString('it-IT', { timeZone: 'Europe/Rome', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -146,6 +147,7 @@ export function PendingInbox({ data, onChanged, highlight }: { data: OfficeOverv
           </> : <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => { void process(group.ids, 'acknowledge') }}>{group.category === 'documents' ? `Archivia ${group.ids.length > 1 ? `${group.ids.length} avvisi` : 'avviso'}` : 'Segna come letto'}</button>}
           {output.agent_id === 'news_watch' && output.body.telegram_available === true && <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => { void telegram(output.id) }}>Approva e invia su Telegram</button>}
         </div>
+        <DirectorReply reference={`uscita ${output.id}`} title={group.title} onChanged={() => { window.dispatchEvent(new Event('office:work-changed')) }} />
       </article>
     })}
     {(page.total > 50 || offset > 0) && <div className={styles.actions}>
