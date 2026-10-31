@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { BudgetExceeded, callModel, runAgent, type AgentContext } from './office-agents'
 import { officeIsNaples } from '../office/director'
 import { EXONYMS, nameKey } from '../office/entity-enricher'
-import { TOURISM_TYPES } from '../tourism'
+import { safePublicUrl, TOURISM_TYPES } from '../tourism'
 import { readEntitySite } from './office-agents/entity-enricher'
 import { officeDeckAgent, presentationEntities } from './office-agents/presentations'
 import { sendDeckToTelegram } from './office-deck-telegram'
@@ -15,11 +15,12 @@ import { photoForModel, sniffUpload, safeFileName } from './tourism-deck-assets'
 import { errorMessage } from './http'
 import { searchPattern } from '../command-center'
 import { officeRomeDay } from '../office/finance'
+import { OFFICE_DECISIONS_FILTER } from '../office-inbox'
 import {
   CONTACT_CATEGORY_LABELS, DIRECTOR_ORDER_SCHEMA, contactNextStep, directorOrderPrompt, directorStatusLines,
   directorEventsReply, directorEventSourcesReply, directorInvoiceReply, directorQuoteLabel, interpretDirectorOrder, queuedWorkReport, quoteIsInvoiceable,
   directorHelpText, emailFromSite, looksLikeTourismBody, parsePartnerSearch, partnerSearchPrompt, PARTNER_SEARCH_SCHEMA, PARTNER_TYPE_CODES,
-  directorTaskDue, directorTaskReply, pickPresentationRecipient, presentationEmail, directorFollowUp, readAwaiting, AWAITING_TTL_MS,
+  directorTaskDue, directorTaskReply, pickPresentationRecipient, presentationEmail, presentationEmailPrompt, acceptPresentationEmail, PRESENTATION_EMAIL_SCHEMA, directorFollowUp, readAwaiting, AWAITING_TTL_MS,
   type DirectorAwaiting, type DirectorEventRow, type DirectorEventSourcesResult, type DirectorInvoiceQuote, type DirectorOrderPlan, type DirectorTaskItem, type DirectorTaskOutcome, type QueuedWork,
 } from '../office/director-orders'
 import { addTaskToCalendar } from './gcal'
@@ -313,17 +314,64 @@ async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, 
 }
 
 /**
- * «Abbiamo la presentazione per Visit Bergamo, creami la bozza e mettila in Gmail»: l'email col
- * link della presentazione approvata, al contatto CRM dell'ente. Nasce come bozza del CRM
- * (`source = 'office'`, stessa chiave della bozza che prepara l'approvazione) e si copia fra le
- * bozze di Gmail. Non parte niente: la invia il titolare.
+ * «Abbiamo la presentazione per Visit Bergamo, creami la bozza e mettila in Gmail» (anche per più
+ * enti insieme): l'email col link della presentazione approvata, al contatto CRM dell'ente. Nasce
+ * come bozza del CRM (`source = 'office'`, stessa chiave della bozza che prepara l'approvazione) e si
+ * copia fra le bozze di Gmail. Con `note` (quello che il titolare vuole dire: «ci siamo conosciuti
+ * al TTG») i paragrafi centrali li scrive il modello, controllati dal codice; una bozza ancora in
+ * attesa si riscrive. Non parte niente: la invia il titolare.
  */
 export async function presentationEmailFor(admin: Admin, ctx: AgentContext, userId: string,
   plan: Extract<DirectorOrderPlan, { intent: 'presentation_email' }>): Promise<Outcome> {
+  const results: Outcome[] = []
+  for (const target of plan.targets) {
+    try { results.push(await presentationEmailOne(admin, ctx, userId, target, plan.note)) }
+    catch (error) {
+      if (error instanceof BudgetExceeded) { results.push({ status: 'failed', outputs: [], queued: [], reply: `${target}: budget di oggi del Direttore finito, riprova domani.` }); break }
+      results.push({ status: 'failed', outputs: [], queued: [], reply: `${target}: non ci sono riuscito (${errorMessage(error, 'errore')}).` })
+    }
+  }
+  const skipped = plan.skipped.length ? ['Napoli resta fuori dal lavoro degli agenti: per lei non preparo niente.'] : []
+  const status: Outcome['status'] = results.some((r) => r.status === 'done') ? 'done' : results.some((r) => r.status === 'waiting_you') ? 'waiting_you' : 'failed'
+  if (results.length === 1 && !skipped.length) return results[0]
+  return { status, outputs: [], queued: [], reply: [...results.map((r) => `• ${r.reply}`), ...skipped].join('\n\n') }
+}
+
+type PresentationContact = { id: string; name: string | null; email: string | null; hidden: boolean | null; email_unsubscribed_at: string | null }
+
+/** Il contatto dell'ente: prima quelli collegati in Tourism, poi i contatti con la sua email o il suo nome come azienda. */
+async function presentationContacts(admin: Admin, userId: string, entity: ActivationEntity): Promise<{ linked: boolean; contacts: PresentationContact[] }> {
+  const fields = 'id,name,email,hidden,email_unsubscribed_at'
+  const links = (checked(await admin.from('tourism_crm_links').select('contact_id').eq('user_id', userId).eq('entity_id', entity.id)) || []) as Array<{ contact_id: string }>
+  const linked = links.length ? (checked(await admin.from('contacts').select(fields).eq('user_id', userId).in('id', links.map((l) => l.contact_id))) || []) as PresentationContact[] : []
+  if (pickPresentationRecipient(linked, entity.email)) return { linked: true, contacts: linked }
+  const found: PresentationContact[] = []
+  const email = (entity.email || '').trim().toLowerCase()
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    found.push(...((checked(await admin.from('contacts').select(fields).eq('user_id', userId).ilike('email', email.replace(/[%_\\]/g, (c) => `\\${c}`)).limit(5)) || []) as PresentationContact[]))
+  }
+  const pattern = searchPattern(entity.name)
+  if (pattern) {
+    const rows = (checked(await admin.from('contacts').select(`${fields},company`).eq('user_id', userId).ilike('company', pattern).limit(10)) || []) as Array<PresentationContact & { company: string | null }>
+    found.push(...rows.filter((r) => r.company && compactName(r.company) === compactName(entity.name)))
+  }
+  return { linked: links.length > 0, contacts: [...linked, ...found.filter((c, i) => found.findIndex((o) => o.id === c.id) === i)] }
+}
+
+async function personalPresentationEmail(ctx: AgentContext, entity: string, destination: string, note: string) {
+  const model = typeof ctx.agent.settings?.model === 'string' ? ctx.agent.settings.model : ctx.agent.model
+  const answer = await callModel(ctx, { model, maxOutputTokens: 900, input: presentationEmailPrompt({ destination, entity, note }),
+    jsonSchema: { name: 'presentation_email', schema: PRESENTATION_EMAIL_SCHEMA as unknown as Record<string, unknown> } })
+  let parsed: unknown = null
+  try { parsed = JSON.parse(answer.text) } catch { /* Illeggibile: si torna al testo standard. */ }
+  return acceptPresentationEmail(parsed, note)
+}
+
+async function presentationEmailOne(admin: Admin, ctx: AgentContext, userId: string, target: string, note: string | null): Promise<Outcome> {
   const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
   const fail = (reply: string): Outcome => ({ status: 'failed', outputs: [], queued: [], reply })
-  const entity = await findEntity(admin, userId, [plan.target])
-  if (!entity) return fail(`Non trovo «${plan.target}» in Tourism Intelligence. Scrivimi il nome come è nel catalogo.`)
+  const entity = await findEntity(admin, userId, [target])
+  if (!entity) return fail(`Non trovo «${target}» in Tourism Intelligence. Scrivimi il nome come è nel catalogo.`)
   const deck = checked(await admin.from('tourism_decks').select('*').eq('user_id', userId).eq('entity_id', entity.id)
     .order('updated_at', { ascending: false }).limit(1).maybeSingle()) as DeckRow | null
   if (!deck) return fail(`Per ${entity.name} non c’è ancora una presentazione. Scrivimi «presentazione per ${entity.name}» e poi la mandiamo.`)
@@ -334,33 +382,46 @@ export async function presentationEmailFor(admin: Admin, ctx: AgentContext, user
     return { status: 'waiting_you', outputs: [], queued: [], reply: `La presentazione per ${entity.name} non è ancora approvata, e il link si apre solo dopo.${sent.pdf ? ' Te l’ho rimandata qui: approvala col pulsante,' : ' Approvala dall’editor,'} poi riscrivimi e preparo l’email. ${editor}` }
   }
 
-  const links = (checked(await admin.from('tourism_crm_links').select('contact_id').eq('user_id', userId).eq('entity_id', entity.id)) || []) as Array<{ contact_id: string }>
-  const contacts = links.length ? (checked(await admin.from('contacts').select('id,name,email,hidden,email_unsubscribed_at')
-    .eq('user_id', userId).in('id', links.map((l) => l.contact_id))) || []) : []
-  const recipient = pickPresentationRecipient(contacts as Array<{ id: string; name: string | null; email: string | null; hidden: boolean | null; email_unsubscribed_at: string | null }>, entity.email)
-  if (!recipient) return fail(links.length
-    ? `${entity.name} è collegato a un contatto senza un’email utilizzabile (manca, oppure si è disiscritto). Sistemala nella scheda e riscrivimi: ${base}/tourism?entity=${entity.id}`
-    : `${entity.name} non ha un contatto nel CRM. Aprilo e usa «Conferma e aggiungi ai contatti», poi riscrivimi: ${base}/tourism?entity=${entity.id}`)
+  const { linked, contacts } = await presentationContacts(admin, userId, entity)
+  const recipient = pickPresentationRecipient(contacts, entity.email)
+  if (!recipient) return fail(linked || contacts.length
+    ? `${entity.name} ha un contatto senza un’email utilizzabile (manca, oppure si è disiscritto). Sistemala nella scheda e riscrivimi: ${base}/tourism?entity=${entity.id}`
+    : `${entity.name} non ha un contatto nel CRM con un’email. Aprilo e usa «Conferma e aggiungi ai contatti», poi riscrivimi: ${base}/tourism?entity=${entity.id}`)
 
   const key = `presentation:${deck.id}`
-  let draft = checked(await admin.from('email_drafts').select('id,status,subject,body_text,body_html,gmail_draft_id,sent_at,contact_id')
-    .eq('user_id', userId).eq('office_key', key).maybeSingle()) as { id: string; status: string; subject: string; body_text: string | null; body_html: string | null; gmail_draft_id: string | null; sent_at: string | null; contact_id: string } | null
+  const draftFields = 'id,status,subject,body_text,body_html,gmail_draft_id,sent_at,contact_id'
+  type Draft = { id: string; status: string; subject: string; body_text: string | null; body_html: string | null; gmail_draft_id: string | null; sent_at: string | null; contact_id: string }
+  let draft = checked(await admin.from('email_drafts').select(draftFields).eq('user_id', userId).eq('office_key', key).maybeSingle()) as Draft | null
   if (draft?.status === 'sent') return { status: 'done', outputs: [], queued: [], reply: `L’email con la presentazione per ${entity.name} risulta già inviata. Le bozze sono in ${base}/email` }
   if (draft && draft.status !== 'pending') draft = null
+
+  const link = `${base}/presentazione/${deck.public_token}`
+  const destination = deck.destination || entity.name
+  let personal: Awaited<ReturnType<typeof personalPresentationEmail>> = null
+  let personalNote = ''
+  if (note) {
+    try { personal = await personalPresentationEmail(ctx, entity.name, destination, note) }
+    catch (error) { if (error instanceof BudgetExceeded) throw error }
+    personalNote = personal ? ' con quello che mi hai chiesto di dire' : ' (il messaggio personale non mi è venuto bene: c’è il testo standard, aggiungilo tu prima di inviare)'
+  }
+  const email = presentationEmail({ destination, link, pdf: `${link}/pdf`, personal })
+  const html = simpleTextToHtml(email.text)
   if (!draft) {
-    const link = `${base}/presentazione/${deck.public_token}`
-    const email = presentationEmail({ destination: deck.destination || entity.name, link, pdf: `${link}/pdf` })
-    const html = simpleTextToHtml(email.text)
     const { data, error } = await admin.rpc('create_office_email_draft', { p_run_id: ctx.runId, p_contact_id: recipient.id, p_key: key,
       p_subject: email.subject, p_text: email.text, p_html: html, p_note: 'Preparata dal Direttore su richiesta del titolare. Rileggila e inviala tu.' })
     if (error) throw error
     if (!data?.id) return fail(data?.reason === 'pending_draft'
       ? `${recipient.name || recipient.email} ha già una bozza in attesa nel CRM: inviala o scartala, poi riscrivimi. ${base}/email`
       : `Non sono riuscito a preparare la bozza per ${entity.name}.`)
-    draft = checked(await admin.from('email_drafts').select('id,status,subject,body_text,body_html,gmail_draft_id,sent_at,contact_id').eq('id', data.id).eq('user_id', userId).single())
+    draft = checked(await admin.from('email_drafts').select(draftFields).eq('id', data.id).eq('user_id', userId).single()) as Draft
+  } else if (note) {
+    // La bozza c'era già, col testo standard: il titolare ora vuole dire altro, quindi si riscrive (finché non è inviata).
+    const updated = checked(await admin.from('email_drafts').update({ subject: email.subject, body_text: email.text, body_html: html })
+      .eq('id', draft.id).eq('user_id', userId).eq('status', 'pending').select(draftFields)) as Draft[] | null
+    if (updated?.[0]) draft = updated[0]
   }
   const to = String(recipient.email).trim()
-  const crm = `Bozza per ${entity.name} pronta, a ${to}, con il link della presentazione «${deck.title}».`
+  const crm = `Bozza per ${entity.name} pronta${personalNote}, a ${to}, con il link della presentazione «${deck.title}».`
 
   // In Gmail: così l'invio passa dalla finestra di Gmail (firma, tracciamento) e la riconciliazione la chiude da sola.
   try {
@@ -675,6 +736,36 @@ async function autoDestinationPresentations(admin: Admin, ctx: AgentContext, ord
 
 const PARTNER_DB_TYPES = [...PARTNER_TYPE_CODES, 'accommodation', 'transport']
 
+/** Le corrispondenze del database sono per sottostringa: Roma non è Romania. */
+export function partnerMentionsCity(names: string[], ...fields: unknown[]): boolean {
+  const normalized = fields.filter((field): field is string => typeof field === 'string').map(nameKey)
+  return names.some((name) => {
+    const city = nameKey(name)
+    return city.length >= 3 && normalized.some((field) => ` ${field} `.includes(` ${city} `))
+  })
+}
+
+/** Usa solo recapiti pubblicati da un sito che identifica effettivamente l'organizzazione. */
+export async function enrichPartnerContact(name: string, website: string | null,
+  read: typeof readEntitySite = readEntitySite): Promise<{ email: string; source: string } | null> {
+  const site = website && safePublicUrl(website)
+  if (!site) return null
+  try {
+    const pages = await read(site)
+    const identity = pages.map((page) => page.text).join('\n')
+    if (!siteMatchesEntity(site, identity, name)) return null
+    for (const page of pages) {
+      if (!safePublicUrl(page.url)) continue
+      const originalHost = new URL(site).hostname.replace(/^www\./, '').toLowerCase()
+      const pageHost = new URL(page.url).hostname.replace(/^www\./, '').toLowerCase()
+      if (pageHost !== originalHost && !pageHost.endsWith(`.${originalHost}`)) continue
+      const email = emailFromSite(site, [page.text])
+      if (email) return { email, source: page.url }
+    }
+  } catch { /* Un sito non raggiungibile non blocca le altre ricerche. */ }
+  return null
+}
+
 /**
  * «Trovami 5 partner per Venezia»: prima il catalogo (operatori che nominano la città),
  * poi il web per quelli che mancano. Ognuno diventa una proposta «Nuovo contatto»
@@ -693,13 +784,15 @@ async function findPartners(admin: Admin, ctx: AgentContext, order: DirectorOrde
       .eq('body->>action', 'create_contact').limit(200),
   ])
   if (rows.error) throw rows.error
+  if (pending.error) throw pending.error
   const proposed = new Set(((pending.data || []) as Array<{ body: any }>).map((o) => compactName(String(o.body?.contact?.company || o.body?.contact?.name || ''))))
   const seen = new Set<string>()
   type Pick = { name: string; website: string | null; email: string | null; phone: string | null; country: string | null; kind: string; why: string; source: string; entity_id: string | null }
   const picks: Pick[] = []
   const consider = async (pick: Pick) => {
     const key = compactName(pick.name)
-    const host = pick.website ? new URL(pick.website).hostname.replace(/^www\./, '') : null
+    const safeSite = pick.website && safePublicUrl(pick.website)
+    const host = safeSite ? new URL(safeSite).hostname.replace(/^www\./, '') : null
     if (!key || seen.has(key) || (host && seen.has(host)) || proposed.has(key)) return false
     const dup = await findDuplicates(admin, userId, { company: pick.name, email: pick.email, phone: null })
     if (dup.length) return false
@@ -708,16 +801,20 @@ async function findPartners(admin: Admin, ctx: AgentContext, order: DirectorOrde
     return true
   }
   const catalog = ((rows.data || []) as any[])
+    .filter((e) => partnerMentionsCity(names, e.name, e.details?.description, e.details?.hq_city))
     // Prima chi ha un recapito, poi chi ha la città nel nome.
     .sort((a, b) => Number(!!b.email) - Number(!!a.email) || Number(!!b.website) - Number(!!a.website)
       || Number(names.some((n) => nameKey(b.name).includes(nameKey(n)))) - Number(names.some((n) => nameKey(a.name).includes(nameKey(n)))))
   const linked = catalog.length ? new Set(((checked(await admin.from('tourism_crm_links').select('entity_id').eq('user_id', userId)
     .in('entity_id', catalog.map((e) => e.id))) || []) as Array<{ entity_id: string }>).map((l) => l.entity_id)) : new Set<string>()
+  let contactLookups = 0
   for (const e of catalog) {
     if (picks.length >= plan.count) break
     if (linked.has(e.id)) continue
-    await consider({ name: e.name, website: e.website || null, email: e.email || null, phone: e.phone || null, country: e.country_code || null,
-      kind: TOURISM_TYPE_LABEL(e.type_code), why: String(e.details?.description || '').slice(0, 200), source: 'Catalogo Tourism Intelligence', entity_id: e.id })
+    const found = !e.email && e.website && contactLookups < 10
+      ? (contactLookups++, await enrichPartnerContact(e.name, e.website)) : null
+    await consider({ name: e.name, website: safePublicUrl(e.website || '') || null, email: e.email || found?.email || null, phone: e.phone || null, country: e.country_code || null,
+      kind: TOURISM_TYPE_LABEL(e.type_code), why: String(e.details?.description || '').slice(0, 200), source: found ? `Catalogo Tourism Intelligence; recapito: ${found.source}` : 'Catalogo Tourism Intelligence', entity_id: e.id })
   }
   const notes: string[] = []
   if (picks.length < plan.count) {
@@ -734,6 +831,7 @@ async function findPartners(admin: Admin, ctx: AgentContext, order: DirectorOrde
         let pages: Array<{ text: string }> = []
         try { pages = await readEntitySite(candidate.website) } catch { continue }
         if (!siteMatchesEntity(candidate.website, pages.map((p) => p.text).join('\n'), candidate.name)) continue
+        if (!partnerMentionsCity(names, candidate.name, ...pages.map((p) => p.text))) continue
         await consider({ ...candidate, email: emailFromSite(candidate.website, pages.map((p) => p.text)), phone: null, country: null,
           source: `Ricerca web, sito letto: ${candidate.website}`, entity_id: null })
       }
@@ -940,7 +1038,7 @@ async function statusReport(admin: Admin, userId: string, now: Date) {
     admin.from('activities').select('id', { count: 'exact', head: true }).eq('user_id', userId).gte('created_at', weekAgo),
     admin.from('activities').select('created_at,content,contact:contacts(name)').eq('user_id', userId)
       .order('created_at', { ascending: false }).limit(8),
-    admin.from('office_agent_outputs').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'pending'),
+    admin.from('office_agent_outputs').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'pending').or(OFFICE_DECISIONS_FILTER),
     admin.from('office_agent_runs').select('agent_id,status,summary,started_at').eq('user_id', userId).gte('started_at', weekAgo)
       .not('status', 'in', '(skipped_disabled,running)').order('started_at', { ascending: false }).limit(20),
     admin.from('office_agents').select('id,name').eq('user_id', userId),

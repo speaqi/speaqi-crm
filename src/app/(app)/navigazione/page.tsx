@@ -82,7 +82,7 @@ function RefValue({ value }: { value: string }) {
 }
 
 export default function NavigazionePage() {
-  const { showToast } = useCRMContext()
+  const { showToast, isAdmin } = useCRMContext()
   const [companies, setCompanies] = useState<ShippingCompany[] | null>(null)
   const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
@@ -288,6 +288,7 @@ export default function NavigazionePage() {
   return (
     <div className={`page-container nv-page${tab === 'map' ? ' is-wide' : ''}`}>
       <div className="page-header">
+        {isAdmin && <Link href="/tourism">← Tourism Intelligence</Link>}
         <h1>Compagnie di navigazione</h1>
         <p className="page-subtitle">
           Crociere, expedition, fluviali e traghetti: sedi, riferimenti, itinerari con tutte le tappe e, per ogni

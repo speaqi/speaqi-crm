@@ -38,6 +38,10 @@ import { aggregateAutomationOutcome, type AutomationOutcome } from '@/lib/office
 const ALERT_COOLDOWN_MS = 6 * 60 * 60 * 1000
 const RUN_RETENTION_DAYS = 30
 const UNDEFINED_TABLE = '42P01'
+const DATABASE_TIMEOUT_MS = 10_000
+export function schedulerDatabaseBackoffMs(failures: number) {
+  return Math.min(30 * 60_000, 5 * 60_000 * 2 ** Math.min(Math.max(0, failures - 1), 3))
+}
 
 export type StepResult = { path: string; status: number | null; ok: boolean; ms: number; error?: string; outcome?: AutomationOutcome; reason?: string }
 
@@ -86,11 +90,8 @@ async function runStep(deps: SchedulerDeps, step: ScheduledJob['steps'][number])
 export async function runJob(deps: SchedulerDeps, job: ScheduledJob, slot: string) {
   if (running.has(job.name)) {
     deps.log?.(`[scheduler] ${job.name}: corsa precedente ancora in corso, salto ${slot}`)
-    // Lo slot nuovo resta visibile anche quando la stessa istanza sta ancora lavorando.
-    // Una prenotazione già presa non si sovrascrive mai.
-    if (await deps.claim(job.name, slot)) await deps.finish(job.name, slot, {
-      ok: true, outcome: 'skipped', reason: 'Corsa precedente ancora in corso', steps: [], error: null,
-    })
+    // Nessuna nuova richiesta al database per un turno che non verrà eseguito:
+    // durante un disservizio richieste lente potevano accumularsi ogni minuto.
     return { skipped: 'running' as const }
   }
   // Il segno va messo prima della prenotazione, che e' asincrona: altrimenti
@@ -137,22 +138,36 @@ export function runDueJobs(deps: SchedulerDeps, now: Date, timeZone: string, job
 function supabaseDeps(log: (message: string) => void) {
   const supabase = createServiceRoleClient()
   let tableMissingLogged = false
+  let officeFailures = 0
+  let officeRetryAfter = 0
 
   const claim = async (job: string, slot: string) => {
-    const { error } = await supabase.from('automation_job_runs').insert({ job, slot })
-    if (!error) return true
-    if (error.code === '23505') return false
-    // Migration non ancora applicata: meglio far girare il job senza
-    // prenotazione (una replica sola, come oggi) che fermare le automazioni.
+    if (job === 'office-work' && Date.now() < officeRetryAfter) return false
+    const { error } = await supabase.from('automation_job_runs').insert({ job, slot }).abortSignal(AbortSignal.timeout(DATABASE_TIMEOUT_MS))
+    if (!error || error.code === '23505') {
+      if (job === 'office-work') { officeFailures = 0; officeRetryAfter = 0 }
+      return !error
+    }
+    // Senza prenotazione durevole non possiamo escludere corse duplicate.
     if (error.code === UNDEFINED_TABLE) {
-      if (!tableMissingLogged) log('[scheduler] automation_job_runs assente: corse senza prenotazione')
+      if (!tableMissingLogged) log('[scheduler] automation_job_runs assente: automazioni sospese fino al ripristino')
       tableMissingLogged = true
-      return true
+      if (job === 'office-work') {
+        officeFailures++
+        officeRetryAfter = Date.now() + schedulerDatabaseBackoffMs(officeFailures)
+      }
+      return false
     }
     // Database irraggiungibile: non sappiamo se un'altra replica abbia gia'
     // preso la corsa. Saltare un giro costa meno che fare due backup o due
     // invii.
-    log(`[scheduler] prenotazione ${job} ${slot} fallita: ${error.message}`)
+    // Alcuni gateway rispondono con un'intera pagina HTML: non riversarla nei log.
+    const message = /<\s*(?:!doctype|html)/i.test(error.message || '') ? 'Risposta HTTP non valida dal database' : String(error.message || 'Errore database').slice(0, 300)
+    if (job === 'office-work') {
+      officeFailures++
+      officeRetryAfter = Date.now() + schedulerDatabaseBackoffMs(officeFailures)
+    }
+    log(`[scheduler] prenotazione ${job} ${slot} fallita: ${message}`)
     return false
   }
 
@@ -165,11 +180,12 @@ function supabaseDeps(log: (message: string) => void) {
         outcome: result.outcome || (result.ok ? 'succeeded' : 'failed'), reason: result.reason || null })
       .eq('job', job)
       .eq('slot', slot)
+      .abortSignal(AbortSignal.timeout(DATABASE_TIMEOUT_MS))
     // Deploy del codice prima della migration: conserva almeno il contratto storico.
     if (updateError && ['42703', 'PGRST204'].includes(updateError.code)) {
       const fallback = await supabase.from('automation_job_runs')
         .update({ finished_at: new Date().toISOString(), ok: result.ok, steps: result.steps, error: result.error })
-        .eq('job', job).eq('slot', slot)
+        .eq('job', job).eq('slot', slot).abortSignal(AbortSignal.timeout(DATABASE_TIMEOUT_MS))
       updateError = fallback.error
     }
     if (updateError && updateError.code !== UNDEFINED_TABLE) {
@@ -178,7 +194,7 @@ function supabaseDeps(log: (message: string) => void) {
     // Lo storico serve per capire cosa e' successo di recente, non per sempre.
     if (job === 'db-maintenance') {
       const cutoff = new Date(Date.now() - RUN_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString()
-      const { error: pruneError } = await supabase.from('automation_job_runs').delete().lt('slot', cutoff)
+      const { error: pruneError } = await supabase.from('automation_job_runs').delete().lt('slot', cutoff).abortSignal(AbortSignal.timeout(DATABASE_TIMEOUT_MS))
       if (pruneError && pruneError.code !== UNDEFINED_TABLE) {
         log(`[scheduler] pulizia storico fallita: ${pruneError.message}`)
       }

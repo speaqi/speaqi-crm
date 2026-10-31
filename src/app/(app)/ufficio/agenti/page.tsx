@@ -38,7 +38,7 @@ function AgentRow({ agent, busy, change, run }: {
 
   return <article className={styles.agent} aria-label={agent.name} id={`agente-${agent.id}`} style={{ scrollMarginTop: 24 }}>
     <div className={styles.agentTop}>
-      <div><h3>{agent.name}</h3><p>{agent.description}</p><small>{agent.model}{agent.schedule_job ? ` · ${agent.schedule_job}` : ' · Nessun orario assegnato'}</small></div>
+      <div><h3>{agent.name}</h3><p>{agent.description}</p><small>{agent.model}{agent.schedule_job ? ` · ${agent.schedule_job}` : ' · Su richiesta'}</small></div>
       <label className={styles.toggle}><input type="checkbox" role="switch" checked={agent.enabled} disabled={busy}
         onChange={(event) => { void change(agent.id, { enabled: event.target.checked }).catch(() => {}) }} aria-label={`Attiva ${agent.name}`} />{agent.enabled ? 'Acceso' : 'Spento'}</label>
     </div>
@@ -49,7 +49,7 @@ function AgentRow({ agent, busy, change, run }: {
     <div className={styles.lastRun}>{agent.last_run ? <><span className={styles.status}>{OFFICE_RUN_LABELS[agent.last_run.status]}</span>
       <span>{date(agent.last_run.started_at)} · {agent.last_run.summary}</span>{agent.last_run.error && <p className={styles.error}>{agent.last_run.error}</p>}</> : <span>Nessuna corsa eseguita.</span>}</div>
     <div className={styles.actions}>
-      <button className="btn btn-ghost btn-sm" disabled={busy || !agent.enabled} onClick={() => { void run(agent.id) }}>Fai girare adesso</button>
+      {agent.id !== 'office_researcher' && <button className="btn btn-ghost btn-sm" disabled={busy || !agent.enabled} onClick={() => { void run(agent.id) }}>Fai girare adesso</button>}
       <details><summary>Budget e impostazioni</summary>
         <form onSubmit={save} className={styles.form}>
           <div className={styles.budgets}>
@@ -138,7 +138,7 @@ export default function OfficePage() {
         const agents = data.agents.filter((agent) => agent.department === department)
         return agents.length > 0 && <section key={department} className={styles.department}><h2>{label}</h2>{agents.map((agent) => <AgentRow key={agent.id} agent={agent} busy={!!busy} change={change} run={run} />)}</section>
       })}
-      <section className={styles.queue} id="coda"><h2>Aspetta te <span>{data.pending_count}</span></h2>
+      <section className={styles.queue} id="coda"><h2>Aspetta te <span>{data.decision_count ?? data.pending_count}</span></h2>
         <PendingInbox data={data} onChanged={load} />
       </section>
       <section className={styles.history}><h2>Ultime corse</h2>{data.runs.length === 0 ? <p>Nessuna corsa registrata.</p> : <ul>{data.runs.map((item) => <li key={item.id}>

@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
 
     return Response.json({
       waiting,
-      office: officeResult.data ? { active_agents: officeResult.data.active_agents, pending_count: officeResult.data.pending_count, totals: officeResult.data.totals, error: null } : { error: officeResult.error },
+      office: officeResult.data ? { active_agents: officeResult.data.active_agents, pending_count: officeResult.data.decision_count ?? officeResult.data.pending_count, totals: officeResult.data.totals, error: null } : { error: officeResult.error },
       money,
       sales: {
         open_deals: (dealsRes.data || []).length,

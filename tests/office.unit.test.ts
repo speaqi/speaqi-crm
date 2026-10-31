@@ -209,12 +209,14 @@ describe('accesso e prima pagina', () => {
     assert.equal(canAccessPath('/ufficio?x=1', null, false), false)
     assert.equal(canAccessPath('/ufficio/prova', ['oggi'], true), true)
   })
-  test('Direttore, Finanza e Commerciale installati con configurazione iniziale spenta', () => {
+  test('agenti installati; il Ricercatore lavora su richiesta con un budget separato', () => {
     assert.deepEqual(Object.keys(OFFICE_AGENT_HANDLERS).sort(), ['db_cleaner', 'director', 'entity_enricher', 'events_scout', 'finance', 'languages_voice', 'maps_quality', 'mymaps_builder', 'news_watch', 'presentations', 'sales_followup', 'social'])
-    assert.ok(Object.values(OFFICE_AGENT_DEFINITIONS).every((agent) => agent.enabled === false))
+    assert.ok(Object.values(OFFICE_AGENT_DEFINITIONS).filter((agent) => agent.id !== 'office_researcher').every((agent) => agent.enabled === false))
+    assert.equal(OFFICE_AGENT_DEFINITIONS.office_researcher.enabled, false)
+    assert.equal(OFFICE_AGENT_DEFINITIONS.office_researcher.schedule_job, null)
     assert.equal(officeAgentHandler('constructor'), null)
     assert.equal(officeAgentHandler('non_installato'), null)
-    assert.deepEqual(AUTOMATION_JOBS.flatMap((job) => job.steps.filter((step) => step.path.includes('/agents/')).map((step) => step.path)).sort(), Object.keys(OFFICE_AGENT_DEFINITIONS).map((id) => `/api/automation/agents/${id}/run`).sort())
+    assert.deepEqual(AUTOMATION_JOBS.flatMap((job) => job.steps.filter((step) => step.path.includes('/agents/')).map((step) => step.path)).sort(), Object.values(OFFICE_AGENT_DEFINITIONS).filter((agent) => agent.schedule_job).map((agent) => `/api/automation/agents/${agent.id}/run`).sort())
     assert.ok(dueJobs(new Date('2026-10-22T01:15:00Z'), 'Europe/Rome').some((job) => job.name === 'office-maintenance'))
   })
   test('Aspetta te mostra solo le uscite ancora da decidere', () => {

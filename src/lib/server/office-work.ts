@@ -26,6 +26,9 @@ export type OfficeWorkStore = {
   transition(workId: string, token: string, patch: WorkPatch): Promise<OfficeWorkItem>
   linkRun(workId: string, token: string, runId: string): Promise<void>
   recover(userId: string): Promise<unknown>
+  materializeRecurring?(userId: string): Promise<unknown>
+  materializeReport?(userId: string): Promise<unknown>
+  retryResearch?(userId: string): Promise<number>
   seedOrders(userId: string): Promise<unknown>
   importQueue?(userId: string): Promise<unknown>
   budgetCheck?(userId: string, agentId: string, now: Date): Promise<string>
@@ -51,6 +54,36 @@ export function createOfficeWorkStore(admin: Admin): OfficeWorkStore {
     transition: (id, token, patch) => rpc('office_work_transition', { p_work_id: id, p_token: token, p_patch: patch }),
     async linkRun(id, token, runId) { await rpc('office_work_link_run', { p_work_id: id, p_token: token, p_run_id: runId }) },
     recover: (userId) => rpc('office_work_recover', { p_user_id: userId }),
+    async materializeRecurring(userId) {
+      try { return await rpc('office_recurring_materialize', { p_user_id: userId, p_limit: 5 }) }
+      catch (error) {
+        if (['42883', 'PGRST202', '42P01', 'PGRST205'].includes((error as { code?: string }).code || '')) return null
+        throw error
+      }
+    },
+    async materializeReport(userId) {
+      try { return await rpc('office_report_materialize', { p_user_id: userId }) }
+      catch (error) {
+        if (['42883', 'PGRST202', '42P01', 'PGRST205'].includes((error as { code?: string }).code || '')) return null
+        throw error
+      }
+    },
+    async retryResearch(userId) {
+      const { data, error } = await admin.from('office_work_items').select('id,revision,phase,checkpoint,attempt_count,max_attempts')
+        .eq('user_id', userId).eq('agent_id', 'director').eq('action', 'interpret_order').eq('status', 'blocked')
+        .in('reason_code', ['entity_missing', 'needs_information']).limit(100)
+      if (error) throw error
+      let resumed = 0
+      for (const work of data || []) {
+        const plan = work.checkpoint?.plan
+        if (work.phase === 'effect_started' || work.checkpoint?.research_results || plan?.intent !== 'presentation'
+          || !Array.isArray(plan.targets) || !plan.targets.length || work.attempt_count >= work.max_attempts) continue
+        const result = await rpc<any>('office_work_owner_action', { p_user_id: userId, p_work_id: work.id,
+          p_action: 'resume', p_patch: { expected_revision: work.revision } })
+        if (result?.work) resumed++
+      }
+      return resumed
+    },
     seedOrders: (userId) => rpc('office_work_seed_orders', { p_user_id: userId }),
     importQueue: (userId) => rpc('office_work_import_queue', { p_user_id: userId }),
     async budgetCheck(userId, agentId, now) {
@@ -122,6 +155,10 @@ type WorkerOptions = {
   now?: () => Date; limit?: number; heartbeatMs?: number; enabled?: boolean; deliverNotifications?: boolean
   sendEvent?: (event: WorkEvent) => Promise<{ ok: boolean; error?: string; certainFailure?: boolean }>
 }
+
+// Il recupero dei vecchi blocchi è una bonifica, non serve a ogni turno.
+const researchRetryAt = new Map<string, number>()
+const RESEARCH_RETRY_INTERVAL_MS = 60 * 60_000
 
 function waiting(work: OfficeWorkItem, reasonCode: string, reason: string, now: Date): WorkOutcome {
   const next = new Date(now.getTime() + 60_000).toISOString()
@@ -251,15 +288,29 @@ export async function runOfficeWorker(userId: string, options: WorkerOptions = {
   try {
     const admin = options.admin || createServiceRoleClient()
     const store = options.store || createOfficeWorkStore(admin)
+    if (store.materializeRecurring) await store.materializeRecurring(userId)
     const seeded = await store.seedOrders(userId)
     const imported = store.importQueue ? await store.importQueue(userId) : undefined
     const recovered = await store.recover(userId)
+    const now = options.now?.() || new Date()
+    if (store.retryResearch && now.getTime() >= (researchRetryAt.get(userId) || 0)) {
+      // Un errore della bonifica non deve impedire di elaborare gli altri lavori.
+      researchRetryAt.set(userId, now.getTime() + RESEARCH_RETRY_INTERVAL_MS)
+      try { await store.retryResearch(userId) }
+      catch (error) { console.error('[ufficio] recupero ricerche:', errorMessage(error, 'database non disponibile')) }
+    }
     const works = await store.claim(userId, Math.min(10, Math.max(1, options.limit || 4)))
     // Lavori indipendenti procedono in parallelo; il claim SQL e quello della corsa proteggono ogni agente.
     const results = await Promise.all((works || []).map((work) => executeClaimedWork(work, userId, store, admin, options)))
+    let reportError: string | null = null
+    if (store.materializeReport) {
+      try { await store.materializeReport(userId) }
+      catch (error) { reportError = errorMessage(error, 'database non disponibile'); console.error('[ufficio] report periodico:', reportError) }
+    }
     const open = await store.openState(userId)
     const states = results.map((result) => result.outcome)
     if (open.blocked) states.push('blocked')
+    if (reportError) states.push('blocked')
     const outcome = aggregateAutomationOutcome(states)
     let notifications: OfficeWorkerResult['notifications']
     if (options.deliverNotifications !== false) {
@@ -267,6 +318,7 @@ export async function runOfficeWorker(userId: string, options: WorkerOptions = {
       catch (error) { console.error('[ufficio] notifiche lavori non consegnate:', errorMessage(error, 'database non disponibile')) }
     }
     return { outcome, reason: outcome === 'failed' ? 'Uno o più lavori richiedono verifica dell’errore'
+      : reportError ? `Riepilogo periodico non creato: ${reportError}`
       : outcome === 'blocked' ? 'Lavori in attesa di dati, autorizzazione o riconciliazione'
         : outcome === 'succeeded' ? 'Risultati dei lavori salvati' : open.waiting ? 'I lavori restano in attesa della prossima azione' : 'Nessun lavoro pronto',
     results, recovered, seeded, ...(imported === undefined ? {} : { imported }), ...(notifications ? { notifications } : {}) }

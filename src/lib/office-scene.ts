@@ -8,7 +8,7 @@ export const OFFICE_SECTORS = Object.entries(OFFICE_DEPARTMENTS).map(([id, name]
 /** Proiezione per l'iframe: nessuna credenziale, impostazione o corpo delle bozze. */
 export function officeSceneSnapshot(overview: OfficeOverview, updatedAt = new Date().toISOString()) {
   return {
-    updatedAt, pendingCount: overview.pending_count, totals: overview.totals,
+    updatedAt, pendingCount: overview.decision_count ?? overview.pending_count, totals: overview.totals,
     departments: OFFICE_SECTORS.map((sector) => ({ ...sector,
       agents: overview.agents.filter((agent) => agent.department === sector.id).map((agent) => {
         const last = agent.last_run

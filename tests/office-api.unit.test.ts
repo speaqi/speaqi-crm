@@ -29,6 +29,7 @@ beforeEach(() => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://office-test.invalid'
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-finta'
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-finta'
+  process.env.OFFICE_WORKER_ENABLED = 'false'
   process.env.AUTOMATION_SECRET = 'segreto-finto'
   process.env.AUTOMATION_WORKSPACE_USER_ID = OWNER
   mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
@@ -64,7 +65,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   mock.restoreAll(); invalidateRouteUserCaches()
-  for (const key of ['NEXT_PUBLIC_SUPABASE_URL','NEXT_PUBLIC_SUPABASE_ANON_KEY','SUPABASE_SERVICE_ROLE_KEY','AUTOMATION_SECRET','AUTOMATION_WORKSPACE_USER_ID','TELEGRAM_BOT_TOKEN','TELEGRAM_NOTIFY_CHAT_ID']) {
+  for (const key of ['NEXT_PUBLIC_SUPABASE_URL','NEXT_PUBLIC_SUPABASE_ANON_KEY','SUPABASE_SERVICE_ROLE_KEY','AUTOMATION_SECRET','AUTOMATION_WORKSPACE_USER_ID','OFFICE_WORKER_ENABLED','TELEGRAM_BOT_TOKEN','TELEGRAM_NOTIFY_CHAT_ID']) {
     if (originalEnv[key] === undefined) delete process.env[key]; else process.env[key] = originalEnv[key]
   }
 })
@@ -129,7 +130,7 @@ test('il titolare installa gli agenti spenti e legge totali zero', async () => {
   const response = await GET(request('/api/office', undefined, 'GET'))
   assert.equal(response.status, 200)
   const data = await response.json()
-  assert.deepEqual(data.agents.map((agent: { id: string }) => agent.id).sort(), ['db_cleaner', 'director', 'entity_enricher', 'events_scout', 'finance', 'languages_voice', 'maps_quality', 'mymaps_builder', 'news_watch', 'presentations', 'sales_followup', 'social']); assert.ok(data.agents.every((agent: { enabled: boolean }) => !agent.enabled)); assert.equal(data.pending_count, 0); assert.equal(data.totals.month_actual, 0)
+  assert.deepEqual(data.agents.map((agent: { id: string }) => agent.id).sort(), ['db_cleaner', 'director', 'entity_enricher', 'events_scout', 'finance', 'languages_voice', 'maps_quality', 'mymaps_builder', 'news_watch', 'office_researcher', 'presentations', 'sales_followup', 'social']); assert.ok(data.agents.every((agent: { enabled: boolean }) => !agent.enabled)); assert.equal(data.pending_count, 0); assert.equal(data.totals.month_actual, 0)
 })
 
 test('la pagina oltre la coda restituisce il conteggio aggiornato e consente di tornare indietro', async () => {

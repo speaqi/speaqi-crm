@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
-import { DECK_AI_ART, DECK_ART, DECK_TODO_PATTERN, type DeckIcon, type DeckLanguage, type DeckSlide, type DeckTone } from '@/lib/tourism-deck'
+import { DECK_AI_ART, DECK_ART, DECK_TODO_PATTERN, slideVideo, type DeckIcon, type DeckLanguage, type DeckSlide, type DeckTone } from '@/lib/tourism-deck'
 import d from './deck.module.css'
 
 /** Testo con i segnaposto da completare ben visibili. */
@@ -175,7 +175,7 @@ export function SlideView({
           )}
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {art && <img className={d.langArt} src={art} alt="Le lingue della mappa" />}
+        {art && <img className={d.langArt} src={art} alt="Le lingue della guida" />}
         {foot}
       </section>
     )
@@ -292,11 +292,22 @@ export function SlideView({
   }
 
   if (slide.kind === 'media') {
+    const video = slideVideo(slide)
     return (
       <section className={base} aria-hidden={!active}>
         <div className={cls(d.kicker, d.center)}><Text value={slide.kicker || slide.title} /></div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {picture && <img className={d.mediaArt} src={picture} alt={slide.title} />}
+        {picture && (
+          <div className={d.mediaFrame}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img className={d.mediaArt} src={picture} alt={slide.title} />
+            {video && (
+              <a className={d.playButton} href={video} target="_blank" rel="noopener noreferrer" aria-label="Guarda il video" tabIndex={active ? 0 : -1}>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" fill="currentColor" /></svg>
+              </a>
+            )}
+          </div>
+        )}
         {foot}
       </section>
     )

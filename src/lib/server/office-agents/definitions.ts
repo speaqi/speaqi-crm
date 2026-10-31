@@ -1,8 +1,9 @@
 import type { OfficeAgent } from '@/lib/office'
 
 export type OfficeAgentDefinition = Omit<OfficeAgent, 'user_id'>
-/** Ogni installazione parte spenta; i budget salvati dal titolare non si riscrivono. */
+/** I budget e gli interruttori salvati dal titolare non si riscrivono. */
 export const OFFICE_AGENT_DEFINITIONS: Readonly<Record<string, OfficeAgentDefinition>> = Object.freeze({
+  office_researcher:{id:'office_researcher',name:'Ricercatore',department:'ricerca',description:'Su incarico del Direttore cerca informazioni pubbliche mancanti, legge le fonti e restituisce solo dati verificabili.',enabled:false,schedule_job:null,model:'gpt-5-mini',daily_budget_cents:100,weekly_budget_cents:350,monthly_budget_cents:1500,settings:{}},
   events_scout:{id:'events_scout',name:'Ricercatore eventi e fiere',department:'ricerca',description:'Eventi e bandi da fonti configurate, attività To Do soltanto dopo approvazione.',enabled:false,schedule_job:'office-events-scout',model:'gpt-5-mini',daily_budget_cents:100,weekly_budget_cents:350,monthly_budget_cents:1500,settings:{sources:[],queries:[]}},
   entity_enricher:{id:'entity_enricher',name:'Arricchimento enti',department:'ricerca',description:'Trova l’ente delle città prioritarie nel catalogo e ne propone recapiti d’ufficio con le frasi del sito; CRM e Presentazioni solo dopo il clic.',enabled:false,schedule_job:'office-entity-enricher',model:'gpt-5-mini',daily_budget_cents:200,weekly_budget_cents:1000,monthly_budget_cents:4000,settings:{}},
   presentations:{id:'presentations',name:'Presentazioni',department:'commerciale',description:'Presentazioni Tourism da approvare e bozze email soltanto dopo il clic del titolare.',enabled:false,schedule_job:'office-presentations',model:'gpt-5-mini',daily_budget_cents:300,weekly_budget_cents:300,monthly_budget_cents:1500,settings:{queue:[]}},
@@ -25,10 +26,20 @@ export const OFFICE_AGENT_DEFINITIONS: Readonly<Record<string, OfficeAgentDefini
 export async function ensureOfficeAgents(admin: any, userId: string) {
   if (!process.env.AUTOMATION_WORKSPACE_USER_ID || userId !== process.env.AUTOMATION_WORKSPACE_USER_ID) return
   for (const definition of Object.values(OFFICE_AGENT_DEFINITIONS)) {
-    const { error } = await admin.from('office_agents').upsert({ ...definition, user_id: userId }, { onConflict: 'id', ignoreDuplicates: true })
-    if (error) throw error
-    const result = await admin.from('office_agents').select('id').eq('id', definition.id).eq('user_id', userId).maybeSingle()
-    if (result.error) throw result.error
-    if (!result.data) throw new Error(`L’agente ${definition.id} appartiene a un altro workspace: verifica il registro`)
+    await ensureDefinition(admin, userId, definition)
   }
+}
+
+async function ensureDefinition(admin: any, userId: string, definition: OfficeAgentDefinition) {
+  const { error } = await admin.from('office_agents').upsert({ ...definition, user_id: userId }, { onConflict: 'id', ignoreDuplicates: true })
+  if (error) throw error
+  const result = await admin.from('office_agents').select('id').eq('id', definition.id).eq('user_id', userId).maybeSingle()
+  if (result.error) throw result.error
+  if (!result.data) throw new Error(`L’agente ${definition.id} appartiene a un altro workspace: verifica il registro`)
+}
+
+/** Anche un vecchio ordine ripreso dal worker deve trovare il nuovo agente. */
+export async function ensureOfficeResearcher(admin: any, userId: string) {
+  if (!process.env.AUTOMATION_WORKSPACE_USER_ID || userId !== process.env.AUTOMATION_WORKSPACE_USER_ID) return
+  await ensureDefinition(admin, userId, OFFICE_AGENT_DEFINITIONS.office_researcher)
 }

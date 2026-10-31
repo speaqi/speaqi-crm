@@ -85,6 +85,11 @@ export async function verifyTourismWork(ctx: AgentContext, work: OfficeWorkItem,
   if (!entity || (entity as EnrichOrg & { kind?: string }).kind !== 'organization' || entity.disabled || ['INACTIVE', 'DUPLICATE'].includes(entity.status)) {
     return blocked('entity_unavailable', 'L’ente non è disponibile nel workspace.', 'Controlla l’ente collegato e correggi questo lavoro.')
   }
+  const savedReceipt = work.checkpoint?.activation_receipt as Record<string, unknown> | undefined
+  if (work.order_id && work.origin === 'order' && savedReceipt?.entity_id === entityId && typeof savedReceipt.place_id === 'string') {
+    return { status: 'succeeded', phase: 'result_saved', result: savedReceipt,
+      result_summary: `Ente ${entity.name} verificato e pronto per la presentazione.` }
+  }
   const outputKey = `work:${work.id}:proposal:v${work.payload_version}`
   const existing = checked(await admin.from('office_agent_outputs').select('id,status,body').eq('user_id', userId)
     .eq('agent_id', 'entity_enricher').eq('output_key', outputKey).maybeSingle())
@@ -175,6 +180,26 @@ export async function verifyTourismWork(ctx: AgentContext, work: OfficeWorkItem,
   const validated = validateEnrichment({ org: { ...entity, website }, target, pages, model: parsed })
   if (!validated.ready) return blocked('evidence_incomplete', `La verifica è incompleta: manca ${validated.missing.join(', ')}.`,
     'Completa le fonti del lavoro; nessun dato dell’ente è stato verificato automaticamente.', 'Arricchimento enti / titolare')
+  // Un ordine esplicito di presentazione autorizza l'attivazione dell'ente. Prima
+  // servono comunque identità, legame con la destinazione e recapito documentati.
+  // Gli altri lavori conservano il percorso di approvazione esistente.
+  if (work.order_id && work.origin === 'order' && ctx.agent.settings.auto_activate_order !== false) {
+    const proof = validated.proposal.evidence
+    await persist('effect_started', { ...checkpoint, stage: 'activate_entity', proposal_ready: true })
+    await ctx.assertActive?.()
+    const receipt = checked(await admin.rpc('tourism_activate', { p_user_id: userId, p_entity_id: entityId, p_payload: {
+      origin: 'director', city, website, ...(typeof (entity as any).version === 'number' ? { version: (entity as any).version } : {}),
+      identity: proof.identity, coverage: proof.coverage,
+    } }))
+    if (!receipt || receipt.entity_id !== entityId || !receipt.place_id) {
+      return blocked('activation_reconciliation', 'L’attivazione non ha restituito una ricevuta completa.',
+        'Verifica la ricevuta prima di riprendere il lavoro.', 'Arricchimento enti')
+    }
+    await persist('result_saved', { ...checkpoint, activation_receipt: receipt })
+    return { status: 'succeeded', phase: 'result_saved', result: { ...receipt, website,
+      sources: [proof.identity.source_url, proof.coverage.source_url] },
+      result_summary: `Ente ${entity.name} verificato dalle fonti e pronto per la presentazione${receipt.crm_error ? '; collegamento CRM da verificare' : ''}.` }
+  }
   await persist('result_saved', { ...checkpoint, proposal_ready: true })
   const id = await ctx.addOutput({ kind: 'proposal', key: outputKey, title: `Verificare ${entity.name} per la presentazione di ${city}`,
     target_table: 'tourism_entities', target_id: entity.id,

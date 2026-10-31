@@ -9,9 +9,12 @@ export type InboxPage = { outputs: InboxOutput[]; total: number; offset: number 
 export type InboxAction = 'acknowledge' | 'approved' | 'rejected'
 export type InboxResult = { id: string; ok: boolean; error?: string }
 
+/** Filtro PostgREST equivalente a officeOutputIsNotice, per i conteggi paginati. */
+export const OFFICE_DECISIONS_FILTER = 'kind.neq.report,and(kind.eq.report,body->>action.not.is.null)'
+
 /** Un rapporto senza azioni è un avviso, non un'autorizzazione operativa. */
 export function officeOutputIsNotice(output: Pick<OfficeOutput, 'kind' | 'body'>) {
-  return output.kind === 'report' && (output.body.action === undefined || output.body.action === null)
+  return output.kind === 'report' && (output.body?.action === undefined || output.body?.action === null)
 }
 export function officeInboxGroups(outputs: InboxOutput[]): InboxGroup[] {
   const groups = new Map<string, InboxGroup>()

@@ -176,13 +176,15 @@
   margin-bottom: 25px;
   overflow: auto;
 }
-.tabs button {
+.tabs button,
+.tabs a {
   background: transparent;
   color: #79877f;
   padding: 0 0 14px;
   border-bottom: 2px solid transparent;
   border-radius: 0;
   white-space: nowrap;
+  text-decoration: none;
 }
 .tabs .activeTab {
   color: #194c38;
@@ -1280,7 +1282,8 @@
     gap: 20px;
     margin-bottom: 20px;
   }
-  .tabs button {
+  .tabs button,
+  .tabs a {
     font-size: 11px;
   }
   .pilotBanner {

@@ -5,7 +5,10 @@ import { officeRomeDay } from '../office/finance'
 import { officeMapSlot } from '../office/maps'
 import { officeIsNaples } from '../office/director'
 import { cityForEntity, websiteFromText } from '../office/entity-activation'
-import { callModel, officeModelKey, type AgentContext, type AgentHandler } from './office-agents'
+import { callModel, createOfficeStore, officeModelKey, runAgent, type AgentContext, type AgentHandler } from './office-agents'
+import { researchLocation, type ResearchLocation } from './office-agents/researcher'
+import { ensureOfficeResearcher } from './office-agents/definitions'
+import { nextOfficeBudgetCheck } from '../office-work'
 import { DESTINATION_TYPES, ensureCatalogEntity, executePlan, findEntity, orderImages, pendingDirectorQuestion, type DirectorOrderRow } from './office-director-orders'
 import { officeAgentHandler } from './office-agents/registry'
 import { myMapsHandler } from './office-agents/mymaps'
@@ -15,6 +18,9 @@ import { presentationEntities, presentationsHandler } from './office-agents/pres
 import { verifyTourismWork, preparePresentationWork } from './office-work-tourism'
 
 const checked = (value: any) => { if (value.error) throw value.error; return value.data }
+class ResearchDeferred extends Error {
+  constructor(readonly code: 'research_budget' | 'research_busy' | 'research_disabled', readonly next: string) { super(code) }
+}
 export function blockedWork(reason: string, requiredAction: string, responsible = 'Direttore', reasonCode = 'missing_data'): WorkOutcome {
   return { status: 'blocked', reason_code: reasonCode, reason, required_action: requiredAction, responsible, next_check_at: null, result_summary: reason }
 }
@@ -76,7 +82,7 @@ async function nationalTourismBody(admin: any, userId: string, countryCode: stri
 
 /** Il piano è validato contro l'ordine. Non viene eseguita una delega libera del modello. */
 export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem, admin: any,
-  deps: { model?: typeof callModel; now?: () => Date } = {}): Promise<WorkOutcome> {
+  deps: { model?: typeof callModel; now?: () => Date; research?: (target: string, website: string | null, country: string | null) => Promise<ResearchLocation | null> } = {}): Promise<WorkOutcome> {
   const order = checked(await admin.from('office_director_orders').select('*').eq('id', work.order_id || work.payload.order_id)
     .eq('user_id', work.user_id).single()) as DirectorOrderRow
   let text = typeof work.payload.text === 'string' ? work.payload.text : order.text
@@ -116,6 +122,8 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
   }
   const currentOrder = { ...order, text }
   let plan: DirectorOrderPlan
+  let rawPlan: Record<string, unknown> | null = work.checkpoint?.raw_plan && typeof work.checkpoint.raw_plan === 'object'
+    ? work.checkpoint.raw_plan as Record<string, unknown> : null
   const saved = work.checkpoint?.payload_version === work.payload_version ? work.checkpoint?.plan : null
   if (saved) plan = saved as DirectorOrderPlan
   else {
@@ -128,8 +136,73 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
       jsonSchema: { name: 'director_order', schema: DIRECTOR_ORDER_SCHEMA as unknown as Record<string, unknown> } })
     let parsed: unknown
     try { parsed = JSON.parse(response.text) } catch { return { ...blockedWork('Non ho capito l’ordine: la risposta non era leggibile.', 'Correggi o completa il testo di questo lavoro; non serve un nuovo ordine.', 'Titolare', 'needs_information'), phase: 'result_saved' } }
+    rawPlan = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null
     plan = interpretDirectorOrder(parsed, { text, today: officeRomeDay(now), images: images.length })
-    await checkpoint(admin, work, { phase: 'planned', checkpoint: { plan, payload_version: work.payload_version } })
+    await checkpoint(admin, work, { phase: 'planned', checkpoint: { plan, raw_plan: rawPlan, payload_version: work.payload_version } })
+  }
+  const state: Record<string, any> = { ...work.checkpoint, plan, raw_plan: rawPlan, payload_version: work.payload_version }
+  const researchFor = async (target: string, website: string | null, country: string | null, index: number) => {
+    const key = `${index}:${target}`
+    const saved = state.research_results && typeof state.research_results === 'object' ? state.research_results as Record<string, ResearchLocation | null> : {}
+    if (Object.hasOwn(saved, key)) return saved[key]
+    if (!deps.research) await ensureOfficeResearcher(admin, work.user_id)
+    await checkpoint(admin, work, { phase: 'effect_started', checkpoint: state })
+    let result: ResearchLocation | null = null
+    if (deps.research) result = await deps.research(target, website, country)
+    else {
+      const run = await runAgent('office_researcher', async (researchCtx) => {
+        result = await researchLocation(researchCtx, { target, website, country })
+        // Salvare il risultato prima di chiudere la corsa permette di riprendere senza ripagare.
+        state.research_results = { ...saved, [key]: result }
+        await checkpoint(admin, work, { phase: 'planned', checkpoint: state })
+        return { summary: result ? `Fonti trovate per ${target}.` : `Nessuna prova sufficiente per ${target}.` }
+      }, { userId: work.user_id, key: `work:${work.id}:research:${index}:v${work.payload_version}:attempt:${work.attempt_count}`,
+        store: createOfficeStore(admin), assertActive: ctx.assertActive })
+      if (run.skipped === 'disabled') throw new ResearchDeferred('research_disabled', new Date(now.getTime() + 60_000).toISOString())
+      if (run.skipped === 'running') throw new ResearchDeferred('research_busy', new Date(now.getTime() + 60_000).toISOString())
+      if (run.run?.status === 'skipped_budget') {
+        const ledger = checked(await admin.from('office_budget_ledger').select('actual_cents,reserved_cents')
+          .eq('user_id', work.user_id).eq('run_id', run.run.id)) || []
+        if (ledger.some((entry: any) => entry.actual_cents === null || Number(entry.actual_cents) > 0)) {
+          throw new Error('Ricerca parziale con spesa registrata: riconcilia prima di riprovare')
+        }
+        const agent = checked(await admin.from('office_agents').select('weekly_budget_cents,monthly_budget_cents')
+          .eq('user_id', work.user_id).eq('id', 'office_researcher').maybeSingle())
+        const summary = checked(await admin.rpc('office_budget_summary', { p_user_id: work.user_id })) || []
+        const spent = summary.find((entry: any) => entry.agent_id === 'office_researcher')
+        const periods: Array<'day' | 'week' | 'month'> = ['day']
+        if (agent && spent && spent.week_actual + spent.week_reserved >= agent.weekly_budget_cents) periods.push('week')
+        if (agent && spent && spent.month_actual + spent.month_reserved >= agent.monthly_budget_cents) periods.push('month')
+        throw new ResearchDeferred('research_budget', periods.map((period) => nextOfficeBudgetCheck(now, period)).sort().at(-1)!)
+      }
+      if (run.skipped || run.error || !run.run) {
+        throw new Error(run.error || run.run?.error || 'Ricerca da riconciliare prima di riprovare')
+      }
+    }
+    state.research_results = { ...saved, [key]: result }
+    await checkpoint(admin, work, { phase: 'planned', checkpoint: state })
+    return result
+  }
+  const researchOrWait = async (target: string, website: string | null, country: string | null, index: number) => {
+    try { return { result: await researchFor(target, website, country, index) } }
+    catch (error) {
+      if (!(error instanceof ResearchDeferred)) throw error
+      return { outcome: { status: 'waiting', phase: 'planned', checkpoint: state, reason_code: error.code,
+        reason: error.code === 'research_budget' ? 'Il Ricercatore attende il rinnovo del budget.'
+          : error.code === 'research_disabled' ? 'Il Ricercatore è spento.' : 'Il Ricercatore sta completando un altro incarico.',
+        required_action: error.code === 'research_disabled' ? 'Riaccendi il Ricercatore per riprendere.' : 'Il lavoro riprende automaticamente.', responsible: 'Ricercatore', available_at: error.next,
+        next_check_at: error.next } as WorkOutcome }
+    }
+  }
+  if (plan.intent === 'unknown' && plan.awaiting?.need === 'country' && rawPlan?.intent === 'add_entity'
+    && typeof rawPlan.target === 'string' && rawPlan.target.trim()) {
+    const found = await researchOrWait(rawPlan.target.trim(), websiteFromText(text), null, 0)
+    if (found.outcome) return found.outcome
+    if (found.result?.country_code) {
+      plan = interpretDirectorOrder({ ...rawPlan, country_code: found.result.country_code }, { text, today: officeRomeDay(now), images: 0 })
+      state.plan = plan
+      await checkpoint(admin, work, { phase: 'planned', checkpoint: state })
+    }
   }
   await ctx.assertActive?.()
   checked(await admin.from('office_director_orders').update({ intent: plan.intent, interpretation: plan }).eq('id', order.id).eq('user_id', work.user_id))
@@ -161,6 +234,7 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
     }
     for (const [index, target] of targets.entries()) {
       let entity = await findEntity(admin, work.user_id, [target])
+      let research: ResearchLocation | null = null
       // «Presentazione per Venezuela»: il paese non è un ente da creare. Vale l'ente nazionale
       // del turismo se ce n'è uno solo, altrimenti si chiede quale.
       if (!entity && isCountryName(target, plan.country_code)) {
@@ -172,14 +246,27 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
             'Rispondi con il nome dell’ente.', 'Titolare', 'needs_information')
         }
       }
-      if (!entity && plan.country_code) {
+      if (!entity && !plan.country_code) {
+        const found = await researchOrWait(target, null, null, index)
+        if (found.outcome) return found.outcome
+        research = found.result || null
+      }
+      const countryCode = plan.country_code || research?.country_code || null
+      // Una città non è automaticamente il nome di un'organizzazione del turismo.
+      if (!entity && countryCode && !(plan.city && fold(target) === fold(plan.city))) {
         await checkpoint(admin, work, { phase: 'effect_started' })
         const found = await ensureCatalogEntity(admin, work.user_id, order.id, { name: target,
-          country_code: plan.country_code, type_code: plan.type_code || 'dmo', website: null })
+          country_code: countryCode, type_code: plan.type_code || 'dmo', website: research?.website || null })
         if ('entity' in found) entity = { ...found.entity, kind: 'organization' }
         await checkpoint(admin, work, { phase: 'planned' })
       }
       if (!entity) {
+        if (countryCode && plan.city && fold(target) === fold(plan.city)) {
+          checked(await admin.from('office_director_orders').update({ interpretation: { ...plan,
+            awaiting: { need: 'target', resume: 'presentazione per {}' } } }).eq('id', order.id).eq('user_id', work.user_id))
+          return blockedWork(`Ho trovato il paese di «${target}», ma non un ente del turismo univoco.`,
+            'Indica quale ente deve ricevere la presentazione.', 'Titolare', 'entity_missing')
+        }
         checked(await admin.from('office_director_orders').update({ interpretation: { ...plan,
           awaiting: { need: 'country', resume: `presentazione per ${target}${plan.city ? `, ${plan.city}` : ''}` } } })
           .eq('id', order.id).eq('user_id', work.user_id))
@@ -188,8 +275,16 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
       // Un ente già verificato con la sua destinazione non ha bisogno di una città dal titolare:
       // vale il nome della destinazione legata. La città si chiede solo quando c'è da verificare.
       const ready = await verifiedPresentationSource(admin, work.user_id, entity.id)
-      const city = ready?.destination.name || (typeof work.payload.city === 'string' ? work.payload.city : cityForEntity({ proposed: plan.city || null,
+      let city = ready?.destination.name || (typeof work.payload.city === 'string' ? work.payload.city : cityForEntity({ proposed: plan.city || null,
         entityName: entity.name, orderText: text }))
+      if (!city) {
+        if (!research) {
+          const found = await researchOrWait(target, entity.website || null, entity.country_code || null, index)
+          if (found.outcome) return found.outcome
+          research = found.result || null
+        }
+        city = research && (!research.country_code || research.country_code === entity.country_code) ? research.city : null
+      }
       if (!city) {
         checked(await admin.from('office_director_orders').update({ interpretation: { ...plan,
           awaiting: { need: 'city', resume: `presentazione per ${target}` } } }).eq('id', order.id).eq('user_id', work.user_id))
@@ -205,7 +300,8 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
       // Anche un'etichetta VERIFIED priva di prove non aggira la verifica puntuale.
       const verifyId = randomUUID()
       const verify: OfficeWorkSpec = { ...child('entity_enricher', 'verify_tourism_entity', {
-        entity_id: entity.id, city, website: websiteFromText(text) || entity.website || null, order_text: text,
+        entity_id: entity.id, city, website: websiteFromText(text) || entity.website || research?.website || null, order_text: text,
+        ...(research ? { research_sources: research.sources } : {}),
       }, `verify:${index}`), id: verifyId }
       const presentation: OfficeWorkSpec = { ...child('presentations', 'prepare_presentation', { entity_id: entity.id, city,
         ...photos }, `presentation:${index}`),

@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { apiFetch } from '@/lib/api'
+import { DirectorReply } from './DirectorReply'
 import { OFFICE_WORK_LABELS, type OfficeWorkItem } from '@/lib/office-work'
 import { OFFICE_ACTION_NAMES as ACTION_NAMES, officeResultLink } from '@/lib/office-activity'
 import styles from '@/app/(app)/ufficio/ufficio.module.css'
@@ -134,6 +135,7 @@ export function WorkList({ orderId, agentId, agentNames = {}, refreshSignal, com
           {['blocked', 'failed', 'waiting'].includes(work.status) && !uncertain && <button type="button" className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => edit(work)}>Completa i dati</button>}
           <button type="button" className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => { void act(work, 'cancel') }}>Annulla lavoro</button>
         </div>}
+        {!terminal && <DirectorReply reference={`lavoro ${work.id}`} title={`${ACTION_NAMES[work.action] || 'Lavoro assegnato'}${target ? ` · ${target}` : ''}${work.reason ? ` — ${work.reason}` : ''}`} onChanged={onChanged} />}
         <details onToggle={(event) => { if (event.currentTarget.open) void detail(work.id) }}>
           <summary>Risultati e cronologia</summary>
           {details[work.id] && <div className={styles.workHistory}>

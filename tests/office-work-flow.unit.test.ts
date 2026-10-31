@@ -29,7 +29,8 @@ const enrichment = { identity_quote: identity, identity_url: SITE, coverage_rela
   coverage_url: SITE, email: 'info@tourisme.example.org', email_quote: email, email_url: SITE,
   phone: '', phone_quote: '', phone_url: '', decision_maker_type: '', decision_maker_quote: '', decision_maker_url: '' }
 
-function fixture(planned: Record<string, unknown> = { intent: 'presentation', target: 'Visit Marseille', city: 'Marsiglia' }) {
+function fixture(planned: Record<string, unknown> = { intent: 'presentation', target: 'Visit Marseille', city: 'Marsiglia' }, autoActivate = false,
+  research?: (target: string, website: string | null, country: string | null) => Promise<import('../src/lib/server/office-agents/researcher').ResearchLocation | null>) {
   const works: OfficeWorkItem[] = []
   const db = new FakeSupabase({ office_work_items: works, office_work_dependencies: [], office_director_orders: [], office_agent_outputs: [],
     office_presentation_tasks: [], tourism_decks: [], tourism_evidence: [], office_budget_ledger: [], email_drafts: [],
@@ -87,6 +88,11 @@ function fixture(planned: Record<string, unknown> = { intent: 'presentation', ta
   db.rpcs.office_work_assert_active = ({ p_work_id, p_token }) => row(p_work_id).lease_token === p_token && row(p_work_id).status === 'running'
   db.rpcs.office_work_transition = ({ p_work_id, p_token, p_patch }) => persist(p_work_id, p_token, p_patch)
   db.rpcs.office_work_enqueue = ({ p_spec }) => enqueue(p_spec)
+  db.rpcs.tourism_activate = ({ p_entity_id, p_payload }) => {
+    Object.assign(db.tables.tourism_entities[0], { status: 'VERIFIED', website: p_payload.website })
+    db.tables.tourism_entities.push({ id: PLACE, user_id: USER, kind: 'place', name: 'Marsiglia', status: 'VERIFIED', disabled: false })
+    return { entity_id: p_entity_id, place_id: PLACE, contact_id: randomUUID(), crm_error: null }
+  }
   db.rpcs.claim_office_presentation = ({ p_entity_id, p_destination_id }) => {
     const previous = db.tables.office_presentation_tasks.find((task) => task.entity_id === p_entity_id && task.destination_id === p_destination_id)
     if (previous) return { claimed: false, task: previous }
@@ -132,7 +138,8 @@ function fixture(planned: Record<string, unknown> = { intent: 'presentation', ta
     claimEvents: async () => [], finishEvent: async () => {},
   }
   const agentStore: OfficeStore = {
-    agent: async (id) => ({ ...OFFICE_AGENT_DEFINITIONS[id], user_id: USER, enabled: enabled.get(id)! }),
+    agent: async (id) => ({ ...OFFICE_AGENT_DEFINITIONS[id], user_id: USER, enabled: enabled.get(id)!,
+      settings: { ...OFFICE_AGENT_DEFINITIONS[id].settings, ...(id === 'entity_enricher' ? { auto_activate_order: autoActivate } : {}) } }),
     async claim(id, _user, key) {
       const old = runs.find((run: any) => run.key === key)
       if (old) return { claimed: false, reason: 'duplicate', run: old }
@@ -167,7 +174,7 @@ function fixture(planned: Record<string, unknown> = { intent: 'presentation', ta
     return { text: options.webSearch ? SITE : JSON.stringify(enrichment), costCents: 1, tokensIn: 10, tokensOut: 10, citations: [] }
   }) as typeof callModel
   const execute: WorkExecutor = async (ctx, work, client) => {
-    if (work.action === 'interpret_order') return interpretOrderWork(ctx, work, client, { now: () => clock,
+    if (work.action === 'interpret_order') return interpretOrderWork(ctx, work, client, { now: () => clock, research,
       model: (async (context) => {
         const ledger = await context.reserve(1); paid++; await context.settle(ledger, 1)
         return { text: JSON.stringify(planned), costCents: 1, tokensIn: 10, tokensOut: 10, citations: [] }
@@ -210,6 +217,33 @@ function fixture(planned: Record<string, unknown> = { intent: 'presentation', ta
     },
   }
 }
+
+test('il Direttore usa la città trovata dal Ricercatore e registra le fonti nel lavoro', async () => {
+  const found = { country_code: 'FR', city: 'Marsiglia', website: SITE, sources: [{ url: SITE, quote: coverage }] }
+  let searches = 0
+  const f = fixture({ intent: 'presentation', target: 'Bureau Lumiere', city: null }, true, async () => { searches++; return found })
+  f.db.tables.tourism_entities[0].name = 'Bureau Lumiere'
+  f.order(); await f.tick()
+  const verification = f.works.find((work) => work.action === 'verify_tourism_entity')!
+  assert.equal(verification.payload.city, 'Marsiglia')
+  assert.deepEqual(verification.payload.research_sources, found.sources)
+  assert.equal(searches, 1)
+})
+
+test('ordine autonomo: prove verificate sbloccano la presentazione senza clic', async () => {
+  const f = fixture(undefined, true); f.order()
+  await f.tick()
+  const verify = f.works.find((work) => work.action === 'verify_tourism_entity')!
+  const presentation = f.works.find((work) => work.action === 'prepare_presentation')!
+  await f.tick()
+  assert.equal(verify.status, 'succeeded')
+  assert.equal(presentation.status, 'ready')
+  assert.equal(f.db.tables.office_agent_outputs.filter((output) => output.agent_id === 'entity_enricher').length, 0)
+  await f.tick()
+  assert.equal(presentation.status, 'succeeded')
+  assert.equal(f.counters().generated, 1)
+  assert.equal(f.db.tables.office_director_orders[0].status, 'done')
+})
 
 test('catena Tourism offline: ordine → verifica/fonti → clic → presentazione pronta → risultato finale', async () => {
   const f = fixture(); const id = f.order()
