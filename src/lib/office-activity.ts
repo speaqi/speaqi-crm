@@ -9,7 +9,7 @@ export const OFFICE_OPEN_WORK_STATUSES = ['waiting', 'ready', 'running', 'blocke
 export const OFFICE_WORK_SUMMARY_COLUMNS = 'id,agent_id,action,status,origin,order_id,created_at,updated_at,reason,required_action,result_summary'
 export const OFFICE_ACTION_NAMES: Record<string, string> = {
   interpret_order: 'Comprendere l’ordine', director_status: 'Situazione dell’ufficio', list_events: 'Prossime fiere ed eventi',
-  record_task: 'Annotare l’attività', create_contact: 'Inserire il contatto', import_mymaps: 'Importare la mappa',
+  record_task: 'Annotare l’attività', create_demo: 'Preparare la demo', create_contact: 'Inserire il contatto', import_mymaps: 'Importare la mappa',
   check_map: 'Controllare la mappa', complete_languages: 'Completare lingue e voce', refresh_outdated: 'Aggiornare le traduzioni',
   verify_tourism_entity: 'Verificare l’ente', prepare_presentation: 'Preparare la presentazione', agent_run: 'Turno dell’agente', plan: 'Piano dell’ufficio',
 }
@@ -33,6 +33,7 @@ export function officeAgentActivity(agent: Pick<OfficeAgent, 'id' | 'enabled'> &
 /** Solo collegamenti interni a risultati identificati, mai URL suggeriti dal modello. */
 export function officeResultLink(result: Record<string, unknown>): { href: string; label: string } | null {
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (typeof result.map_slug === 'string' && /^demo-[a-z0-9_-]{1,100}$/.test(result.map_slug)) return { href: `https://studiomap.speaqi.com/?map=${encodeURIComponent(result.map_slug)}`, label: 'Apri demo in StudioMap' }
   if (typeof result.deck_id === 'string' && uuid.test(result.deck_id)) return { href: `/tourism/presentazioni/${result.deck_id}`, label: 'Apri presentazione' }
   if (typeof result.invoice_id === 'string' && uuid.test(result.invoice_id)) return { href: `/fatture?invoice=${result.invoice_id}`, label: 'Apri fattura' }
   return null

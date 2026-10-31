@@ -10,7 +10,7 @@ export const OFFICE_WORK_LABELS: Record<OfficeWorkStatus, string> = {
 export const OFFICE_WORK_ACTIONS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   director: ['interpret_order', 'director_status', 'list_events', 'record_task', 'create_contact', 'plan', 'agent_run'],
   entity_enricher: ['verify_tourism_entity', 'agent_run'], presentations: ['prepare_presentation', 'agent_run'],
-  mymaps_builder: ['import_mymaps', 'agent_run'], maps_quality: ['check_map', 'agent_run'],
+  demo_builder: ['create_demo'], mymaps_builder: ['import_mymaps', 'agent_run'], maps_quality: ['check_map', 'agent_run'],
   languages_voice: ['complete_languages', 'refresh_outdated', 'agent_run'],
   sales_followup: ['agent_run'], finance: ['agent_run'], db_cleaner: ['agent_run'], news_watch: ['agent_run'],
   events_scout: ['agent_run'], social: ['agent_run'],
@@ -35,7 +35,7 @@ export type OfficeWorkSpec = {
   id?: string; agent_id: string; action: string; source_key: string; origin?: OfficeWorkItem['origin']; order_id?: string | null
   deal_id?: string | null; source_output_id?: string | null; payload?: Record<string, unknown>
   approval_output_id?: string | null
-  status?: OfficeWorkStatus; priority?: number; available_at?: string; due_at?: string | null; depends_on?: string[]
+  status?: OfficeWorkStatus; priority?: number; max_attempts?: number; available_at?: string; due_at?: string | null; depends_on?: string[]
   reason_code?: string; reason?: string; required_action?: string; responsible?: string; next_check_at?: string | null
 }
 export type WorkOutcome = {
@@ -90,7 +90,7 @@ export function validateWorkPayload(agentId: string, action: string, raw: unknow
     if (['slug', 'map_slug'].includes(key) && value !== null && (typeof value !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,99}$/.test(value))) throw new Error('Slug della mappa non valido')
     if (['text', 'order_text', 'brief'].includes(key) && value !== null && (typeof value !== 'string' || value.length > 4000)) throw new Error('Testo del lavoro troppo lungo')
   }
-  if (['import_mymaps', 'check_map', 'complete_languages', 'refresh_outdated'].includes(action)) {
+  if (['create_demo', 'import_mymaps', 'check_map', 'complete_languages', 'refresh_outdated'].includes(action)) {
     const identity = [payload.slug, payload.map_slug, payload.city, payload.map_id].filter((x) => typeof x === 'string').join(' ')
     let decoded = identity
     try { decoded = decodeURIComponent(identity) } catch { /* Anche l'identificativo grezzo viene controllato. */ }
@@ -101,6 +101,7 @@ export function validateWorkPayload(agentId: string, action: string, raw: unknow
 export function officeWorkSpec(raw: OfficeWorkSpec): OfficeWorkSpec {
   if (!raw || typeof raw !== 'object' || typeof raw.source_key !== 'string' || !raw.source_key.trim() || raw.source_key.length > 200) throw new Error('Chiave del lavoro non valida')
   if (raw.status && !OFFICE_WORK_STATUSES.includes(raw.status)) throw new Error('Stato del lavoro non valido')
+  if (raw.max_attempts !== undefined && (!Number.isInteger(raw.max_attempts) || raw.max_attempts < 1 || raw.max_attempts > 20)) throw new Error('Numero di tentativi non valido')
   if (raw.priority !== undefined && (!Number.isInteger(raw.priority) || raw.priority < 0 || raw.priority > 100)) throw new Error('Priorità del lavoro non valida')
   for (const key of ['id', 'order_id', 'deal_id', 'source_output_id', 'approval_output_id'] as const) if (raw[key] && !UUID.test(raw[key]!)) throw new Error(`Identificativo non valido: ${key}`)
   if (raw.depends_on && (raw.depends_on.length > 20 || raw.depends_on.some((id) => !UUID.test(id)))) throw new Error('Dipendenze del lavoro non valide')

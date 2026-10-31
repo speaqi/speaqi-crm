@@ -26,7 +26,7 @@ export type DirectorContact = Record<ContactField, string | null>
 export type DirectorOrderPlan =
   | { intent: 'new_contact'; contact: DirectorContact; evidence: Partial<Record<ContactField, string>>; dropped: ContactField[]
       category: ContactCategory; category_reason: string; brief: string | null; card_text: string | null }
-  | { intent: 'build_map'; city: string; slug: string; source: string | null }
+  | { intent: 'build_map'; city: string; slug: string; source: string | null; demo?: boolean }
   | { intent: 'check_map'; city: string; slug: string }
   | { intent: 'presentation'; targets: string[]; count: number | null; audience: PresentationAudience; brief: string | null; city: string | null; skipped: string[]
       country_code: string | null; type_code: string | null; language?: 'it' | 'en' | null }
@@ -215,7 +215,7 @@ export function interpretDirectorOrder(parsed: unknown, input: { text: string; t
     const link = str(raw.map_link, 2000)
     // Il link vale solo se è davvero nell'ordine e se è una My Maps.
     const source = link && input.text.includes(link) && /google\.[a-z.]+\/maps\/d\/|[?&]mid=/.test(link) ? link : null
-    return { intent, city, slug, source }
+    return { intent, city, slug, source, ...(!source && /\bdemo\b/i.test(input.text) ? { demo: true } : {}) }
   }
   if (intent === 'presentation_email') {
     const named = [...(Array.isArray(raw.targets) ? raw.targets : []), raw.target].map((t) => str(t, 160)).filter((t): t is string => !!t)

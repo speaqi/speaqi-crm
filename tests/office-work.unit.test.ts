@@ -257,3 +257,14 @@ test('un paese non è un ente; «lascia perdere il sito» riprende l’ordine', 
   assert.equal(directorFollowUp(awaiting, 'ecco il sito venezuela.travel'), `${awaiting.resume}, sito https://venezuela.travel`)
   assert.equal(directorFollowUp(awaiting, 'trovami 5 partner per Roma'), null)
 })
+
+test('solo la demo può attendere una ricevuta mantenendo la sua riserva', async () => {
+  for (const demo of [true, false]) {
+    const db = fakeStore([work(demo ? { agent_id: 'demo_builder', action: 'create_demo', payload: { city: 'Buenos Aires' } } : {})])
+    const runner = fakeRunner(); db.store.uncertainRun = async () => true
+    await runOfficeWorker(OWNER, { ...options, store: db.store, run: runner.run, execute: async () => ({
+      status: 'waiting', reason_code: 'demo_running', phase: 'await_remote', checkpoint: { demo_ledger_id: ID }, next_check_at: NOW.toISOString(),
+    }) })
+    assert.equal(db.rows[0].status, demo ? 'waiting' : 'blocked')
+  }
+})

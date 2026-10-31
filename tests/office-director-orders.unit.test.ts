@@ -701,3 +701,9 @@ describe('fonti eventi di una città (StudioMap)', async () => {
     assert.match(directorHelpText('https://crm.example.org'), /fonti eventi di Marsiglia/)
   })
 })
+
+
+test('una demo senza link non diventa un import My Maps', () => {
+  const order = interpretDirectorOrder(answer({ intent: 'build_map', city: 'Buenos Aires' }), { text: 'crea una mappa demo di Buenos Aires', today: TODAY, images: 0 })
+  assert.deepEqual(order, { intent: 'build_map', city: 'Buenos Aires', slug: 'buenos-aires', source: null, demo: true })
+})

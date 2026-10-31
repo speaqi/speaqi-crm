@@ -1141,6 +1141,7 @@ export async function executePlan(admin: Admin, ctx: AgentContext, order: Direct
       `Ho letto ${who}: ${CONTACT_CATEGORY_LABELS[plan.category].split(' (')[0].toLowerCase()}. Te lo propongo in «Aspetta te»: ${contactNextStep(plan.category)}${dup}${dropped}` }
   }
   if (plan.intent === 'build_map') {
+    if (plan.demo) return { status: 'failed', outputs: [], queued: [], reply: 'La demo senza My Maps richiede il worker dei lavori: resta registrata e non avvio importazioni.' }
     const result = await queueForAgent(admin, userId, 'mymaps_builder', { key: `build_map:${plan.slug}`, slug: plan.slug, city: plan.city, ...(plan.source ? { source: plan.source } : {}) })
     const source = plan.source ? '' : ' Non mi hai dato il link della My Maps: userà solo una fonte già collegata in StudioMap, se c’è.'
     return { status: result.reason === 'agent_missing' ? 'failed' : 'done', outputs: [], queued: [result], reply: `Mappa di ${plan.city}: ${queueSentence(result)}${source}` }

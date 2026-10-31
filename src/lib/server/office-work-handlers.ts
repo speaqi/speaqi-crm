@@ -12,6 +12,7 @@ import { nextOfficeBudgetCheck } from '../office-work'
 import { DESTINATION_TYPES, ensureCatalogEntity, executePlan, findEntity, orderImages, pendingDirectorQuestion, type DirectorOrderRow } from './office-director-orders'
 import { officeAgentHandler } from './office-agents/registry'
 import { myMapsHandler } from './office-agents/mymaps'
+import { createDemoWork } from './office-work-demo'
 import { mapsQualityHandler } from './office-agents/maps-quality'
 import { languagesVoiceHandler, speaqiTranslationsApi } from './office-agents/languages-voice'
 import { presentationEntities, presentationsHandler } from './office-agents/presentations'
@@ -213,7 +214,9 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
     source_key: `order:${order.id}:${suffix}:v${work.payload_version}`, payload, priority: work.priority, status: 'ready',
   })
   let children: OfficeWorkSpec[] = []
-  if (plan.intent === 'build_map') children = [child('mymaps_builder', 'import_mymaps', { slug: plan.slug, city: plan.city, source: plan.source }, 'map')]
+  if (plan.intent === 'build_map') children = plan.demo
+    ? [{ ...child('demo_builder', 'create_demo', { slug: plan.slug, city: plan.city }, 'demo'), max_attempts: 20 }]
+    : [child('mymaps_builder', 'import_mymaps', { slug: plan.slug, city: plan.city, source: plan.source }, 'map')]
   if (plan.intent === 'check_map') children = [child('maps_quality', 'check_map', { slug: plan.slug, city: plan.city }, 'quality')]
   // In inglese la presentazione è un deck a parte, fatto dal Direttore stesso (`englishPresentation`, via `executePlan`):
   // non passa dal compito dell'agente Presentazioni, che ha un solo lavoro per ente.
@@ -333,6 +336,7 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
 export async function executeOfficeWork(ctx: AgentContext, work: OfficeWorkItem, admin: any,
   deps: { handler?: AgentHandler } = {}): Promise<WorkOutcome> {
   if (work.action === 'interpret_order') return interpretOrderWork(ctx, work, admin)
+  if (work.action === 'create_demo') return createDemoWork(ctx, work, admin)
   if (work.action === 'verify_tourism_entity') return verifyTourismWork(ctx, work, admin)
   if (work.action === 'prepare_presentation') return preparePresentationWork(ctx, work, admin)
   if (work.action === 'agent_run' && ['mymaps_builder', 'maps_quality', 'presentations'].includes(work.agent_id)) {
