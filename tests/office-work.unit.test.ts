@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { aggregateAutomationOutcome, nextOfficeBudgetCheck, officeWorkNotice, officeWorkSpec, validateWorkPayload, type OfficeWorkItem, type WorkOutcome } from '../src/lib/office-work'
-import { SKIPPED_NOTICE, deliverOfficeWorkEvents, runOfficeWorker, type OfficeWorkStore, type WorkEvent } from '../src/lib/server/office-work'
+import { SKIPPED_NOTICE, createOfficeWorkStore, deliverOfficeWorkEvents, runOfficeWorker, type OfficeWorkStore, type WorkEvent } from '../src/lib/server/office-work'
+import { FakeSupabase } from './fake-supabase'
 import { isCountryName } from '../src/lib/server/office-work-handlers'
 import { directorFollowUp } from '../src/lib/office/director-orders'
 import { runJob, type SchedulerDeps } from '../src/lib/server/automation-scheduler'
@@ -10,6 +11,18 @@ import { OFFICE_AGENT_DEFINITIONS } from '../src/lib/server/office-agents/defini
 const OWNER = '11111111-1111-4111-8111-111111111111'
 const ID = '22222222-2222-4222-8222-222222222222'
 const NOW = new Date('2026-10-25T10:00:00Z')
+test('riprende solo vecchie presentazioni bloccate non ancora cercate, senza toccare esiti incerti', async () => {
+  const base = { user_id: OWNER, agent_id: 'director', action: 'interpret_order', status: 'blocked', reason_code: 'entity_missing',
+    phase: 'planned', revision: 2, attempt_count: 1, max_attempts: 5, checkpoint: { plan: { intent: 'presentation', targets: ['Sibiu'] } } }
+  const db = new FakeSupabase({ office_work_items: [
+    { ...base, id: 'eligible' },
+    { ...base, id: 'researched', checkpoint: { ...base.checkpoint, research_results: { '0:Sibiu': null } } },
+    { ...base, id: 'uncertain', phase: 'effect_started' },
+    { ...base, id: 'other', user_id: 'other' },
+  ] }, { office_work_owner_action: (args) => ({ work: { id: args.p_work_id } }) })
+  assert.equal(await createOfficeWorkStore(db).retryResearch!(OWNER), 1)
+  assert.deepEqual(db.calls.map((call) => call.args.p_work_id), ['eligible'])
+})
 function work(patch: Partial<OfficeWorkItem> = {}): OfficeWorkItem {
   return { id: ID, user_id: OWNER, order_id: ID, deal_id: null, agent_id: 'director', action: 'interpret_order', source_key: 'test:order:1', origin: 'order',
     payload: { order_id: ID }, payload_version: 1, status: 'ready', priority: 90, available_at: NOW.toISOString(), phase: null,
@@ -127,6 +140,16 @@ test('il budget si ricontrolla al confine del calendario italiano, compreso il c
   assert.equal(nextOfficeBudgetCheck(NOW, 'week'), '2026-10-25T23:00:00.000Z')
   assert.equal(nextOfficeBudgetCheck(NOW, 'month'), '2026-10-31T23:00:00.000Z')
   assert.equal(nextOfficeBudgetCheck(new Date('2026-03-29T12:00:00Z')), '2026-03-29T22:00:00.000Z')
+})
+
+test('un report fallito non annulla i lavori riusciti e resta visibile nello stato del worker', async () => {
+  const db = fakeStore(); const runner = fakeRunner()
+  db.store.materializeReport = async () => { throw new Error('report non disponibile') }
+  const result = await runOfficeWorker(OWNER, { ...options, store: db.store, run: runner.run,
+    execute: async () => ({ status: 'succeeded', result: { id: 'result' } }) })
+  assert.equal(db.rows[0].status, 'succeeded')
+  assert.equal(result.outcome, 'blocked')
+  assert.match(result.reason, /Riepilogo periodico non creato/)
 })
 
 test('l’importazione delle vecchie code precede recupero e presa del worker', async () => {

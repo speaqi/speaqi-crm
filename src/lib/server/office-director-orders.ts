@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { BudgetExceeded, callModel, runAgent, type AgentContext } from './office-agents'
 import { officeIsNaples } from '../office/director'
 import { EXONYMS, nameKey } from '../office/entity-enricher'
-import { TOURISM_TYPES } from '../tourism'
+import { safePublicUrl, TOURISM_TYPES } from '../tourism'
 import { readEntitySite } from './office-agents/entity-enricher'
 import { officeDeckAgent, presentationEntities } from './office-agents/presentations'
 import { sendDeckToTelegram } from './office-deck-telegram'
@@ -15,6 +15,7 @@ import { photoForModel, sniffUpload, safeFileName } from './tourism-deck-assets'
 import { errorMessage } from './http'
 import { searchPattern } from '../command-center'
 import { officeRomeDay } from '../office/finance'
+import { OFFICE_DECISIONS_FILTER } from '../office-inbox'
 import {
   CONTACT_CATEGORY_LABELS, DIRECTOR_ORDER_SCHEMA, contactNextStep, directorOrderPrompt, directorStatusLines,
   directorEventsReply, directorEventSourcesReply, directorInvoiceReply, directorQuoteLabel, interpretDirectorOrder, queuedWorkReport, quoteIsInvoiceable,
@@ -735,6 +736,36 @@ async function autoDestinationPresentations(admin: Admin, ctx: AgentContext, ord
 
 const PARTNER_DB_TYPES = [...PARTNER_TYPE_CODES, 'accommodation', 'transport']
 
+/** Le corrispondenze del database sono per sottostringa: Roma non è Romania. */
+export function partnerMentionsCity(names: string[], ...fields: unknown[]): boolean {
+  const normalized = fields.filter((field): field is string => typeof field === 'string').map(nameKey)
+  return names.some((name) => {
+    const city = nameKey(name)
+    return city.length >= 3 && normalized.some((field) => ` ${field} `.includes(` ${city} `))
+  })
+}
+
+/** Usa solo recapiti pubblicati da un sito che identifica effettivamente l'organizzazione. */
+export async function enrichPartnerContact(name: string, website: string | null,
+  read: typeof readEntitySite = readEntitySite): Promise<{ email: string; source: string } | null> {
+  const site = website && safePublicUrl(website)
+  if (!site) return null
+  try {
+    const pages = await read(site)
+    const identity = pages.map((page) => page.text).join('\n')
+    if (!siteMatchesEntity(site, identity, name)) return null
+    for (const page of pages) {
+      if (!safePublicUrl(page.url)) continue
+      const originalHost = new URL(site).hostname.replace(/^www\./, '').toLowerCase()
+      const pageHost = new URL(page.url).hostname.replace(/^www\./, '').toLowerCase()
+      if (pageHost !== originalHost && !pageHost.endsWith(`.${originalHost}`)) continue
+      const email = emailFromSite(site, [page.text])
+      if (email) return { email, source: page.url }
+    }
+  } catch { /* Un sito non raggiungibile non blocca le altre ricerche. */ }
+  return null
+}
+
 /**
  * «Trovami 5 partner per Venezia»: prima il catalogo (operatori che nominano la città),
  * poi il web per quelli che mancano. Ognuno diventa una proposta «Nuovo contatto»
@@ -753,13 +784,15 @@ async function findPartners(admin: Admin, ctx: AgentContext, order: DirectorOrde
       .eq('body->>action', 'create_contact').limit(200),
   ])
   if (rows.error) throw rows.error
+  if (pending.error) throw pending.error
   const proposed = new Set(((pending.data || []) as Array<{ body: any }>).map((o) => compactName(String(o.body?.contact?.company || o.body?.contact?.name || ''))))
   const seen = new Set<string>()
   type Pick = { name: string; website: string | null; email: string | null; phone: string | null; country: string | null; kind: string; why: string; source: string; entity_id: string | null }
   const picks: Pick[] = []
   const consider = async (pick: Pick) => {
     const key = compactName(pick.name)
-    const host = pick.website ? new URL(pick.website).hostname.replace(/^www\./, '') : null
+    const safeSite = pick.website && safePublicUrl(pick.website)
+    const host = safeSite ? new URL(safeSite).hostname.replace(/^www\./, '') : null
     if (!key || seen.has(key) || (host && seen.has(host)) || proposed.has(key)) return false
     const dup = await findDuplicates(admin, userId, { company: pick.name, email: pick.email, phone: null })
     if (dup.length) return false
@@ -768,16 +801,20 @@ async function findPartners(admin: Admin, ctx: AgentContext, order: DirectorOrde
     return true
   }
   const catalog = ((rows.data || []) as any[])
+    .filter((e) => partnerMentionsCity(names, e.name, e.details?.description, e.details?.hq_city))
     // Prima chi ha un recapito, poi chi ha la città nel nome.
     .sort((a, b) => Number(!!b.email) - Number(!!a.email) || Number(!!b.website) - Number(!!a.website)
       || Number(names.some((n) => nameKey(b.name).includes(nameKey(n)))) - Number(names.some((n) => nameKey(a.name).includes(nameKey(n)))))
   const linked = catalog.length ? new Set(((checked(await admin.from('tourism_crm_links').select('entity_id').eq('user_id', userId)
     .in('entity_id', catalog.map((e) => e.id))) || []) as Array<{ entity_id: string }>).map((l) => l.entity_id)) : new Set<string>()
+  let contactLookups = 0
   for (const e of catalog) {
     if (picks.length >= plan.count) break
     if (linked.has(e.id)) continue
-    await consider({ name: e.name, website: e.website || null, email: e.email || null, phone: e.phone || null, country: e.country_code || null,
-      kind: TOURISM_TYPE_LABEL(e.type_code), why: String(e.details?.description || '').slice(0, 200), source: 'Catalogo Tourism Intelligence', entity_id: e.id })
+    const found = !e.email && e.website && contactLookups < 10
+      ? (contactLookups++, await enrichPartnerContact(e.name, e.website)) : null
+    await consider({ name: e.name, website: safePublicUrl(e.website || '') || null, email: e.email || found?.email || null, phone: e.phone || null, country: e.country_code || null,
+      kind: TOURISM_TYPE_LABEL(e.type_code), why: String(e.details?.description || '').slice(0, 200), source: found ? `Catalogo Tourism Intelligence; recapito: ${found.source}` : 'Catalogo Tourism Intelligence', entity_id: e.id })
   }
   const notes: string[] = []
   if (picks.length < plan.count) {
@@ -794,6 +831,7 @@ async function findPartners(admin: Admin, ctx: AgentContext, order: DirectorOrde
         let pages: Array<{ text: string }> = []
         try { pages = await readEntitySite(candidate.website) } catch { continue }
         if (!siteMatchesEntity(candidate.website, pages.map((p) => p.text).join('\n'), candidate.name)) continue
+        if (!partnerMentionsCity(names, candidate.name, ...pages.map((p) => p.text))) continue
         await consider({ ...candidate, email: emailFromSite(candidate.website, pages.map((p) => p.text)), phone: null, country: null,
           source: `Ricerca web, sito letto: ${candidate.website}`, entity_id: null })
       }
@@ -1000,7 +1038,7 @@ async function statusReport(admin: Admin, userId: string, now: Date) {
     admin.from('activities').select('id', { count: 'exact', head: true }).eq('user_id', userId).gte('created_at', weekAgo),
     admin.from('activities').select('created_at,content,contact:contacts(name)').eq('user_id', userId)
       .order('created_at', { ascending: false }).limit(8),
-    admin.from('office_agent_outputs').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'pending'),
+    admin.from('office_agent_outputs').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'pending').or(OFFICE_DECISIONS_FILTER),
     admin.from('office_agent_runs').select('agent_id,status,summary,started_at').eq('user_id', userId).gte('started_at', weekAgo)
       .not('status', 'in', '(skipped_disabled,running)').order('started_at', { ascending: false }).limit(20),
     admin.from('office_agents').select('id,name').eq('user_id', userId),

@@ -6,13 +6,32 @@ import {
   directorTaskItems, directorTaskDue, directorEventSourcesReply, directorHelpText, directorTaskReply, romeDateTimeToIso, weekdayIt, MAX_ORDER_TASKS, pickPresentationRecipient, presentationEmail, acceptPresentationEmail,
 } from '../src/lib/office/director-orders'
 import { allDayOf, calendarEventPayload } from '../src/lib/server/gcal'
-import { validateOrderFiles } from '../src/lib/server/office-director-orders'
+import { enrichPartnerContact, partnerMentionsCity, validateOrderFiles } from '../src/lib/server/office-director-orders'
 import { estimateModelCost, OFFICE_IMAGE_RESERVE_TOKENS } from '../src/lib/office-pricing'
 
 const TODAY = '2026-10-24'
 const empty = { name: null, role: null, company: null, email: null, phone: null, website: null, city: null, country: null }
 const answer = (patch: Record<string, unknown>) => ({ intent: 'unknown', card_text: null, contact: empty, category: null, category_reason: null,
   brief: null, city: null, map_link: null, target: null, tasks: [], question: null, ...patch })
+
+describe('ricerca partner nel catalogo', () => {
+  test('la città deve essere una parola intera, anche per gli esonimi', () => {
+    assert.equal(partnerMentionsCity(['Roma', 'Rome'], 'Albania DMC', 'Albania, Romania and the Balkans'), false)
+    assert.equal(partnerMentionsCity(['Roma', 'Rome'], 'Rome Cavalieri'), true)
+    assert.equal(partnerMentionsCity(['Roma'], 'Hotel', 'nel centro di Roma'), true)
+  })
+
+  test('recapito dal sito identificato, con pagina fonte', async () => {
+    const read = async () => [{ url: 'https://hotel.example/contatti', text: 'Hotel Bellavista — info@hotel.example' }]
+    assert.deepEqual(await enrichPartnerContact('Hotel Bellavista', 'https://hotel.example', read),
+      { email: 'info@hotel.example', source: 'https://hotel.example/contatti' })
+    assert.equal(await enrichPartnerContact('Hotel Diverso', 'https://hotel.example', read), null)
+    assert.equal(await enrichPartnerContact('Hotel Bellavista', 'http://127.0.0.1', read), null)
+    assert.equal(await enrichPartnerContact('Hotel Bellavista', 'https://hotel.example', async () => [
+      { url: 'https://other.example/', text: 'Hotel Bellavista info@hotel.example' },
+    ]), null)
+  })
+})
 
 describe('nuovo contatto dal bigliettino', () => {
   const card = 'Marie Dupont\nDirectrice marketing\nVisit Marseille\nmarie.dupont@visitmarseille.fr\n+33 4 91 13 89 00\nwww.marseille-tourisme.com'

@@ -6,6 +6,7 @@ import { apiFetch } from '@/lib/api'
 import { officeApprovalEffect, type OfficeOverview } from '@/lib/office'
 import { INBOX_DOCUMENT_STATES, officeInboxGroups, type InboxAction, type InboxCategory, type InboxPage, type InboxResult } from '@/lib/office-inbox'
 import { CONTACT_HIDDEN_KEYS, OutputBody } from './OutputBody'
+import { OfficeReportBody } from './OfficeReportBody'
 import styles from '@/app/(app)/ufficio/ufficio.module.css'
 
 const date = (value: string) => new Date(value).toLocaleString('it-IT', { timeZone: 'Europe/Rome', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -130,7 +131,10 @@ export function PendingInbox({ data, onChanged, highlight }: { data: OfficeOverv
         {output.document && <p className={styles.last}>{INBOX_DOCUMENT_STATES[output.document.status] || output.document.status} · versione {output.document.version}</p>}
         {output.document && typeof output.body.version === 'number' && output.body.version !== output.document.version
           && <p className={styles.muted}>Questo avviso riguarda la versione {output.body.version}. Il documento è ora alla versione {output.document.version}.</p>}
-        <details open={!!highlight && group.ids.includes(highlight)}><summary>Leggi</summary><div className={styles.body}><OutputBody value={output.body} hide={output.body.action === 'create_contact' ? CONTACT_HIDDEN_KEYS : undefined} /></div></details>
+        <details open={!!highlight && group.ids.includes(highlight)}><summary>Leggi</summary><div className={styles.body}>
+          {output.body?.tipo === 'periodic_office_report' ? <OfficeReportBody value={output.body} agents={data.agents} />
+            : <OutputBody value={output.body} hide={output.body.action === 'create_contact' ? CONTACT_HIDDEN_KEYS : undefined} />}
+        </div></details>
         <p className={styles.effect}>{group.category === 'decisions' ? effect.description : group.category === 'documents'
           ? 'Rivedi il documento dalla sua scheda. Archiviare questi avvisi non approva la presentazione.' : 'Segna come letto per togliere questo rapporto dalla coda.'}</p>
         {failure.length > 0 && <p role="alert" className={styles.error}>{[...new Set(failure)].join(' ')}</p>}

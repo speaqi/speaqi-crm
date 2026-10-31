@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { OfficeAgent, OfficeOutput, OfficeOverview, OfficeRun, OfficeSpend } from '../office'
 import { OFFICE_OPEN_WORK_STATUSES, OFFICE_WORK_SUMMARY_COLUMNS, type OfficeWorkSummary } from '../office-activity'
 import { officeRows } from './office-read'
+import { OFFICE_DECISIONS_FILTER, officeOutputIsNotice } from '../office-inbox'
 
 async function loadWorkSummary(admin: SupabaseClient, userId: string) {
   try {
@@ -53,6 +54,17 @@ export async function loadOfficeOverview(admin: SupabaseClient, userId: string, 
     if (count.error) throw count.error
     outputs = { ...outputs, data: [], error: null, count: count.count }
   } else if (outputs.error) throw outputs.error
+  // Se la prima pagina contiene l'intera coda, evitiamo un'altra lettura ad
+  // ogni aggiornamento dell'ufficio. La paginazione continua a usare il totale.
+  let decisions: number
+  if (outputOffset === 0 && (outputs.count || 0) <= (outputs.data || []).length) {
+    decisions = (outputs.data || []).filter((output: OfficeOutput) => !officeOutputIsNotice(output)).length
+  } else {
+    const count = await admin.from('office_agent_outputs').select('id', { count: 'exact', head: true })
+      .eq('user_id', userId).eq('status', 'pending').or(OFFICE_DECISIONS_FILTER)
+    if (count.error) throw count.error
+    decisions = count.count || 0
+  }
   const spending = new Map((spendRes.data as OfficeSpend[]).map((spend) => [spend.agent_id, spend]))
   const totals = { day_actual: 0, day_reserved: 0, week_actual: 0, week_reserved: 0, month_actual: 0, month_reserved: 0 }
   const rows = agents.map((agent, index) => {
@@ -61,5 +73,5 @@ export async function loadOfficeOverview(admin: SupabaseClient, userId: string, 
     return { ...agent, spend, last_run: lastRuns[index] }
   })
   return { agents: rows, runs: runsRes.data as OfficeRun[], outputs: outputs.data as OfficeOutput[],
-    pending_count: outputs.count || 0, totals, active_agents: agents.filter((agent) => agent.enabled).length, ...activity }
+    pending_count: outputs.count || 0, decision_count: decisions, totals, active_agents: agents.filter((agent) => agent.enabled).length, ...activity }
 }
