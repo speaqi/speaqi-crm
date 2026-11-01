@@ -33,6 +33,8 @@ export const TOURISM_TYPES = {
   airline: 'Compagnia aerea',
   rail_operator: 'Operatore ferroviario',
   bus_operator: 'Operatore bus',
+  // Chi racconta viaggi ed esperienze: blog, guide editoriali, community, creator con sito.
+  travel_media: 'Blog e media di viaggio',
   other: 'Da classificare'
 } as const
 export const ENTITY_KINDS = [
