@@ -5,6 +5,21 @@
  */
 import { nameKey } from './entity-enricher'
 
+export function isCountryDestination(value: string | null | undefined, code: string | null | undefined): boolean {
+  if (!value || !code) return false
+  return ['it', 'en', 'es', 'fr'].some((lang) => {
+    try { return nameKey(new Intl.DisplayNames([lang], { type: 'region' }).of(code) || '') === nameKey(value) } catch { return false }
+  })
+}
+
+export const isNationalTourismBody = (type: string | null | undefined) => type === 'nto' || type === 'ministry'
+
+/** Il paese è una destinazione implicita solo per un ente nazionale. */
+export function activationDestination(city: string | null, countryCode: string, type: string | null, countryName: string | null): string | null {
+  const national = isNationalTourismBody(type)
+  return (national || !isCountryDestination(city, countryCode) ? city : null) || (national ? countryName : null)
+}
+
 /** Siti che parlano di tutti e non sono di nessuno: mai il sito ufficiale di un ente. */
 const NOT_OFFICIAL = /(^|\.)(facebook|instagram|linkedin|youtube|twitter|x|tiktok|wikipedia|wikidata|tripadvisor|booking|expedia|google|bing|yelp|pinterest|trustpilot|paginegialle|paginebianche|virgilio|lonelyplanet|getyourguide|viator|airbnb|amazon|medium|wordpress|blogspot)\.[a-z.]+$/i
 

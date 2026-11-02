@@ -28,7 +28,7 @@ import { sendNotificationText } from './whatsapp'
 import { createServiceRoleClient } from './supabase'
 import { activateEntityForOrder, verifiedDestination, type ActivationEntity } from './office-entity-activation'
 import { enqueueOfficeWork, missingWorkSchema, officeWorkEnabled, QUEUE_WORK_ACTION } from './office-work-routing'
-import { cityForEntity, compactName, entitySearchPattern, pickOrderEntity, siteMatchesEntity, websiteFromText } from '../office/entity-activation'
+import { activationDestination, cityForEntity, compactName, entitySearchPattern, pickOrderEntity, siteMatchesEntity, websiteFromText } from '../office/entity-activation'
 import { DIRECTOR_BUCKET, directorPhotoFiles } from './office-director-photos'
 import { OfficeStudioError, officeStudioRequest } from './office-agents/maps-bridge'
 import { addPhotosToDeck, createDeck, generateIntoDeck, type DeckRow } from './tourism-decks'
@@ -879,7 +879,7 @@ async function addEntity(admin: Admin, ctx: AgentContext, order: DirectorOrderRo
   const link = `${base}/tourism?entity=${entity.id}`
   const crm = checked(await admin.from('tourism_crm_links').select('contact_id').eq('user_id', userId).eq('entity_id', entity.id).limit(1).maybeSingle())
   if (entity.status === 'VERIFIED' && crm) return { status: 'done', outputs: [], queued: [], reply: `${entity.name} è già in Tourism Intelligence, verificato e nei contatti. ${link}` }
-  const city = plan.city || (DESTINATION_TYPES.includes(plan.type_code) || plan.type_code === 'ministry' ? countryName(plan.country_code) : null)
+  const city = activationDestination(plan.city, plan.country_code, entity.type_code, countryName(plan.country_code))
   // Un contatto del CRM con l'organizzazione dell'ente (uno solo) si collega, invece di crearne un altro.
   const contact = crm ? null : await contactOfOrganization(admin, userId, entity.name)
   // Alla risposta del titolare si riparte da qui: con la presentazione, se l'aveva chiesta.

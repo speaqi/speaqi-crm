@@ -366,6 +366,19 @@ test('ente verificato con la sua destinazione: la città non si chiede, anche se
   assert.equal(presentation.payload.city, 'Costa Fermana')
 })
 
+test('un paese collegato a una DMO non diventa automaticamente la destinazione della presentazione', async () => {
+  const f = fixture({ intent: 'presentation', target: 'Islands of Sicily', city: null })
+  Object.assign(f.db.tables.tourism_entities[0], { name: 'Islands of Sicily', type_code: 'dmo', country_code: 'IT', status: 'VERIFIED', website: SITE })
+  f.db.tables.tourism_entities.push({ id: PLACE, user_id: USER, kind: 'place', name: 'Italia', country_code: 'IT', status: 'VERIFIED', disabled: false })
+  f.db.tables.tourism_evidence.push({ id: 'ev-identity', user_id: USER, entity_id: ENTITY, status: 'VERIFIED' },
+    { id: 'ev-coverage', user_id: USER, entity_id: ENTITY, status: 'VERIFIED' })
+  f.db.tables.tourism_relations = [{ user_id: USER, from_id: ENTITY, to_id: PLACE, relation: 'COVERS', evidence_id: 'ev-coverage' }]
+  f.order()
+  await f.tick()
+  assert.equal(f.works.some((work) => work.action === 'prepare_presentation'), false)
+  assert.ok(f.works.some((work) => work.reason_code === 'needs_information' && work.reason?.includes('Italia')))
+})
+
 test('etichetta VERIFIED senza prove proprie: la verifica puntuale resta', async () => {
   const f = fixture()
   Object.assign(f.db.tables.tourism_entities[0], { status: 'VERIFIED', website: SITE })
