@@ -15,7 +15,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     await ensureOfficeAgents(admin, userId)
     const store = createOfficeStore(admin)
     if (!await store.agent(id, userId)) return Response.json({ error: 'Agente non trovato' }, { status: 404 })
-    if (officeWorkEnabled()) {
+    // Il monitoraggio modelli usa direttamente la corsa idempotente dell’agente:
+  // il registro dei lavori persistenti non include ancora questo nuovo tipo.
+  if (officeWorkEnabled() && id !== 'model_watch') {
       try {
         const work = await enqueueAgentTurn(admin, userId, id, key, 'order')
         return Response.json({ work, run: null, queued: true, summary: 'Incarico salvato: seguilo nella scheda Lavori.' }, { status: 202 })
