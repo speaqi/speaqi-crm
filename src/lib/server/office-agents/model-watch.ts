@@ -25,7 +25,10 @@ export function modelWatchHandler(admin: any, options: { now?: () => Date; fetch
       if (snapshot && catalog.length < snapshot.length / 2) throw new Error('Catalogo OpenRouter incompleto: inventario precedente conservato')
       // Ogni aggiornamento conserva tutti i modelli e le descrizioni originali, non solo gli interessanti.
       const inventory = await addOfficeOutputOnce(admin, ctx, 'catalog:current', { kind: 'report', title: 'Catalogo completo OpenRouter', body: { type: 'model_catalog', source: 'https://openrouter.ai/api/v1/models?output_modalities=all', updated_at: new Date().toISOString(), models: catalog } })
-      const inventoryUpdate = await admin.from('office_agent_outputs').update({ status: 'done', body: { type: 'model_catalog', source: 'https://openrouter.ai/api/v1/models?output_modalities=all', updated_at: new Date().toISOString(), models: catalog } }).eq('id', inventory.id).eq('user_id', ctx.agent.user_id)
+      const existingInventory = await admin.from('office_agent_outputs').select('body').eq('id', inventory.id).eq('user_id', ctx.agent.user_id).maybeSingle()
+      if (existingInventory.error) throw existingInventory.error
+      const savedBody = existingInventory.data?.body || {}
+      const inventoryUpdate = await admin.from('office_agent_outputs').update({ status: 'done', body: { ...savedBody, type: 'model_catalog', source: 'https://openrouter.ai/api/v1/models?output_modalities=all', updated_at: new Date().toISOString(), models: catalog } }).eq('id', inventory.id).eq('user_id', ctx.agent.user_id)
       if (inventoryUpdate.error) throw inventoryUpdate.error
       const seen = new Set<string>((previous.data || []).flatMap((r: any) => Array.isArray(r.body?.model_ids) ? r.body.model_ids.filter((id: unknown) => typeof id === 'string') : []))
       // Il primo censimento analizza anche i modelli già presenti; le nuove uscite hanno priorità dopo.
@@ -36,7 +39,7 @@ export function modelWatchHandler(admin: any, options: { now?: () => Date; fetch
       const baseline: string[] = [...new Set<string>(agents.map((a: any) => a.model))]
       const baselineData = catalog.filter(m => baseline.some(b => m.id === b || m.id === `openai/${b}`))
       let selected: Array<{id:string;reason:string}> = []
-      // Numero limitato: le altre novità verranno rivalutate nei giorni seguenti.
+      // Eventuali lavori arretrati vengono analizzati nella stessa corsa.
       const backlog = (previous.data || []).find((r: any) => Array.isArray(r.body?.backlog))?.body.backlog as string[] | undefined
       const catalogById = new Map(catalog.map(m => [m.id, m]))
       const byId = new Map([...candidates, ...(backlog || []).map(id => catalogById.get(id)).filter((m): m is CatalogModel => !!m)].filter(m => !seen.has(m.id)).map(m => [m.id, m]))
