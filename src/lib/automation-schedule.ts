@@ -45,7 +45,7 @@ export const DEFAULT_STEP_TIMEOUT_MS = 180_000
 export const AUTOMATION_JOBS: ScheduledJob[] = [
   {name:'office-work',cron:'*/5 * * * *',description:'Lavori persistenti dell’Ufficio: esecuzione, recupero ed esiti',steps:[{path:'/api/automation/office-work',timeoutMs:900_000}]},
   {name:'office-events-scout',cron:'30 6 * * *',everyDays:2,timeZone:'Europe/Rome',description:'Eventi e bandi: a giorni alterni, solo proposte da decidere',steps:[{path:'/api/automation/agents/events_scout/run',timeoutMs:900_000}]},
-  {name:'office-model-watch',cron:'15 7 * * *',timeZone:'Europe/Rome',description:'Nuovi modelli OpenRouter: confronto e report Telegram',steps:[{path:'/api/automation/agents/model_watch/run'}]},
+  {name:'office-model-watch',cron:'15 7 * * *',timeZone:'Europe/Rome',description:'Nuovi modelli OpenRouter: confronto e report Telegram',steps:[{path:'/api/automation/agents/model_watch/run',timeoutMs:900_000}]},
   {name:'office-news-watch',cron:'0 7 * * *',description:'Osservatorio: novità con fonti, nessun invio automatico',steps:[{path:'/api/automation/agents/news_watch/run'}]},
   {name:'office-social',cron:'0 9 * * 1',description:'Social: prepara bozze settimanali, mai pubblicazioni',steps:[{path:'/api/automation/agents/social/run'}]},
   {name:'office-presentations',cron:'0 10 * * 1',description:'Presentazioni Tourism: bozze da approvare, nessun invio',steps:[{path:'/api/automation/agents/presentations/run'}]},
