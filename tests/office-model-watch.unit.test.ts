@@ -43,7 +43,7 @@ test('report giornaliero inviato una sola volta e documentato', async () => {
     if (table === 'office_agent_outputs') {
       let key = ''
       const q: any = { select: () => q, eq: (column: string, value: string) => { if (column === 'output_key') key = value; return q },
-        neq: () => q, order: () => q, limit: async () => ({data: key ? rows.filter(r => r.key === key) : rows.filter(r => r.key !== 'catalog:current'), error: null}),
+        neq: () => q, order: () => q, maybeSingle: async () => ({data: rows.find(r => r.key === 'catalog:current') || null, error:null}), limit: async () => ({data: key ? rows.filter(r => r.key === key) : rows.filter(r => r.key !== 'catalog:current'), error: null}),
         update: (value:any) => { const target = rows.find(r => r.key === 'catalog:current'); if (target) Object.assign(target, value); q.eq = () => q; q.then = (resolve:any) => resolve({error:null}); return q } }
       return q
     }
