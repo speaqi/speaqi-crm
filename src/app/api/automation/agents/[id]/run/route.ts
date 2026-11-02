@@ -18,7 +18,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   catch (error) { return Response.json({ error: errorMessage(error, 'Registro non disponibile') }, { status: 500 }) }
   // I retry del pianificatore nello stesso minuto riusano la corsa.
   const key = officeRunKey(request) || `cron:${new Date().toISOString().slice(0, 16)}`
-  if (officeWorkEnabled()) {
+  // Il monitoraggio modelli usa direttamente la corsa idempotente dell’agente:
+  // il registro dei lavori persistenti non include ancora questo nuovo tipo.
+  if (officeWorkEnabled() && id !== 'model_watch') {
     try {
       const work = await enqueueAgentTurn(createServiceRoleClient(), auth.context.workspaceUserId, id, key)
       return Response.json({ work, outcome: 'skipped', reason: 'Incarico registrato: viene eseguito dal worker dei lavori' }, { status: 202 })
