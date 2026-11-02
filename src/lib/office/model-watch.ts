@@ -1,5 +1,5 @@
 /** Dati del catalogo OpenRouter: prezzi in USD per milione di token. */
-export type CatalogModel = { id: string; name: string; description: string; created: number; context: number | null; input: number | null; output: number | null; modalities: string[] }
+export type CatalogModel = { id: string; name: string; description: string; created: number; context: number | null; input: number | null; output: number | null; modalities: string[]; outputModalities: string[] }
 
 export function catalogModels(payload: unknown): CatalogModel[] {
   if (!payload || typeof payload !== 'object' || !Array.isArray((payload as { data?: unknown }).data)) throw new Error('Catalogo OpenRouter non valido')
@@ -9,7 +9,7 @@ export function catalogModels(payload: unknown): CatalogModel[] {
     return [{ id: row.id, name: String(row.name || row.id).slice(0, 160), description: typeof row.description === 'string' ? row.description : '', created: row.created,
       context: Number.isFinite(row.context_length) && row.context_length > 0 ? row.context_length : null,
       input: price(row.pricing?.prompt), output: price(row.pricing?.completion),
-      modalities: Array.isArray(row.architecture?.input_modalities) ? row.architecture.input_modalities.filter((v: unknown): v is string => typeof v === 'string').slice(0, 8) : [] }]
+      modalities: Array.isArray(row.architecture?.input_modalities) ? row.architecture.input_modalities.filter((v: unknown): v is string => typeof v === 'string').slice(0, 8) : [], outputModalities: Array.isArray(row.architecture?.output_modalities) ? row.architecture.output_modalities.filter((v: unknown): v is string => typeof v === 'string').slice(0, 8) : [] }]
   })
 }
 
@@ -28,10 +28,10 @@ export function catalogChanges(models: CatalogModel[], previousIds: string[] | n
 }
 
 export function modelReportText(day: string, models: CatalogModel[], recommendations: Array<{id:string;reason:string}>, baseline: string[]) {
-  const entries = recommendations.flatMap(r => {
+  const entries = recommendations.slice(0, 4).flatMap(r => {
     const m = models.find(item => item.id === r.id)
     if (!m) return []
-    const price = m.input === null || m.output === null ? 'prezzi da verificare' : `$${m.input.toFixed(2)} input / $${m.output.toFixed(2)} output per 1M token`
+    const price = m.input === null || m.output === null ? 'prezzi da verificare' : m.outputModalities.includes('speech') ? `$${m.input.toFixed(2)} per 1M caratteri; altri costi da verificare` : `$${m.input.toFixed(2)} input / $${m.output.toFixed(2)} output per 1M token` 
     return [`• ${m.name} (${m.id})\n${price}; contesto ${m.context ?? 'non indicato'}\n${r.reason.slice(0, 450)}\nhttps://openrouter.ai/${m.id}`]
   })
   return [`🔎 OpenRouter — ${day}`, `Modelli nuovi nel catalogo: ${models.length}.`,
