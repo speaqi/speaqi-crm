@@ -1,15 +1,15 @@
 /** Dati del catalogo OpenRouter: prezzi in USD per milione di token. */
-export type CatalogModel = { id: string; name: string; description: string; created: number; context: number | null; input: number | null; output: number | null; modalities: string[]; outputModalities: string[] }
+export type CatalogModel = { id: string; name: string; description: string; created: number; context: number | null; input: number | null; output: number | null; modalities: string[]; outputModalities: string[]; supportedVoices: string[]; supportedParameters: string[]; expirationDate: string | null; pricing: Record<string, unknown> }
 
 export function catalogModels(payload: unknown): CatalogModel[] {
   if (!payload || typeof payload !== 'object' || !Array.isArray((payload as { data?: unknown }).data)) throw new Error('Catalogo OpenRouter non valido')
   return (payload as { data: any[] }).data.flatMap((row): CatalogModel[] => {
-    if (typeof row?.id !== 'string' || !/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.:-]+$/.test(row.id) || !Number.isFinite(row.created)) return []
+    if (typeof row?.id !== 'string' || !/^~?[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.:-]+$/.test(row.id) || !Number.isFinite(row.created)) return []
     const price = (value: unknown) => { const n = typeof value === 'string' && value.trim() ? Number(value) * 1_000_000 : NaN; return Number.isFinite(n) && n >= 0 ? n : null }
     return [{ id: row.id, name: String(row.name || row.id).slice(0, 160), description: typeof row.description === 'string' ? row.description : '', created: row.created,
       context: Number.isFinite(row.context_length) && row.context_length > 0 ? row.context_length : null,
       input: price(row.pricing?.prompt), output: price(row.pricing?.completion),
-      modalities: Array.isArray(row.architecture?.input_modalities) ? row.architecture.input_modalities.filter((v: unknown): v is string => typeof v === 'string').slice(0, 8) : [], outputModalities: Array.isArray(row.architecture?.output_modalities) ? row.architecture.output_modalities.filter((v: unknown): v is string => typeof v === 'string').slice(0, 8) : [] }]
+      modalities: Array.isArray(row.architecture?.input_modalities) ? row.architecture.input_modalities.filter((v: unknown): v is string => typeof v === 'string').slice(0, 8) : [], outputModalities: Array.isArray(row.architecture?.output_modalities) ? row.architecture.output_modalities.filter((v: unknown): v is string => typeof v === 'string').slice(0, 8) : [], supportedVoices: Array.isArray(row.supported_voices) ? row.supported_voices.filter((v: unknown): v is string => typeof v === 'string') : [], supportedParameters: Array.isArray(row.supported_parameters) ? row.supported_parameters.filter((v: unknown): v is string => typeof v === 'string') : [], expirationDate: typeof row.expiration_date === 'string' ? row.expiration_date : null, pricing: row.pricing && typeof row.pricing === 'object' ? row.pricing : {} }]
   })
 }
 
