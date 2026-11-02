@@ -41,7 +41,8 @@ test('report giornaliero inviato una sola volta e documentato', async () => {
     if (table === 'office_agent_outputs') {
       let key = ''
       const q: any = { select: () => q, eq: (column: string, value: string) => { if (column === 'output_key') key = value; return q },
-        order: () => q, limit: async () => ({data: key ? rows.filter(r => r.key === key) : rows, error: null}) }
+        neq: () => q, order: () => q, limit: async () => ({data: key ? rows.filter(r => r.key === key) : rows.filter(r => r.key !== 'catalog:current'), error: null}),
+        update: (value:any) => { const target = rows.find(r => r.key === 'catalog:current'); if (target) Object.assign(target, value); q.eq = () => q; q.then = (resolve:any) => resolve({error:null}); return q } }
       return q
     }
     if (table === 'office_agents') { const q: any = { select: () => q, eq: async () => ({ data: [{ id:'director', name:'Direttore', model:'gpt-5-mini', enabled:true }], error:null }) }; return q }
@@ -56,14 +57,15 @@ test('report giornaliero inviato una sola volta e documentato', async () => {
   } }
   let sends = 0
   const ctx: any = { agent: { id:'model_watch',user_id:'owner',model:'gpt-5-mini' }, runId:'run',
-    addOutput: async (v:any) => {rows.push({id:'output',key:v.key,body:v.body});return 'output'} }
+    addOutput: async (v:any) => {const id = v.key === 'catalog:current' ? 'inventory' : 'output'; rows.push({id,key:v.key,body:v.body});return id} }
   const handler = modelWatchHandler(admin, { now: () => now, channel: () => 'telegram',
     fetch: async () => new Response(JSON.stringify({data:[{id:'maker/new',created,pricing:{prompt:'0.000001',completion:'0.000002'}}]})),
     model: async () => ({text:JSON.stringify({recommendations:[{id:'maker/new',reason:'Da provare'}]}),costCents:1,tokensIn:1,tokensOut:1,citations:[]}),
     send: async () => { sends++; return {ok:true,providerMessageId:'123'} },
   })
   await handler(ctx)
-  assert.equal(rows.length, 1)
+  assert.equal(rows.length, 2)
+  assert.equal(rows.find(r => r.id === 'inventory').body.models[0].id, 'maker/new')
   assert.equal(deliveries[0].status, 'sent')
   await handler(ctx)
   assert.equal(sends, 1)
