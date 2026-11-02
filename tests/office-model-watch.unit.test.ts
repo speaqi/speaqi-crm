@@ -5,13 +5,14 @@ import { catalogModels, newCatalogModels, catalogChanges, modelReportText } from
 const now = new Date('2026-11-02T08:00:00Z')
 const created = now.getTime() / 1000 - 3600
 const models = catalogModels({data:[
-  {id:'maker/new',name:'Nuovo',created,context_length:64000,pricing:{prompt:'0.0000005',completion:'0.000002'},architecture:{input_modalities:['text']}},
+  {id:'maker/new',name:'Nuovo',description:'Descrizione ufficiale',created,context_length:64000,pricing:{prompt:'0.0000005',completion:'0.000002'},architecture:{input_modalities:['text']}},
   {id:'bad id',created},
   {id:'maker/old',created:created-9*86400},
   {id:'maker/future',created:created+86400},
 ]})
 test('catalogo: valida id e normalizza il prezzo per milione', () => {
   assert.equal(models.length, 3)
+  assert.equal(models[0].description, 'Descrizione ufficiale')
   assert.equal(models[0].input, 0.5)
   assert.equal(models[0].output, 2)
   assert.throws(() => catalogModels({data:{}}))
@@ -59,13 +60,14 @@ test('report giornaliero inviato una sola volta e documentato', async () => {
   const ctx: any = { agent: { id:'model_watch',user_id:'owner',model:'gpt-5-mini' }, runId:'run',
     addOutput: async (v:any) => {const id = v.key === 'catalog:current' ? 'inventory' : 'output'; rows.push({id,key:v.key,body:v.body});return id} }
   const handler = modelWatchHandler(admin, { now: () => now, channel: () => 'telegram',
-    fetch: async () => new Response(JSON.stringify({data:[{id:'maker/new',created,pricing:{prompt:'0.000001',completion:'0.000002'}}]})),
+    fetch: async () => new Response(JSON.stringify({data:[{id:'maker/new',description:'Descrizione ufficiale completa',created,pricing:{prompt:'0.000001',completion:'0.000002'}}]})),
     model: async () => ({text:JSON.stringify({recommendations:[{id:'maker/new',reason:'Da provare'}]}),costCents:1,tokensIn:1,tokensOut:1,citations:[]}),
     send: async () => { sends++; return {ok:true,providerMessageId:'123'} },
   })
   await handler(ctx)
   assert.equal(rows.length, 2)
   assert.equal(rows.find(r => r.id === 'inventory').body.models[0].id, 'maker/new')
+  assert.equal(rows.find(r => r.id === 'inventory').body.models[0].description, 'Descrizione ufficiale completa')
   assert.equal(deliveries[0].status, 'sent')
   await handler(ctx)
   assert.equal(sends, 1)
