@@ -8,10 +8,11 @@ const models = catalogModels({data:[
   {id:'maker/new',name:'Nuovo',description:'Descrizione ufficiale',created,context_length:64000,pricing:{prompt:'0.0000005',completion:'0.000002'},architecture:{input_modalities:['text']}},
   {id:'bad id',created},
   {id:'maker/old',created:created-9*86400},
+  {id:'~maker/old-latest',created:created-9*86400},
   {id:'maker/future',created:created+86400},
 ]})
 test('catalogo: valida id e normalizza il prezzo per milione', () => {
-  assert.equal(models.length, 3)
+  assert.equal(models.length, 4)
   assert.equal(models[0].description, 'Descrizione ufficiale')
   assert.equal(models[0].input, 0.5)
   assert.equal(models[0].output, 2)
@@ -30,7 +31,7 @@ test('report: usa solo id verificati nel catalogo e presenta i limiti', () => {
 })
 
 test('confronto del catalogo rileva anche modelli aggiunti con data più vecchia', () => {
-  assert.deepEqual(catalogChanges(models, ['maker/new', 'maker/future'], now).map(m => m.id), ['maker/old'])
+  assert.deepEqual(catalogChanges(models, ['maker/new', 'maker/future'], now).map(m => m.id), ['~maker/old-latest', 'maker/old'])
   assert.throws(() => catalogChanges(models.slice(0, 1), ['a','b','c','d'], now), /incompleto/)
 })
 
