@@ -61,21 +61,30 @@ trasporto) e al massimo 200 dipendenti.
 **Un dato ignoto vale poco, non zero e non inventato**: l'accessibilità contatti di un'azienda senza email è bassa e
 la «completezza dei dati» (0–100) è mostrata accanto a ogni punteggio.
 
-## 4. Numeri (4/11/2026)
+## 4. Numeri (aggiornati il 4/11/2026, sera)
 
 | | |
 |---|---:|
-| Aziende valutate | 5.371 |
-| Tier A / B / C / D | 46 / 777 / 2.944 / 1.604 |
-| Prospect qualificati (A+B) | 823 |
-| Con email | 855 |
-| Nuove da LeadOcean in questa sessione | 75 (61 estere con l'Italia o una città nel nome, 14 italiane) |
+| Aziende valutate | 5.447 |
+| Tier A / B / C / D | 48 / 787 / 3.008 / 1.604 |
+| Prospect qualificati (A+B) | 835 (601 con almeno una guida) |
+| Aziende con almeno una guida collegata | 875 (694 Italia, 181 estero in 62 paesi) |
+| Con segnale «Italia» ma senza guida precisa | 25 |
+| Referenti salvati | 20 persone (5 di Costa Crociere; email non rivelate) |
+| Nuove da LeadOcean il 4/11 | 75 (primo giro) + 46 tour operator di USA/CA/UK/DE/FR/AU + 10 DMC europei + 20 operatori nord-europei |
+
+**Come si leggono i numeri.** Le 875 misurano *solo* la domanda di oggi: chi può comprare o distribuire le 9 guide
+che esistono. Non sono il mercato: lo stesso bisogno esiste in Francia, Spagna, Portogallo, Grecia e altrove, e quelle
+aziende restano fuori finché non c'è una guida o una destinazione di quel paese. Per questo il target «3.000 pertinenti»
+va letto in due numeri: **pertinenti per le guide attuali (875)** e **pertinenti per qualunque destinazione (mercato
+mondiale per le guide future)**, che oggi non è misurato e va costruito con ricerche per paese e destinazione.
 
 **Target iniziale: 3.000 aziende pertinenti e 500 prospect qualificati.**
-- Prospect qualificati (Tier A+B): **823**, di cui 600 con almeno una guida collegata. **Obiettivo raggiunto.**
-- Aziende pertinenti: **874** hanno almeno una guida collegata (742 con una prova forte: sede in una delle città,
-  scali o porti serviti, flag crociere, nome o descrizione). Altre 4.500 sono nel database ma senza destinazione
-  provata. **Obiettivo non raggiunto**: non ho gonfiato il numero contando le aziende senza prova.
+- Prospect qualificati (Tier A+B): **835**, di cui 601 con una guida collegata. **Obiettivo raggiunto**, con la
+  riserva che parte dei Tier B ha solo una casella generica e non un referente.
+- Aziende pertinenti per le guide attuali: **875**. **Obiettivo non raggiunto**; non ho contato le aziende senza prova.
+- Ogni giro di ricerca LeadOcean porta tra 10 e 50 aziende davvero pertinenti dopo la pulizia (le categorie NAICS sono
+  sporche): arrivare a 3.000 richiede decine di giri per paese e categoria, non uno.
 
 Per guida (aziende collegate · Tier A · Tier B): Roma 359 · 27 · 244; Milano 273 · 8 · 186; Firenze 140 · 10 · 95;
 Venezia 134 · 7 · 90; Napoli 127 · 31 · 84; Costiera Amalfitana 87 · 10 · 60; Bologna 69 · 2 · 49; Capri 54 · 4 · 44;
@@ -267,7 +276,7 @@ Nessuna email parte senza il tuo via libera: ogni passo di contatto qui sotto ri
 1. **Il punteggio è un ordinamento, non una previsione.** Nessuna componente misura un fatturato reale: il
    «potenziale distributivo» deriva da dipendenti e tipologia.
 2. **Pochi dati ricchi.** Solo circa 1.250 enti hanno dipendenti e sede (LeadOcean); gran parte degli altri ha
-   solo nome e sito. Le email sono 855 su 5.371 e quasi tutte appartengono a crociere, traghetti e DMC.
+   solo nome e sito. Le email sono 855 su 5.447 e quasi tutte appartengono a crociere, traghetti e DMC.
 3. **Contatti = caselle d'ufficio, non referenti.** Per i Tier A senza email serve un passaggio di
    ricerca persone (LeadOcean) che non è stato fatto in questa sessione. Gli attuali «attivabili subito» hanno
    email generiche (`info@`, `customer@`).
