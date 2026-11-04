@@ -243,33 +243,36 @@ vendono ogni guida; agenzie di viaggio a Capri, Pompei, Firenze e Costiera; tour
 **ogni categoria all'estero** (tour operator americani, britannici, tedeschi, australiani: 45 + 19 + 16 + 8
 qualificati in tutto).
 
-## 9. Piano di acquisizione partner a 30 giorni
+## 9. Piano a 30 giorni: due prove prima di scalare
 
-Nessuna email parte senza il tuo via libera: ogni passo di contatto qui sotto richiede la tua autorizzazione.
+**Indirizzo del 4/11/2026 (titolare).** Le «3.000 aziende» non sono un obiettivo. Le guide possono diventare di città, di area
+o di paese intero e si lavora paese per paese, partendo dai più visitati (Francia: Parigi, Normandia, Francia intera). Prima si
+verifica quale canale funziona:
 
-**Settimana 1 — pilota con chi decide in fretta (Top 20)**
-1. Scegliere il modello e la proposta per i traghetti del Golfo (bundle: guida inclusa nel biglietto o QR a bordo) e
-   per i DMC (affiliazione/B2B agli ospiti finché non esiste un pacchetto da rivendere).
-2. Portare i 20 in pipeline «Distribuzione» con un clic («Porta in pipeline» dalla vista Top 20).
-3. Preparare la presentazione partner già esistente (modello `partner-2026-10`) per i traghetti e per i DMC
-   di Napoli/Costiera/Capri/Pompei, dove ci sono 4 guide da vendere insieme.
-4. Primo contatto manuale con Alilauro, Laziomar, NLG, Travelmar e Alicost (stesso territorio dei riferimenti SNAV).
+1. **Strada 1 — guide stile Lonely Planet vendute tramite i tour operator**, con un pilota a codice di accesso (codici `SPQ-` dei posti acquistati).
+2. **Strada 2 — accordo con un distributore** (GetYourGuide, Musement, Tiqets, Viator, Klook, Headout, Civitatis).
+3. **Accordi di città** con una compagnia aerea o di traghetti (ITA Airways per Roma; SNAV, Alilauro, Caremar per Napoli e Capri).
 
-**Settimana 2 — property manager e DMC delle altre città**
-5. Trovare i referenti (LeadOcean: titolo, funzione, email verificata) per Halldis, Brera Apartments, Casa da Suite,
-   Iflat, Uvet, Wonderful Italy (Tier A senza email).
-6. Proposta «distribuzione B2B agli ospiti» (modello Dimorra) ai property manager di Milano e Roma (34).
+Nessuna email parte senza il via libera del titolare.
 
-**Settimana 3 — crociere e marketplace**
-7. Contatto con gli uffici shore excursion / partnership di Costa, AIDA, MSC-simili, Carnival, Celebrity, Princess,
-   Holland America: il modello «bundle con escursioni» richiede un accordo, non un clic.
-8. Domanda formale ai marketplace (Viator, GetYourGuide, Tiqets, Musement, Civitatis, Klook, Headout): affiliazione o
-   inserimento della guida come prodotto.
+**Settimana 1 — la domanda ai distributori (decide se la strada 2 esiste)**
+- Una sola domanda a Musement e Tiqets (poi GetYourGuide): accettate guide digitali a pagamento in catalogo, e a quali condizioni (commissione, formato, integrazione)?
+- Esito atteso: sì/no e condizioni. Senza risposta in 10 giorni si sollecita una volta.
 
-**Settimana 4 — estero e misura**
-9. Estendere la ricerca ai tour operator Italy-specialist in USA, Regno Unito, Germania, Australia (351 nomi con
-   l'Italia o una città nel nome in LeadOcean, 61 già importati).
-10. Leggere i risultati: partner contattati, risposte, trattative, partner attivi, guide vendute con `partner_slug`.
+**Settimana 2 — pilota con i tour operator**
+- Cinque operatori già in Tier A/B che vendono Roma, Firenze o Napoli (es. Ciao Florence, Michelangelo, Caravelle Tours, Hello Italy Tours).
+- Offerta: un codice di accesso alla guida della città da includere nei pacchetti; poi chiamata di 15 minuti.
+
+**Settimana 3 — accordi di città**
+- Traghetti del Golfo (stessa famiglia di SNAV): bundle con il biglietto o QR a bordo.
+- ITA Airways per Roma: proposta di guida inclusa o venduta a bordo/online.
+
+**Settimana 4 — misura e decisione sui paesi**
+- Leggere i risultati: contatti fatti, risposte, pilota attivo, guide vendute per `partner_slug`.
+- Decidere quali guide estere costruire per prime (Francia, Spagna, Regno Unito, Grecia) in base a quale strada ha risposto.
+
+**Condizioni economiche ancora da fissare** (non scritte in nessun punto del CRM): commissione per i distributori e prezzo dei codici
+per i tour operator. Le bozze di contatto non le citano.
 
 ## 10. Criticità e limiti (da leggere prima di fidarsi dei numeri)
 
