@@ -68,6 +68,9 @@ before(async () => {
     '20261020120000_tourism_property_managers.sql',
     '20261104090000_tourism_distribution.sql',
     '20261104100000_tourism_distribution_summary.sql',
+    '20261104110000_tourism_distribution_signals.sql',
+    '20261104120000_tourism_distribution_italy_signal.sql',
+    '20261104130000_tourism_distribution_flags.sql',
   ])
     await migration(name)
 
@@ -84,6 +87,12 @@ before(async () => {
   const air = await entity(OWNER, 'Test Air', 'airline', 'DE', { website: 'https://testair.test' })
   // Un'azienda lontana da tutto.
   await entity(OWNER, 'Lontana Srl', 'dmc', 'JP', { details: { description: 'Incoming a Kyoto' } })
+  // Specialisti con destinazioni vendute provate da una ricerca (segnali con fonte).
+  const us = await entity(OWNER, 'Roma Firenze Tours', 'tour_operator', 'US', { website: 'https://romafirenze.test', details: { employees: '11-50' }, email: 'info@romafirenze.test' })
+  const generic = await entity(OWNER, 'Italy Generic Travel', 'tour_operator', 'US', { website: 'https://italygeneric.test', details: { employees: '1-10' } })
+  await db.query(`insert into tourism_distribution_destinations(entity_id,slug,user_id,source) values ($1,'roma',$3,'prova'),($1,'firenze',$3,'prova'),($2,'italia',$3,'prova')`, [us, generic, OWNER])
+  // Una grande compagnia di crociera e una piccola con la sede a Napoli.
+  await entity(OWNER, 'Grande Crociera', 'cruise_line', 'US', { email: 'info@crociera.test', website: 'https://crociera.test', details: { calls_naples: true, employees: '10001+' } })
   // Di un altro proprietario: non deve mai comparire.
   await entity(OTHER, 'Altrui', 'dmc', 'IT', { details: { hq_city: 'Roma' } })
 
@@ -146,7 +155,7 @@ test('un ricalcolo non cancella stato e note di chi lavora', async () => {
   )).rows[0]
   assert.equal(snav.commercial_status, 'negotiating')
   assert.equal(snav.notes, 'Call fissata')
-  assert.equal((await rows()).length, 5)
+  assert.equal((await rows()).length, 8)
 })
 
 test('ogni proprietario vede solo i suoi prospect', async () => {
@@ -157,7 +166,7 @@ test('ogni proprietario vede solo i suoi prospect', async () => {
   await asUser(OWNER)
   assert.ok(!(await rows()).some((r) => r.name === 'Altrui'))
   const summary = (await db.query<{ s: { total: number } }>(`select tourism_distribution_summary() as s`)).rows[0].s
-  assert.equal(summary.total, 5)
+  assert.equal(summary.total, 8)
 })
 
 test('il riepilogo conta guide, categorie e celle della matrice', async () => {
@@ -189,4 +198,27 @@ test('il CSV disinnesca le formule e usa il punto e virgola', () => {
   }])
   assert.ok(csv.startsWith('﻿Azienda;'))
   assert.ok(csv.includes("'=SOMMA(A1);dmc;IT;80;A;Roma;Alto;Acquisto e rivendita"))
+})
+
+test('le destinazioni vendute provate pesano più di «Italia» generica, e «Italia» non è una guida', async () => {
+  await asUser(OWNER)
+  const list = await rows()
+  const romaFirenze = byName(list, 'Roma Firenze Tours')
+  const generic = byName(list, 'Italy Generic Travel')
+  assert.deepEqual(romaFirenze.guide_slugs, ['firenze', 'roma'])
+  assert.equal(romaFirenze.components.destinations, 88)
+  assert.deepEqual(generic.guide_slugs, [])
+  assert.equal(generic.components.destinations, 60)
+  assert.ok(romaFirenze.score > generic.score)
+})
+
+test('un grande canale è strategico ma non attivabile subito; un piccolo operatore con email sì', async () => {
+  await asUser(OWNER)
+  const list = await rows()
+  const crociera = byName(list, 'Grande Crociera')
+  assert.equal(crociera.strategic, true)
+  assert.equal(crociera.quick_win, false)
+  const snav = byName(list, 'SNAV Test')
+  assert.equal(snav.quick_win, true)
+  assert.equal(snav.strategic, false)
 })
