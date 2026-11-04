@@ -38,6 +38,7 @@ import s from './tourism.module.css'
 import TourismResearch, { EntityPicker } from './TourismResearch'
 import TourismDecks from './deck/TourismDecks'
 import FairsWorkspace from '@/components/fiere/FairsWorkspace'
+import DistributionOpportunities from './DistributionOpportunities'
 import EntityEssentials from './EntityEssentials'
 import { TRADE_FAIRS } from '@/lib/trade-fair'
 import DeckWizard from './deck/DeckWizard'
@@ -464,7 +465,7 @@ export default function TourismWorkspace() {
     // /fiere e i link «?tab=…» aprono direttamente la scheda richiesta (dopo l'idratazione).
     const params = new URLSearchParams(window.location.search)
     const wanted = params.get('tab')
-    if (wanted && ['overview', 'directory', 'explorer', 'discovery', 'research', 'decks', 'fiere'].includes(wanted)) setTab(wanted)
+    if (wanted && ['overview', 'directory', 'explorer', 'discovery', 'research', 'decks', 'fiere', 'distribution'].includes(wanted)) setTab(wanted)
     // Il link «?entity=<id>» (dal Direttore, da Telegram) apre la scheda dell'ente.
     const entity = params.get('entity')
     if (entity && /^[0-9a-f-]{36}$/i.test(entity)) {
@@ -668,7 +669,8 @@ export default function TourismWorkspace() {
             { key: 'discovery', label: 'AI Discovery', icon: 'spark' },
             { key: 'research', label: 'Ricerca siti e progetti', icon: 'globe' },
             { key: 'decks', label: 'Presentazioni', icon: 'spark' },
-            { key: 'fiere', label: 'Fiere', icon: 'grid' }
+            { key: 'fiere', label: 'Fiere', icon: 'grid' },
+            { key: 'distribution', label: 'Guides · Distribuzione', icon: 'link' }
           ].map((t) => (
             <button
               key={t.key}
@@ -1489,6 +1491,7 @@ export default function TourismWorkspace() {
         )}
         {tab === 'decks' && <TourismDecks />}
         {tab === 'fiere' && <FairsWorkspace />}
+        {tab === 'distribution' && <DistributionOpportunities />}
         {tab === 'research' && (
           <TourismResearch
             onOpen={setDetailId}
