@@ -89,6 +89,7 @@ export default function DistributionOpportunities() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [open, setOpen] = useState<DistributionRow | null>(null)
   const [busy, setBusy] = useState(false)
+  const [people, setPeople] = useState<{ id: string; full_name: string; job_title: string | null; linkedin_url: string | null; email: string | null; email_status: string | null; decision_maker: boolean }[]>([])
 
   const loadSummary = useCallback(async () => {
     try {
@@ -124,6 +125,15 @@ export default function DistributionOpportunities() {
   }, [effective, offset, view])
 
   useEffect(() => { loadSummary() }, [loadSummary])
+  useEffect(() => {
+    setPeople([])
+    if (!open) return
+    let alive = true
+    apiFetch<{ contacts: typeof people }>(`/api/tourism/distribution?contacts=${open.entity_id}`)
+      .then((response) => { if (alive) setPeople(response.contacts) })
+      .catch(() => undefined)
+    return () => { alive = false }
+  }, [open?.entity_id]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { loadRows() }, [loadRows])
 
   const set = (patch: Partial<Filters>) => { setOffset(0); setFilters((f) => ({ ...f, ...patch })) }
@@ -425,6 +435,20 @@ export default function DistributionOpportunities() {
             {open.entity.email && <> · {open.entity.email}</>}
             {open.entity.phone && <> · {open.entity.phone}</>}
           </p>
+          {people.length > 0 && (
+            <div>
+              <strong>Referenti</strong>
+              <ul className={d.people}>
+                {people.map((p) => (
+                  <li key={p.id}>
+                    {p.full_name}{p.decision_maker ? ' ★' : ''} — {p.job_title || 'ruolo non noto'}
+                    {p.email && <> · <a href={`mailto:${p.email}`}>{p.email}</a> ({p.email_status || 'non verificata'})</>}
+                    {p.linkedin_url && <> · <a href={p.linkedin_url} target="_blank" rel="noopener noreferrer">LinkedIn</a></>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <label>
             Stato commerciale
             <select value={open.commercial_status} onChange={(e) => setStatus(open, e.target.value as CommercialStatus)}>

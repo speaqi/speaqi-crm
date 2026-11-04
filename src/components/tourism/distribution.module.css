@@ -59,3 +59,4 @@
 .parts div { background: #eef0f6; border-radius: 4px; height: 8px; }
 .parts i { display: block; height: 8px; border-radius: 4px; background: #4f6ef7; }
 @media (max-width: 720px) { .gaps { columns: 1; } }
+.people { margin: 4px 0 0; padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }

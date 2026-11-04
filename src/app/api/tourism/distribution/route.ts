@@ -28,6 +28,19 @@ export async function GET(request: NextRequest) {
   if ('error' in auth) return auth.error
   const params = request.nextUrl.searchParams
   try {
+    if (params.get('contacts')) {
+      const entityId = params.get('contacts')
+      if (!isUuid(entityId)) return tourismResponse({ error: 'ID non valido' }, 400)
+      const { data, error } = await auth.supabase
+        .from('tourism_distribution_contacts')
+        .select('id,full_name,job_title,linkedin_url,email,email_status,decision_maker,source')
+        .eq('user_id', auth.workspaceUserId)
+        .eq('entity_id', entityId)
+        .order('decision_maker', { ascending: false })
+        .order('full_name')
+      if (error) throw error
+      return tourismResponse({ contacts: data || [] })
+    }
     if (params.get('summary') === '1') {
       const { data, error } = await auth.supabase.rpc('tourism_distribution_summary')
       if (error) throw error
@@ -138,6 +151,18 @@ export async function POST(request: NextRequest) {
         .eq('user_id', owner)
         .in('entity_id', ids)
       if (error) throw error
+      const { data: people } = await admin
+        .from('tourism_distribution_contacts')
+        .select('entity_id,full_name,job_title,email,email_status,decision_maker')
+        .eq('user_id', owner)
+        .in('entity_id', ids)
+      // Il referente migliore: prima chi decide, poi chi ha un'email verificata.
+      const best = new Map<string, { full_name: string; job_title: string | null; email: string | null }>()
+      const rank = (p: any) => (p.decision_maker ? 2 : 0) + (p.email && p.email_status === 'verified' ? 1 : 0)
+      for (const person of (people || []) as any[]) {
+        const current = best.get(person.entity_id) as any
+        if (!current || rank(person) > rank(current)) best.set(person.entity_id, person)
+      }
       const results: { entity_id: string; name: string; ok: boolean; message: string; contact_id?: string }[] = []
       for (const row of (rows || []) as any[]) {
         const entity = row.entity
@@ -149,10 +174,11 @@ export async function POST(request: NextRequest) {
           contactId = existing.data?.id || null
           if (!contactId) {
             const guides = (row.guide_slugs as string[]).map(guideLabel).join(', ')
+            const person = best.get(row.entity_id)
             const lead = await createLeadFromInput(admin, owner, {
-              name: entity.name, company: entity.name, email: entity.email, phone: entity.phone,
+              name: person?.full_name || entity.name, company: entity.name, email: person?.email || entity.email, phone: entity.phone,
               country: entity.country_code, category: 'Partner distribuzione', source: 'tourism_distribution',
-              note: `Speaqi Guides — Distribution Opportunities. Punteggio ${row.score}/100 (Tier ${row.tier}). Guide pertinenti: ${guides || 'da definire'}. Modello consigliato: ${MODEL_LABELS[row.model as CommercialModel]}.${entity.website ? ` Sito: ${entity.website}.` : ''}`,
+              note: `Speaqi Guides — Distribution Opportunities.${person ? ` Referente: ${person.full_name}${person.job_title ? `, ${person.job_title}` : ''}.` : ''} Punteggio ${row.score}/100 (Tier ${row.tier}). Guide pertinenti: ${guides || 'da definire'}. Modello consigliato: ${MODEL_LABELS[row.model as CommercialModel]}.${entity.website ? ` Sito: ${entity.website}.` : ''}`,
               task_note: 'Primo contatto: proporre come distribuire le guide e un pilota',
             }, {
               legacyId, isPartner: true,
