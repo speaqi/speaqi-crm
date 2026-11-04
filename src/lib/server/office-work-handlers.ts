@@ -4,7 +4,7 @@ import { DIRECTOR_ORDER_SCHEMA, directorFollowUp, directorOrderPrompt, interpret
 import { officeRomeDay } from '../office/finance'
 import { officeMapSlot } from '../office/maps'
 import { officeIsNaples } from '../office/director'
-import { cityForEntity, websiteFromText } from '../office/entity-activation'
+import { cityForEntity, isCountryDestination, isNationalTourismBody, websiteFromText } from '../office/entity-activation'
 import { callModel, createOfficeStore, officeModelKey, runAgent, type AgentContext, type AgentHandler } from './office-agents'
 import { researchLocation, type ResearchLocation } from './office-agents/researcher'
 import { ensureOfficeResearcher } from './office-agents/definitions'
@@ -12,6 +12,7 @@ import { nextOfficeBudgetCheck } from '../office-work'
 import { DESTINATION_TYPES, ensureCatalogEntity, executePlan, findEntity, orderImages, pendingDirectorQuestion, type DirectorOrderRow } from './office-director-orders'
 import { officeAgentHandler } from './office-agents/registry'
 import { myMapsHandler } from './office-agents/mymaps'
+import { createDemoWork } from './office-work-demo'
 import { mapsQualityHandler } from './office-agents/maps-quality'
 import { languagesVoiceHandler, speaqiTranslationsApi } from './office-agents/languages-voice'
 import { presentationEntities, presentationsHandler } from './office-agents/presentations'
@@ -213,7 +214,9 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
     source_key: `order:${order.id}:${suffix}:v${work.payload_version}`, payload, priority: work.priority, status: 'ready',
   })
   let children: OfficeWorkSpec[] = []
-  if (plan.intent === 'build_map') children = [child('mymaps_builder', 'import_mymaps', { slug: plan.slug, city: plan.city, source: plan.source }, 'map')]
+  if (plan.intent === 'build_map') children = plan.demo
+    ? [{ ...child('demo_builder', 'create_demo', { slug: plan.slug, city: plan.city }, 'demo'), max_attempts: 20 }]
+    : [child('mymaps_builder', 'import_mymaps', { slug: plan.slug, city: plan.city, source: plan.source }, 'map')]
   if (plan.intent === 'check_map') children = [child('maps_quality', 'check_map', { slug: plan.slug, city: plan.city }, 'quality')]
   // In inglese la presentazione è un deck a parte, fatto dal Direttore stesso (`englishPresentation`, via `executePlan`):
   // non passa dal compito dell'agente Presentazioni, che ha un solo lavoro per ente.
@@ -275,6 +278,12 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
       // Un ente già verificato con la sua destinazione non ha bisogno di una città dal titolare:
       // vale il nome della destinazione legata. La città si chiede solo quando c'è da verificare.
       const ready = await verifiedPresentationSource(admin, work.user_id, entity.id)
+      if (ready && !isNationalTourismBody(entity.type_code) && isCountryDestination(ready.destination.name, entity.country_code)) {
+        checked(await admin.from('office_director_orders').update({ interpretation: { ...plan,
+          awaiting: { need: 'city', resume: `presentazione per ${target}` } } }).eq('id', order.id).eq('user_id', work.user_id))
+        return blockedWork(`La destinazione collegata a ${entity.name} è ${ready.destination.name}, che è il paese. Quale territorio deve raccontare la presentazione?`,
+          'Indica la destinazione e correggi il collegamento nella scheda Tourism.', 'Titolare', 'needs_information')
+      }
       let city = ready?.destination.name || (typeof work.payload.city === 'string' ? work.payload.city : cityForEntity({ proposed: plan.city || null,
         entityName: entity.name, orderText: text }))
       if (!city) {
@@ -285,6 +294,7 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
         }
         city = research && (!research.country_code || research.country_code === entity.country_code) ? research.city : null
       }
+      if (!isNationalTourismBody(entity.type_code) && isCountryDestination(city, entity.country_code)) city = null
       if (!city) {
         checked(await admin.from('office_director_orders').update({ interpretation: { ...plan,
           awaiting: { need: 'city', resume: `presentazione per ${target}` } } }).eq('id', order.id).eq('user_id', work.user_id))
@@ -333,6 +343,7 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
 export async function executeOfficeWork(ctx: AgentContext, work: OfficeWorkItem, admin: any,
   deps: { handler?: AgentHandler } = {}): Promise<WorkOutcome> {
   if (work.action === 'interpret_order') return interpretOrderWork(ctx, work, admin)
+  if (work.action === 'create_demo') return createDemoWork(ctx, work, admin)
   if (work.action === 'verify_tourism_entity') return verifyTourismWork(ctx, work, admin)
   if (work.action === 'prepare_presentation') return preparePresentationWork(ctx, work, admin)
   if (work.action === 'agent_run' && ['mymaps_builder', 'maps_quality', 'presentations'].includes(work.agent_id)) {

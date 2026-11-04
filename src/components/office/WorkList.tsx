@@ -13,7 +13,7 @@ type WorkDetail = { work: OfficeWorkItem; attempts: Array<{ id: string; run_id: 
   dependencies: Array<{ depends_on_work_id: string }>; outputs: Array<{ id: string; title: string; status: string; target_table?: string; target_id?: string }>
   events: Array<{ id: string; created_at: string; message?: string; status?: string }> }
 const TERMINAL = new Set(['succeeded', 'cancelled'])
-const AGENT_NAMES: Record<string, string> = { director: 'Direttore', entity_enricher: 'Arricchimento enti', presentations: 'Presentazioni',
+const AGENT_NAMES: Record<string, string> = { director: 'Direttore', demo_builder: 'Demo e temi', entity_enricher: 'Arricchimento enti', presentations: 'Presentazioni',
   mymaps_builder: 'Costruttore My Maps', maps_quality: 'Controllo qualità mappe', languages_voice: 'Lingue e voce',
   events_scout: 'Ricercatore eventi', news_watch: 'Osservatorio novità', sales_followup: 'Commerciale', finance: 'Finanza', social: 'Social', db_cleaner: 'Pulizia database' }
 const date = (value: string | null | undefined) => value ? new Date(value).toLocaleString('it-IT', {
@@ -103,7 +103,7 @@ export function WorkList({ orderId, agentId, agentNames = {}, refreshSignal, com
       const target = [payload.city, payload.target, payload.name].find((value) => typeof value === 'string' && value)
       const uncertain = /reconcil|uncertain|incerto/.test(work.reason_code || '') || work.phase === 'effect_started'
       const terminal = TERMINAL.has(work.status)
-      const resultLink = work.status === 'succeeded' ? officeResultLink(work.result || {}) : null
+      const resultLink = officeResultLink(work.result || {})
       return <article key={work.id} className={styles.card} data-work-id={work.id}>
         <div className={styles.workHeading}>
           <h3>{ACTION_NAMES[work.action] || 'Lavoro assegnato'}{target ? ` · ${target}` : ''}</h3>
