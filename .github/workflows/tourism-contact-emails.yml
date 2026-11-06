@@ -4,7 +4,7 @@ name: Tourism contact emails
 # SOLA LETTURA sul database: scrive un CSV (artifact) che qualcuno guarda prima che le email entrino nel CRM.
 # Si lancia a mano: Actions → Tourism contact emails → Run workflow.
 #
-# Secret del repository: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, AUTOMATION_WORKSPACE_USER_ID.
+# Secret del repository: NEXT_PUBLIC_SUPABASE_URL (o SUPABASE_URL), SUPABASE_SERVICE_ROLE_KEY, AUTOMATION_WORKSPACE_USER_ID.
 
 on:
   workflow_dispatch:
@@ -42,7 +42,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Leggi i siti
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           AUTOMATION_WORKSPACE_USER_ID: ${{ secrets.AUTOMATION_WORKSPACE_USER_ID }}
           TIERS: ${{ inputs.tiers }}
