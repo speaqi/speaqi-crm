@@ -4,6 +4,8 @@
  *   npx tsx scripts/tourism/contact-emails.ts --tiers=A,B,C --out=out/contact-emails
  *   npx tsx scripts/tourism/contact-emails.ts --tiers=A --limit=20          # prova su pochi
  *   npx tsx scripts/tourism/contact-emails.ts --types=dmc,tour_operator --resume
+ *   npx tsx scripts/tourism/contact-emails.ts --types=property_manager,accommodation,tourism_supplier --desc-regex='property manage|affitti brevi'
+ *     (--desc-regex vale per i tipi diversi da property_manager: trova per descrizione chi fa quel mestiere sotto un'etichetta sbagliata)
  *
  * SOLA LETTURA: legge `tourism_entities` e `tourism_distribution`, scrive file in `--out` e non
  * tocca il database. Le email entrano nel CRM solo dopo che qualcuno ha guardato il CSV.
@@ -18,7 +20,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createHostGate, scanSiteForEmails, type ScanResult } from '../../src/lib/server/tourism-contact-scan'
 
-type Row = { id: string; name: string; type: string; tier: string; score: number; website: string }
+type Row = { id: string; name: string; type: string; tier: string; score: number; website: string; desc: string }
 type Line = { row: Row; result: ScanResult; at: string }
 
 const args = new Map<string, string>()
@@ -56,20 +58,22 @@ async function loadRows(): Promise<Row[]> {
   if (!base || !key) throw new Error('Servono NEXT_PUBLIC_SUPABASE_URL (o SUPABASE_URL) e SUPABASE_SERVICE_ROLE_KEY.')
   const tiers = opt('tiers', 'A,B,C').split(',').map((t) => t.trim().toUpperCase()).filter(Boolean)
   const types = new Set(opt('types', '').split(',').map((t) => t.trim()).filter(Boolean))
+  const descRegex = opt('desc-regex', '') ? new RegExp(opt('desc-regex', ''), 'i') : null
   const owner = process.env.AUTOMATION_WORKSPACE_USER_ID ? `&user_id=eq.${process.env.AUTOMATION_WORKSPACE_USER_ID}` : ''
 
   const dist = await rest<{ entity_id: string; tier: string; score: number }>(base, key, 'tourism_distribution',
     `select=entity_id,tier,score&tier=in.(${tiers.join(',')})&order=entity_id${owner}`)
   const tierOf = new Map(dist.map((d) => [d.entity_id, d]))
-  const entities = await rest<{ id: string; name: string; type_code: string; website: string | null; email: string | null }>(base, key, 'tourism_entities',
-    `select=id,name,type_code,website,email&kind=eq.organization&country_code=eq.IT&disabled=eq.false&website=not.is.null&order=id${owner}`)
+  const entities = await rest<{ id: string; name: string; type_code: string; website: string | null; email: string | null; description: string | null }>(base, key, 'tourism_entities',
+    `select=id,name,type_code,website,email,description:details->>description&kind=eq.organization&country_code=eq.IT&disabled=eq.false&website=not.is.null&order=id${owner}`)
 
   const rows: Row[] = []
   for (const e of entities) {
     const d = tierOf.get(e.id)
     if (!d || !e.website?.trim() || (e.email && e.email.trim())) continue
     if (types.size && !types.has(e.type_code)) continue
-    rows.push({ id: e.id, name: e.name, type: e.type_code, tier: d.tier, score: Number(d.score) || 0, website: e.website.trim() })
+    if (descRegex && e.type_code !== 'property_manager' && !descRegex.test(e.description || '')) continue
+    rows.push({ id: e.id, name: e.name, type: e.type_code, tier: d.tier, score: Number(d.score) || 0, website: e.website.trim(), desc: (e.description || '').replace(/\s+/g, ' ').slice(0, 160) })
   }
   // Prima i livelli alti, dentro il livello i punteggi più alti: se la corsa si ferma, ha fatto i migliori.
   rows.sort((a, b) => a.tier.localeCompare(b.tier) || b.score - a.score || a.id.localeCompare(b.id))
@@ -84,11 +88,11 @@ const csvCell = (value: unknown) => {
 
 function writeCsv(file: string, lines: Line[]) {
   const header = ['livello', 'tipo', 'ente', 'sito', 'esito', 'classe', 'email', 'trovata_in', 'come', 'sul_dominio', 'altre_email',
-    'scartate_personali', 'scartate_di_terzi', 'pagine_lette', 'errore', 'entity_id']
+    'scartate_personali', 'scartate_di_terzi', 'pagine_lette', 'errore', 'descrizione', 'entity_id']
   const body = lines.map(({ row, result: r }) => [
     row.tier, row.type, row.name, row.website, r.status, r.best?.class ?? '', r.best?.email ?? '', r.best?.url ?? '', r.best?.via ?? '',
     r.best ? (r.best.domainMatch ? 'sì' : 'no') : '', r.alternatives.map((a) => a.email).join(' | '),
-    r.rejected.personal, r.rejected.foreign, r.pages.length, r.error ?? '', row.id
+    r.rejected.personal, r.rejected.foreign, r.pages.length, r.error ?? '', row.desc, row.id
   ].map(csvCell).join(';'))
   fs.writeFileSync(file, '﻿' + [header.join(';'), ...body].join('\n') + '\n')
 }

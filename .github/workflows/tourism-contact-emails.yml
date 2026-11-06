@@ -15,6 +15,9 @@ on:
       types:
         description: 'Tipi di ente separati da virgola (vuoto = tutti)'
         default: ''
+      desc_regex:
+        description: 'Regex sulla descrizione (solo per i tipi diversi da property_manager), vuoto = nessuna'
+        default: ''
       limit:
         description: 'Massimo enti (0 = tutti)'
         default: '0'
@@ -48,10 +51,11 @@ jobs:
           TIERS: ${{ inputs.tiers }}
           TYPES: ${{ inputs.types }}
           LIMIT: ${{ inputs.limit }}
+          DESC_REGEX: ${{ inputs.desc_regex }}
           CONCURRENCY: ${{ inputs.concurrency }}
         run: |
           npx tsx scripts/tourism/contact-emails.ts \
-            --tiers="$TIERS" --types="$TYPES" --limit="$LIMIT" --concurrency="$CONCURRENCY" \
+            --tiers="$TIERS" --types="$TYPES" --limit="$LIMIT" --desc-regex="$DESC_REGEX" --concurrency="$CONCURRENCY" \
             --max-minutes=160 --out=out/contact-emails
       - name: Riepilogo
         if: always()
