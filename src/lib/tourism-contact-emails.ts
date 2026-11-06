@@ -57,6 +57,8 @@ const PEC_LABELS = new Set([
   'cert', 'pecaziendale', 'pecmail', 'lamiapec', 'postacertificata'
 ])
 
+/** Caselle di servizio che non sono un contatto commerciale: privacy, dati personali, lavoro, legale, amministrazione dei dati. */
+const NON_COMMERCIAL = /(privacy|gdpr|dpo|dataprotection|data-protection|legal|abuse|jobs?|career|recruit|lavora|candidature|curriculum|cv|fatture|invoice|amministrazione|billing)/i
 const BAD_EXT = /\.(png|jpe?g|gif|webp|svg|avif|ico|css|js|mjs|woff2?|ttf|eot|pdf|map|json|xml)$/i
 const BAD_DOMAIN =
   /(^|\.)(example\.(com|org|net)|domain\.(com|tld|it)|yourdomain\.|yoursite\.|email\.com|sentry(-next)?\.|wixpress\.com|godaddy\.com|test\.com|mysite\.com|sitename\.com|tuodominio\.|latuaemail\.|dominio\.(com|it)|nomedominio\.|company\.com|yourcompany\.)/i
@@ -132,6 +134,9 @@ export function classifyEmail(email: string, siteDomains: string[]): EmailVerdic
   const local = email.slice(0, at)
   const domain = email.slice(at + 1)
   if (!local || !domain || BAD_EXT.test(email) || BAD_DOMAIN.test(domain) || BAD_LOCAL.has(local) || /%/.test(email)) return { ok: false, reason: 'junk' }
+  // Un numero di telefono attaccato all'indirizzo («0039info@», «040-9720020info@») o una casella che parla di
+  // dati personali, lavoro o legale non è un recapito commerciale.
+  if (/^[0-9+(]/.test(local) || /\d{3}[.\-]\d{2}/.test(local) || NON_COMMERCIAL.test(local)) return { ok: false, reason: 'junk' }
   if (domain.split('.').some((l) => PEC_LABELS.has(l) || /^pec\d*$/.test(l) || /legalmail|postacert|arubapec|pecimprese/.test(l))) return { ok: false, reason: 'pec' }
 
   const registrable = registrableDomain(domain)

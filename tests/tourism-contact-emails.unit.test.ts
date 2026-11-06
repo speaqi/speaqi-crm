@@ -41,6 +41,15 @@ test('le persone, le PEC, i terzi e i segnaposto non entrano', () => {
   assert.deepEqual(classifyEmail('privacy@hotelrossi.it', domains), { ok: false, reason: 'junk' })
 })
 
+test('numeri di telefono attaccati, privacy e lavoro non sono recapiti commerciali', () => {
+  const domains = ['hotelrossi.it']
+  for (const email of ['0039info@hotelrossi.it', '040-9720020info@hotelrossi.it', '7484info@hotelrossi.it', 'privacy.team@hotelrossi.it',
+    'dpo@hotelrossi.it', 'dataprotection@hotelrossi.it', 'job@hotelrossi.it', 'candidature@hotelrossi.it', 'disposizione081.41.20.20preventivi@hotelrossi.it']) {
+    assert.deepEqual(classifyEmail(email, domains), { ok: false, reason: 'junk' }, email)
+  }
+  assert.equal((classifyEmail('booking@hotelrossi.it', domains) as any).class, 'role')
+})
+
 test('una casella su gmail o una parola sola si vede, ma resta «review»', () => {
   const domains = ['hotelrossi.it']
   const free = classifyEmail('reception@gmail.com', domains)
