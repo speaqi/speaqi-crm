@@ -13,6 +13,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/operativo': '◎ Centro Operativo',
   '/contacts': '👥 Contatti',
   '/marketing': '✉️ Marketing',
+  '/marketing/idee': '💡 Idee per le guide',
   '/personali': '🗂️ Personali',
   '/kanban': '🔀 Pipeline',
   '/preventivi': '💶 Preventivi',
