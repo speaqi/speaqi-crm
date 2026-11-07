@@ -24,6 +24,7 @@ interface Props {
   onDismiss: (contactId: string, status: string, nextFollowupAt: string | null) => void
   onGenerateDraft?: (contactId: string) => void
   generatingDraftId?: string | null
+  onCallOutcome?: (contact: CRMContact, task: Task | null) => void
 }
 
 const REASON_ICONS: Record<string, string> = {
@@ -44,12 +45,12 @@ function scoreBadge(score: number) {
   return ''
 }
 
-export function DashboardPriorityQueue({ items, onOpenContact, onComplete, onReschedule, onDismiss, onGenerateDraft, generatingDraftId }: Props) {
+export function DashboardPriorityQueue({ items, onOpenContact, onComplete, onReschedule, onDismiss, onGenerateDraft, generatingDraftId, onCallOutcome }: Props) {
   if (items.length === 0) {
     return (
       <section className="oggi-card">
         <div className="oggi-card-title">📋 Da fare oggi</div>
-        <p className="oggi-muted">Nessuna azione in scadenza. 👏</p>
+        <p className="oggi-muted">Niente di scaduto su mappe e turismo. 👏</p>
       </section>
     )
   }
@@ -61,7 +62,7 @@ export function DashboardPriorityQueue({ items, onOpenContact, onComplete, onRes
         <span className="oggi-overdue-count">{items.length}</span>
       </div>
       <div className="oggi-priority-queue">
-        {items.slice(0, 15).map((item, i) => {
+        {items.slice(0, 30).map((item, i) => {
           const isCritical = item.priority === 'critical'
           const isHigh = item.priority === 'high'
           const due = item.due_at ? new Date(item.due_at) : null
@@ -143,6 +144,19 @@ export function DashboardPriorityQueue({ items, onOpenContact, onComplete, onRes
                     title="Apri"
                   >
                     →
+                  </button>
+                )}
+                {onCallOutcome && (
+                  <button
+                    type="button"
+                    className="oggi-call-done"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onCallOutcome(item.contact, item.task)
+                    }}
+                    title="Esito chiamata"
+                  >
+                    📞
                   </button>
                 )}
                 {item.contact.email && onGenerateDraft && (

@@ -23,7 +23,6 @@ const PAGE_TITLES: Record<string, string> = {
   '/quick-capture': '⚡ Cattura rapida',
   '/gmail': '✉️ Gmail',
   '/attivita': '📊 Analytics',
-  '/calendario': '📅 Follow-up',
   '/vinitaly': '🗃️ Liste separate',
   '/speaqi': '⚡ Lead inbound',
   '/voice': '🎤 Note vocali',

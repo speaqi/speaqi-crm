@@ -8,6 +8,10 @@ import { DashboardHero } from '@/components/crm/DashboardHero'
 import { CommandCenter } from '@/components/crm/CommandCenter'
 import { canAccessPath } from '@/lib/areas'
 import { DashboardPriorityQueue, type QueueItem } from '@/components/crm/DashboardPriorityQueue'
+import { DashboardBacklog } from '@/components/crm/DashboardBacklog'
+import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
+import { useFocusContactIds } from '@/hooks/useFocusContactIds'
+import { nextWorkMorning, splitWorkQueue } from '@/lib/work-focus'
 import { QuickDismissMenu } from '@/components/crm/QuickDismissMenu'
 import { DashboardRecoveryPanel, type RecoveryItem } from '@/components/crm/DashboardRecoveryPanel'
 import { DashboardRiskPanel } from '@/components/crm/DashboardRiskPanel'
@@ -17,7 +21,7 @@ import { isClosedStatus, isInactiveStatus, statusLabel } from '@/lib/data'
 import { contactRelevanceScore } from '@/lib/contact-priority'
 import { buildScheduledCalls, dueAtLocalDateKey, localDayDateKey, type ScheduledCall } from '@/lib/schedule'
 import { startOfDay, dayKey } from '@/lib/schedule'
-import type { ContactInput, CRMContact } from '@/types'
+import type { ContactInput, CRMContact, TaskWithContact } from '@/types'
 import { apiFetch } from '@/lib/api'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -90,6 +94,7 @@ export default function OggiPage() {
     setAdminDashboardShowAllContacts,
     completeTask,
     updateTask,
+    addActivity,
     updateContact,
     deleteContact,
     refresh,
@@ -105,6 +110,9 @@ export default function OggiPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [weekExpanded, setWeekExpanded] = useState(false)
   const [generatingDraftId, setGeneratingDraftId] = useState<string | null>(null)
+  const [outcomeContact, setOutcomeContact] = useState<CRMContact | null>(null)
+  const [outcomeTask, setOutcomeTask] = useState<TaskWithContact | null>(null)
+  const focusIds = useFocusContactIds()
 
   const now = new Date()
   const today = startOfDay(now)
@@ -127,12 +135,20 @@ export default function OggiPage() {
 
   const todayKey = localDayDateKey(today)
 
+  // Una sola lista di lavoro: "Da fare ora" (mappe, Tourism, partner), gli
+  // arretrati degli altri contatti a parte, il futuro nella pianificazione.
+  const split = useMemo(
+    () => splitWorkQueue(dashboardScheduledCalls, focusIds, todayKey),
+    [dashboardScheduledCalls, focusIds, todayKey]
+  )
+  const workCalls = useMemo(() => [...split.now, ...split.upcoming], [split])
+
   // ─── Priority Queue ───
   const queueItems = useMemo<QueueItem[]>(() => {
     const items: QueueItem[] = []
     const seen = new Set<string>()
 
-    for (const call of dashboardScheduledCalls) {
+    for (const call of split.now) {
       if (seen.has(call.contact.id)) continue
       const due = new Date(call.due_at)
       const dueKey = dueAtLocalDateKey(call.due_at)
@@ -174,7 +190,7 @@ export default function OggiPage() {
       if (relDiff !== 0) return relDiff
       return b.score - a.score
     })
-  }, [dashboardScheduledCalls, todayKey])
+  }, [split.now, todayKey])
 
   // ─── Da recuperare: contatti aperti senza prossimo passo ───
   const recoveryItems = useMemo<RecoveryItem[]>(() => {
@@ -267,7 +283,7 @@ export default function OggiPage() {
 
   // ─── Stats ───
   const overdueCount = queueItems.filter((q) => q.priority === 'critical').length
-  const todayCount = dashboardScheduledCalls.filter(
+  const todayCount = split.now.filter(
     (call) => dueAtLocalDateKey(call.due_at) === todayKey
   ).length
   const hotCount = contacts.filter((c) => (c.score || 0) >= 70 && !isClosedStatus(c.status)).length
@@ -276,7 +292,7 @@ export default function OggiPage() {
   const days = useMemo<DayBucket[]>(() => {
     const buckets: DayBucket[] = []
     const pastRangeStart = new Date(today.getTime() - DAYS_BACK * DAY_MS)
-    const pastCalls = dashboardScheduledCalls
+    const pastCalls = workCalls
       .filter((call) => {
         const due = new Date(call.due_at)
         if (Number.isNaN(due.getTime())) return false
@@ -301,13 +317,13 @@ export default function OggiPage() {
         key: bucketKey,
         date: dayStart,
         offset,
-        calls: dashboardScheduledCalls
+        calls: workCalls
           .filter((call) => dueAtLocalDateKey(call.due_at) === bucketKey)
           .sort((left, right) => new Date(left.due_at).getTime() - new Date(right.due_at).getTime()),
       })
     }
     return buckets
-  }, [dashboardScheduledCalls, today])
+  }, [workCalls, today])
 
   // ─── Handlers ───
   async function handleComplete(taskId: string | null) {
@@ -335,6 +351,22 @@ export default function OggiPage() {
         await updateContact(contactId, { next_followup_at: targetDate.toISOString() })
       }
       showToast(`Spostato a ${dayOffset === 0 ? 'oggi' : `+${dayOffset} giorni`}`)
+    } catch (error) {
+      showToast(`Errore: ${error instanceof Error ? error.message : 'spostamento'}`)
+    }
+  }
+
+  async function handleBacklogPostpone(contactIds: string[], extraDays: number) {
+    if (!contactIds.length) return
+    const when = nextWorkMorning(new Date(), extraDays).toISOString()
+    try {
+      await apiFetch('/api/contacts/bulk', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contact_ids: contactIds, patch: { next_followup_at: when } }),
+      })
+      await refresh()
+      showToast(`${contactIds.length} follow-up spostati al ${new Date(when).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })}`)
     } catch (error) {
       showToast(`Errore: ${error instanceof Error ? error.message : 'spostamento'}`)
     }
@@ -513,6 +545,15 @@ export default function OggiPage() {
             onDismiss={handleDismiss}
             onGenerateDraft={handleGenerateDraft}
             generatingDraftId={generatingDraftId}
+            onCallOutcome={(contact, task) => {
+              setOutcomeContact(contact)
+              setOutcomeTask(task as TaskWithContact | null)
+            }}
+          />
+          <DashboardBacklog
+            calls={split.backlog}
+            onOpenContact={openDrawerFromMouse}
+            onPostpone={handleBacklogPostpone}
           />
         </div>
 
@@ -560,7 +601,6 @@ export default function OggiPage() {
           >
             {weekExpanded ? 'Comprimi' : 'Espandi'}
           </button>
-          <Link href="/calendario" className="oggi-week-link">Vista calendario →</Link>
         </div>
         {weekExpanded && (
           <div className="oggi-week-grid">
@@ -664,6 +704,43 @@ export default function OggiPage() {
           </div>
         </section>
       )}
+
+      <CallOutcomeModal
+        open={!!outcomeContact}
+        contact={outcomeContact}
+        task={outcomeTask}
+        stages={stages}
+        onClose={() => {
+          setOutcomeContact(null)
+          setOutcomeTask(null)
+        }}
+        onSave={async (payload) => {
+          if (!outcomeContact) return
+          if (outcomeTask) await completeTask(outcomeTask.id, { refresh: false })
+          if (payload.status !== outcomeContact.status || isClosedStatus(payload.status)) {
+            await updateContact(
+              outcomeContact.id,
+              {
+                status: payload.status,
+                next_followup_at: isClosedStatus(payload.status) ? '' : payload.next_followup_at,
+              },
+              { refresh: false }
+            )
+          }
+          await addActivity(
+            outcomeContact.id,
+            {
+              type: 'call',
+              content: payload.content,
+              next_followup_at: isClosedStatus(payload.status) ? undefined : payload.next_followup_at,
+              task_type: payload.task_type,
+            },
+            { refresh: false }
+          )
+          await refresh()
+          showToast('Chiamata registrata e follow-up aggiornato')
+        }}
+      />
 
       <ContactDrawer
         contactId={drawerContactId}

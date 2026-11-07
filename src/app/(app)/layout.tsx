@@ -8,6 +8,9 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { Topbar } from '@/components/layout/Topbar'
 import { Toast } from '@/components/ui/Toast'
 import { useCRM } from '@/hooks/useCRM'
+import { useFocusContactIds } from '@/hooks/useFocusContactIds'
+import { localDayDateKey } from '@/lib/schedule'
+import { splitWorkQueue } from '@/lib/work-focus'
 import { canAccessPath } from '@/lib/areas'
 import { isPipelineVisible } from '@/lib/data'
 import { createClient } from '@/lib/supabase'
@@ -16,6 +19,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const crm = useCRM(pathname)
+  const focusIds = useFocusContactIds()
   const [authChecked, setAuthChecked] = useState(false)
   const [toastMessage, setToastMessage] = useState('')
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -82,7 +86,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     vinitaly: crm.contactCounts.holding,
     speaqi: crm.speaqiContacts.length,
     marketing: crm.contactCounts.marketing,
-    oggi: crm.dueTodayCount,
+    // Oggi = scaduto o in scadenza oggi su mappe/turismo: la stessa lista della pagina.
+    oggi: splitWorkQueue(crm.scheduledCalls, focusIds, localDayDateKey(new Date())).now.length,
     todo: todoDueCount,
     tasks: crm.tasks.length,
   }
