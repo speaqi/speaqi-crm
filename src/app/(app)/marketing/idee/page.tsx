@@ -82,8 +82,11 @@ export default function MarketingIdeasPage() {
   }, [ideas])
 
   async function save(idea: Idea, patch: Record<string, unknown>) {
-    const previous = rows
-    // Subito a schermo, poi si conferma: se il salvataggio fallisce si torna indietro.
+    // Solo la riga di questa idea: se il salvataggio fallisce si torna indietro per lei,
+    // senza cancellare le modifiche riuscite sulle altre né le idee appena scritte.
+    const previousRow = rows.find((row) => row.idea_key === idea.key)
+    // Subito a schermo, poi si conferma. Lo schermo resta quello dell'ultima azione:
+    // la risposta del server non lo riscrive, così una risposta vecchia non copre una nuova.
     setRows((current) => {
       const draft = {
         status: idea.status, owner: idea.owner, deadline: idea.deadline || null, progress: idea.progress, notes: idea.notes,
@@ -96,14 +99,17 @@ export default function MarketingIdeasPage() {
         : [...current, { idea_key: idea.key, ...next } as IdeaRow]
     })
     try {
-      const data = await apiFetch<{ row: IdeaRow }>('/api/marketing/ideas', {
+      await apiFetch('/api/marketing/ideas', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: idea.key, ...patch }),
       })
-      setRows((current) => current.map((row) => (row.idea_key === data.row.idea_key ? { ...row, ...data.row } : row)))
     } catch (saveError) {
-      setRows(previous)
+      setRows((current) =>
+        previousRow
+          ? current.map((row) => (row.idea_key === idea.key ? previousRow : row))
+          : current.filter((row) => row.idea_key !== idea.key)
+      )
       showToast(saveError instanceof Error ? saveError.message : 'Non salvato')
     }
   }
@@ -186,7 +192,7 @@ export default function MarketingIdeasPage() {
               {IDEA_BUDGETS.map((budget) => <option key={budget}>{budget}</option>)}
             </select>
           </div>
-          <textarea className="ideas-input" rows={3} placeholder="Cosa succede, concretamente, e perché dovrebbe funzionare" value={form.description}
+          <textarea className="ideas-input" rows={3} maxLength={1500} placeholder="Cosa succede, concretamente, e perché dovrebbe funzionare" value={form.description}
             onChange={(event) => setForm({ ...form, description: event.target.value })} />
           <input className="ideas-input" placeholder="Prossima azione" value={form.nextAction} maxLength={500}
             onChange={(event) => setForm({ ...form, nextAction: event.target.value })} />
@@ -253,12 +259,7 @@ export default function MarketingIdeasPage() {
                       <input className="ideas-input" type="date" defaultValue={idea.deadline}
                         onBlur={(event) => { if (event.target.value !== idea.deadline) void save(idea, { deadline: event.target.value }) }} />
                     </label>
-                    <label>Avanzamento: {idea.progress}%
-                      <input type="range" min={0} max={100} step={5} defaultValue={idea.progress}
-                        onMouseUp={(event) => void save(idea, { progress: Number((event.target as HTMLInputElement).value) })}
-                        onTouchEnd={(event) => void save(idea, { progress: Number((event.target as HTMLInputElement).value) })}
-                        onKeyUp={(event) => void save(idea, { progress: Number((event.target as HTMLInputElement).value) })} />
-                    </label>
+                    <ProgressSlider value={idea.progress} onCommit={(progress) => void save(idea, { progress })} />
                     <label className="idea-notes">Note
                       <textarea className="ideas-input" rows={3} defaultValue={idea.notes} maxLength={4000} placeholder="Cosa è successo, cosa manca…"
                         onBlur={(event) => { if (event.target.value !== idea.notes) void save(idea, { notes: event.target.value }) }} />
@@ -274,5 +275,28 @@ export default function MarketingIdeasPage() {
         </section>
       )}
     </div>
+  )
+}
+
+/** Cursore dell'avanzamento: segue il valore salvato (anche quando «Completata» lo porta a 100) e salva al rilascio. */
+function ProgressSlider({ value, onCommit }: { value: number; onCommit: (value: number) => void }) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [value])
+  const commit = () => {
+    if (draft !== value) onCommit(draft)
+  }
+  return (
+    <label>Avanzamento: {draft}%
+      <input
+        type="range" min={0} max={100} step={5} value={draft}
+        onChange={(event) => setDraft(Number(event.target.value))}
+        onPointerUp={commit}
+        onKeyUp={(event) => {
+          // Solo i tasti che muovono il cursore: Tab o un altro tasto non devono salvare niente.
+          if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) commit()
+        }}
+        onBlur={commit}
+      />
+    </label>
   )
 }

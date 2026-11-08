@@ -8,6 +8,7 @@ import {
   mergeIdeas,
   normalizeIdeaPatch,
   normalizeNewIdea,
+  seedDefaultStatus,
 } from '../src/lib/marketing-ideas'
 
 describe('idee di partenza', () => {
@@ -106,5 +107,27 @@ describe('normalizeNewIdea e punteggio', () => {
   test('isSeedKey riconosce solo le idee di partenza', () => {
     assert.equal(isSeedKey(IDEA_SEEDS[0].key), true)
     assert.equal(isSeedKey('custom-123'), false)
+  })
+})
+
+describe('stato di partenza e testi lunghi', () => {
+  test('seedDefaultStatus: «Da validare» per le idee da cui partire, «Backlog» per le altre', () => {
+    const start = IDEA_SEEDS.find((seed) => seed.start)!
+    const other = IDEA_SEEDS.find((seed) => !seed.start)!
+    assert.equal(seedDefaultStatus(start.key), 'Da validare')
+    assert.equal(seedDefaultStatus(other.key), 'Backlog')
+    assert.equal(seedDefaultStatus('non-esiste'), 'Backlog')
+  })
+
+  test('un testo troppo lungo si rifiuta, non si taglia', () => {
+    assert.ok('error' in normalizeNewIdea({ title: 'x', description: 'a'.repeat(1501) }))
+    assert.ok('error' in normalizeNewIdea({ title: 'x', nextAction: 'a'.repeat(501) }))
+    assert.ok('error' in normalizeNewIdea({ title: 'x', category: 'a'.repeat(41) }))
+    const exact = normalizeNewIdea({ title: 'x', description: 'a'.repeat(1500), nextAction: 'b'.repeat(500), category: 'c'.repeat(40) })
+    assert.ok('idea' in exact)
+    if ('idea' in exact) {
+      assert.equal(exact.idea.description.length, 1500)
+      assert.equal(exact.idea.nextAction.length, 500)
+    }
   })
 })

@@ -7386,6 +7386,16 @@ textarea.form-input::placeholder { color: var(--text3); }
 }
 .idea-card.open { border-color: var(--accent); }
 .idea-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.idea-title:focus-visible,
+.idea-status:focus-visible,
+.ideas-input:focus-visible,
+.idea-edit input[type="range"]:focus-visible,
+.idea-edit button:focus-visible,
+.ideas-form button:focus-visible,
+.marketing-header button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .idea-title { display: flex; align-items: center; gap: 10px; text-align: left; background: none; border: 0; padding: 0; color: inherit; cursor: pointer; min-width: 0; }
 .idea-title strong { display: block; font-size: 14px; }
 .idea-title small { display: block; font-size: 11px; color: var(--text2); margin-top: 2px; }

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
 import { requireWorkspaceOwner } from '@/lib/server/owner-auth'
-import { isSeedKey, normalizeIdeaPatch, normalizeNewIdea } from '@/lib/marketing-ideas'
+import { isSeedKey, normalizeIdeaPatch, normalizeNewIdea, seedDefaultStatus } from '@/lib/marketing-ideas'
 
 /**
  * Idee per vendere le guide ai partner (/marketing/idee). Solo del titolare:
@@ -87,9 +87,23 @@ export async function PATCH(request: NextRequest) {
     const select = 'idea_key,status,owner,deadline,progress,notes,title,category,budget,description,next_action'
 
     if (isSeedKey(key)) {
+      // La riga nasce con lo stato di partenza dell'idea («Da validare» o «Backlog») e, se c'è già,
+      // non si tocca: una sola upsert avrebbe scritto il predefinito della colonna al primo salvataggio
+      // di un campo qualunque (responsabile, note…), cambiando lo stato senza che nessuno l'abbia chiesto.
+      const created = await auth.admin
+        .from('marketing_ideas')
+        .upsert(
+          { user_id: auth.userId, idea_key: key, status: seedDefaultStatus(key) },
+          { onConflict: 'user_id,idea_key', ignoreDuplicates: true }
+        )
+      if (isMissingTable(created.error)) return Response.json({ error: 'Applica prima la migration marketing_ideas.' }, { status: 503 })
+      if (created.error) throw created.error
+
       const { data, error } = await auth.admin
         .from('marketing_ideas')
-        .upsert({ user_id: auth.userId, idea_key: key, ...columns }, { onConflict: 'user_id,idea_key' })
+        .update(columns)
+        .eq('user_id', auth.userId)
+        .eq('idea_key', key)
         .select(select)
         .single()
       if (isMissingTable(error)) return Response.json({ error: 'Applica prima la migration marketing_ideas.' }, { status: 503 })

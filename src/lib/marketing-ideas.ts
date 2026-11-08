@@ -113,6 +113,11 @@ export function isSeedKey(key: string) {
   return SEED_KEYS.has(key)
 }
 
+/** Lo stato con cui nasce l'idea: «Da validare» per quelle da cui partire, altrimenti «Backlog». */
+export function seedDefaultStatus(key: string): IdeaStatus {
+  return IDEA_SEEDS.find((seed) => seed.key === key)?.start ? 'Da validare' : 'Backlog'
+}
+
 export function isIdeaStatus(value: unknown): value is IdeaStatus {
   return typeof value === 'string' && (IDEA_STATUSES as readonly string[]).includes(value)
 }
@@ -230,8 +235,12 @@ export function normalizeNewIdea(body: Record<string, unknown>): { idea: NewIdea
   if (title.length > 120) return { error: 'Il titolo è troppo lungo' }
   const budget = body.budget === undefined || body.budget === '' ? '< €500' : body.budget
   if (!isIdeaBudget(budget)) return { error: 'Budget non valido' }
-  const category = String(body.category ?? '').trim().slice(0, 40) || 'Altro'
-  const description = String(body.description ?? '').trim().slice(0, 1500)
-  const nextAction = String(body.nextAction ?? '').trim().slice(0, 500)
-  return { idea: { title, category, budget, description, nextAction } }
+  // Un testo troppo lungo si rifiuta, non si taglia: chi scrive non deve perdere il resto in silenzio.
+  const category = String(body.category ?? '').trim()
+  if (category.length > 40) return { error: 'La categoria è troppo lunga (massimo 40 caratteri)' }
+  const description = String(body.description ?? '').trim()
+  if (description.length > 1500) return { error: 'La descrizione è troppo lunga (massimo 1.500 caratteri)' }
+  const nextAction = String(body.nextAction ?? '').trim()
+  if (nextAction.length > 500) return { error: 'La prossima azione è troppo lunga (massimo 500 caratteri)' }
+  return { idea: { title, category: category || 'Altro', budget, description, nextAction } }
 }
