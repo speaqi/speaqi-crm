@@ -46,6 +46,8 @@ export const BACKUP_TABLES = [
   'business_goals',
   // Soldi da ricevere (/incassi): pochi, ma sono soldi.
   'receivables',
+  // Stato e note delle idee per vendere le guide ai partner (/marketing/idee).
+  'marketing_ideas',
   // Registro, bozze e spesa dell'ufficio.
   'office_agents',
   'office_events',

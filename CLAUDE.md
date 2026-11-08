@@ -741,6 +741,27 @@ Main page for sales team monitoring. Structure:
 | `scripts/sql/` | Diagnostic SQL queries (collaborator visibility, legacy ID audit) |
 | `scripts/csv/` | CSV data files for import |
 
+## Marketing — idee per vendere le guide ai partner (`/marketing/idee`, novembre 2026)
+
+Tutto il marketing sta qui, nell'area **Marketing** (voce nel gruppo «Vendite»): la scheda **Coda email** (`/marketing`, la
+coda di bozze e follow-up di sempre) e la scheda **Idee per le guide** (`/marketing/idee`), il piano per portare le guide Speaqi
+ai partner B2B (hotel, B&B, property manager, tour operator, trasporti, agenzie, crociere, eventi, fiere). Le idee stavano nella
+dashboard di Speaqi (Marketing Lab, localStorage): sono state spostate qui, dove vivono partner, Tourism Intelligence e pipeline.
+
+- **Idee di partenza nel codice** (`IDEA_SEEDS`, `src/lib/marketing-ideas.ts`, puro e testato): aggiungerne una è aggiungere una
+  riga con chiave unica. Parlano solo di guide e partner e usano strumenti che esistono: vetrina `/p/<partner>` e QR `/go/<partner>`,
+  commissione B2B, codici prepagati, pass territorio, procacciatori, classifica «Guides · Distribuzione» di Tourism Intelligence.
+  `start: true` = nasce «Da validare» invece di «Backlog». Il punteggio ICE (`ideaScore`) premia ciò che porta a un accordo.
+- **Lo stato sta nel database** (tabella `marketing_ideas`, migration `20261107100000_marketing_ideas.sql`, additiva): stato,
+  responsabile, scadenza, avanzamento, note, e le idee scritte a mano dall'interfaccia (`title` valorizzato). Una riga per
+  (proprietario, idea). Nel backup (`BACKUP_TABLES`). **Prima la migration, poi il codice**: senza tabella la pagina si apre con le idee
+  di partenza e dice che lo stato non si salva (`unavailable`), il PATCH risponde 503.
+- **Solo il titolare**: `/marketing/idee` è in `SUPER_ADMIN_PATHS` (il resto di `/marketing` resta delegabile) e
+  `GET|POST|PATCH|DELETE /api/marketing/ideas` passa da `requireWorkspaceOwner`, scrivendo dal service role filtrato per `user_id`.
+- Le idee di partenza non si cancellano (si mettono «Completata»); si tolgono solo quelle scritte a mano. «Completata» porta
+  l'avanzamento a 100. Le date si controllano davvero (il 31 febbraio non passa).
+- Test: `tests/marketing-ideas.unit.test.ts`.
+
 ## Commerciale (motore campagne generico)
 
 `/commerciale` e l'unica area del commerciale: dentro ci stanno tutti i

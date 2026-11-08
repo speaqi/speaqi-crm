@@ -54,6 +54,7 @@ const NAV_GROUPS: { label: string; icon: string; items: NavItem[] }[] = [
       { href: '/kanban', label: 'Pipeline', icon: '🔀', badgeKey: 'kanban' },
       { href: '/preventivi', label: 'Preventivi', icon: '💶' },
       { href: '/commerciale', label: 'Commerciale', icon: '📣' },
+      { href: '/marketing', label: 'Marketing', icon: '✉️' },
       { href: '/attivita', label: 'Analytics', icon: '📊' },
       { href: '/fatture', label: 'Fatture e incassi', icon: '🧾' },
     ],
