@@ -466,7 +466,11 @@ export function compareByLocation(a: Pick<FairExhibitor, 'hall' | 'stand' | 'nam
  * directory e scheda Fiere). Aggiungerne una è aggiungere una riga: lo slug è
  * quello di `trade_fair_exhibitors.fair`.
  */
-export const TRADE_FAIRS = [{ slug: 'ttg-2026', label: 'TTG Travel Experience 2026', short: 'TTG 2026' }] as const
+export const TRADE_FAIRS = [
+  { slug: 'ttg-2026', label: 'TTG Travel Experience 2026', short: 'TTG 2026' },
+  { slug: 'itb-2026', label: 'ITB Berlin 2026', short: 'ITB 2026' },
+  { slug: 'itb-2027', label: 'ITB Berlin 2027', short: 'ITB 2027' },
+] as const
 
 export function tradeFairLabel(slug: string): string {
   return TRADE_FAIRS.find((fair) => fair.slug === slug)?.short || slug
