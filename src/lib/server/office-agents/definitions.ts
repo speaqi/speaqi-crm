@@ -24,11 +24,24 @@ export const OFFICE_AGENT_DEFINITIONS: Readonly<Record<string, OfficeAgentDefini
 /** Il registro a slug univoco della base comune appartiene al workspace
  * configurato per le automazioni. Nessun altro utente puo' appropriarsi degli id.
  */
+// Il registro si controlla una volta per processo: prima erano due query per agente
+// a ogni aggiornamento della pagina (ogni 5-30 secondi).
+const ensured = new Set<string>()
+export function forgetEnsuredOfficeAgents() { ensured.clear() }
+
 export async function ensureOfficeAgents(admin: any, userId: string) {
   if (!process.env.AUTOMATION_WORKSPACE_USER_ID || userId !== process.env.AUTOMATION_WORKSPACE_USER_ID) return
-  for (const definition of Object.values(OFFICE_AGENT_DEFINITIONS)) {
-    await ensureDefinition(admin, userId, definition)
-  }
+  if (ensured.has(userId)) return
+  const definitions = Object.values(OFFICE_AGENT_DEFINITIONS)
+  const { error } = await admin.from('office_agents')
+    .upsert(definitions.map((definition) => ({ ...definition, user_id: userId })), { onConflict: 'id', ignoreDuplicates: true })
+  if (error) throw error
+  const result = await admin.from('office_agents').select('id').eq('user_id', userId).in('id', definitions.map((definition) => definition.id))
+  if (result.error) throw result.error
+  const owned = new Set((result.data || []).map((row: { id: string }) => row.id))
+  const foreign = definitions.find((definition) => !owned.has(definition.id))
+  if (foreign) throw new Error(`L’agente ${foreign.id} appartiene a un altro workspace: verifica il registro`)
+  ensured.add(userId)
 }
 
 async function ensureDefinition(admin: any, userId: string, definition: OfficeAgentDefinition) {
@@ -42,5 +55,6 @@ async function ensureDefinition(admin: any, userId: string, definition: OfficeAg
 /** Anche un vecchio ordine ripreso dal worker deve trovare il nuovo agente. */
 export async function ensureOfficeResearcher(admin: any, userId: string) {
   if (!process.env.AUTOMATION_WORKSPACE_USER_ID || userId !== process.env.AUTOMATION_WORKSPACE_USER_ID) return
+  if (ensured.has(userId)) return
   await ensureDefinition(admin, userId, OFFICE_AGENT_DEFINITIONS.office_researcher)
 }

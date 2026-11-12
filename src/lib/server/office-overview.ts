@@ -20,6 +20,8 @@ async function loadWorkSummary(admin: SupabaseClient, userId: string) {
   }
 }
 
+const RECENT_RUNS = 150
+
 const emptySpend = (agentId: string): OfficeSpend => ({ agent_id: agentId, day_actual: 0, day_reserved: 0,
   week_actual: 0, week_reserved: 0, month_actual: 0, month_reserved: 0 })
 
@@ -31,19 +33,27 @@ export async function loadOfficeOverview(admin: SupabaseClient, userId: string, 
     agents.push(...(result.data || []))
     if ((result.data || []).length < 1000) break
   }
-  const [spendRes, runsRes, outputsRes, lastRuns, activity] = await Promise.all([
+  // Una lettura sola per le corse: le ultime RECENT_RUNS bastano quasi sempre a dire
+  // l'ultima corsa di ogni agente. Prima era una query per agente a ogni aggiornamento.
+  const [spendRes, recentRes, outputsRes, activity] = await Promise.all([
     admin.rpc('office_budget_summary', { p_user_id: userId }),
-    admin.from('office_agent_runs').select('*').eq('user_id', userId).order('started_at', { ascending: false }).limit(30),
+    admin.from('office_agent_runs').select('*').eq('user_id', userId).order('started_at', { ascending: false }).limit(RECENT_RUNS),
     admin.from('office_agent_outputs').select('*', { count: 'exact' }).eq('user_id', userId).eq('status', 'pending')
       .order('created_at', { ascending: false }).order('id').range(outputOffset, outputOffset + 49),
-    Promise.all(agents.map(async (agent) => {
-      const result = await admin.from('office_agent_runs').select('*').eq('user_id', userId).eq('agent_id', agent.id)
-        .order('started_at', { ascending: false }).limit(1)
-      if (result.error) throw result.error
-      return (result.data?.[0] as OfficeRun | undefined) || null
-    })),
     loadWorkSummary(admin, userId),
   ])
+  const recent = (recentRes.data || []) as OfficeRun[]
+  const runsRes = { error: recentRes.error, data: recent.slice(0, 30) }
+  const latest = new Map<string, OfficeRun>()
+  for (const run of recent) if (!latest.has(run.agent_id)) latest.set(run.agent_id, run)
+  // Solo se la finestra è piena un agente assente può avere una corsa più vecchia.
+  const lastRuns = await Promise.all(agents.map(async (agent) => {
+    if (latest.has(agent.id) || recent.length < RECENT_RUNS || recentRes.error) return latest.get(agent.id) || null
+    const result = await admin.from('office_agent_runs').select('*').eq('user_id', userId).eq('agent_id', agent.id)
+      .order('started_at', { ascending: false }).limit(1)
+    if (result.error) throw result.error
+    return (result.data?.[0] as OfficeRun | undefined) || null
+  }))
   for (const result of [spendRes, runsRes]) if (result.error) throw result.error
   let outputs = outputsRes
   if (outputs.error?.code === 'PGRST103') {
