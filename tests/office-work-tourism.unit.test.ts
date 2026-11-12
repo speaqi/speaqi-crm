@@ -52,6 +52,32 @@ test('verifica puntuale: propone solo prove letterali, non attiva né scrive ent
   assert.ok(f.checkpoints.some((entry) => entry.phase === 'effect_started'))
 })
 
+test('ordine esplicito: prove complete attivano l’ente e sbloccano la presentazione', async () => {
+  const f = fixture()
+  f.work.order_id = 'order'; f.work.origin = 'order'
+  f.db.rpcs.tourism_activate = () => ({ entity_id: ENTITY, place_id: PLACE, contact_id: 'contact', crm_error: null })
+  const result = await verifyTourismWork(f.ctx, f.work, f.db, f.deps)
+  assert.equal(result.status, 'succeeded')
+  assert.equal(result.result?.place_id, PLACE)
+  assert.equal(f.db.tables.office_agent_outputs.length, 0)
+  const call = f.db.calls.find((entry) => entry.rpc === 'tourism_activate')!
+  assert.equal(call.args.p_payload.origin, 'director')
+  assert.equal(call.args.p_payload.identity.quote, identity.replace(/’/g, "'"))
+  assert.equal(call.args.p_payload.coverage.quote, coverage)
+  assert.ok(f.checkpoints.some((entry) => entry.phase === 'effect_started' && entry.checkpoint.stage === 'activate_entity'))
+  assert.ok(f.checkpoints.at(-1)?.checkpoint.activation_receipt)
+  f.work.checkpoint = f.checkpoints.at(-1)!.checkpoint
+  assert.equal((await verifyTourismWork(f.ctx, f.work, f.db, f.deps)).status, 'succeeded')
+  assert.equal(f.db.calls.filter((entry) => entry.rpc === 'tourism_activate').length, 1)
+})
+
+test('ordine esplicito: prove incomplete non autorizzano l’attivazione', async () => {
+  const f = fixture(); f.work.order_id = 'order'; f.work.origin = 'order'
+  const model = (async () => ({ text: JSON.stringify({ ...answer, coverage_quote: 'Frase inventata sulla città.' }), tokensIn: 10, tokensOut: 10, costCents: 1, citations: [] })) as typeof callModel
+  assert.equal((await verifyTourismWork(f.ctx, f.work, f.db, { ...f.deps, model })).status, 'blocked')
+  assert.equal(f.db.calls.some((entry) => entry.rpc === 'tourism_activate'), false)
+})
+
 test('verifica già proposta: ripresa senza nuovo modello; rifiuto annulla senza altra proposta', async () => {
   const f = fixture(); let paid = 0
   const deps = { ...f.deps, model: (async (...args) => { paid++; return f.deps.model(...args) }) as typeof callModel }

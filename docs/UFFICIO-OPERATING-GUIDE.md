@@ -56,7 +56,15 @@ Sequenza di rilascio:
 5. Includi **`office-work`** in `AUTOMATION_SCHEDULER_JOBS` se la variabile contiene un elenco. Non abilitare tutti i job del CRM soltanto per aggiungere il worker. Poi abilita `OFFICE_WORKER_ENABLED=true` per il passaggio autorizzato e osserva il primo turno.
 6. Controlla, su dati di prova consentiti, ordine salvato → incarico → corsa → risultato. Verifica che il job continui senza browser aperto. Accendi soltanto gli specialisti che devono lavorare e mantieni i budget scelti dal titolare.
 
-Il turno periodico è ogni minuto e chiama `POST /api/automation/office-work` con l'autenticazione macchina esistente. Non è una rotta pubblica né un modo per impersonare un altro workspace. Le pagine del titolare usano `GET /api/office/work` e dettaglio/correzione su `/api/office/work/<id>`; token di presa e checkpoint interni non vengono esposti dal pannello.
+Il turno periodico è ogni cinque minuti e chiama `POST /api/automation/office-work` con l'autenticazione macchina esistente. Quando il database non risponde il pianificatore limita la durata delle prenotazioni e attende progressivamente prima di ritentare. Non è una rotta pubblica né un modo per impersonare un altro workspace. Le pagine del titolare usano `GET /api/office/work` e dettaglio/correzione su `/api/office/work/<id>`; token di presa e checkpoint interni non vengono esposti dal pannello.
+
+### Agenda degli incarichi
+
+La scheda Agenda salva istruzioni al Direttore con cadenza giornaliera, ogni due giorni o settimanale, data e ora di Roma. Il worker materializza al massimo cinque incarichi dovuti per giro; ordine, incarico e avanzamento sono atomici. Dopo uno stop prolungato viene creato soltanto il turno dovuto più recente, non tutti gli arretrati. Se il turno precedente è ancora aperto, il successivo viene saltato per non accumulare copie. La pausa conserva lo storico; la modifica usa una revisione per non sovrascrivere un turno appena avviato.
+
+L'agenda richiede la migration `office_recurring_orders` e il worker acceso. Non avvia un sistema spento e non imposta un limite di spesa separato per incarico: valgono i budget degli agenti. La vista mostra l'ultimo lavoro.
+
+Il riepilogo ha una frequenza indipendente impostabile nella stessa scheda. Il worker salva nel CRM, senza chiamate AI, un rapporto con situazione dei lavori e costi del periodo (ultimi 30 giorni al massimo dopo uno stop prolungato); il dettaglio riporta fino a 30 lavori aggiornati e 10 situazioni aperte da verificare. È un avviso consultabile e non aumenta il contatore delle decisioni. Non viene ancora consegnato automaticamente via Telegram o email.
 
 ## Controlli e diagnosi
 

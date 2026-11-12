@@ -34,6 +34,7 @@ const DEFAULT_TABLES = [
   'user_settings',
   'quote_signatures',
   'receivables',
+  'marketing_ideas',
   // Registro, bozze e spesa dell'ufficio.
   'office_agents',
   'office_events',

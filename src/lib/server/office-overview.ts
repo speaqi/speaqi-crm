@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { OfficeAgent, OfficeOutput, OfficeOverview, OfficeRun, OfficeSpend } from '../office'
 import { OFFICE_OPEN_WORK_STATUSES, OFFICE_WORK_SUMMARY_COLUMNS, type OfficeWorkSummary } from '../office-activity'
 import { officeRows } from './office-read'
+import { OFFICE_DECISIONS_FILTER, officeOutputIsNotice } from '../office-inbox'
 
 async function loadWorkSummary(admin: SupabaseClient, userId: string) {
   try {
@@ -19,6 +20,8 @@ async function loadWorkSummary(admin: SupabaseClient, userId: string) {
   }
 }
 
+const RECENT_RUNS = 150
+
 const emptySpend = (agentId: string): OfficeSpend => ({ agent_id: agentId, day_actual: 0, day_reserved: 0,
   week_actual: 0, week_reserved: 0, month_actual: 0, month_reserved: 0 })
 
@@ -30,19 +33,27 @@ export async function loadOfficeOverview(admin: SupabaseClient, userId: string, 
     agents.push(...(result.data || []))
     if ((result.data || []).length < 1000) break
   }
-  const [spendRes, runsRes, outputsRes, lastRuns, activity] = await Promise.all([
+  // Una lettura sola per le corse: le ultime RECENT_RUNS bastano quasi sempre a dire
+  // l'ultima corsa di ogni agente. Prima era una query per agente a ogni aggiornamento.
+  const [spendRes, recentRes, outputsRes, activity] = await Promise.all([
     admin.rpc('office_budget_summary', { p_user_id: userId }),
-    admin.from('office_agent_runs').select('*').eq('user_id', userId).order('started_at', { ascending: false }).limit(30),
+    admin.from('office_agent_runs').select('*').eq('user_id', userId).order('started_at', { ascending: false }).limit(RECENT_RUNS),
     admin.from('office_agent_outputs').select('*', { count: 'exact' }).eq('user_id', userId).eq('status', 'pending')
       .order('created_at', { ascending: false }).order('id').range(outputOffset, outputOffset + 49),
-    Promise.all(agents.map(async (agent) => {
-      const result = await admin.from('office_agent_runs').select('*').eq('user_id', userId).eq('agent_id', agent.id)
-        .order('started_at', { ascending: false }).limit(1)
-      if (result.error) throw result.error
-      return (result.data?.[0] as OfficeRun | undefined) || null
-    })),
     loadWorkSummary(admin, userId),
   ])
+  const recent = (recentRes.data || []) as OfficeRun[]
+  const runsRes = { error: recentRes.error, data: recent.slice(0, 30) }
+  const latest = new Map<string, OfficeRun>()
+  for (const run of recent) if (!latest.has(run.agent_id)) latest.set(run.agent_id, run)
+  // Solo se la finestra è piena un agente assente può avere una corsa più vecchia.
+  const lastRuns = await Promise.all(agents.map(async (agent) => {
+    if (latest.has(agent.id) || recent.length < RECENT_RUNS || recentRes.error) return latest.get(agent.id) || null
+    const result = await admin.from('office_agent_runs').select('*').eq('user_id', userId).eq('agent_id', agent.id)
+      .order('started_at', { ascending: false }).limit(1)
+    if (result.error) throw result.error
+    return (result.data?.[0] as OfficeRun | undefined) || null
+  }))
   for (const result of [spendRes, runsRes]) if (result.error) throw result.error
   let outputs = outputsRes
   if (outputs.error?.code === 'PGRST103') {
@@ -53,6 +64,17 @@ export async function loadOfficeOverview(admin: SupabaseClient, userId: string, 
     if (count.error) throw count.error
     outputs = { ...outputs, data: [], error: null, count: count.count }
   } else if (outputs.error) throw outputs.error
+  // Se la prima pagina contiene l'intera coda, evitiamo un'altra lettura ad
+  // ogni aggiornamento dell'ufficio. La paginazione continua a usare il totale.
+  let decisions: number
+  if (outputOffset === 0 && (outputs.count || 0) <= (outputs.data || []).length) {
+    decisions = (outputs.data || []).filter((output: OfficeOutput) => !officeOutputIsNotice(output)).length
+  } else {
+    const count = await admin.from('office_agent_outputs').select('id', { count: 'exact', head: true })
+      .eq('user_id', userId).eq('status', 'pending').or(OFFICE_DECISIONS_FILTER)
+    if (count.error) throw count.error
+    decisions = count.count || 0
+  }
   const spending = new Map((spendRes.data as OfficeSpend[]).map((spend) => [spend.agent_id, spend]))
   const totals = { day_actual: 0, day_reserved: 0, week_actual: 0, week_reserved: 0, month_actual: 0, month_reserved: 0 }
   const rows = agents.map((agent, index) => {
@@ -61,5 +83,5 @@ export async function loadOfficeOverview(admin: SupabaseClient, userId: string, 
     return { ...agent, spend, last_run: lastRuns[index] }
   })
   return { agents: rows, runs: runsRes.data as OfficeRun[], outputs: outputs.data as OfficeOutput[],
-    pending_count: outputs.count || 0, totals, active_agents: agents.filter((agent) => agent.enabled).length, ...activity }
+    pending_count: outputs.count || 0, decision_count: decisions, totals, active_agents: agents.filter((agent) => agent.enabled).length, ...activity }
 }

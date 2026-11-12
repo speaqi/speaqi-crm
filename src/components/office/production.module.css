@@ -1,0 +1,46 @@
+.board { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--bg, #f4f6fb); color: var(--text); }
+.head { padding: 14px 16px 10px; display: grid; gap: 10px; border-bottom: 1px solid var(--border); padding-right: 170px; }
+.kpis { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--text2); }
+.kpis strong { color: var(--text); font-size: 15px; font-variant-numeric: tabular-nums; }
+.kpis span[data-warn='true'] strong { color: #b25e00; }
+.tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tools input { flex: 1 1 160px; max-width: 240px; border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 13px; background: var(--surface); color: var(--text); }
+.tools button { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.tools button[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.notice { margin: 0; font-size: 12px; color: #146048; }
+.command { display: grid; gap: 4px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--accent); background: var(--surface); font-size: 13px; }
+.command[data-stage='failed'] { border-color: #c0392b; }
+.command[data-stage='done'] { border-color: #1f9d63; }
+.command span { color: var(--text2); overflow-wrap: anywhere; }
+.command b { color: var(--text); }
+.warn { color: #9a6a00 !important; font-weight: 600; }
+.commandActions { display: flex; gap: 8px; margin-top: 4px; }
+.scroll { flex: 1; min-height: 0; overflow: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table thead th { position: sticky; top: 0; z-index: 1; background: var(--bg, #f4f6fb); text-align: left; font-size: 11px; font-weight: 600; color: var(--text2); padding: 8px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.table thead th:first-child, .table tbody th { padding-left: 16px; }
+.phaseHead { text-align: center !important; width: 68px; }
+.table tbody tr { cursor: pointer; border-bottom: 1px solid var(--border); }
+.table tbody tr:hover, .open { background: var(--surface); }
+.table tbody th { text-align: left; font-weight: 400; padding: 8px 6px; min-width: 150px; }
+.table tbody th small { display: block; color: var(--text2); font-size: 11px; }
+.city { border: 0; background: none; padding: 0; font: inherit; font-weight: 600; color: var(--text); cursor: pointer; text-align: left; }
+.phase { text-align: center; padding: 6px 3px; }
+.phase > span:first-child { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; font-size: 13px; border: 1.5px dashed #b9c2cf; color: transparent; }
+.phase[data-state='done'] > span:first-child { background: #1f9d63; border: 0; color: #fff; }
+.phase[data-state='partial'] > span:first-child { background: #fff3d6; border: 1.5px solid #e0a020; color: #9a6a00; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.next { padding: 8px 16px 8px 8px; color: var(--text); min-width: 200px; }
+.good { color: #1f7a4f; } .soft { color: var(--text2); } .bad { color: #9f2020; }
+.detail { cursor: default !important; background: var(--surface); }
+.detail td { padding: 4px 16px 14px; }
+.detail ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.detail li { border: 1px solid var(--border); border-left: 3px solid #b9c2cf; border-radius: 8px; padding: 8px 10px; display: grid; gap: 3px; font-size: 12px; background: var(--bg, #f4f6fb); }
+.detail li[data-state='done'] { border-left-color: #1f9d63; }
+.detail li[data-state='partial'] { border-left-color: #e0a020; }
+.detail li span { color: var(--text2); }
+.detail li a, .links a { color: var(--accent); text-decoration: none; }
+.detail li button { justify-self: start; border: 1px solid var(--accent); background: none; color: var(--accent); border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer; }
+.links { margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--text2); }
+.empty { margin: auto; padding: 32px 16px; text-align: center; color: var(--text2); font-size: 13px; display: grid; gap: 10px; justify-items: center; }
+@media (max-width: 800px) { .head { padding-right: 16px; padding-top: 52px; } .phaseHead { width: 40px; font-size: 0 !important; } }

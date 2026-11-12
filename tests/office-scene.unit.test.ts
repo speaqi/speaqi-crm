@@ -33,6 +33,12 @@ test('il 3D riceve una proiezione senza proprietario, impostazioni, destinatari 
   assert.equal(result.updatedAt, '2026-10-23T09:00:00Z')
 })
 
+test('il contatore Aspetta te mostra solo le decisioni anche se la coda contiene rapporti', () => {
+  const result = officeSceneSnapshot({ ...overview, pending_count: 23, decision_count: 12 })
+  assert.equal(result.pendingCount, 12)
+  assert.equal(result.outputs.length, 1, 'i rapporti restano consultabili')
+})
+
 test('stati 3D: corso dal registro, problemi visibili e interruttore spento rispettato', () => {
   assert.equal(withRun('running').status, 'running')
   assert.equal(withRun('running', false).status, 'running', 'spegnere impedisce nuove corse, non cancella una corsa esistente')

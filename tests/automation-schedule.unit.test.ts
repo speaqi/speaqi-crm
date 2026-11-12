@@ -15,7 +15,7 @@ import {
   slotOf,
   type ScheduledJob,
 } from '../src/lib/automation-schedule'
-import { runJob, type SchedulerDeps, type StepResult } from '../src/lib/server/automation-scheduler'
+import { runJob, schedulerDatabaseBackoffMs, type SchedulerDeps, type StepResult } from '../src/lib/server/automation-scheduler'
 
 const ROME = 'Europe/Rome'
 const names = (date: string) => dueJobs(new Date(date), ROME).map((job) => job.name).sort()
@@ -173,7 +173,9 @@ describe('corse', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve
     })
+    let claims = 0
     const { deps } = fakeDeps({
+      claim: async () => { claims++; return true },
       fetch: (async () => {
         await gate
         return new Response('{}', { status: 200 })
@@ -183,8 +185,19 @@ describe('corse', () => {
     const first = runJob(deps, job, '2026-10-01T06:00:00.000Z')
     const second = await runJob(deps, job, '2026-10-01T06:10:00.000Z')
     assert.deepEqual(second, { skipped: 'running' })
+    assert.equal(claims, 1, 'un turno saltato non deve aggiungere richieste durante un guasto')
     release()
     await first
+  })
+
+  test('il worker ufficio usa un turno ogni cinque minuti', () => {
+    const office = AUTOMATION_JOBS.find((job) => job.name === 'office-work')!
+    assert.ok(dueJobs(new Date('2026-10-19T10:00:00Z'), ROME, [office]).length)
+    assert.equal(dueJobs(new Date('2026-10-19T10:01:00Z'), ROME, [office]).length, 0)
+    assert.ok(dueJobs(new Date('2026-10-19T10:05:00Z'), ROME, [office]).length)
+  })
+  test('errori ripetuti aumentano la pausa, con un massimo di mezz’ora', () => {
+    assert.deepEqual([1, 2, 3, 4, 9].map(schedulerDatabaseBackoffMs), [5, 10, 20, 30, 30].map((minutes) => minutes * 60_000))
   })
 })
 

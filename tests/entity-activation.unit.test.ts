@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { cityForEntity, crmErrorText, entitySearchPattern, pickOrderEntity, siteCandidates, siteMatchesEntity, websiteFromText } from '../src/lib/office/entity-activation'
+import { activationDestination, cityForEntity, crmErrorText, entitySearchPattern, pickOrderEntity, siteCandidates, siteMatchesEntity, websiteFromText } from '../src/lib/office/entity-activation'
 import { activateEntityForOrder } from '../src/lib/server/office-entity-activation'
 import { BudgetExceeded, type AgentContext } from '../src/lib/server/office-agents'
 
@@ -14,6 +14,13 @@ const fakeAdmin = () => {
   const calls: any[] = []
   return { calls, rpc: async (name: string, args: any) => { calls.push({ name, args }); return { data: { place_id: 'p1', contact_id: 'c1', contact_created: true, crm_error: null, filled: ['website', 'email'] }, error: null } } }
 }
+
+test('il paese non diventa la destinazione implicita di una DMO', () => {
+  assert.equal(activationDestination(null, 'IT', 'dmo', 'Italia'), null)
+  assert.equal(activationDestination('Italy', 'IT', 'dmo', 'Italia'), null)
+  assert.equal(activationDestination('Sicilia', 'IT', 'dmo', 'Italia'), 'Sicilia')
+  assert.equal(activationDestination(null, 'IT', 'nto', 'Italia'), 'Italia')
+})
 
 test('il sito si prende dall’ordine, mai da un’email o da un social', () => {
   assert.equal(websiteFromText('presentazione per Visit Bergamo, sito visitbergamo.net'), 'https://visitbergamo.net')

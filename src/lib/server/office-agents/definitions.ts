@@ -1,12 +1,15 @@
 import type { OfficeAgent } from '@/lib/office'
 
 export type OfficeAgentDefinition = Omit<OfficeAgent, 'user_id'>
-/** Ogni installazione parte spenta; i budget salvati dal titolare non si riscrivono. */
+/** I budget e gli interruttori salvati dal titolare non si riscrivono. */
 export const OFFICE_AGENT_DEFINITIONS: Readonly<Record<string, OfficeAgentDefinition>> = Object.freeze({
+  demo_builder:{id:'demo_builder',name:'Demo e temi',department:'mappe',description:'Prepara demo di dieci luoghi e coordina i sette temi, senza pubblicare.',enabled:false,schedule_job:null,model:'gpt-5-mini',daily_budget_cents:900,weekly_budget_cents:2700,monthly_budget_cents:9000,settings:{}},
+  office_researcher:{id:'office_researcher',name:'Ricercatore',department:'ricerca',description:'Su incarico del Direttore cerca informazioni pubbliche mancanti, legge le fonti e restituisce solo dati verificabili.',enabled:false,schedule_job:null,model:'gpt-5-mini',daily_budget_cents:100,weekly_budget_cents:350,monthly_budget_cents:1500,settings:{}},
   events_scout:{id:'events_scout',name:'Ricercatore eventi e fiere',department:'ricerca',description:'Eventi e bandi da fonti configurate, attività To Do soltanto dopo approvazione.',enabled:false,schedule_job:'office-events-scout',model:'gpt-5-mini',daily_budget_cents:100,weekly_budget_cents:350,monthly_budget_cents:1500,settings:{sources:[],queries:[]}},
   entity_enricher:{id:'entity_enricher',name:'Arricchimento enti',department:'ricerca',description:'Trova l’ente delle città prioritarie nel catalogo e ne propone recapiti d’ufficio con le frasi del sito; CRM e Presentazioni solo dopo il clic.',enabled:false,schedule_job:'office-entity-enricher',model:'gpt-5-mini',daily_budget_cents:200,weekly_budget_cents:1000,monthly_budget_cents:4000,settings:{}},
   presentations:{id:'presentations',name:'Presentazioni',department:'commerciale',description:'Presentazioni Tourism da approvare e bozze email soltanto dopo il clic del titolare.',enabled:false,schedule_job:'office-presentations',model:'gpt-5-mini',daily_budget_cents:300,weekly_budget_cents:300,monthly_budget_cents:1500,settings:{queue:[]}},
   social:{id:'social',name:'Social',department:'marketing',description:'Bozze Instagram, LinkedIn e Facebook con dati e foto verificati, nessuna pubblicazione.',enabled:false,schedule_job:'office-social',model:'gpt-5-mini',daily_budget_cents:100,weekly_budget_cents:100,monthly_budget_cents:500,settings:{}},
+  model_watch:{id:'model_watch',name:'Osservatorio modelli AI',department:'ricerca',description:'Ogni mattina confronta i nuovi modelli OpenRouter con quelli dell’ufficio e invia un report Telegram.',enabled:false,schedule_job:'office-model-watch',model:'gpt-5-mini',daily_budget_cents:2147483647,weekly_budget_cents:2147483647,monthly_budget_cents:2147483647,settings:{}},
   news_watch:{id:'news_watch',name:'Osservatorio novità',department:'ricerca',description:'Rassegna con fonti delle ultime 48 ore, Telegram solo dopo clic.',enabled:false,schedule_job:'office-news-watch',model:'gpt-5-mini',daily_budget_cents:30,weekly_budget_cents:210,monthly_budget_cents:930,settings:{feeds:[],competitors:['STQRY','Cuseum','SmartGuide','VoiceMap','Locatify'],telegram:false}},
   languages_voice:{id:'languages_voice',name:'Lingue e voce',department:'mappe',description:'Completa testi e audio delle mappe in coda entro il budget; Napoli esclusa, le vecchie solo su approvazione.',enabled:false,schedule_job:'office-languages-voice',model:'gpt-5-mini',daily_budget_cents:1500,weekly_budget_cents:6000,monthly_budget_cents:20000,settings:{queue:[]}},
   db_cleaner:{id:'db_cleaner',name:'Pulizia database',department:'operazioni',description:'Trova doppioni e dati sporchi; unisce solo dopo l’approvazione, senza cancellare.',enabled:false,schedule_job:'office-db-cleaner',model:'gpt-5-mini',daily_budget_cents:10,weekly_budget_cents:50,monthly_budget_cents:200,settings:{}},
@@ -22,13 +25,37 @@ export const OFFICE_AGENT_DEFINITIONS: Readonly<Record<string, OfficeAgentDefini
 /** Il registro a slug univoco della base comune appartiene al workspace
  * configurato per le automazioni. Nessun altro utente puo' appropriarsi degli id.
  */
+// Il registro si controlla una volta per processo: prima erano due query per agente
+// a ogni aggiornamento della pagina (ogni 5-30 secondi).
+const ensured = new Set<string>()
+export function forgetEnsuredOfficeAgents() { ensured.clear() }
+
 export async function ensureOfficeAgents(admin: any, userId: string) {
   if (!process.env.AUTOMATION_WORKSPACE_USER_ID || userId !== process.env.AUTOMATION_WORKSPACE_USER_ID) return
-  for (const definition of Object.values(OFFICE_AGENT_DEFINITIONS)) {
-    const { error } = await admin.from('office_agents').upsert({ ...definition, user_id: userId }, { onConflict: 'id', ignoreDuplicates: true })
-    if (error) throw error
-    const result = await admin.from('office_agents').select('id').eq('id', definition.id).eq('user_id', userId).maybeSingle()
-    if (result.error) throw result.error
-    if (!result.data) throw new Error(`L’agente ${definition.id} appartiene a un altro workspace: verifica il registro`)
-  }
+  if (ensured.has(userId)) return
+  const definitions = Object.values(OFFICE_AGENT_DEFINITIONS)
+  const { error } = await admin.from('office_agents')
+    .upsert(definitions.map((definition) => ({ ...definition, user_id: userId })), { onConflict: 'id', ignoreDuplicates: true })
+  if (error) throw error
+  const result = await admin.from('office_agents').select('id').eq('user_id', userId).in('id', definitions.map((definition) => definition.id))
+  if (result.error) throw result.error
+  const owned = new Set((result.data || []).map((row: { id: string }) => row.id))
+  const foreign = definitions.find((definition) => !owned.has(definition.id))
+  if (foreign) throw new Error(`L’agente ${foreign.id} appartiene a un altro workspace: verifica il registro`)
+  ensured.add(userId)
+}
+
+async function ensureDefinition(admin: any, userId: string, definition: OfficeAgentDefinition) {
+  const { error } = await admin.from('office_agents').upsert({ ...definition, user_id: userId }, { onConflict: 'id', ignoreDuplicates: true })
+  if (error) throw error
+  const result = await admin.from('office_agents').select('id').eq('id', definition.id).eq('user_id', userId).maybeSingle()
+  if (result.error) throw result.error
+  if (!result.data) throw new Error(`L’agente ${definition.id} appartiene a un altro workspace: verifica il registro`)
+}
+
+/** Anche un vecchio ordine ripreso dal worker deve trovare il nuovo agente. */
+export async function ensureOfficeResearcher(admin: any, userId: string) {
+  if (!process.env.AUTOMATION_WORKSPACE_USER_ID || userId !== process.env.AUTOMATION_WORKSPACE_USER_ID) return
+  if (ensured.has(userId)) return
+  await ensureDefinition(admin, userId, OFFICE_AGENT_DEFINITIONS.office_researcher)
 }

@@ -1,0 +1,2005 @@
+{
+ "source": "Catalogo curato (ottobre 2026), da verificare",
+ "records": [
+  {
+   "kind": "organization",
+   "name": "Opodo",
+   "country_code": "ES",
+   "type_code": "ota",
+   "website": "https://opodo.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://opodo.com",
+    "title": "Sito ufficiale — Opodo",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://opodo.com",
+     "title": "Sito ufficiale — Opodo",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Logitravel",
+   "country_code": "ES",
+   "type_code": "ota",
+   "website": "https://logitravel.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://logitravel.com",
+    "title": "Sito ufficiale — Logitravel",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://logitravel.com",
+     "title": "Sito ufficiale — Logitravel",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Rumbo",
+   "country_code": "ES",
+   "type_code": "ota",
+   "website": "https://rumbo.es",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://rumbo.es",
+    "title": "Sito ufficiale — Rumbo",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://rumbo.es",
+     "title": "Sito ufficiale — Rumbo",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Destinia",
+   "country_code": "ES",
+   "type_code": "ota",
+   "website": "https://destinia.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://destinia.com",
+    "title": "Sito ufficiale — Destinia",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://destinia.com",
+     "title": "Sito ufficiale — Destinia",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Volagratis",
+   "country_code": "IT",
+   "type_code": "ota",
+   "website": "https://volagratis.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://volagratis.com",
+    "title": "Sito ufficiale — Volagratis",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://volagratis.com",
+     "title": "Sito ufficiale — Volagratis",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Ebookers",
+   "country_code": "GB",
+   "type_code": "ota",
+   "website": "https://ebookers.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://ebookers.com",
+    "title": "Sito ufficiale — Ebookers",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://ebookers.com",
+     "title": "Sito ufficiale — Ebookers",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Orbitz",
+   "country_code": "US",
+   "type_code": "ota",
+   "website": "https://orbitz.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://orbitz.com",
+    "title": "Sito ufficiale — Orbitz",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://orbitz.com",
+     "title": "Sito ufficiale — Orbitz",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Priceline",
+   "country_code": "US",
+   "type_code": "ota",
+   "website": "https://priceline.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://priceline.com",
+    "title": "Sito ufficiale — Priceline",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://priceline.com",
+     "title": "Sito ufficiale — Priceline",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "CheapTickets",
+   "country_code": "US",
+   "type_code": "ota",
+   "website": "https://cheaptickets.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://cheaptickets.com",
+    "title": "Sito ufficiale — CheapTickets",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://cheaptickets.com",
+     "title": "Sito ufficiale — CheapTickets",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Hotwire",
+   "country_code": "US",
+   "type_code": "ota",
+   "website": "https://hotwire.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://hotwire.com",
+    "title": "Sito ufficiale — Hotwire",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://hotwire.com",
+     "title": "Sito ufficiale — Hotwire",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Hopper",
+   "country_code": "CA",
+   "type_code": "ota",
+   "website": "https://hopper.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://hopper.com",
+    "title": "Sito ufficiale — Hopper",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://hopper.com",
+     "title": "Sito ufficiale — Hopper",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Mondee",
+   "country_code": "US",
+   "type_code": "ota",
+   "website": "https://mondee.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://mondee.com",
+    "title": "Sito ufficiale — Mondee",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://mondee.com",
+     "title": "Sito ufficiale — Mondee",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Skiplagged",
+   "country_code": "US",
+   "type_code": "ota",
+   "website": "https://skiplagged.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://skiplagged.com",
+    "title": "Sito ufficiale — Skiplagged",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://skiplagged.com",
+     "title": "Sito ufficiale — Skiplagged",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Wotif",
+   "country_code": "AU",
+   "type_code": "ota",
+   "website": "https://wotif.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://wotif.com",
+    "title": "Sito ufficiale — Wotif",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://wotif.com",
+     "title": "Sito ufficiale — Wotif",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Webjet",
+   "country_code": "AU",
+   "type_code": "ota",
+   "website": "https://webjet.com.au",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://webjet.com.au",
+    "title": "Sito ufficiale — Webjet",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://webjet.com.au",
+     "title": "Sito ufficiale — Webjet",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Hurb",
+   "country_code": "BR",
+   "type_code": "ota",
+   "website": "https://hurb.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://hurb.com",
+    "title": "Sito ufficiale — Hurb",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://hurb.com",
+     "title": "Sito ufficiale — Hurb",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Decolar",
+   "country_code": "AR",
+   "type_code": "ota",
+   "website": "https://decolar.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://decolar.com",
+    "title": "Sito ufficiale — Decolar",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://decolar.com",
+     "title": "Sito ufficiale — Decolar",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Almundo",
+   "country_code": "AR",
+   "type_code": "ota",
+   "website": "https://almundo.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://almundo.com",
+    "title": "Sito ufficiale — Almundo",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://almundo.com",
+     "title": "Sito ufficiale — Almundo",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Cleartrip",
+   "country_code": "IN",
+   "type_code": "ota",
+   "website": "https://cleartrip.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://cleartrip.com",
+    "title": "Sito ufficiale — Cleartrip",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://cleartrip.com",
+     "title": "Sito ufficiale — Cleartrip",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "EaseMyTrip",
+   "country_code": "IN",
+   "type_code": "ota",
+   "website": "https://easemytrip.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://easemytrip.com",
+    "title": "Sito ufficiale — EaseMyTrip",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://easemytrip.com",
+     "title": "Sito ufficiale — EaseMyTrip",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "ixigo",
+   "country_code": "IN",
+   "type_code": "ota",
+   "website": "https://ixigo.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://ixigo.com",
+    "title": "Sito ufficiale — ixigo",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://ixigo.com",
+     "title": "Sito ufficiale — ixigo",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Tuniu",
+   "country_code": "CN",
+   "type_code": "ota",
+   "website": "https://tuniu.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://tuniu.com",
+    "title": "Sito ufficiale — Tuniu",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://tuniu.com",
+     "title": "Sito ufficiale — Tuniu",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Fliggy",
+   "country_code": "CN",
+   "type_code": "ota",
+   "website": "https://fliggy.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://fliggy.com",
+    "title": "Sito ufficiale — Fliggy",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://fliggy.com",
+     "title": "Sito ufficiale — Fliggy",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Tongcheng Travel",
+   "country_code": "CN",
+   "type_code": "ota",
+   "website": "https://ly.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://ly.com",
+    "title": "Sito ufficiale — Tongcheng Travel",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://ly.com",
+     "title": "Sito ufficiale — Tongcheng Travel",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Rakuten Travel",
+   "country_code": "JP",
+   "type_code": "ota",
+   "website": "https://travel.rakuten.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://travel.rakuten.com",
+    "title": "Sito ufficiale — Rakuten Travel",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://travel.rakuten.com",
+     "title": "Sito ufficiale — Rakuten Travel",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Yanolja",
+   "country_code": "KR",
+   "type_code": "ota",
+   "website": "https://yanolja.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://yanolja.com",
+    "title": "Sito ufficiale — Yanolja",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://yanolja.com",
+     "title": "Sito ufficiale — Yanolja",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Tiket.com",
+   "country_code": "ID",
+   "type_code": "ota",
+   "website": "https://tiket.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://tiket.com",
+    "title": "Sito ufficiale — Tiket.com",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://tiket.com",
+     "title": "Sito ufficiale — Tiket.com",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Pegipegi",
+   "country_code": "ID",
+   "type_code": "ota",
+   "website": "https://pegipegi.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://pegipegi.com",
+    "title": "Sito ufficiale — Pegipegi",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://pegipegi.com",
+     "title": "Sito ufficiale — Pegipegi",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Wego",
+   "country_code": "AE",
+   "type_code": "ota",
+   "website": "https://wego.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://wego.com",
+    "title": "Sito ufficiale — Wego",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://wego.com",
+     "title": "Sito ufficiale — Wego",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Almosafer",
+   "country_code": "SA",
+   "type_code": "ota",
+   "website": "https://almosafer.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://almosafer.com",
+    "title": "Sito ufficiale — Almosafer",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://almosafer.com",
+     "title": "Sito ufficiale — Almosafer",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Flyin.com",
+   "country_code": "SA",
+   "type_code": "ota",
+   "website": "https://flyin.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://flyin.com",
+    "title": "Sito ufficiale — Flyin.com",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://flyin.com",
+     "title": "Sito ufficiale — Flyin.com",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "HRS",
+   "country_code": "DE",
+   "type_code": "ota",
+   "website": "https://hrs.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://hrs.com",
+    "title": "Sito ufficiale — HRS",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://hrs.com",
+     "title": "Sito ufficiale — HRS",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Hostelworld",
+   "country_code": "IE",
+   "type_code": "ota",
+   "website": "https://hostelworld.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://hostelworld.com",
+    "title": "Sito ufficiale — Hostelworld",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://hostelworld.com",
+     "title": "Sito ufficiale — Hostelworld",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Omio",
+   "country_code": "DE",
+   "type_code": "ota",
+   "website": "https://omio.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://omio.com",
+    "title": "Sito ufficiale — Omio",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://omio.com",
+     "title": "Sito ufficiale — Omio",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Trainline",
+   "country_code": "GB",
+   "type_code": "ota",
+   "website": "https://thetrainline.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://thetrainline.com",
+    "title": "Sito ufficiale — Trainline",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://thetrainline.com",
+     "title": "Sito ufficiale — Trainline",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Vrbo",
+   "country_code": "US",
+   "type_code": "ota",
+   "website": "https://vrbo.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://vrbo.com",
+    "title": "Sito ufficiale — Vrbo",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://vrbo.com",
+     "title": "Sito ufficiale — Vrbo",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Airbnb",
+   "country_code": "US",
+   "type_code": "ota",
+   "website": "https://airbnb.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://airbnb.com",
+    "title": "Sito ufficiale — Airbnb",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://airbnb.com",
+     "title": "Sito ufficiale — Airbnb",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Skyscanner",
+   "country_code": "GB",
+   "type_code": "ota",
+   "website": "https://skyscanner.net",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://skyscanner.net",
+    "title": "Sito ufficiale — Skyscanner",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://skyscanner.net",
+     "title": "Sito ufficiale — Skyscanner",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Kayak",
+   "country_code": "US",
+   "type_code": "ota",
+   "website": "https://kayak.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://kayak.com",
+    "title": "Sito ufficiale — Kayak",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://kayak.com",
+     "title": "Sito ufficiale — Kayak",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Trivago",
+   "country_code": "DE",
+   "type_code": "ota",
+   "website": "https://trivago.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://trivago.com",
+    "title": "Sito ufficiale — Trivago",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://trivago.com",
+     "title": "Sito ufficiale — Trivago",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "momondo",
+   "country_code": "DK",
+   "type_code": "ota",
+   "website": "https://momondo.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://momondo.com",
+    "title": "Sito ufficiale — momondo",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://momondo.com",
+     "title": "Sito ufficiale — momondo",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Tripadvisor",
+   "country_code": "US",
+   "type_code": "ota",
+   "website": "https://tripadvisor.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://tripadvisor.com",
+    "title": "Sito ufficiale — Tripadvisor",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://tripadvisor.com",
+     "title": "Sito ufficiale — Tripadvisor",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Hotelbeds",
+   "country_code": "ES",
+   "type_code": "bedbank",
+   "website": "https://hotelbeds.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://hotelbeds.com",
+    "title": "Sito ufficiale — Hotelbeds",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://hotelbeds.com",
+     "title": "Sito ufficiale — Hotelbeds",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "WebBeds",
+   "country_code": "AU",
+   "type_code": "bedbank",
+   "website": "https://webbeds.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://webbeds.com",
+    "title": "Sito ufficiale — WebBeds",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://webbeds.com",
+     "title": "Sito ufficiale — WebBeds",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "TBO Holidays",
+   "country_code": "IN",
+   "type_code": "bedbank",
+   "website": "https://tboholidays.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://tboholidays.com",
+    "title": "Sito ufficiale — TBO Holidays",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://tboholidays.com",
+     "title": "Sito ufficiale — TBO Holidays",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Restel",
+   "country_code": "ES",
+   "type_code": "bedbank",
+   "website": "https://restel.es",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://restel.es",
+    "title": "Sito ufficiale — Restel",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://restel.es",
+     "title": "Sito ufficiale — Restel",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Klook",
+   "country_code": "HK",
+   "type_code": "experience_marketplace",
+   "website": "https://klook.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://klook.com",
+    "title": "Sito ufficiale — Klook",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://klook.com",
+     "title": "Sito ufficiale — Klook",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Tiqets",
+   "country_code": "NL",
+   "type_code": "experience_marketplace",
+   "website": "https://tiqets.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://tiqets.com",
+    "title": "Sito ufficiale — Tiqets",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://tiqets.com",
+     "title": "Sito ufficiale — Tiqets",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Musement",
+   "country_code": "IT",
+   "type_code": "experience_marketplace",
+   "website": "https://musement.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://musement.com",
+    "title": "Sito ufficiale — Musement",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://musement.com",
+     "title": "Sito ufficiale — Musement",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  },
+  {
+   "kind": "organization",
+   "name": "Headout",
+   "country_code": "US",
+   "type_code": "experience_marketplace",
+   "website": "https://headout.com",
+   "email": null,
+   "phone": null,
+   "aliases": [],
+   "external_ids": {},
+   "details": {
+    "acquisition": {
+     "source": "curated:ota-distribution-2026-10",
+     "classification_rule": "well_known_booking_or_distribution_service",
+     "verified_alive": false
+    }
+   },
+   "evidence": {
+    "source_url": "https://headout.com",
+    "title": "Sito ufficiale — Headout",
+    "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+    "fields": [
+     "name",
+     "website"
+    ],
+    "method": "import"
+   },
+   "source_evidence": [
+    {
+     "source_url": "https://headout.com",
+     "title": "Sito ufficiale — Headout",
+     "excerpt": "Servizio di prenotazione o distribuzione turistica noto; sito dichiarato dal catalogo curato. Operatività, ente giuridico e paese della sede da verificare.",
+     "fields": [
+      "name",
+      "website"
+     ],
+     "method": "import"
+    }
+   ]
+  }
+ ]
+}

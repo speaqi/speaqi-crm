@@ -32,7 +32,7 @@ export type OfficeSpend = {
 }
 export type OfficeOverview = {
   agents: Array<OfficeAgent & { last_run: OfficeRun | null; spend: OfficeSpend }>
-  runs: OfficeRun[]; outputs: OfficeOutput[]; pending_count: number
+  runs: OfficeRun[]; outputs: OfficeOutput[]; pending_count: number; decision_count?: number
   totals: Omit<OfficeSpend, 'agent_id'>; active_agents: number
   works?: import('./office-activity').OfficeWorkSummary[]; work_supported?: boolean
 }

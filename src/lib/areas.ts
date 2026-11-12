@@ -38,6 +38,8 @@ export const SUPER_ADMIN_PATHS = [
   '/acumbamail',
   '/hospitality',
   '/commerciale',
+  // Piano interno per vendere le guide ai partner: dentro Marketing, ma solo del titolare.
+  '/marketing/idee',
   '/incassi',
   '/fatture',
   '/scheda',
