@@ -26,6 +26,8 @@ import { directorFollowUp, telegramDirectorReply, telegramDirectorRoute } from '
 import { createDirectorOrder, pendingDirectorQuestion, processDirectorOrder } from '@/lib/server/office-director-orders'
 import { ensureOfficeAgents } from '@/lib/server/office-agents/definitions'
 import { parseTelegramAction } from '@/lib/office/telegram-actions'
+import { parseReviewAction, parseReviewCommand } from '@/lib/office/studiomap-review'
+import { handleReviewAction, handleReviewCommand } from '@/lib/server/studiomap-review'
 import { handleTelegramAction } from '@/lib/server/office-output-decision'
 import { sendProposalsToTelegram } from '@/lib/server/office-deck-telegram'
 import type { Task } from '@/types'
@@ -90,6 +92,12 @@ export async function POST(request: NextRequest) {
     if (!trusted) {
       console.warn(`[telegram] pulsante da chat non autorizzata: ${chat?.id}`)
       return ok({ skipped: 'chat_not_allowed' })
+    }
+    // La coda «Da decidere» di StudioMap: Tieni, Togli, Le prossime.
+    const review = parseReviewAction(callback.data)
+    if (review) {
+      const result = await handleReviewAction(config, chat.id, Number(callback.message?.message_id) || undefined, String(callback.id), review)
+      return ok({ action: review.kind, done: result.done })
     }
     const action = parseTelegramAction(callback.data)
     if (!action) {
@@ -163,6 +171,14 @@ export async function POST(request: NextRequest) {
           'Nota vocale di lavoro in italiano: attività da fare, avanzamenti, nomi di clienti e aziende, scadenze.',
       })
       await finish({ transcript })
+    }
+
+    // «dubbi Marsiglia»: la coda «Da decidere» di StudioMap, una scheda per messaggio con Tieni e Togli.
+    const reviewCommand = photo ? null : parseReviewCommand(transcript)
+    if (reviewCommand) {
+      await finish({ transcript, status: 'review', intent: { studiomap_review: reviewCommand.city } })
+      await handleReviewCommand(config, chatId, reviewCommand.city)
+      return ok({ review: reviewCommand.city ?? 'maps' })
     }
 
     // Al Direttore: /direttore, «Direttore …», una foto, o il Direttore impostato per ricevere tutto.

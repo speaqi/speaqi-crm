@@ -240,3 +240,46 @@ export async function clearTelegramButtons(config: TelegramConfig, chatId: strin
     /* Il messaggio può essere troppo vecchio o già senza pulsanti: non conta. */
   }
 }
+
+/**
+ * Un messaggio con pulsanti nella chat da cui è arrivata la richiesta, con la foto se c'è.
+ * Testo semplice: un nome con un asterisco non deve rompere la formattazione. Non lancia mai.
+ */
+export async function sendTelegramCard(
+  config: TelegramConfig,
+  chatId: string | number,
+  text: string,
+  keyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>>,
+  photoUrl?: string,
+): Promise<boolean> {
+  const reply_markup = { inline_keyboard: keyboard }
+  if (photoUrl) {
+    try {
+      await telegramFetch(config, 'sendPhoto', { chat_id: chatId, photo: photoUrl, caption: text.slice(0, 1000), reply_markup })
+      return true
+    } catch {
+      /* Foto che Telegram non scarica: si manda il testo da solo. */
+    }
+  }
+  try {
+    await telegramFetch(config, 'sendMessage', { chat_id: chatId, text: text.slice(0, 4000), disable_web_page_preview: true, reply_markup })
+    return true
+  } catch (error) {
+    console.error('[telegram] sendMessage con pulsanti non riuscito:', errorMessage(error, ''))
+    return false
+  }
+}
+
+/** Sostituisce i pulsanti di un messaggio (per esempio con l'esito al posto di Tieni/Togli). */
+export async function setTelegramButtons(
+  config: TelegramConfig,
+  chatId: string | number,
+  messageId: number,
+  keyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>>,
+) {
+  try {
+    await telegramFetch(config, 'editMessageReplyMarkup', { chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: keyboard } })
+  } catch {
+    /* Messaggio troppo vecchio o già cambiato: non conta. */
+  }
+}
