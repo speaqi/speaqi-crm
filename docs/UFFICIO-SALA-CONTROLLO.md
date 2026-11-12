@@ -4,6 +4,12 @@ Stato al 12 novembre 2026. L'unità di lavoro dell'Ufficio è la **città**, non
 
 Scoperta → Luoghi → Testi → Temi e presentazione → Itinerari → Controlli → Su Speaqi → Lingue e voce → Prezzo → Online → Venduta
 
+## Cosa c'è (secondo incremento, 12/11)
+
+- Comandi dalla riga della città, con piano e stima, conferma e avanzamento: scrivere i testi dei luoghi, scrivere temi e presentazione, inviare a Speaqi, mettere online. Bridge `POST /api/office/production/run` in StudioMap (stessi lavori dei suoi bottoni, ricevuta per `request_id`).
+- Domande al Direttore: «cosa manca a X?», «a che punto sono le mappe?», anche da Telegram.
+- Non fatto: la catena «porta X online» in un ordine solo, lingue e voce e prezzo dalla riga, costo speso per città, spesa nel registro budget dell'Ufficio.
+
 ## Cosa c'è (primo incremento)
 
 - Vista «Città» come pagina di partenza di `/ufficio`: otto fasi per città, prossimo passo, link alla sezione di StudioMap, stima per i testi guida mancanti, credito OpenRouter.

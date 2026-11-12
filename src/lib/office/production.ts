@@ -110,3 +110,109 @@ export function productionStudioLink(studioUrl: string, slug: string, phase?: Pr
   if (phase) url.searchParams.set('view', PRODUCTION_PHASE_VIEW[phase])
   return url.toString()
 }
+
+// --- Comandi dalla sala di controllo ---------------------------------------------------------
+// Il clic è del titolare. Il lavoro (e la spesa, sul credito OpenRouter di StudioMap) lo fa
+// StudioMap con le stesse funzioni dei suoi bottoni; qui: quale comando per quale fase, e la
+// lettura prudente di piano e stato.
+
+export const PRODUCTION_ACTIONS = ['write_texts', 'write_guide', 'publish', 'go_live'] as const
+export type ProductionAction = typeof PRODUCTION_ACTIONS[number]
+export const PRODUCTION_ACTION_LABELS: Record<ProductionAction, string> = {
+  write_texts: 'Scrivi i testi', write_guide: 'Scrivi temi e presentazione', publish: 'Invia a Speaqi', go_live: 'Metti online',
+}
+export const isProductionAction = (value: unknown): value is ProductionAction =>
+  typeof value === 'string' && (PRODUCTION_ACTIONS as readonly string[]).includes(value)
+export const isProductionSlug = (value: unknown): value is string => typeof value === 'string' && SLUG.test(value)
+export const isRequestId = (value: unknown): value is string =>
+  typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+
+/** Il comando che fa avanzare quella fase; null = si lavora in StudioMap (o lo fa il Direttore). */
+export function productionActionFor(row: Pick<ProductionRow, 'protected'>, phase: ProductionPhase): ProductionAction | null {
+  if (row.protected || phase.state === 'done') return null
+  if (phase.key === 'texts') return 'write_texts'
+  if (phase.key === 'themes' || phase.key === 'intro') return 'write_guide'
+  if (phase.key === 'speaqi') return 'publish'
+  if (phase.key === 'live') return phase.state === 'partial' ? 'go_live' : null
+  return null
+}
+
+export type ProductionPlan = {
+  action: ProductionAction; name: string; allowed: boolean; reason: string
+  estimate_usd: number; estimate_max_usd: number; warning: string | null; credit_usd: number | null
+}
+export function normalizeProductionPlan(raw: unknown, action: ProductionAction): ProductionPlan | null {
+  const body = raw as { plan?: Record<string, unknown>; credit_usd?: unknown } | null
+  const plan = body?.plan
+  if (!plan || typeof plan.allowed !== 'boolean') return null
+  const estimate = money(plan.estimate_usd) ?? 0
+  return { action, name: text(plan.name, 120), allowed: plan.allowed, reason: text(plan.reason, 300),
+    estimate_usd: estimate, estimate_max_usd: Math.max(estimate, money(plan.estimate_max_usd) ?? 0),
+    warning: text(plan.warning, 300) || null, credit_usd: money(body?.credit_usd) }
+}
+
+export type ProductionJob = { done: boolean; interrupted: boolean; phase: string | null; last: string | null; error: string | null }
+export function normalizeProductionJob(raw: unknown): ProductionJob | null {
+  const body = raw as Record<string, unknown> | null
+  if (!body || typeof body.done !== 'boolean') return null
+  return { done: body.done, interrupted: body.interrupted === true, phase: text(body.phase, 120) || null,
+    last: text(body.last, 300) || null, error: text(body.error, 400) || null }
+}
+
+// --- Domande al Direttore sulla produzione ---------------------------------------------------
+// «Cosa manca a Lisbona?», «a che punto sono le mappe?»: risponde il codice dalla fotografia di
+// StudioMap, senza modello. Riconosce solo domande, mai ordini («controlla», «costruisci»…).
+
+const fold = (value: string) => value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+const QUESTION = /\b(cosa|che cosa|cos) manca\b|\ba che punto\b|\bcome (sta|stanno|va|vanno|siamo messi)\b|\bstato (di|del|della|delle|dei)\b|\bquanto (costa|manca)\b|\b(quali|quante) (citta|mappe|guide)\b|\bsituazione (delle )?(mappe|citta|guide|produzione)\b|\bproduzione\b/
+const ORDER = /^(direttore\s+)?(controlla|costruisci|crea|prepara|pubblica|invia|scrivi|metti|fai|fammi|trovami|aggiungi|rinomina)\b/
+const MAPS = /\b(mappa|mappe|citta|guida|guide|produzione|studiomap)\b/
+
+/** Controllo a costo zero prima di leggere StudioMap: è una domanda, non un ordine. */
+export function looksLikeProductionQuestion(textValue: string): boolean {
+  const q = fold(textValue)
+  return !!q && q.length <= 200 && !ORDER.test(q) && QUESTION.test(q)
+}
+
+export type ProductionQuestion = { kind: 'city'; slug: string } | { kind: 'all' }
+export function productionQuestion(textValue: string, rows: Array<Pick<ProductionRow, 'slug' | 'name'>>): ProductionQuestion | null {
+  const q = fold(textValue)
+  if (!q || q.length > 200 || ORDER.test(q) || !QUESTION.test(q)) return null
+  // La città col nome più lungo vince: «Costiera Amalfitana» prima di «Amalfi».
+  const hit = rows.map((row) => ({ row, name: fold(row.name) })).filter(({ name }) => name.length >= 3 && ` ${q} `.includes(` ${name} `))
+    .sort((a, b) => b.name.length - a.name.length)[0]
+  if (hit) return { kind: 'city', slug: hit.row.slug }
+  return MAPS.test(q) ? { kind: 'all' } : null
+}
+
+const dollars = (value: number) => `${value.toFixed(2).replace('.', ',')} $`
+export function productionReply(data: ProductionOverview, question: ProductionQuestion, officeUrl: string): string {
+  if (!data.available) return `Non riesco a leggere StudioMap adesso: ${data.reason}`
+  if (question.kind === 'city') {
+    const row = data.rows.find((item) => item.slug === question.slug)
+    if (!row) return 'Questa città non è più fra le mappe di StudioMap.'
+    const done = row.phases.filter((phase) => phase.state === 'done')
+    const open = row.phases.filter((phase) => phase.state !== 'done')
+    return [
+      `${row.name} — ${row.done}/8 fasi${row.live ? ', online' : ''}${row.protected ? ' (protetta: dall’Ufficio si guarda soltanto)' : ''}.`,
+      done.length ? `Fatto: ${done.map((phase) => `${PRODUCTION_PHASE_LABELS[phase.key]} (${phase.detail})`).join(', ')}.` : '',
+      open.length ? `Manca: ${open.map((phase) => `${PRODUCTION_PHASE_LABELS[phase.key]} (${phase.detail})`).join(', ')}.` : 'Non manca niente.',
+      row.error ? `Ultimo invio a Speaqi fallito: ${row.error}` : '',
+      row.next ? `Prossimo passo: ${row.next.text}.` : '',
+      row.writing_usd !== null ? `Scrivere temi e presentazione che mancano costa circa ${dollars(row.writing_usd)} (stima).` : '',
+      `I comandi sono nell’Ufficio, vista Città: ${officeUrl}`,
+    ].filter(Boolean).join('\n')
+  }
+  const working = data.rows.filter((row) => !row.live && !row.protected).slice(0, 5)
+  const behind = data.rows.filter((row) => row.live && row.next).slice(0, 5)
+  return [
+    `Produzione: ${data.totals.cities} città, ${data.totals.live} online, ${data.totals.in_progress} in produzione, ${data.totals.live_behind} online con arretrati.`,
+    working.length ? 'Più vicine all’online:' : '',
+    ...working.map((row) => `• ${row.name} ${row.done}/8 — ${row.next?.text || 'pronta'}`),
+    behind.length ? 'Online con qualcosa indietro:' : '',
+    ...behind.map((row) => `• ${row.name} — ${row.next!.text}`),
+    data.totals.writing_usd > 0 ? `Temi e presentazioni che mancano: circa ${dollars(data.totals.writing_usd)} in tutto (stima).` : '',
+    data.credit_usd !== null ? `Credito OpenRouter di StudioMap: ${dollars(data.credit_usd)}.` : '',
+    `Tutte le città nell’Ufficio: ${officeUrl}`,
+  ].filter(Boolean).join('\n')
+}

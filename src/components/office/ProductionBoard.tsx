@@ -3,14 +3,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import {
-  PRODUCTION_PHASES, PRODUCTION_PHASE_LABELS, filterProduction, productionOrder, productionStudioLink,
-  type ProductionFilter, type ProductionOverview, type ProductionPhaseKey, type ProductionRow,
+  PRODUCTION_ACTION_LABELS, PRODUCTION_PHASES, PRODUCTION_PHASE_LABELS, filterProduction, productionActionFor, productionOrder, productionStudioLink,
+  type ProductionAction, type ProductionFilter, type ProductionJob, type ProductionOverview, type ProductionPhaseKey, type ProductionPlan, type ProductionRow,
 } from '@/lib/office/production'
 import styles from './production.module.css'
 
 const usd = (value: number) => `${value.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`
 const FILTERS: Array<[ProductionFilter, string]> = [['all', 'Tutte'], ['progress', 'In produzione'], ['behind', 'Online con arretrati'], ['live', 'Online']]
 const MARK = { done: '✓', partial: '◐', todo: '' } as const
+const COMMAND_KEY = 'speaqi.ufficio.comando'
+
+/** Un comando alla volta: prima il piano con la stima, poi la conferma, poi si segue il lavoro. */
+type Command = { slug: string; name: string; action: ProductionAction; request_id: string
+  stage: 'planning' | 'confirm' | 'starting' | 'running' | 'done' | 'failed'
+  plan?: ProductionPlan; job?: ProductionJob; error?: string }
+const remember = (command: Command | null) => {
+  try {
+    if (command && (command.stage === 'running' || command.stage === 'starting')) {
+      window.localStorage.setItem(COMMAND_KEY, JSON.stringify({ slug: command.slug, name: command.name, action: command.action, request_id: command.request_id }))
+    } else window.localStorage.removeItem(COMMAND_KEY)
+  } catch { /* senza storage il comando si segue finché la pagina resta aperta */ }
+}
 
 /**
  * La sala di controllo: una riga per città, otto fasi dai luoghi all'online, e per ognuna
@@ -25,6 +38,8 @@ export function ProductionBoard({ onOrdered }: { onOrdered?: () => void }) {
   const [busy, setBusy] = useState('')
   const [notice, setNotice] = useState('')
   const controller = useRef<AbortController | null>(null)
+  const [command, setCommandState] = useState<Command | null>(null)
+  const setCommand = useCallback((next: Command | null) => { setCommandState(next); remember(next) }, [])
 
   const load = useCallback(async (fresh = false) => {
     controller.current?.abort()
@@ -44,9 +59,62 @@ export function ProductionBoard({ onOrdered }: { onOrdered?: () => void }) {
     return () => { clearInterval(timer); controller.current?.abort() }
   }, [load])
 
+  const post = useCallback((body: object) => apiFetch<{ plan?: ProductionPlan; job?: ProductionJob }>('/api/office/production/action',
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }), [])
+
+  async function plan(row: ProductionRow, action: ProductionAction) {
+    if (command && ['planning', 'starting', 'running'].includes(command.stage)) return
+    const next: Command = { slug: row.slug, name: row.name, action, request_id: crypto.randomUUID(), stage: 'planning' }
+    setCommand(next)
+    try {
+      const result = await post({ slug: next.slug, action, request_id: next.request_id, dry_run: true })
+      setCommand(result.plan ? { ...next, stage: 'confirm', plan: result.plan } : { ...next, stage: 'failed', error: 'Piano non disponibile.' })
+    } catch (err) { setCommand({ ...next, stage: 'failed', error: err instanceof Error ? err.message : 'Piano non disponibile' }) }
+  }
+  async function confirm() {
+    if (!command || command.stage !== 'confirm' || !command.plan?.allowed) return
+    const next: Command = { ...command, stage: 'starting' }
+    setCommand(next)
+    try {
+      const result = await post({ slug: next.slug, action: next.action, request_id: next.request_id })
+      setCommand(result.job ? { ...next, stage: result.job.done ? (result.job.error ? 'failed' : 'done') : 'running', job: result.job, error: result.job.error || undefined }
+        : { ...next, stage: 'failed', error: 'Avvio non confermato: controlla Lavorazioni in StudioMap.' })
+    } catch (err) { setCommand({ ...next, stage: 'failed', error: err instanceof Error ? err.message : 'Comando non partito' }) }
+  }
+
+  // Un comando avviato si ritrova anche dopo aver ricaricato la pagina.
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(COMMAND_KEY) || 'null')
+      if (saved?.slug && saved?.action && saved?.request_id) setCommandState({ ...saved, name: saved.name || saved.slug, stage: 'running' })
+    } catch { /* niente da riprendere */ }
+  }, [])
+  useEffect(() => {
+    if (command?.stage !== 'running') return
+    let stopped = false
+    const tick = async () => {
+      try {
+        const result = await post({ slug: command.slug, action: command.action, request_id: command.request_id })
+        if (stopped || !result.job) return
+        if (result.job.done) {
+          setCommand({ ...command, stage: result.job.error ? 'failed' : 'done', job: result.job, error: result.job.error || undefined })
+          void load(true); onOrdered?.()
+        } else setCommandState((current) => current && current.request_id === command.request_id ? { ...current, job: result.job } : current)
+      } catch (err) {
+        // Un errore di rete non è l'esito del lavoro: si riprova al giro dopo.
+        if (!stopped) setCommandState((current) => current && current.request_id === command.request_id
+          ? { ...current, error: err instanceof Error ? err.message : 'Stato non disponibile' } : current)
+      }
+    }
+    const timer = setInterval(() => { if (!document.hidden) void tick() }, 4000)
+    void tick()
+    return () => { stopped = true; clearInterval(timer) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [command?.stage, command?.request_id])
+
   const rows = useMemo(() => data?.available ? filterProduction(data.rows, filter, query) : [], [data, filter, query])
 
-  async function order(row: ProductionRow, phase: ProductionPhaseKey) {
+  async function order_(row: ProductionRow, phase: ProductionPhaseKey) {
     const text = productionOrder(row, phase)
     if (!text || busy) return
     setBusy(row.slug); setNotice('')
@@ -84,6 +152,27 @@ export function ProductionBoard({ onOrdered }: { onOrdered?: () => void }) {
         <button type="button" onClick={() => { void load(true) }} title={data.generated_at ? `Letto alle ${new Date(data.generated_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}` : undefined}>↻</button>
       </div>
       {notice && <p role="status" className={styles.notice}>{notice}</p>}
+      {command && <div className={styles.command} data-stage={command.stage} role={command.stage === 'failed' ? 'alert' : 'status'}>
+        <strong>{PRODUCTION_ACTION_LABELS[command.action]} — {command.plan?.name || command.name}</strong>
+        {command.stage === 'planning' && <span>Chiedo a StudioMap se può partire e quanto costa…</span>}
+        {command.stage === 'confirm' && command.plan && <>
+          <span>{command.plan.reason}</span>
+          {command.plan.allowed && <span>{command.plan.estimate_usd > 0
+            ? <>Costo stimato <b>~{usd(command.plan.estimate_usd)}</b>{command.plan.estimate_max_usd > command.plan.estimate_usd ? <> (fino a {usd(command.plan.estimate_max_usd)})</> : null} sul credito OpenRouter di StudioMap{command.plan.credit_usd !== null ? <>, oggi {usd(command.plan.credit_usd)}</> : null}.</>
+            : 'Non costa niente.'}</span>}
+          {command.plan.allowed && command.plan.warning && <span className={styles.warn}>{command.plan.warning}</span>}
+          <span className={styles.commandActions}>
+            {command.plan.allowed && <button type="button" className="btn btn-primary btn-sm" onClick={() => { void confirm() }}>Conferma e avvia</button>}
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setCommand(null)}>{command.plan.allowed ? 'Annulla' : 'Chiudi'}</button>
+          </span>
+        </>}
+        {command.stage === 'starting' && <span>Avvio…</span>}
+        {command.stage === 'running' && <span>In corso{command.job?.phase ? ` · ${command.job.phase}` : ''}{command.job?.last ? ` — ${command.job.last}` : ''}{command.error ? ` (stato non letto: ${command.error})` : ''}</span>}
+        {command.stage === 'done' && <><span>Fatto{command.job?.last ? ` — ${command.job.last}` : ''}.</span>
+          <span className={styles.commandActions}><button type="button" className="btn btn-ghost btn-sm" onClick={() => setCommand(null)}>Chiudi</button></span></>}
+        {command.stage === 'failed' && <><span>{command.error || 'Non riuscito.'}</span>
+          <span className={styles.commandActions}><button type="button" className="btn btn-ghost btn-sm" onClick={() => setCommand(null)}>Chiudi</button></span></>}
+      </div>}
     </header>
 
     <div className={styles.scroll}>
@@ -118,11 +207,15 @@ export function ProductionBoard({ onOrdered }: { onOrdered?: () => void }) {
               expanded && <tr key={`${row.slug}-detail`} className={styles.detail}><td colSpan={PRODUCTION_PHASES.length + 2}>
                 <ul>
                   {row.phases.map((phase) => {
-                    const command = phase.state !== 'done' ? productionOrder(row, phase.key) : null
+                    const order = phase.state !== 'done' ? productionOrder(row, phase.key) : null
+                    const action = productionActionFor(row, phase)
+                    const locked = !!command && ['planning', 'starting', 'running'].includes(command.stage)
                     return <li key={phase.key} data-state={phase.state}>
                       <b>{PRODUCTION_PHASE_LABELS[phase.key]}</b><span>{phase.detail}</span>
                       {phase.state !== 'done' && !row.protected && <a href={productionStudioLink(data.studio_url, row.slug, phase.key)} target="_blank" rel="noreferrer">Apri in StudioMap ↗</a>}
-                      {command && <button type="button" disabled={!!busy} onClick={(event) => { event.stopPropagation(); void order(row, phase.key) }}>
+                      {action && <button type="button" disabled={locked} onClick={(event) => { event.stopPropagation(); void plan(row, action) }}>
+                        {PRODUCTION_ACTION_LABELS[action]}…</button>}
+                      {order && <button type="button" disabled={!!busy} onClick={(event) => { event.stopPropagation(); void order_(row, phase.key) }}>
                         {busy === row.slug ? 'Invio…' : 'Fallo fare al Direttore'}</button>}
                     </li>
                   })}

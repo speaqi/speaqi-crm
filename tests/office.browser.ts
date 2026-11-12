@@ -33,6 +33,7 @@ const production = { available: true, generated_at: '2026-11-12T08:00:00Z', stud
     { slug: 'roma', name: 'Roma', protected: false, live: true, public_url: 'https://guides.speaqi.com/maps/romamap', places: 250, done: 8, error: null, writing_usd: null, next: null,
       phases: ['places', 'texts', 'themes', 'intro', 'routes', 'checks', 'speaqi', 'live'].map((key) => phase(key, 'done', 'ok')) },
   ] }
+let commandPolls = 0
 const calls: Array<{ method: string; path: string; body: any; key?: string }> = []
 
 function overview(): OfficeOverview {
@@ -62,6 +63,13 @@ async function main() {
       const json = (value: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) })
       if (url.pathname === '/api/ufficio/scena') return route.fulfill({ contentType: 'text/html', body: UFFICIO_SCENE_HTML })
       if (url.pathname === '/api/ufficio/sblocca') return json({ enabled: false, locked: false })
+      if (url.pathname === '/api/office/production/action') {
+        if (body.dry_run) return json({ ok: true, plan: { action: body.action, name: 'Marsiglia', allowed: true, reason: 'Da scrivere: 3 temi e la presentazione. I testi già scritti restano.',
+          estimate_usd: 0.8, estimate_max_usd: 1.4, warning: null, credit_usd: 3.5 } })
+        commandPolls++
+        return json({ ok: true, job: commandPolls < 2 ? { done: false, interrupted: false, phase: 'Temi', last: 'Scrivo «Sapori e prodotti tipici»', error: null }
+          : { done: true, interrupted: false, phase: 'Temi', last: 'Otto temi scritti', error: null } })
+      }
       if (url.pathname === '/api/office/production') return json(production)
       if (url.pathname === '/api/office') return fail ? json({ error: 'Database di prova non disponibile' }, 500) : json(sceneOverview || overview())
       if (url.pathname === '/api/office/inbox') {
@@ -192,6 +200,17 @@ async function main() {
     await page.getByRole('button', { name: 'Fallo fare al Direttore' }).click()
     await page.getByText(/Ordine dato al Direttore/).waitFor()
     assert.equal(calls.filter((call) => call.path === '/api/office/director/orders' && call.method === 'POST').at(-1)?.body.text, 'Controlla la mappa di Marsiglia')
+    // Un comando: prima il piano con la stima, poi la conferma, poi si segue fino alla fine.
+    await page.getByRole('button', { name: 'Scrivi temi e presentazione…' }).first().click()
+    await page.getByText(/Costo stimato/).waitFor()
+    assert.ok(await page.getByText(/fino a 1,40 \$/).isVisible())
+    assert.equal(calls.filter((call) => call.path === '/api/office/production/action' && !call.body.dry_run).length, 0, 'niente parte prima della conferma')
+    await page.getByRole('button', { name: 'Conferma e avvia' }).click()
+    await page.getByText(/Fatto — Otto temi scritti/).waitFor({ timeout: 15_000 })
+    const commands = calls.filter((call) => call.path === '/api/office/production/action')
+    assert.deepEqual([commands[0].body.action, commands[0].body.slug, commands[0].body.dry_run], ['write_guide', 'marsiglia', true])
+    assert.ok(commands.slice(1).every((call) => call.body.request_id === commands[0].body.request_id && !call.body.dry_run), 'stesso identificativo dal piano allo stato')
+    await page.screenshot({ path: `${out}/ufficio-comando.png` })
     await page.getByRole('searchbox', { name: 'Cerca una città' }).fill('rom')
     assert.equal(await page.getByRole('button', { name: 'Marsiglia' }).count(), 0)
     await page.screenshot({ path: `${out}/ufficio-citta.png` })
@@ -316,7 +335,8 @@ async function main() {
     partialInbox = true
     await inbox.getByRole('button', { name: 'Approva selezionate (2)' }).click()
     await inbox.getByRole('alert').filter({ hasText: 'Completa i dati del contatto' }).waitFor()
-    assert.equal(await inbox.getByRole('heading', { name: 'Primo contatto', exact: true }).count(), 0)
+    // La coda si rilegge dopo la risposta: si aspetta che la riga approvata esca, non la si conta al volo.
+    await inbox.getByRole('heading', { name: 'Primo contatto', exact: true }).waitFor({ state: 'detached' })
     await inbox.getByRole('heading', { name: 'Secondo contatto', exact: true }).waitFor()
     partialInbox = false
     await inbox.getByRole('button', { name: 'Approva selezionate (1)' }).click()

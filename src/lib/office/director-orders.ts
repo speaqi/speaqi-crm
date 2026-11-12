@@ -680,6 +680,7 @@ export function directorHelpText(baseUrl: string) {
     'Mappe',
     '• «Costruisci la mappa di Marsiglia, https://www.google.com/maps/d/…» → il Costruttore My Maps importa i luoghi.',
     '• «Controlla la mappa di Barcellona» → il Controllo qualità fa il rapporto.',
+    '• «Cosa manca a Lisbona?», «A che punto sono le mappe?» → le fasi di ogni città (luoghi, testi, temi, Speaqi, online) e il prossimo passo. I comandi per farle avanzare sono nell’Ufficio, vista Città.',
     '• «Trovami le fonti eventi di Marsiglia» → cerco sul web teatri, musei, festival e calendari della città e li metto nel catalogo fonti di StudioMap, da controllare.',
     '',
     'Soldi',

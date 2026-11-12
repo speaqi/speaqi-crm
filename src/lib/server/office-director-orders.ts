@@ -1,3 +1,5 @@
+import { looksLikeProductionQuestion, productionQuestion, productionReply } from '../office/production'
+import { loadOfficeProduction } from './office-production'
 import { createHash, randomUUID } from 'node:crypto'
 import { BudgetExceeded, callModel, runAgent, type AgentContext } from './office-agents'
 import { officeIsNaples } from '../office/director'
@@ -1118,6 +1120,16 @@ type Outcome = { status: DirectorOrderRow['status']; reply: string; outputs: str
 /** Esegue il piano già validato. Scrive solo uscite, To Do e code. */
 export async function executePlan(admin: Admin, ctx: AgentContext, order: DirectorOrderRow, plan: DirectorOrderPlan, now: Date): Promise<Outcome> {
   const userId = order.user_id
+  // «Cosa manca a Lisbona?», «a che punto sono le mappe?»: risponde il codice dalla sala di
+  // controllo (StudioMap), senza modello. Solo per domande capite come stato o non capite.
+  if ((plan.intent === 'status' || (plan.intent === 'unknown' && !plan.awaiting)) && looksLikeProductionQuestion(order.text)) {
+    const production = await loadOfficeProduction().catch(() => null)
+    const question = production?.available ? productionQuestion(order.text, production.rows) : null
+    if (production && question) {
+      const base = (process.env.APP_BASE_URL || 'https://crm.speaqi.com').replace(/\/$/, '')
+      return { status: 'done', outputs: [], queued: [], reply: productionReply(production, question, `${base}/ufficio`) }
+    }
+  }
   if (plan.intent === 'new_contact') {
     const entity = plan.category === 'destinazione' ? await findEntity(admin, userId, [plan.contact.company, plan.contact.name]) : null
     const duplicates = await findDuplicates(admin, userId, plan.contact)
