@@ -7,6 +7,7 @@ import { apiFetch } from '@/lib/api'
 import { officeSceneSnapshot, type OfficeSceneSnapshot } from '@/lib/office-scene'
 import type { OfficeOverview } from '@/lib/office'
 import { OfficePanel, type PanelTab } from './OfficePanel'
+import { ProductionBoard } from '@/components/office/ProductionBoard'
 import styles from './ufficio.module.css'
 
 /**
@@ -29,6 +30,18 @@ export default function UfficioPage() {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [highlight, setHighlight] = useState<string | null>(null)
   const [full, setFull] = useState(false)
+  // La vista di partenza è la sala di controllo delle città; il campus 3D (800 KB) si carica solo se lo si sceglie.
+  const [view, setView] = useState<'production' | 'campus'>('production')
+  useEffect(() => {
+    const asked = new URLSearchParams(window.location.search).get('vista')
+    let saved: string | null = null
+    try { saved = window.localStorage.getItem('speaqi.ufficio.vista') } catch { /* senza storage vale la vista di partenza */ }
+    if (asked === 'campus' || (asked !== 'citta' && saved === 'campus')) setView('campus')
+  }, [])
+  const pickView = useCallback((next: 'production' | 'campus') => {
+    setView(next)
+    try { window.localStorage.setItem('speaqi.ufficio.vista', next) } catch { /* preferenza non salvata */ }
+  }, [])
   // «Aspetta te» in prima pagina porta qui con ?uscita=<id>: si apre la proposta nel pannello.
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('uscita')
@@ -62,13 +75,20 @@ export default function UfficioPage() {
 
   useEffect(() => {
     const controller = new AbortController()
+    void refresh(controller.signal)
+    return () => controller.abort()
+  }, [refresh])
+
+  useEffect(() => {
+    if (view !== 'campus' || html) return
+    const controller = new AbortController()
     setSceneFailed(false)
     void (async () => {
       try {
         const { data } = await createClient().auth.getSession()
         const response = await fetch('/api/ufficio/scena', {
           headers: data.session ? { Authorization: `Bearer ${data.session.access_token}` } : {},
-          cache: 'no-store', signal: controller.signal,
+          signal: controller.signal,
         })
         if (!response.ok) {
           const payload = await response.json().catch(() => null)
@@ -80,9 +100,8 @@ export default function UfficioPage() {
         if (!controller.signal.aborted) setError(err instanceof Error ? err.message : 'Impossibile aprire l’ufficio')
       }
     })()
-    void refresh(controller.signal)
     return () => controller.abort()
-  }, [refresh, attempt])
+  }, [view, html, attempt])
 
   const activeWork = overview?.works?.some((work) => ['ready', 'running'].includes(work.status)) || overview?.runs.some((run) => run.status === 'running')
   useEffect(() => {
@@ -157,16 +176,21 @@ export default function UfficioPage() {
 
   return <div ref={room} className={`${styles.room} ${full ? styles.full : ''}`}>
     <div className={styles.stage}>
-    {(error || sceneFailed) && <div role="alert" style={{ padding: '10px 16px', color: '#fff2cb', background: '#3e3025', display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+    <div className={styles.viewSwitch} role="tablist" aria-label="Vista dell’Ufficio">
+      <button type="button" role="tab" aria-selected={view === 'production'} onClick={() => pickView('production')}>Città</button>
+      <button type="button" role="tab" aria-selected={view === 'campus'} onClick={() => pickView('campus')}>Campus 3D</button>
+      <button type="button" onClick={() => { void toggleFull() }} aria-pressed={full}
+        aria-label={full ? 'Esci da schermo intero' : 'Schermo intero'} title={full ? 'Esci da schermo intero' : 'Schermo intero'}>{full ? '✕' : '⛶'}</button>
+    </div>
+    {(error || (view === 'campus' && sceneFailed)) && <div role="alert" style={{ padding: '10px 16px', color: '#fff2cb', background: '#3e3025', display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
       <span>{error || 'Il 3D non è disponibile in questo browser.'}</span>
-      <button className="btn btn-ghost btn-sm" onClick={() => { setError(''); if (!html || sceneFailed) { setHtml(null); setAttempt((n) => n + 1) } else void refresh() }}>Riprova</button>
+      <button className="btn btn-ghost btn-sm" onClick={() => { setError(''); if (view === 'campus' && (!html || sceneFailed)) { setHtml(null); setAttempt((n) => n + 1) } else void refresh() }}>Riprova</button>
       <Link href="/ufficio/agenti" style={{ color: 'inherit' }}>Apri agenti e bozze →</Link>
     </div>}
-    {html ? <iframe ref={frame} title="Ufficio Speaqi" srcDoc={html} sandbox="allow-scripts"
-      style={{ flex: 1, border: 0, width: '100%', minHeight: 0 }} />
-      : !error && <p style={{ margin: 'auto', color: '#b9c8d0' }}>Apro l’ufficio…</p>}
-      <button type="button" className={styles.fullButton} onClick={() => { void toggleFull() }}
-        aria-pressed={full}>{full ? '✕ Esci da schermo intero' : '⛶ Schermo intero'}</button>
+    {view === 'production' ? <ProductionBoard onOrdered={reload} />
+      : html ? <iframe ref={frame} title="Ufficio Speaqi" srcDoc={html} sandbox="allow-scripts"
+        style={{ flex: 1, border: 0, width: '100%', minHeight: 0 }} />
+      : !error && <p style={{ margin: 'auto', color: '#b9c8d0' }}>Apro il campus…</p>}
     </div>
     <OfficePanel data={overview} reload={reload} tab={tab} setTab={setTab}
       department={department} setDepartment={pickDepartment} highlight={highlight} selectedAgentId={selectedAgentId} selectAgent={selectAgent} />

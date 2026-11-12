@@ -22,6 +22,17 @@ let fail = false
 let skipRun = false
 let sceneOverview: OfficeOverview | null = null
 let partialInbox = false
+const phase = (key: string, state: string, detail: string) => ({ key, state, detail })
+const production = { available: true, generated_at: '2026-11-12T08:00:00Z', studio_url: 'https://studiomap.speaqi.com', credit_usd: 3.5,
+  totals: { cities: 2, live: 1, live_behind: 0, in_progress: 1, places: 400, writing_usd: 2.1 },
+  rows: [
+    { slug: 'marsiglia', name: 'Marsiglia', protected: false, live: false, public_url: null, places: 150, done: 4, error: null, writing_usd: 2.1,
+      next: { phase: 'themes', text: 'Scrivere i temi (5/8 temi)' },
+      phases: [phase('places', 'done', '150 luoghi'), phase('texts', 'done', 'tutti scritti'), phase('themes', 'partial', '5/8 temi'), phase('intro', 'todo', 'manca'),
+        phase('routes', 'done', '3 itinerari'), phase('checks', 'partial', '4 da decidere'), phase('speaqi', 'todo', 'non collegata'), phase('live', 'todo', 'non pubblicata')] },
+    { slug: 'roma', name: 'Roma', protected: false, live: true, public_url: 'https://guides.speaqi.com/maps/romamap', places: 250, done: 8, error: null, writing_usd: null, next: null,
+      phases: ['places', 'texts', 'themes', 'intro', 'routes', 'checks', 'speaqi', 'live'].map((key) => phase(key, 'done', 'ok')) },
+  ] }
 const calls: Array<{ method: string; path: string; body: any; key?: string }> = []
 
 function overview(): OfficeOverview {
@@ -51,6 +62,7 @@ async function main() {
       const json = (value: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) })
       if (url.pathname === '/api/ufficio/scena') return route.fulfill({ contentType: 'text/html', body: UFFICIO_SCENE_HTML })
       if (url.pathname === '/api/ufficio/sblocca') return json({ enabled: false, locked: false })
+      if (url.pathname === '/api/office/production') return json(production)
       if (url.pathname === '/api/office') return fail ? json({ error: 'Database di prova non disponibile' }, 500) : json(sceneOverview || overview())
       if (url.pathname === '/api/office/inbox') {
         const current = sceneOverview || overview()
@@ -167,7 +179,23 @@ async function main() {
     })
     sceneOverview.works = [work('current', 'entity_enricher', 'blocked'), work('old', 'entity_enricher', 'succeeded'),
       work('finance-only', 'finance', 'blocked')]
+    // La vista di partenza è la sala di controllo: le città, senza scaricare il 3D.
     await page.goto(`${base}/ufficio`)
+    await page.getByRole('button', { name: 'Marsiglia' }).waitFor()
+    assert.equal(calls.some((call) => call.path === '/api/ufficio/scena'), false, 'la scena 3D non si scarica finché non la si sceglie')
+    assert.ok(await page.getByText('Scrivere i temi (5/8 temi)').isVisible())
+    assert.ok(await page.getByText('Allineata').isVisible())
+    assert.ok(await page.getByRole('heading', { name: 'Scrivi al Direttore' }).isVisible(), 'il pannello resta accanto alle città')
+    await page.getByRole('button', { name: 'Marsiglia' }).click()
+    const studio = page.getByRole('link', { name: 'Apri la città in StudioMap ↗' })
+    assert.equal(await studio.getAttribute('href'), 'https://studiomap.speaqi.com/?map=marsiglia')
+    await page.getByRole('button', { name: 'Fallo fare al Direttore' }).click()
+    await page.getByText(/Ordine dato al Direttore/).waitFor()
+    assert.equal(calls.filter((call) => call.path === '/api/office/director/orders' && call.method === 'POST').at(-1)?.body.text, 'Controlla la mappa di Marsiglia')
+    await page.getByRole('searchbox', { name: 'Cerca una città' }).fill('rom')
+    assert.equal(await page.getByRole('button', { name: 'Marsiglia' }).count(), 0)
+    await page.screenshot({ path: `${out}/ufficio-citta.png` })
+    await page.getByRole('tab', { name: 'Campus 3D' }).click()
     const office = page.frameLocator('iframe[title="Ufficio Speaqi"]')
     await office.locator('#stage canvas').waitFor()
     // Una pagina sola: la scena senza il suo pannello, la gestione nel pannello della pagina.
@@ -246,7 +274,7 @@ async function main() {
     await page.getByRole('alert').filter({ hasText: 'Database di prova non disponibile' }).waitFor({ state: 'detached' })
     await page.setViewportSize({ width: 390, height: 844 })
     const frameBox = await page.locator('iframe').boundingBox()
-    assert.ok(frameBox && frameBox.y < 230 && frameBox.height > 380, 'su telefono il 3D occupa la prima schermata, il pannello segue')
+    assert.ok(frameBox && frameBox.y <= 230 && frameBox.height > 380, 'su telefono il 3D occupa la prima schermata, il pannello segue')
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
     assert.ok(await office.locator('body').evaluate((body) => body.scrollWidth <= innerWidth))
     await office.locator('.tag:not(.kiosk)', { hasText: 'Ricerca' }).click()
@@ -306,7 +334,7 @@ async function main() {
     const fallbackPage = await context.newPage()
     await fallbackPage.route('**/api/ufficio/scena', (route) => route.fulfill({ contentType: 'text/html',
       body: UFFICIO_SCENE_HTML.replace('<head>', '<head><script>HTMLCanvasElement.prototype.getContext = () => null;</script>') }))
-    await fallbackPage.goto(`${base}/ufficio`)
+    await fallbackPage.goto(`${base}/ufficio?vista=campus`)
     const fallbackOffice = fallbackPage.frameLocator('iframe')
     await fallbackOffice.locator('#fallback').waitFor({ state: 'visible' })
     await fallbackPage.getByRole('tab', { name: /Squadra/ }).click()

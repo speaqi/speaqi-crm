@@ -5,6 +5,9 @@
 .fullButton { position: absolute; top: 14px; right: 14px; z-index: 2; border: 1px solid #ffffff2e; background: #0f1b26cc; color: #f4efe4;
   padding: 8px 12px; border-radius: 8px; font-size: 13px; cursor: pointer; backdrop-filter: blur(6px); }
 .fullButton:hover { background: #0f1b26; }
+.viewSwitch { position: absolute; top: 12px; right: 14px; z-index: 3; display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: #0f1b26e6; border: 1px solid #ffffff2e; backdrop-filter: blur(6px); }
+.viewSwitch button { border: 0; background: none; color: #d6dee6; padding: 6px 10px; border-radius: 7px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.viewSwitch button[aria-selected='true'] { background: #f4efe4; color: #0f1b26; font-weight: 600; }
 
 .panel { min-height: 0; overflow-y: auto; background: var(--bg, #f4f6fb); border-left: 1px solid var(--border); padding: 16px; display: flex; flex-direction: column; gap: 12px; color: var(--text); }
 .panel > section { margin: 0; }

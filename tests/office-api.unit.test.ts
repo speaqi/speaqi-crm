@@ -43,7 +43,9 @@ beforeEach(() => {
     if (url.includes('/auth/v1/user')) return Response.json({ id: member ? MEMBER : OWNER, email: 'test@example.it', app_metadata: {}, user_metadata: {} })
     if (url.includes('/team_members')) return Response.json([{ id: 'membro', user_id: OWNER, name: 'Persona', allowed_areas: ['oggi'] }])
     if (url.includes('/office_agents') && method === 'GET') {
-      const id = new URL(url).searchParams.get('id')?.replace(/^eq\./, '')
+      // Il controllo del registro chiede tutti gli agenti in una volta (id=in.(…)).
+      const raw = new URL(url).searchParams.get('id') || ''
+      const id = raw.startsWith('eq.') ? raw.slice(3) : null
       return Response.json(Object.values(OFFICE_AGENT_DEFINITIONS).filter((d) => !id || d.id === id).map((d) => ({ ...d, user_id: OWNER })))
     }
     if (url.includes('/rpc/claim_office_agent_run')) return Response.json({ claimed: false, reason: 'disabled', run: { status: 'skipped_disabled' } })

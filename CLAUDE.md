@@ -16,6 +16,15 @@
 - Le istruzioni storiche sugli avvii in memoria qui sotto descrivono il percorso precedente, valido soltanto con il flag spento e prima del passaggio. Dopo la migrazione non tornare a consumare le stesse vecchie code.
 - Per ambito, collaudo e rilascio leggere `docs/AI-SYSTEM-AUDIT.md`, `docs/UFFICIO-TEST-REPORT.md`, `docs/UFFICIO-OPERATING-GUIDE.md` e `docs/UFFICIO-RELEASE-2026-10-25.md`. La migration è applicata in produzione; attivazione del worker e verifica del deploy restano distinte.
 
+## Ufficio — sala di controllo delle città (12/11/2026)
+
+- **La vista di partenza di `/ufficio` è «Città»**, non più il campus 3D (`ProductionBoard`, `src/components/office/`): una riga per città di StudioMap, otto fasi (Luoghi, Testi, Temi, Presentazione, Itinerari, Controlli, Su Speaqi, Online) e la prima cosa che manca. In testa: città, online, online con arretrati, in produzione, luoghi, stima per scrivere temi e presentazioni mancanti, credito OpenRouter di StudioMap. La riga si apre: stato di ogni fase, «Apri in StudioMap ↗» sulla sezione giusta (`/?map=<slug>&view=…`), e «Fallo fare al Direttore» dove il Direttore ha già un ordine (oggi solo Controlli → «Controlla la mappa di X»).
+- **Il campus 3D è l'altra vista** (interruttore in alto a destra, `?vista=campus`, scelta in `localStorage` `speaqi.ufficio.vista`): la scena da ~800 KB si scarica solo quando la si sceglie. `/api/ufficio/scena` risponde con `ETag` e `private, no-cache`: alla seconda apertura è un 304. Il pannello a destra (Direttore, Aspetta te, Lavori, Squadra, Piano) è lo stesso in tutte e due.
+- **Dati**: `GET /api/office/production` (titolare, `?fresh=1`) → `loadOfficeProduction` (`src/lib/server/office-production.ts`: una lettura al minuto, una per volta, fail-soft: StudioMap giù o non aggiornato = «non disponibile» col motivo, mai un 500) → bridge StudioMap `POST /api/office/production/read` (stesso `OFFICE_BRIDGE_SECRET`). `normalizeProduction` (`src/lib/office/production.ts`, puro) scarta le righe incomplete e tiene Napoli in sola lettura anche se StudioMap non la segna. **Sola lettura**: nessuna spesa, nessuna scrittura su StudioMap.
+- **Ordine di deploy**: prima StudioMap (il bridge), poi il CRM. Con StudioMap vecchio la vista dice «va aggiornato».
+- **Caricamento**: `ensureOfficeAgents` controlla il registro una volta per processo (erano due query per agente a ogni aggiornamento); `loadOfficeOverview` legge le ultime 150 corse in una query e ne ricava l'ultima per agente (era una query per agente). Da ~45 a 6 letture per aggiornamento.
+- Test: `tests/office-production.unit.test.ts`, `npm run test:office:ui` (vista Città, poi campus con `?vista=campus`). Piano delle operazioni ancora da collegare: `docs/UFFICIO-SALA-CONTROLLO.md`.
+
 ## Project Overview
 
 **Speaqi CRM** is a production-grade sales pipeline CRM for lead management, follow-ups, and automation. Built with Next.js 15 + Supabase, deployed on Railway.app.
