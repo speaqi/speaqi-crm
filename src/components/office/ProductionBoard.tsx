@@ -29,12 +29,19 @@ const remember = (command: Command | null) => {
  * La sala di controllo: una riga per città, otto fasi dai luoghi all'online, e per ognuna
  * la prima cosa che manca. È la vista di partenza dell'Ufficio; il campus 3D è l'altra.
  */
-export function ProductionBoard({ onOrdered }: { onOrdered?: () => void }) {
+export function ProductionBoard({ onOrdered, openSlug }: { onOrdered?: () => void; openSlug?: string | null }) {
   const [data, setData] = useState<ProductionOverview | null>(null)
   const [error, setError] = useState('')
   const [filter, setFilter] = useState<ProductionFilter>('all')
   const [query, setQuery] = useState('')
-  const [open, setOpen] = useState<string | null>(null)
+  const [open, setOpen] = useState<string | null>(openSlug || null)
+  // Dal plastico del campus si arriva con la città già scelta: la riga si apre e si porta in vista.
+  useEffect(() => {
+    if (!openSlug) return
+    setOpen(openSlug); setFilter('all'); setQuery('')
+    const timer = setTimeout(() => document.querySelector(`[data-city="${CSS.escape(openSlug)}"]`)?.scrollIntoView({ block: 'center' }), 150)
+    return () => clearTimeout(timer)
+  }, [openSlug])
   const [busy, setBusy] = useState('')
   const [notice, setNotice] = useState('')
   const controller = useRef<AbortController | null>(null)
@@ -187,7 +194,7 @@ export function ProductionBoard({ onOrdered }: { onOrdered?: () => void }) {
           {rows.map((row) => {
             const expanded = open === row.slug
             return [
-              <tr key={row.slug} className={expanded ? styles.open : ''} onClick={() => setOpen(expanded ? null : row.slug)}>
+              <tr key={row.slug} data-city={row.slug} className={expanded ? styles.open : ''} onClick={() => setOpen(expanded ? null : row.slug)}>
                 <th scope="row">
                   <button type="button" className={styles.city} aria-expanded={expanded}>{row.name}</button>
                   <small>{row.places.toLocaleString('it-IT')} luoghi · {row.done}/8{row.protected ? ' · protetta' : ''}</small>

@@ -27,6 +27,19 @@
 - **Caricamento**: `ensureOfficeAgents` controlla il registro una volta per processo (erano due query per agente a ogni aggiornamento); `loadOfficeOverview` legge le ultime 150 corse in una query e ne ricava l'ultima per agente (era una query per agente). Da ~45 a 6 letture per aggiornamento.
 - Test: `tests/office-production.unit.test.ts`, `npm run test:office:ui` (vista Città, poi campus con `?vista=campus`). Piano delle operazioni ancora da collegare: `docs/UFFICIO-SALA-CONTROLLO.md`.
 
+## Ufficio — il campus 3D mostra il lavoro vero (12/11/2026)
+
+- **Niente tetti** sui padiglioni (`buildPavilion` in `scripts/ufficio/scene.js`): via lamelle, cornice e lampade appese; l'insegna sta in piedi sulla parete di fondo e gli oggetti di reparto (globo, parabola, moneta…) sono a terra di fianco. Dall'alto si vedono persone e cartellini.
+- **Il cartellino dice il compito** (`personTag`): nome, stato e lavoro in corso dal registro (`currentWork`), con il motivo se è fermo. Nella vista d'insieme lo mostra solo chi ha un compito; gli altri solo nel reparto aperto. Un reparto con un lavoro bloccato o fallito accende un faro rosso e l'etichetta «⚠ N fermi».
+- **Mappe è la sala di produzione** (`buildMapsRoom`): tabellone sopra la parete con le città e le otto fasi (le stesse della vista «Città») e la console **StudioMap**, che dice quale comando lanciato dalla riga di una città sta girando e in che fase. Non è un agente: nessuna persona inventata.
+- **In piazza**: il plastico delle città (fino a 12: grigio = in lavorazione, azzurro = su Speaqi, verde con bandierina = online, punto rosso = ultimo invio fallito; clic = scheda con le fasi e «Apri la riga della città», che porta alla vista «Città» sulla riga, `office:cities`), il totem «Aspetta te» con i titoli delle prime proposte, l'**orologio di sistema** (pianificatore acceso/spento e ultimo backup; rosso se spento o se il backup ha più di 36 ore) e, sul piazzale della sede, il **tabellone dei soldi** (credito OpenRouter di StudioMap, rosso sotto 5 $, e spesa degli agenti oggi e nel mese).
+- **Pacchetti**: arancione = un ordine che parte (dal Direttore a un agente, o dalla console StudioMap alla città su cui lavora il comando), verde = un risultato che arriva ad «Aspetta te».
+- **«▶ Rivedi oggi»**: ripassa in ordine le corse di oggi (ora di Roma, dalle ultime 30 dell'Ufficio), una ogni 2,6 secondi, con ora, agente ed esito.
+- **Dati**: `officeSceneSnapshot(overview, updatedAt, extras)` (`src/lib/office-scene.ts`) aggiunge `production` (`officeSceneProduction`: solo fatti, nessun link), `command`, `system`, `day`. Li raccoglie la pagina solo con il campus aperto: `/api/office/production` ogni minuto, `GET /api/office/system` ogni cinque (`loadOfficeSystem`, `src/lib/server/office-system.ts`: env del pianificatore + ultima riga `backup` di `automation_job_runs`, in memoria 5 minuti), e il comando salvato in `localStorage` `speaqi.ufficio.comando` riletto ogni 4 secondi con la stessa richiesta della sala «Città». Sola lettura.
+- **Schermo intero**: la scena (o la sala «Città») prende tutto lo schermo, su computer e su telefono; il pannello è un cassetto («Pannello» / «Chiudi pannello») che si apre anche toccando un reparto o «Aspetta te». Dove il browser non concede lo schermo intero (iPhone) la stanza copre la finestra (`.full`) e la pagina sotto non scorre.
+- Limiti: il cartellino non dice per quale città o ente è il lavoro (il registro non espone il soggetto fuori dal payload); la console segue solo il comando lanciato da questo browser; «Rivedi oggi» vede al massimo le ultime 30 corse.
+- Test: `tests/office-production.unit.test.ts` (fotografia per il campus), `npm run test:office:ui` (campus, schermo intero su computer e telefono).
+
 ## Project Overview
 
 **Speaqi CRM** is a production-grade sales pipeline CRM for lead management, follow-ups, and automation. Built with Next.js 15 + Supabase, deployed on Railway.app.

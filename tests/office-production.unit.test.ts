@@ -207,3 +207,32 @@ test('il comando verso StudioMap: piano, rifiuto col motivo, esito incerto senza
     if (previous.url) process.env.OFFICE_STUDIOMAP_URL = previous.url
   }
 })
+
+test('campus: la fotografia per il 3D porta città, comando, sistema e la giornata, senza link', async () => {
+  const { officeSceneSnapshot, officeSceneProduction } = await import('../src/lib/office-scene')
+  const phases = (states: string) => ['places', 'texts', 'themes', 'intro', 'routes', 'checks', 'speaqi', 'live'].map((key, i) => ({ key, state: states[i] === 'd' ? 'done' : states[i] === 'p' ? 'partial' : 'todo', detail: 'x' }))
+  const row = (slug: string, states: string, extra: object = {}) => ({ slug, name: slug, protected: false, live: states[7] === 'd', public_url: 'https://guides.speaqi.com/x', places: 10,
+    phases: phases(states), done: [...states].filter((c) => c === 'd').length, next: states === 'dddddddd' ? null : { phase: 'texts', text: 'Scrivere i testi' }, error: null, writing_usd: 1, ...extra })
+  const production = { available: true, generated_at: '2026-11-12T08:00:00Z', studio_url: 'https://studiomap.speaqi.com', credit_usd: 3.5,
+    totals: { cities: 4, live: 2, live_behind: 1, in_progress: 1, places: 40, writing_usd: 1 },
+    rows: [row('napoli', 'dddddddd', { protected: true }), row('roma', 'dddddddd'), row('capri', 'dddddpdd'), row('lisbona', 'dptttttt', { error: 'invio fallito' })] } as never
+  const scene = officeSceneProduction(production)!
+  assert.ok(scene.available)
+  // Prima chi è in produzione, poi le online con arretrati, poi le allineate; la protetta in fondo.
+  assert.deepEqual(scene.cities.map((c) => c.slug), ['lisbona', 'capri', 'roma', 'napoli'])
+  assert.equal(scene.cities[0].phases, 'dptttttt'); assert.equal(scene.cities[0].error, true)
+  assert.equal(JSON.stringify(scene).includes('http'), false)
+  assert.deepEqual(officeSceneProduction({ available: false, reason: 'giù' }), { available: false, reason: 'giù' })
+  assert.equal(officeSceneProduction(null), null)
+  const run = (id: string, started_at: string) => ({ id, agent_id: 'director', user_id: 'u', started_at, finished_at: null, status: 'done', summary: id, items_created: 1, cost_cents_reserved: 0, cost_cents_actual: 0, error: null, details: {} })
+  const overview = { agents: [], runs: [run('sera', '2026-11-12T20:00:00Z'), run('mattina', '2026-11-12T07:30:00Z'), run('ieri', '2026-11-11T21:00:00Z'), run('notte', '2026-11-11T23:30:00Z')], outputs: [], pending_count: 0,
+    totals: { day_actual: 0, day_reserved: 0, week_actual: 0, week_reserved: 0, month_actual: 0, month_reserved: 0 }, active_agents: 0 } as never
+  const snapshot = officeSceneSnapshot(overview, '2026-11-12T21:00:00Z', { production,
+    command: { slug: 'lisbona', name: 'Lisbona', action: 'write_texts', phase: 'Testi', last: '', done: false, error: null },
+    system: { schedulerOn: true, schedulerJobs: 'backup', lastBackupAt: null, backupOk: null } })
+  // La giornata è quella di Roma: le 23:30 UTC di ieri sono già oggi, le 21:00 UTC no.
+  assert.deepEqual(snapshot.day.map((r) => r.id), ['notte', 'mattina', 'sera'])
+  assert.equal(snapshot.command?.label, 'Scrivi i testi')
+  assert.equal(snapshot.system?.schedulerJobs, 'backup')
+  assert.equal(officeSceneSnapshot(overview).production, null)
+})

@@ -36,6 +36,12 @@ let tween = null, stageWidth = 1, stageHeight = 1, lastFrame = 0, lastInteractio
 let webglFailed = false, down = null, dirty = true, hovered = null
 let ceoTag = null, pickables = [], pavilions = [], persons = [], spinners = [], trees = [], flags = [], lamps = [], screens = [], roomLights = [], hqWindows = [], hq = null
 let packets = [], kiosk = null, fountain = null, clouds = [], gulls = [], critters = [], stars = null, bounds = { center: new THREE.Vector3(), radius: 30 }
+let studio = null, cityTable = null, prodScreen = null, moneyTag = null, sysClock = null, cityCard = null, cityOpen = null
+let replay = null, replayTimer = null
+const PHASES = ['Luoghi', 'Testi', 'Temi', 'Presentazione', 'Itinerari', 'Controlli', 'Su Speaqi', 'Online']
+const PHASE_COLOR = { d: '#5fe39a', p: '#ffb547', t: '#3a4656' }
+const clock = (iso) => new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
+const short = (text, max) => { const v = String(text ?? '').replace(/\s+/g, ' ').trim(); return v.length > max ? `${v.slice(0, max - 1)}…` : v }
 const deliveredEvents = new Set()
 const tex = {}
 $('brand-logo').src = LOGO_WHITE
@@ -296,35 +302,27 @@ function buildPavilion(sector, index, place) {
     box(g, 0.08, 0.08, d, sx * (w / 2 - 0.02), 0.9, 0, '#2b3446')
   }
   for (const sx of [-1, 1]) cyl(g, 0.07, 0.07, H, sx * (w / 2 - 0.05), H / 2, d / 2 - 0.05, '#f2f2ee', 12)
-  // Tetto a lamelle: la luce entra a strisce, l'interno resta visibile dall'alto.
+  // Niente tetto: dall'alto si deve vedere chi lavora e leggere i cartellini. Resta un filo di cornice sulle vetrate.
   const frame = std(tint(0.15, BRAND.navy))
-  box(g, w + 0.24, 0.22, 0.16, 0, H + 0.05, d / 2, frame)
-  box(g, w + 0.24, 0.3, 0.16, 0, H + 0.05, -d / 2, frame)
-  for (const sx of [-1, 1]) box(g, 0.16, 0.3, d, sx * (w / 2 + 0.04), H + 0.05, 0, frame)
-  const slats = Math.round(d / 0.62)
-  for (let k = 1; k < slats; k++) box(g, w, 0.07, 0.15, 0, H + 0.12, -d / 2 + k * d / slats, '#e4c9a0')
-  // Insegna sopra il tetto, sul filo della facciata: l'apertura davanti resta libera.
+  for (const sx of [-1, 1]) box(g, 0.1, 0.1, d, sx * (w / 2 - 0.02), H + 0.05, 0, frame)
+  // Insegna in piedi sulla parete di fondo: non copre l'interno.
   const signW = Math.min(w * 0.62, 4.2), signH = signW * 160 / 1024
   const sign = new THREE.Mesh(new THREE.PlaneGeometry(signW, signH), new THREE.MeshBasicMaterial({ map: signTexture(sector, index), toneMapped: false }))
-  sign.position.set(-w / 2 + signW / 2 + 0.3, H + 0.2 + signH / 2, d / 2 + 0.01); g.add(sign)
-  box(g, signW, signH, 0.06, sign.position.x, sign.position.y, d / 2 - 0.035, BRAND.navy)
+  sign.position.set(-w / 2 + signW / 2 + 0.3, H + 0.06 + signH / 2, -d / 2 + 0.19); g.add(sign)
+  const signBack = box(g, signW, signH, 0.06, sign.position.x, sign.position.y, -d / 2 + 0.15, BRAND.navy)
+  // Faro dei blocchi: si accende solo se un lavoro del reparto è fermo o fallito.
+  cyl(g, 0.03, 0.03, 0.5, w / 2 - 0.05, H + 0.25, d / 2 - 0.05, '#2b3446', 8)
+  const beacon = mesh(new THREE.SphereGeometry(0.16, 14, 10), new THREE.MeshBasicMaterial({ color: '#ff4d3d', toneMapped: false }), g, w / 2 - 0.05, H + 0.6, d / 2 - 0.05, false)
+  beacon.visible = false
   // Angolo caffè e verde.
   box(g, 0.55, 0.92, 1.3, w / 2 - 0.42, 0.46, d / 2 - 1.1, '#f1ede4')
   box(g, 0.26, 0.34, 0.26, w / 2 - 0.42, 1.09, d / 2 - 1.35, BRAND.navy)
   cyl(g, 0.045, 0.04, 0.1, w / 2 - 0.42, 0.97, d / 2 - 0.85, '#ffffff', 10)
   plant(g, -w / 2 + 0.55, 0, d / 2 - 0.6, 1.25)
   plant(g, -w / 2 + 0.5, 0, -d / 2 + 0.5, 0.9, '#e7e1d4')
-  // Lampade a sospensione: accese di sera.
-  const lampMat = new THREE.MeshStandardMaterial({ color: '#fff3d6', emissive: '#ffd79a', emissiveIntensity: 0 })
-  lamps.push(lampMat)
   // Di sera l'interno si accende: una luce calda per padiglione, senza ombre.
   const room = new THREE.PointLight('#ffd9a6', 0, Math.max(w, d) * 1.4, 1.4); room.position.set(0, H - 0.6, 0.2); g.add(room); roomLights.push(room)
   const deskZ = (row) => -d / 2 + 0.62 + row * 1.9
-  for (let c = 0; c < cols; c++) {
-    const lx = (c - (cols - 1) / 2) * 1.75
-    cyl(g, 0.006, 0.006, 0.7, lx, H - 0.35, deskZ(0) + 0.2, '#30343f', 6).castShadow = false
-    cyl(g, 0.06, 0.22, 0.16, lx, H - 0.74, deskZ(0) + 0.2, lampMat, 18).castShadow = false
-  }
   const people = []
   const roster = sector.agents.slice(0, 12)
   if (!roster.length) desk(g, 0, deskZ(0), null)
@@ -333,19 +331,178 @@ function buildPavilion(sector, index, place) {
     people.push(placeAgent(g, sector, agent, i, (col - (cols - 1) / 2) * 1.75, deskZ(row), new THREE.Vector3(w / 2 - 1.05, 0, d / 2 - 0.7 - (i % 3) * 0.5)))
   })
   // Oggetti di reparto sul tetto: si muovono sempre, sono il segno del mestiere.
-  roofProp(sector.id, g, w, d)
+  const prop = new THREE.Group(); prop.position.set(sector.id === 'commerciale' ? -1.5 : 2.3, -(H + 0.2) + 0.02, sector.id === 'commerciale' ? -0.2 : -0.9); g.add(prop)
+  roofProp(sector.id, prop, w, d)
+  const extraH = sector.id === 'mappe' ? buildMapsRoom(g, w, d, [sign, signBack]) : 0
   pavilionPets(sector.id, g, w, d)
   const ring = outline(w, d, sector.color); g.add(ring)
   g.traverse((o) => { if (o.isMesh && !o.userData.deptId && o !== ring) { o.userData.deptId = sector.id; pickables.push(o) } })
   const el = document.createElement('button'); el.type = 'button'; el.className = 'tag'
   el.style.setProperty('--c', sector.color)
   el.setAttribute('aria-label', `Apri reparto ${sector.name}`)
-  const working = sector.agents.filter((a) => a.status === 'running').length
-  el.innerHTML = `<i></i>${esc(sector.name)}<b>${working ? `● ${working} al lavoro` : `${sector.agents.length} ${sector.agents.length === 1 ? 'agente' : 'agenti'}`}</b>`
   el.onclick = () => focusDepartment(focused === sector.id ? null : sector.id)
   const tag = new CSS2DObject(el); tag.position.set(0, H + 1.6, d / 2); g.add(tag)
-  pavilions.push({ id: sector.id, sector, group: g, ring, tag, w, d, center: new THREE.Vector3(), yaw: place.yaw, people })
+  pavilions.push({ id: sector.id, sector, group: g, ring, tag, w, d, center: new THREE.Vector3(), yaw: place.yaw, people, beacon, extraH })
 }
+// Il padiglione Mappe è la sala di produzione: lo schermo con le città e le otto fasi, e la console di StudioMap.
+function buildMapsRoom(g, w, d, signParts) {
+  // Un tabellone in piedi sulla parete di fondo: si legge anche dalla vista d'insieme e non copre le scrivanie.
+  const sw = Math.min(w - 0.4, 5.6), sh = sw * 0.42, y0 = H + 0.3 + sh / 2
+  for (const part of signParts) part.position.y = H + 0.45 + sh + part.geometry.parameters.height / 2
+  for (const sx of [-1, 1]) box(g, 0.08, 0.5, 0.08, sx * (sw / 2 - 0.3), H + 0.2, -d / 2 + 0.12, '#2b3446')
+  const canvas = document.createElement('canvas'); canvas.width = 1280; canvas.height = 538
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 8
+  box(g, sw + 0.16, sh + 0.16, 0.08, 0, y0, -d / 2 + 0.12, '#0b0d18')
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), new THREE.MeshBasicMaterial({ map: texture, toneMapped: false }))
+  m.position.set(0, y0, -d / 2 + 0.165); g.add(m)
+  prodScreen = { canvas, texture, key: '' }
+  // Console StudioMap: i comandi lanciati dalla riga di una città girano qui.
+  const c = new THREE.Group(); c.position.set(-w / 2 + 0.75, 0, d / 2 - 1.75); g.add(c)
+  box(c, 0.7, 1.5, 0.55, 0, 0.75, 0, '#1b2233')
+  const leds = []
+  for (let k = 0; k < 4; k++) { const led = mesh(new THREE.BoxGeometry(0.5, 0.06, 0.02), new THREE.MeshBasicMaterial({ color: '#2b3446', toneMapped: false }), c, 0, 0.45 + k * 0.28, 0.285, false); leds.push(led) }
+  const ring = mesh(new THREE.TorusGeometry(0.26, 0.035, 8, 28), new THREE.MeshBasicMaterial({ color: BRAND.orange, toneMapped: false }), c, 0, 1.85, 0, false)
+  ring.visible = false
+  const el = document.createElement('div'); el.className = 'task-tag studio'
+  const tag = new CSS2DObject(el); tag.position.set(0, 2.35, 0); c.add(tag)
+  studio = { group: c, leds, ring, el, tag }
+  return sh + 0.9
+}
+function drawProduction() {
+  if (!prodScreen || !snapshot) return
+  const P = snapshot.production, C = snapshot.command
+  const key = JSON.stringify([P, C && [C.slug, C.phase, C.done, C.error]])
+  if (key === prodScreen.key) return
+  prodScreen.key = key
+  const ctx = prodScreen.canvas.getContext('2d'), W = 1280, Hh = 538
+  ctx.fillStyle = '#0d1522'; ctx.fillRect(0, 0, W, Hh)
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left'
+  ctx.fillStyle = '#f4efe4'; ctx.font = '700 40px Inter, system-ui, sans-serif'; ctx.fillText('Produzione città', 36, 44)
+  ctx.font = '500 24px Inter, system-ui, sans-serif'; ctx.fillStyle = '#9fb0c3'
+  if (!P) ctx.fillText('Leggo le città da StudioMap…', 36, 120)
+  else if (!P.available) { ctx.fillStyle = '#ffb547'; ctx.fillText(short(`StudioMap non disponibile: ${P.reason}`, 90), 36, 120) }
+  else {
+    ctx.textAlign = 'right'; ctx.fillText(`${P.totals.live} online · ${P.totals.in_progress} in produzione · ${P.totals.live_behind} con arretrati`, W - 36, 46)
+    ctx.textAlign = 'center'; ctx.font = '500 17px Inter, system-ui, sans-serif'
+    PHASES.forEach((name, k) => ctx.fillText(name, 470 + k * 62, 92))
+    P.cities.slice(0, 7).forEach((city, i) => {
+      const y = 134 + i * 56, running = C && !C.done && C.slug === city.slug
+      if (running) { ctx.fillStyle = '#ff5a1f2e'; ctx.fillRect(20, y - 25, W - 40, 50) }
+      ctx.textAlign = 'left'; ctx.font = '600 28px Inter, system-ui, sans-serif'; ctx.fillStyle = city.protected ? '#8b97a8' : '#f4efe4'
+      ctx.fillText(short(city.name, 22), 36, y)
+      for (let k = 0; k < 8; k++) { ctx.fillStyle = PHASE_COLOR[city.phases[k]] || PHASE_COLOR.t; ctx.beginPath(); ctx.arc(470 + k * 62, y, 13, 0, Math.PI * 2); ctx.fill() }
+      ctx.font = '500 21px Inter, system-ui, sans-serif'
+      ctx.fillStyle = running ? '#ffb38f' : city.error ? '#ff8a7a' : '#9fb0c3'
+      ctx.fillText(short(running ? `● ${C.label}${C.phase ? ` · ${C.phase}` : ''}` : city.protected ? 'protetta' : city.next || 'allineata', 34), 950, y)
+    })
+  }
+  prodScreen.texture.needsUpdate = true
+}
+// La console dice cosa sta girando in StudioMap; ferma, lo dice.
+function updateStudio() {
+  if (!studio || !snapshot) return
+  const C = snapshot.command, on = !!C && !C.done
+  studio.ring.visible = on
+  studio.on = on; studio.failed = !!C?.error
+  studio.el.dataset.state = on ? 'running' : C?.error ? 'attention' : C ? 'done' : 'idle'
+  studio.el.innerHTML = !C ? '<b>StudioMap</b><span>nessun comando in corso</span>'
+    : `<b>StudioMap · ${esc(C.label)} · ${esc(C.name)}</b><span>${esc(short(C.error ? `Non riuscito: ${C.error}` : C.done ? 'Fatto' : C.phase || C.last || 'Avviato', 70))}</span>`
+  if (!on) studio.leds.forEach((led) => led.material.color.set(C?.error ? '#ff4d3d' : C ? '#5fe39a' : '#2b3446'))
+}
+
+/* ---------- plastico delle città, in piazza ---------- */
+function buildCityTable(at, yaw) {
+  const g = new THREE.Group(); g.position.copy(at); g.rotation.y = yaw; root.add(g)
+  box(g, 3.5, 0.1, 1.5, 0, 0.78, 0, '#efe6d2')
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) cyl(g, 0.05, 0.05, 0.74, sx * 1.6, 0.37, sz * 0.6, '#2b3446', 8)
+  box(g, 3.3, 0.02, 1.3, 0, 0.84, 0, '#7fb5d6').castShadow = false
+  const models = []
+  for (let k = 0; k < 12; k++) {
+    const m = new THREE.Group(); m.position.set(-1.375 + (k % 6) * 0.55, 0.85, k < 6 ? -0.32 : 0.32); g.add(m)
+    const body = mesh(G.unit || (G.unit = new THREE.BoxGeometry(1, 1, 1)), new THREE.MeshStandardMaterial({ color: '#9aa3ad', roughness: 0.7 }), m, 0, 0.2, 0)
+    const pole = cyl(m, 0.012, 0.012, 0.34, 0.12, 0.6, 0.12, '#f2f2ee', 6)
+    const flag = mesh(new THREE.BoxGeometry(0.16, 0.1, 0.01), new THREE.MeshBasicMaterial({ color: BRAND.orange, toneMapped: false }), m, 0.21, 0.72, 0.12, false)
+    const warn = mesh(new THREE.SphereGeometry(0.06, 10, 8), new THREE.MeshBasicMaterial({ color: '#ff4d3d', toneMapped: false }), m, -0.14, 0.5, 0, false)
+    m.traverse((o) => { if (o.isMesh) { o.userData.city = k; pickables.push(o) } })
+    models.push({ m, body, pole, flag, warn })
+  }
+  const el = document.createElement('button'); el.type = 'button'; el.className = 'tag cities'; el.style.setProperty('--c', '#62a9da')
+  el.onclick = () => send({ type: 'office:cities' })
+  const tag = new CSS2DObject(el); tag.position.set(0, 2.3, 0); g.add(tag)
+  const card = document.createElement('div'); card.className = 'city-card'; card.hidden = true
+  card.addEventListener('click', (event) => {
+    const b = event.target.closest('button'); if (!b) return
+    if (b.dataset.close !== undefined) openCity(null); else if (b.dataset.slug) send({ type: 'office:cities', slug: b.dataset.slug })
+  })
+  cityCard = new CSS2DObject(card); cityCard.position.set(0, 2.0, 0); g.add(cityCard)
+  cityTable = { g, models, el }
+}
+function updateCities() {
+  if (!cityTable || !snapshot) return
+  const P = snapshot.production, cities = P?.available ? P.cities : []
+  cityTable.models.forEach((model, k) => {
+    const city = cities[k]
+    model.m.visible = !!city
+    if (!city) return
+    const h = 0.14 + city.done / 8 * 0.62
+    model.body.scale.set(0.34, h, 0.34); model.body.position.y = h / 2
+    // Grigio = in lavorazione, colorato = su Speaqi, con la bandierina = online.
+    const onSpeaqi = city.phases[6] === 'd'
+    model.body.material.color.set(city.protected ? '#c9b98a' : city.live ? '#48bba6' : onSpeaqi ? '#62a9da' : '#9aa3ad')
+    model.pole.visible = model.flag.visible = city.live
+    model.pole.position.y = h + 0.17; model.flag.position.y = h + 0.29
+    model.warn.visible = city.error; model.warn.position.y = h + 0.1
+    model.running = !!snapshot.command && !snapshot.command.done && snapshot.command.slug === city.slug
+  })
+  cityTable.el.innerHTML = !P ? '<i></i>Città<b>leggo…</b>' : !P.available ? '<i></i>Città<b>StudioMap non disponibile</b>'
+    : `<i></i>Città<b>${P.totals.in_progress} in produzione · ${P.totals.live} online</b>`
+  cityTable.el.setAttribute('aria-label', 'Apri la sala delle città')
+  if (cityOpen && !cities.some((c) => c.slug === cityOpen)) openCity(null); else openCity(cityOpen)
+}
+function openCity(slug) {
+  cityOpen = slug
+  const cities = snapshot?.production?.available ? snapshot.production.cities : []
+  const k = cities.findIndex((c) => c.slug === slug), city = cities[k], card = cityCard.element
+  card.hidden = !city
+  if (city) {
+    cityCard.position.copy(cityTable.models[k].m.position).add(new THREE.Vector3(0, 1.25, 0))
+    card.innerHTML = `<button type="button" data-close aria-label="Chiudi">×</button><strong>${esc(city.name)}</strong><small>${city.protected ? 'Protetta · sola lettura' : city.live ? 'Online' : 'In produzione'} · ${city.done}/8 fasi</small>`
+      + `<div class="dots">${PHASES.map((name, i) => `<i title="${name}" style="background:${PHASE_COLOR[city.phases[i]] || PHASE_COLOR.t}"></i>`).join('')}</div>`
+      + `<p>${esc(city.protected ? 'Non si tocca da qui.' : city.next ? `Manca: ${city.next}` : 'Allineata, niente da fare.')}</p><button type="button" class="go" data-slug="${esc(city.slug)}">Apri la riga della città →</button>`
+  }
+  dirty = true
+}
+
+/* ---------- orologio di sistema, in piazza: pianificatore e ultimo backup ---------- */
+function buildSysClock(at) {
+  const g = new THREE.Group(); g.position.copy(at); root.add(g)
+  cyl(g, 0.06, 0.09, 2.3, 0, 1.15, 0, '#2b3446', 10)
+  const face = mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.14, 28), std('#f4efe4'), g, 0, 2.6, 0); face.rotation.x = Math.PI / 2
+  const rim = mesh(new THREE.TorusGeometry(0.42, 0.05, 8, 32), new THREE.MeshBasicMaterial({ color: '#5fe39a', toneMapped: false }), g, 0, 2.6, 0, false)
+  const hand = box(g, 0.035, 0.32, 0.02, 0, 2.6, 0.08, BRAND.navy); hand.geometry = hand.geometry.clone(); hand.geometry.translate(0, 0.14, 0)
+  const el = document.createElement('div'); el.className = 'task-tag sys'
+  const tag = new CSS2DObject(el); tag.position.set(0, 3.45, 0); g.add(tag)
+  sysClock = { rim, hand, el }
+}
+function updateSystem() {
+  if (!snapshot) return
+  const S = snapshot.system
+  if (sysClock) {
+    const age = S?.lastBackupAt ? (Date.now() - new Date(S.lastBackupAt).getTime()) / 36e5 : Infinity
+    const bad = !S ? false : !S.schedulerOn || age > 36 || S.backupOk === false
+    sysClock.rim.material.color.set(!S ? '#71828e' : bad ? '#ff4d3d' : '#5fe39a')
+    sysClock.el.dataset.state = !S ? 'idle' : bad ? 'attention' : 'done'
+    sysClock.el.innerHTML = !S ? '<b>Sistema</b><span>stato non letto</span>'
+      : `<b>Pianificatore ${S.schedulerOn ? `acceso${S.schedulerJobs ? ` · solo ${esc(short(S.schedulerJobs, 28))}` : ''}` : 'SPENTO'}</b><span>Ultimo backup: ${S.lastBackupAt ? `${esc(date(S.lastBackupAt))}${age > 36 ? ` · ${Math.floor(age / 24)} giorni fa` : ''}` : 'nessuno registrato'}</span>`
+  }
+  if (moneyTag) {
+    const credit = snapshot.production?.available ? snapshot.production.creditUsd : null
+    const low = credit != null && credit < 5
+    moneyTag.dataset.state = low ? 'attention' : 'idle'
+    moneyTag.innerHTML = `<b>Credito StudioMap: ${credit == null ? 'non letto' : `${credit.toFixed(2).replace('.', ',')} $`}${low ? ' · sotto 5 $' : ''}</b><span>Agenti oggi ${euro(snapshot.totals.day_actual)} · mese ${euro(snapshot.totals.month_actual)}</span>`
+  }
+}
+
 // Un agente alla sua scrivania: persona, stato, comportamento, cartellino.
 function placeAgent(parent, sector, agent, i, px, pz, coffee) {
   const station = desk(parent, px, pz, agent)
@@ -359,8 +516,7 @@ function placeAgent(parent, sector, agent, i, px, pz, coffee) {
   const el = document.createElement('button'); el.type = 'button'; el.className = 'person-tag'
   el.setAttribute('aria-label', `Apri scheda di ${agent.name}`)
   el.onclick = () => focusDepartment(sector.id, agent.id)
-  el.innerHTML = `<i style="--c:${STATE_COLOR[agent.status]}"></i>${esc(agent.name)}`
-  rec.tag = new CSS2DObject(el); rec.tag.position.set(0, 2.62, 0); rec.tag.visible = false; person.add(rec.tag)
+  rec.tag = new CSS2DObject(el); rec.tag.position.set(0, 2.72, 0); rec.tag.visible = false; person.add(rec.tag)
   person.traverse((o) => { if (o.isMesh) { o.userData.agentId = agent.id; o.userData.deptId = sector.id; pickables.push(o) } })
   persons.push(rec)
   return rec
@@ -591,6 +747,10 @@ function buildHQ(x, y, z, direzione) {
   // Piazzale in pietra con le bandiere.
   box(g, w + 6, 0.05, 4.2, 0, 0.03, d / 2 + 2.1, '#ebe4d3').castShadow = false
   for (const fx of [-3.2, -1.6, 1.6, 3.2]) flagPole(g, fx, 0, d / 2 + 3.4, fx < 0 ? '#ffffff' : BRAND.navy, fx < 0 ? 'navy' : 'white', 3.2)
+  // Tabellone dei soldi sul piazzale: credito di StudioMap e spesa degli agenti.
+  box(g, 0.08, 1.3, 0.08, w / 2 + 1.4, 0.65, d / 2 + 2.2, '#2b3446'); box(g, 1.5, 0.7, 0.08, w / 2 + 1.4, 1.5, d / 2 + 2.2, BRAND.navy)
+  moneyTag = document.createElement('div'); moneyTag.className = 'task-tag money'
+  const money = new CSS2DObject(moneyTag); money.position.set(w / 2 + 1.4, 2.5, d / 2 + 2.2); g.add(money)
   // Atrio vetrato e pensilina.
   box(g, w - 1.2, floorH, d - 1.2, 0, floorH / 2, 0, std('#a9cfe3', { transparent: true, opacity: 0.55, roughness: 0.1, metalness: 0.3 }))
   box(g, 4.2, 0.18, 2.2, 0, floorH - 0.25, d / 2 + 0.6, BRAND.navy)
@@ -801,15 +961,17 @@ function stepPerson(rec, t, dt) {
   }
 }
 const packetMat = new THREE.MeshBasicMaterial({ color: '#9ff7c4', toneMapped: false })
-function spawnPacket(fromId, toId) {
+// Arancione = un ordine che parte (dal Direttore, o un tuo comando verso una città); verde = un risultato che arriva.
+const orderMat = new THREE.MeshBasicMaterial({ color: '#ff8a4d', toneMapped: false })
+function spawnPacket(fromId, toId, points) {
   if (!kiosk || packets.length > 24) return
   const source = persons.find((rec) => rec.agent.id === fromId)
   const destination = persons.find((rec) => rec.agent.id === toId)
-  if (!source || (toId !== 'kiosk' && !destination)) return
-  const from = source.person.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 1.5, 0))
-  const to = destination ? destination.person.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 1.5, 0)) : kiosk.top.clone()
+  if (!points && (!source || (toId !== 'kiosk' && !destination))) return
+  const from = points ? points[0] : source.person.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 1.5, 0))
+  const to = points ? points[1] : destination ? destination.person.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 1.5, 0)) : kiosk.top.clone()
   const mid = from.clone().lerp(to, 0.5); mid.y = Math.max(from.y, to.y) + 3.5 + Math.random()
-  const m = mesh(G.packet, packetMat, scene, from.x, from.y, from.z, false)
+  const m = mesh(G.packet, points || fromId === 'director' ? orderMat : packetMat, scene, from.x, from.y, from.z, false)
   const glow = new THREE.Sprite(glowMat); glow.scale.setScalar(0.4); m.add(glow)
   packets.push({ m, curve: new THREE.QuadraticBezierCurve3(from, mid, to), t: 0, dur: 2.2 + Math.random() * 0.8 })
 }
@@ -921,6 +1083,8 @@ function buildCampus() {
   path(root, new THREE.Vector3(0, 0, plazaZ + PLAZA - 0.6), new THREE.Vector3(0, 0, zFront + 0.4), 0, 2.2)
   buildFountain(new THREE.Vector3(0, 0, plazaZ))
   buildKiosk(new THREE.Vector3(0, 0, plazaZ + 3.9))
+  buildCityTable(new THREE.Vector3(-2.75, 0, plazaZ - 1.9), 0.5)
+  buildSysClock(new THREE.Vector3(3.3, 0, plazaZ - 2.3))
   for (const sx of [-1, 1]) { bench(root, sx * 3.6, plazaZ + 2.4, -sx * 0.9); lamp(root, sx * 4.4, 0, plazaZ - 2.8); lamp(root, sx * 4.4, 0, plazaZ + 3.3); lamp(root, sx * 2.9, TERRACE, WALL_Z - 0.5) }
   for (const [id, p] of Object.entries(L.places)) {
     buildPavilion(L.byId[id].sector, L.byId[id].index, p)
@@ -987,7 +1151,7 @@ function buildKiosk(at) {
   const icon = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.46), new THREE.MeshBasicMaterial({ map: tex['icon-white'], transparent: true, depthWrite: false }))
   icon.position.set(0, 0.75, 0.305); g.add(icon)
   const envelopes = []
-  for (let k = 0; k < 6; k++) { const e = bubble('mail'); e.scale.setScalar(0.5); e.visible = false; g.add(e); envelopes.push(e) }
+  for (let k = 0; k < 12; k++) { const e = bubble('mail'); e.scale.setScalar(0.5); e.visible = false; g.add(e); envelopes.push(e) }
   const el = document.createElement('button'); el.type = 'button'; el.className = 'tag kiosk'
   el.onclick = () => send({ type: 'office:navigate' })
   const tag = new CSS2DObject(el); tag.position.set(0, 3.0, 0); g.add(tag)
@@ -998,10 +1162,11 @@ function buildKiosk(at) {
 function updateKiosk() {
   if (!kiosk || !snapshot) return
   const n = snapshot.pendingCount
-  kiosk.el.innerHTML = `<i></i>Aspetta te<b>${n}</b>`
+  const titles = snapshot.outputs.slice(0, 2).map((o) => `<span>${esc(short(o.title, 44))}</span>`).join('')
+  kiosk.el.innerHTML = `<i></i>Aspetta te<b>${n}</b>${n && titles ? `<em>${titles}${n > 2 ? `<span>e altre ${n - 2}</span>` : ''}</em>` : ''}`
   kiosk.el.style.setProperty('--c', n ? BRAND.orange : '#71828e')
   kiosk.el.setAttribute('aria-label', `Aspetta te: ${n} ${n === 1 ? 'proposta' : 'proposte'} da decidere`)
-  kiosk.envelopes.forEach((e, k) => { e.visible = k < Math.min(n, 6) })
+  kiosk.envelopes.forEach((e, k) => { e.visible = k < Math.min(n, 12) })
   dirty = true
 }
 function buildSky() {
@@ -1115,39 +1280,97 @@ function structureKey() {
 function buildOffice() {
   if (!scene || webglFailed || !snapshot) return
   const key = structureKey()
-  if (key === signature && root) { updatePeople(); updateKiosk(); updateFocus(); return }
+  if (key === signature && root) { updatePeople(); updateKiosk(); updateLive(); updateFocus(); return }
   signature = key
   disposeRoot(); ceoTag = null; pickables = []; pavilions = []; persons = []; critters = []; spinners = []; trees = []; flags = []; screens = []; roomLights = []; hqWindows = []; hq = null
-  lamps = []
+  lamps = []; studio = null; cityTable = null; prodScreen = null; moneyTag = null; sysClock = null; cityCard = null
   root = new THREE.Group(); scene.add(root)
   buildCampus()
   root.updateMatrixWorld(true)
   for (const p of pavilions) p.center = p.group.localToWorld(new THREE.Vector3(0, 1.2, 0.2))
   sun.target.position.copy(bounds.center)
   sun.position.copy(bounds.center).add(new THREE.Vector3(-26, 42, 30))
-  applyLight(); updatePeople(); updateFocus()
+  applyLight(); updatePeople(); updateLive(); updateFocus()
   dirty = true
+}
+function updateLive() { drawProduction(); updateStudio(); updateCities(); updateSystem() }
+// Il cartellino dice il compito vero: senza un compito resta solo il nome, e solo nel reparto aperto.
+function personTag(rec) {
+  const agent = rec.agent, work = agent.currentWork
+  const playing = replay?.current?.agentId === agent.id ? replay.current : null
+  const task = playing ? `${clock(playing.at)} · ${playing.summary || playing.label}`
+    : work ? `${agent.activityLabel} · ${work.label}${agent.workCount > 1 ? ` · +${agent.workCount - 1}` : ''}`
+    : agent.status === 'running' ? (agent.lastRun?.summary || 'Turno in corso')
+    : agent.status === 'attention' ? (agent.lastRun?.summary || agent.lastRun?.label || 'Da verificare') : ''
+  const why = !playing && agent.blocked ? (work.requiredAction || work.reason || '') : ''
+  const el = rec.tag.element
+  el.dataset.state = playing ? 'replay' : agent.status
+  el.classList.toggle('task', Boolean(task))
+  el.innerHTML = `<i style="--c:${STATE_COLOR[agent.status]}"></i><b>${esc(agent.name)}</b>${task ? `<span>${esc(short(task, 54))}</span>` : `<span>${esc(agent.activityLabel || STATE[agent.status])}</span>`}${why ? `<em>⚠ ${esc(short(why, 70))}</em>` : ''}`
+  el.title = [work?.label, work?.reason].filter(Boolean).join(' — ') || agent.activityLabel || ''
+  rec.hasTask = Boolean(task) && agent.status !== 'off'
 }
 function updatePeople() {
   const agents = snapshot.departments.flatMap((sector) => sector.agents)
   for (const rec of persons) {
     rec.agent = agents.find((agent) => agent.id === rec.agent.id) || rec.agent
-    const agent = rec.agent
-    const label = agent.activityLabel || STATE[agent.status]
-    rec.tag.element.innerHTML = `<i style="--c:${STATE_COLOR[agent.status]}"></i>${esc(agent.name)} · ${esc(label)}`
-    rec.tag.element.title = [agent.currentWork?.label, agent.currentWork?.reason].filter(Boolean).join(' — ') || label
+    personTag(rec)
+  }
+  for (const p of pavilions) {
+    const sector = snapshot.departments.find((d) => d.id === p.id) || p.sector
+    const working = sector.agents.filter((a) => a.status === 'running').length + (p.id === 'mappe' && snapshot.command && !snapshot.command.done ? 1 : 0)
+    const blocked = sector.agents.filter((a) => a.blocked).length
+    p.blocked = blocked > 0
+    if (p.beacon) p.beacon.visible = p.blocked
+    p.tag.element.innerHTML = `<i></i>${esc(sector.name)}<b>${blocked ? `⚠ ${blocked} ${blocked === 1 ? 'fermo' : 'fermi'}` : working ? `● ${working} al lavoro` : p.top ? `CEO e ${sector.agents.length === 1 ? 'Direttore' : `${sector.agents.length} agenti`}` : `${sector.agents.length} ${sector.agents.length === 1 ? 'agente' : 'agenti'}`}</b>`
+    p.tag.element.classList.toggle('alarm', p.blocked)
   }
 }
 function updateFocus() {
   for (const p of pavilions) {
     p.tag.element.setAttribute('aria-pressed', String(focused === p.id))
     p.tag.element.classList.toggle('dim', Boolean(focused) && focused !== p.id)
-    for (const rec of p.people) rec.tag.visible = focused === p.id
+    // Chi ha un compito mostra il cartellino anche dalla vista d'insieme; gli altri solo nel reparto aperto.
+    for (const rec of p.people) rec.tag.visible = focused === p.id || rec.hasTask || replay?.current?.agentId === rec.agent.id
   }
+  for (const rec of persons) if (!pavilions.some((p) => p.people.includes(rec))) rec.tag.visible = focused === 'direzione' || rec.hasTask || replay?.current?.agentId === rec.agent.id
+  $('stage').parentElement.dataset.far = String(!focused)
   if (ceoTag) ceoTag.visible = focused === 'direzione'
   for (const rec of persons) rec.tag.element.classList.toggle('sel', rec.agent.id === selected)
   dirty = true
 }
+
+/* ---------- la giornata, rivista in un minuto ---------- */
+function stopReplay() {
+  clearTimeout(replayTimer); replay = null
+  $('replay').textContent = '▶ Rivedi oggi'; $('replay-line').hidden = true
+  for (const rec of persons) personTag(rec)
+  updateFocus()
+}
+function startReplay() {
+  if (replay) { stopReplay(); return }
+  const events = snapshot?.day || []
+  $('replay-line').hidden = false
+  if (!events.length) { $('replay-text').textContent = 'Oggi nessun agente ha ancora lavorato.'; $('replay-bar').style.width = '0%'; replayTimer = setTimeout(stopReplay, 3500); replay = { events, i: 0, current: null }; return }
+  replay = { events, i: -1, current: null }
+  $('replay').textContent = '■ Ferma'
+  const next = () => {
+    if (!replay) return
+    replay.i++
+    if (replay.i >= replay.events.length) { $('replay-text').textContent = `Fine: ${replay.events.length} ${replay.events.length === 1 ? 'corsa' : 'corse'} oggi.`; replay.current = null; for (const rec of persons) personTag(rec); updateFocus(); replayTimer = setTimeout(stopReplay, 3000); return }
+    const e = replay.current = replay.events[replay.i]
+    const rec = persons.find((r) => r.agent.id === e.agentId)
+    $('replay-text').textContent = `${clock(e.at)} · ${rec?.agent.name || e.agentId}: ${short(e.summary || e.label, 90)} (${e.label})`
+    $('replay-bar').style.width = `${(replay.i + 1) / replay.events.length * 100}%`
+    for (const r of persons) personTag(r)
+    updateFocus()
+    if (e.items > 0 && !reduceMotion && !webglFailed) spawnPacket(e.agentId, 'kiosk')
+    replayTimer = setTimeout(next, 2600)
+  }
+  next()
+}
+$('replay').addEventListener('click', startReplay)
+
 function focusDepartment(id, agentId = null) {
   focused = id; selected = agentId
   updateFocus(); renderPanel(); moveCamera()
@@ -1186,7 +1409,7 @@ function moveCamera(instant = false) {
     // L'ultimo piano si guarda quasi in piano, attraverso la vetrata: dall'alto il soffitto coprirebbe tutto.
     dir = new THREE.Vector3(Math.sin(pav.yaw) + side, pav.top ? 0.07 : base.y > 0 ? 0.42 : 0.34, Math.cos(pav.yaw)).normalize()
     points = pav.top ? corners(base.x - 0.4, base.z + pav.d / 2, pav.w * 0.62, 0.2, base.y + 0.3, base.y + HQ.floorH - 0.5)
-      : corners(base.x, base.z, pav.w, pav.d, base.y, base.y + H + 0.6, pav.yaw)
+      : corners(base.x, base.z, pav.w, pav.d, base.y, base.y + H + 0.6 + (pav.extraH || 0), pav.yaw)
     // Con un agente scelto la camera si avvicina a lui restando fuori dal padiglione, dalla stessa parte.
     if (rec) { target.lerp(rec.person.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 1, 0)), 0.7); scale = 0.7 }
   } else {
@@ -1234,7 +1457,8 @@ function pick(event) {
   if (!down || Math.hypot(down.x - event.clientX, down.y - event.clientY) > 6) { down = null; return }
   down = null
   const hit = rayHit(event)
-  if (hit?.kiosk) send({ type: 'office:navigate' })
+  if (hit?.city !== undefined) { const c = snapshot?.production?.available && snapshot.production.cities[hit.city]; openCity(c && cityOpen !== c.slug ? c.slug : null) }
+  else if (hit?.kiosk) send({ type: 'office:navigate' })
   else if (hit?.agentId) focusDepartment(hit.deptId, hit.agentId)
   else if (hit?.deptId) focusDepartment(hit.deptId)
 }
@@ -1243,7 +1467,7 @@ function hover(event) {
   if (event.buttons || performance.now() - hoverAt < 60) return
   hoverAt = performance.now()
   const hit = rayHit(event)
-  setHover(hit?.kiosk ? 'kiosk' : hit?.deptId || null)
+  setHover(hit?.kiosk ? 'kiosk' : hit?.city !== undefined ? 'city' : hit?.deptId || null)
 }
 function setHover(id) {
   if (hovered === id) return
@@ -1340,6 +1564,19 @@ function step(t, dt) {
     const flap = Math.sin(t * 7 + b.phase) * 0.55
     b.l.rotation.z = flap; b.r.rotation.z = -flap
   }
+  for (const p of pavilions) if (p.beacon?.visible) p.beacon.scale.setScalar(0.8 + 0.5 * Math.abs(Math.sin(t * 4)))
+  if (studio?.on) {
+    studio.ring.rotation.y = t * 2.4; studio.ring.rotation.x = Math.PI / 2 + Math.sin(t * 1.3) * 0.5
+    studio.leds.forEach((led, k) => led.material.color.setHSL(0.06, 0.95, 0.3 + 0.3 * (0.5 + 0.5 * Math.sin(t * 7 - k * 1.4))))
+    // Il comando lavora sulla sua città: dalla console parte un pacchetto verso il plastico.
+    const k = cityTable ? cityTable.models.findIndex((m) => m.running) : -1
+    if (k >= 0 && t - (studio.sent || 0) > 2.4) {
+      studio.sent = t
+      spawnPacket(null, null, [studio.group.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 1.6, 0)), cityTable.models[k].m.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.5, 0))])
+    }
+  }
+  if (cityTable) for (const model of cityTable.models) if (model.m.visible) model.m.position.y = 0.85 + (model.running ? Math.abs(Math.sin(t * 5)) * 0.12 : 0)
+  if (sysClock) sysClock.hand.rotation.z = -t * 0.5
   // Ogni agente in corso manda il lavoro verso "Aspetta te".
   packets = packets.filter((p) => {
     p.t += dt / p.dur
@@ -1414,6 +1651,7 @@ window.addEventListener('message', (event) => {
     const events = officeSceneEvents(snapshot, event.data.snapshot)
     snapshot = event.data.snapshot; dataError = ''
     if (focused && !snapshot.departments.some((d) => d.id === focused)) { focused = null; selected = null }
+    if (replay) stopReplay()
     $('sync').innerHTML = `<i class="live"></i><span>CRM · Aggiornato alle ${new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' }).format(new Date(snapshot.updatedAt))}</span>`
     buildOffice(); renderPanel()
     for (const event of events) if (!deliveredEvents.has(event.key)) {
