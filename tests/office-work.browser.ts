@@ -65,7 +65,7 @@ async function main() {
     const page = await context.newPage()
     const errors: string[] = []
     page.on('pageerror', (error) => errors.push(error.message))
-    await page.goto(`${base}/ufficio`)
+    await page.goto(`${base}/ufficio?vista=campus`)
     await page.getByRole('tab', { name: 'Lavori', exact: true }).click()
     const list = page.getByRole('region', { name: 'Lavori dell’ufficio' })
     await list.getByRole('heading', { name: 'Importare la mappa · Marsiglia' }).waitFor()

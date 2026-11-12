@@ -12,6 +12,7 @@ import {
   countTodo,
   photoSlots,
   normalizeSlide,
+  MAX_DECK_SLIDES,
   normalizeTemplate,
   type DeckInput,
   type DeckSlide,
@@ -516,7 +517,7 @@ export async function saveDeckEdits(
   const patch: Record<string, unknown> = {}
   if (Array.isArray(edits.slides)) {
     const ids = new Set(row.assets.filter((a) => a.kind === 'photo').map((a) => a.id))
-    const slides = edits.slides.slice(0, 12).map((s, i) => normalizeSlide(s, i))
+    const slides = edits.slides.slice(0, MAX_DECK_SLIDES).map((s, i) => normalizeSlide(s, i))
     patch.slides = slides.map((s) => ({ ...s, image_asset_id: s.image_asset_id && ids.has(s.image_asset_id) ? s.image_asset_id : null }))
     if (!slides.length) throw new TourismInputError('Serve almeno una slide')
   }

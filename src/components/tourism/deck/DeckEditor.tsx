@@ -170,6 +170,16 @@ export default function DeckEditor({ id }: { id: string }) {
     })
   }
 
+  // Una slide si toglie dall'elenco; resta da salvare, e la rigenerazione la rimette dal modello.
+  const removeSlide = (i: number) => {
+    if (slides.length <= 1) return
+    if (!confirm(`Eliminare la slide “${slides[i].title.replace(/\n/g, ' ').slice(0, 60) || slides[i].id}”?`)) return
+    setSlides((cur) => cur.filter((_, k) => k !== i))
+    setIndex((cur) => Math.max(0, Math.min(cur > i ? cur - 1 : cur, slides.length - 2)))
+    setDirty(true)
+    setNotice('Slide eliminata: premi “Salva modifiche” per confermare')
+  }
+
   const link = deck ? `${typeof window === 'undefined' ? '' : window.location.origin}/presentazione/${deck.public_token}` : ''
   const copy = () => navigator.clipboard.writeText(link).then(() => setNotice('Link copiato'), () => setError('Copia non riuscita: seleziona il link a mano'))
 
@@ -329,7 +339,13 @@ export default function DeckEditor({ id }: { id: string }) {
                 slide={slide}
                 photos={photos}
                 onChange={(next) => { setSlides((cur) => cur.map((x, k) => (k === i ? next : x))); setDirty(true); setIndex(i) }}
-                actions={<button type="button" className={s.textButton} onClick={() => setIndex(i)}>Mostra</button>}
+                actions={(
+                  <span>
+                    <button type="button" className={s.textButton} onClick={() => setIndex(i)}>Mostra</button>
+                    {' · '}
+                    <button type="button" className={s.textButton} onClick={() => removeSlide(i)} disabled={!!busy || slides.length <= 1}>Elimina slide</button>
+                  </span>
+                )}
               />
             </div>
           ))}

@@ -42,7 +42,7 @@ test('la destinazione entra nel nome: copertina, cosa ottiene, chiusura', () => 
   const byId = (id: string) => slides.find((s) => s.id === id)!
   assert.equal(byId('cover').kicker, 'Speaqi Guides per Bergamo')
   assert.equal(byId('cosa-ottieni').title, 'Cosa ottiene Bergamo.')
-  assert.match(byId('chiusura').title, /Facciamo la mappa di Bergamo\.$/)
+  assert.match(byId('chiusura').title, /Facciamo la guida di Bergamo\.$/)
   assert.equal(byId('chi-scegliamo').items[0].value, '250.000')
 })
 
@@ -52,7 +52,7 @@ test('«Chi scegliamo» viene prima dei passi: tre cifre e tre passi in una slid
   assert.equal(slide.title, 'Chi scegliamo.')
   // Le voci con numero sono i requisiti, quelle senza sono i tre passi, in ordine.
   assert.deepEqual(slide.items.filter((i) => i.value).map((i) => i.value), ['250.000', '2', '1'])
-  assert.deepEqual(slide.items.filter((i) => !i.value).map((i) => i.title), ['Primo incontro', 'Accordo', 'Mappa online'])
+  assert.deepEqual(slide.items.filter((i) => !i.value).map((i) => i.title), ['Primo incontro', 'Accordo', 'Guida online'])
   assert.ok(!DEFAULT_DECK_TEMPLATE.slides.some((s) => s.id === 'come-si-parte' || s.id === 'requisiti'))
 })
 
@@ -116,8 +116,8 @@ test('i campi nuovi si leggono con giudizio: immagini solo per chiave, icone dal
 
 test('i segnaposto si riempiono e ciò che manca resta da verificare', () => {
   const slides = applyVars(GENERIC, { destinazione: 'Capri', ente: 'Capri Tourism' })
-  assert.equal(slides[0].title, 'La mappa perfetta per Capri Tourism')
-  assert.equal(slides[1].title, 'Tutto Capri in una mappa sola')
+  assert.equal(slides[0].title, 'La guida perfetta per Capri Tourism')
+  assert.equal(slides[1].title, 'Tutto Capri in una guida sola')
   const byId = (id: string) => slides.find((s) => s.id === id)!
   assert.match(byId('prezzo').note, /^In cambio: in cambio garantite almeno 100\.000 accessi/)
   assert.match(byId('demo').body, /\[DA VERIFICARE\]/)

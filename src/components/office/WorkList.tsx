@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { apiFetch } from '@/lib/api'
+import { DirectorReply } from './DirectorReply'
 import { OFFICE_WORK_LABELS, type OfficeWorkItem } from '@/lib/office-work'
 import { OFFICE_ACTION_NAMES as ACTION_NAMES, officeResultLink } from '@/lib/office-activity'
 import styles from '@/app/(app)/ufficio/ufficio.module.css'
@@ -12,7 +13,7 @@ type WorkDetail = { work: OfficeWorkItem; attempts: Array<{ id: string; run_id: 
   dependencies: Array<{ depends_on_work_id: string }>; outputs: Array<{ id: string; title: string; status: string; target_table?: string; target_id?: string }>
   events: Array<{ id: string; created_at: string; message?: string; status?: string }> }
 const TERMINAL = new Set(['succeeded', 'cancelled'])
-const AGENT_NAMES: Record<string, string> = { director: 'Direttore', entity_enricher: 'Arricchimento enti', presentations: 'Presentazioni',
+const AGENT_NAMES: Record<string, string> = { director: 'Direttore', demo_builder: 'Demo e temi', entity_enricher: 'Arricchimento enti', presentations: 'Presentazioni',
   mymaps_builder: 'Costruttore My Maps', maps_quality: 'Controllo qualità mappe', languages_voice: 'Lingue e voce',
   events_scout: 'Ricercatore eventi', news_watch: 'Osservatorio novità', sales_followup: 'Commerciale', finance: 'Finanza', social: 'Social', db_cleaner: 'Pulizia database' }
 const date = (value: string | null | undefined) => value ? new Date(value).toLocaleString('it-IT', {
@@ -102,7 +103,7 @@ export function WorkList({ orderId, agentId, agentNames = {}, refreshSignal, com
       const target = [payload.city, payload.target, payload.name].find((value) => typeof value === 'string' && value)
       const uncertain = /reconcil|uncertain|incerto/.test(work.reason_code || '') || work.phase === 'effect_started'
       const terminal = TERMINAL.has(work.status)
-      const resultLink = work.status === 'succeeded' ? officeResultLink(work.result || {}) : null
+      const resultLink = officeResultLink(work.result || {})
       return <article key={work.id} className={styles.card} data-work-id={work.id}>
         <div className={styles.workHeading}>
           <h3>{ACTION_NAMES[work.action] || 'Lavoro assegnato'}{target ? ` · ${target}` : ''}</h3>
@@ -134,6 +135,7 @@ export function WorkList({ orderId, agentId, agentNames = {}, refreshSignal, com
           {['blocked', 'failed', 'waiting'].includes(work.status) && !uncertain && <button type="button" className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => edit(work)}>Completa i dati</button>}
           <button type="button" className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => { void act(work, 'cancel') }}>Annulla lavoro</button>
         </div>}
+        {!terminal && <DirectorReply reference={`lavoro ${work.id}`} title={`${ACTION_NAMES[work.action] || 'Lavoro assegnato'}${target ? ` · ${target}` : ''}${work.reason ? ` — ${work.reason}` : ''}`} onChanged={onChanged} />}
         <details onToggle={(event) => { if (event.currentTarget.open) void detail(work.id) }}>
           <summary>Risultati e cronologia</summary>
           {details[work.id] && <div className={styles.workHistory}>

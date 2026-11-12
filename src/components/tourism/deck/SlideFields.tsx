@@ -10,7 +10,7 @@ export const KIND_LABELS: Record<DeckSlideKind, string> = {
   cards: 'Schede',
   steps: 'Passi',
   languages: 'Lingue',
-  showcase: 'Catalogo (numeri per mappa)',
+  showcase: 'Catalogo (numeri per guida)',
   figures: 'Numeri grandi',
   compare: 'Confronto a due colonne',
   demo: 'Prova (QR)',

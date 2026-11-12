@@ -19,7 +19,7 @@ const host = (url: string) => new URL(url).hostname.replace(/^www\./, '')
 async function findWebsite(ctx: AgentContext, entity: ActivationEntity, city: string | null,
   deps: { model: typeof callModel; fetchPage?: ResearchFetch }): Promise<{ site: string; pages: EnrichPage[] } | null> {
   const where = [city, entity.country_code].filter(Boolean).join(', ')
-  const answer = await deps.model(ctx, { model: ctx.agent.model, maxOutputTokens: 300, webSearch: { maxResults: 5 },
+  const answer = await deps.model(ctx, { model: ctx.agent.model, maxOutputTokens: 1200, webSearch: { maxResults: 5 },
     input: `Qual è il sito web ufficiale dell'ente «${entity.name}» (${where})? È un ente del turismo o un'amministrazione. `
       + 'Rispondi solo con l’indirizzo della home page del sito ufficiale, oppure NESSUNO se non lo trovi. Niente social, Wikipedia o portali di prenotazione.' })
   for (const site of siteCandidates(answer.text, (answer as { citations?: string[] }).citations || [])) {

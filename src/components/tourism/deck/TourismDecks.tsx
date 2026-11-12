@@ -35,6 +35,16 @@ export default function TourismDecks() {
   }, [])
   useEffect(load, [load])
 
+  const remove = async (row: Row) => {
+    if (!confirm(`Eliminare la presentazione “${row.title}” e i suoi file? Non si può annullare.`)) return
+    try {
+      await apiFetch(`/api/tourism/decks/${row.id}`, { method: 'DELETE' })
+      setRows((cur) => (cur ? cur.filter((r) => r.id !== row.id) : cur))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Eliminazione non riuscita')
+    }
+  }
+
   return (
     <section aria-label="Presentazioni per destinazione">
       <div className={e.head}>
@@ -62,7 +72,10 @@ export default function TourismDecks() {
                 <td><span className={e.status} data-s={r.status}>{DECK_STATUS_LABELS[r.status]}</span></td>
                 <td>{r.todo ? `${r.todo} [DA VERIFICARE]` : '—'}</td>
                 <td>{new Date(r.updated_at).toLocaleDateString('it-IT')}</td>
-                <td><Link href={`/tourism/presentazioni/${r.id}`}>Apri →</Link></td>
+                <td>
+                  <Link href={`/tourism/presentazioni/${r.id}`}>Apri →</Link>{' · '}
+                  <button type="button" className={s.textButton} onClick={() => remove(r)}>Elimina</button>
+                </td>
               </tr>
             ))}
           </tbody>

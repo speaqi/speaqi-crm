@@ -11,10 +11,11 @@ import { PendingInbox } from '@/components/office/PendingInbox'
 import { DirectorOrders } from './agenti/DirectorOrders'
 import { WorkList } from '@/components/office/WorkList'
 import { AgentActivity } from '@/components/office/AgentActivity'
+import { RecurringOrders } from '@/components/office/RecurringOrders'
 import { officeAgentActivity } from '@/lib/office-activity'
 import styles from './ufficio.module.css'
 
-export type PanelTab = 'waiting' | 'team' | 'plan' | 'work'
+export type PanelTab = 'waiting' | 'team' | 'plan' | 'work' | 'agenda'
 type Agent = OfficeOverview['agents'][number]
 
 const euro = (cents: number) => formatEuroPlain(cents / 100)
@@ -103,7 +104,7 @@ export function OfficePanel({ data, reload, tab, setTab, department, setDepartme
       onEnable={() => act('director', async () => { await patchAgent('director', { enabled: true }); return 'Direttore acceso.' })} />
 
     <div className={styles.tabs} role="tablist">
-      {([['waiting', `Aspetta te`, data.pending_count], ['work', 'Lavori', null], ['team', department ? OFFICE_DEPARTMENTS[department as keyof typeof OFFICE_DEPARTMENTS] || 'Squadra' : 'Squadra', agents.length], ['plan', 'Piano di oggi', plan ? plan.work.length + plan.unblock.length + plan.activate.length : null]] as const)
+      {([['waiting', `Aspetta te`, data.decision_count ?? data.pending_count], ['work', 'Lavori', null], ['agenda', 'Agenda', null], ['team', department ? OFFICE_DEPARTMENTS[department as keyof typeof OFFICE_DEPARTMENTS] || 'Squadra' : 'Squadra', agents.length], ['plan', 'Piano di oggi', plan ? plan.work.length + plan.unblock.length + plan.activate.length : null]] as const)
         .map(([key, label, count]) => <button key={key} role="tab" aria-selected={tab === key} className={tab === key ? styles.on : ''} onClick={() => setTab(key)}>
           {label}{count !== null ? <span>{count}</span> : null}</button>)}
     </div>
@@ -111,6 +112,8 @@ export function OfficePanel({ data, reload, tab, setTab, department, setDepartme
     <p role="status" className={styles.notice}>{notice}</p>
 
     {tab === 'work' && <WorkList agentNames={Object.fromEntries(data.agents.map((agent) => [agent.id, agent.name]))} refreshSignal={data} onChanged={() => { void reload() }} />}
+
+    {tab === 'agenda' && <RecurringOrders />}
 
     {tab === 'waiting' && <PendingInbox data={data} onChanged={reload} highlight={highlight} />}
 
@@ -135,7 +138,7 @@ export function OfficePanel({ data, reload, tab, setTab, department, setDepartme
           {agent.last_run?.error && <p className={styles.error}>{agent.last_run.error}</p>}
           <div className={styles.actions}>
             <button className="btn btn-primary btn-sm" onClick={() => selectAgent(agent.id)}>Attività e storico</button>
-            <button className="btn btn-ghost btn-sm" disabled={!!busy || !agent.enabled} onClick={() => { void run(agent) }}>{busy === agent.id ? 'Lavoro…' : 'Fai girare adesso'}</button>
+            {agent.id !== 'office_researcher' && <button className="btn btn-ghost btn-sm" disabled={!!busy || !agent.enabled} onClick={() => { void run(agent) }}>{busy === agent.id ? 'Lavoro…' : 'Fai girare adesso'}</button>}
             <span className={styles.muted}>Mese {euro(agent.spend.month_actual)} / {euro(agent.monthly_budget_cents)}</span>
             <Link className={styles.more} href={`/ufficio/agenti#agente-${agent.id}`}>Budget e impostazioni →</Link>
           </div>

@@ -177,7 +177,10 @@ export async function callModel(ctx: AgentContext, options: { model: string; inp
     method: 'POST', signal: AbortSignal.timeout(120_000),
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}`,
       'HTTP-Referer': 'https://crm.speaqi.com', 'X-Title': 'Speaqi CRM - Ufficio' },
+    // I GPT-5 ragionano e i token di ragionamento contano dentro max_tokens: senza un tetto al ragionamento
+    // una risposta JSON da 1200-1500 token finiva a `length` con il testo vuoto (e il costo addebitato).
     body: JSON.stringify({ model: toOpenRouterModel(options.model), max_tokens: options.maxOutputTokens,
+      ...(/^(openai\/)?(gpt-5|o\d)/i.test(options.model.trim()) ? { reasoning: { effort: 'minimal' } } : {}),
       messages: [{ role: 'user', content: images.length ? [{ type: 'text', text: options.input },
         ...images.map((url) => ({ type: 'image_url', image_url: { url, detail: 'high' } }))] : options.input }],
       // Con uno schema, solo un fornitore che lo rispetta davvero.

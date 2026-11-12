@@ -11,8 +11,8 @@ type SlideText = Partial<Pick<DeckSlide, 'kicker' | 'title' | 'body' | 'note' | 
 export const EN_SLIDE_TEXT: Record<string, SlideText> = {
   cover: {
     kicker: 'Speaqi Guides for {{destinazione}}',
-    title: 'Your territory.\nOne map.\nSo much more to experience.',
-    body: 'A multilingual digital map of your territory, free for selected destinations.'
+    title: 'Your territory.\nOne guide.\nSo much more to experience.',
+    body: 'A multilingual digital guide of your territory, free for selected destinations.'
   },
   partenza: {
     kicker: 'Where we start',
@@ -20,12 +20,12 @@ export const EN_SLIDE_TEXT: Record<string, SlideText> = {
     items: [
       { title: 'Many languages', text: 'visitors from all over the world, each with their own' },
       { title: 'Many channels', text: 'website, info points, accommodation, operators' },
-      { title: 'No shared map', text: 'everyone describes the territory their own way' }
+      { title: 'No shared guide', text: 'everyone describes the territory their own way' }
     ]
   },
   proposta: {
     kicker: 'The proposal',
-    title: 'A map of your territory, on every visitor’s phone.',
+    title: 'A guide of your territory, on every visitor’s phone.',
     items: [
       { title: 'Places, routes, points of interest', text: 'in a single digital experience' },
       { title: 'Opens from a link or QR code', text: 'no app to download' },
@@ -36,7 +36,7 @@ export const EN_SLIDE_TEXT: Record<string, SlideText> = {
     kicker: 'What you get',
     title: 'What {{destinazione}} gets.',
     items: [
-      { title: 'A map of the territory', text: 'places, routes and points of interest' },
+      { title: 'A guide of the territory', text: 'places, routes and points of interest' },
       { title: 'Multilingual welcome', text: 'without a separate guide for each language' },
       { title: 'Updates managed together', text: 'in the agreed way' },
       { title: 'A reference for the network', text: 'info points, accommodation and operators' },
@@ -46,13 +46,13 @@ export const EN_SLIDE_TEXT: Record<string, SlideText> = {
   },
   lingue: {
     kicker: 'Multilingual',
-    title: 'One map, in every visitor’s language.',
+    title: 'One guide, in every visitor’s language.',
     note: 'Multilingual welcome',
     body: 'For visitors from abroad, without a separate guide for each language.'
   },
   catalogo: {
     kicker: 'Examples from the Speaqi catalogue',
-    title: 'The maps are already online.',
+    title: 'The guides are already online.',
     items: [
       { title: 'Naples', text: '' },
       { title: 'Rome', text: '' },
@@ -66,7 +66,7 @@ export const EN_SLIDE_TEXT: Record<string, SlideText> = {
   },
   provala: {
     kicker: 'Try it now',
-    title: 'Open the map\nof Naples.',
+    title: 'Open the guide\nof Naples.',
     body: 'Scan the QR code with your phone'
   },
   'in-azione': {
@@ -75,12 +75,12 @@ export const EN_SLIDE_TEXT: Record<string, SlideText> = {
   },
   collaborazione: {
     kicker: 'The collaboration model',
-    title: 'You distribute. We build the map.',
+    title: 'You distribute. We build the guide.',
     items: [
       { title: 'The destination', text: 'Distributes Speaqi guides through the agreed channels\nInvolves the local network\nNames a contact person and provides information about the territory' },
-      { title: 'Speaqi', text: 'Builds the multilingual map\nKeeps it updated within the agreed scope\nSupports the project as it evolves' }
+      { title: 'Speaqi', text: 'Builds the multilingual guide\nKeeps it updated within the agreed scope\nSupports the project as it evolves' }
     ],
-    note: 'For selected destinations, the map is free.',
+    note: 'For selected destinations, the guide is free.',
     footnote: 'Duration, scope and continuity of the free offer are defined in the agreement.'
   },
   servizi: {
@@ -97,14 +97,14 @@ export const EN_SLIDE_TEXT: Record<string, SlideText> = {
     kicker: 'What the destination gains',
     title: 'For the destination, only benefits.',
     items: [
-      { title: 'Zero cost', text: 'the map is free and we sell you nothing' },
+      { title: 'Zero cost', text: 'the guide is free and we sell you nothing' },
       { title: 'Visitors welcomed better', text: 'in their language, on their phone, no app' },
-      { title: 'A professional map', text: 'built and updated by Speaqi' },
+      { title: 'A professional guide', text: 'built and updated by Speaqi' },
       { title: 'More visibility for businesses', text: 'restaurants, accommodation and operators in the guide' },
-      { title: 'A reference for the network', text: 'info points, accommodation and operators on the same map' },
+      { title: 'A reference for the network', text: 'info points, accommodation and operators on the same guide' },
       { title: 'No risk', text: 'no cost, no obligation to buy' }
     ],
-    note: 'You distribute the map. We take care of the rest.'
+    note: 'You distribute the guide. We take care of the rest.'
   },
   'chi-scegliamo': {
     kicker: 'Requirements and first steps',
@@ -115,7 +115,7 @@ export const EN_SLIDE_TEXT: Record<string, SlideText> = {
       { value: '1', title: 'dedicated contact person', text: '' },
       { title: 'First meeting', text: 'We review channels and the distribution plan together.' },
       { title: 'Agreement', text: 'Distribution, content, updates and duration.' },
-      { title: 'Map online', text: 'You activate the channels, we build and update the map.' }
+      { title: 'Guide online', text: 'You activate the channels, we build and update the guide.' }
     ],
     note: 'Also: a body that represents the territory and an ongoing distribution plan.',
     body: 'How we start · no cost for the destination'
@@ -124,16 +124,16 @@ export const EN_SLIDE_TEXT: Record<string, SlideText> = {
     kicker: 'Frequently asked questions',
     title: 'The most common doubts, answered.',
     items: [
-      { title: 'Is there anything to pay?', text: 'No. The map is free and we sell nothing to the destination, now or later.' },
-      { title: 'Do we have to sell the guides?', text: 'No. Your role is to make the map known through the agreed channels.' },
+      { title: 'Is there anything to pay?', text: 'No. The guide is free and we sell nothing to the destination, now or later.' },
+      { title: 'Do we have to sell the guides?', text: 'No. Your role is to make the guide known through the agreed channels.' },
       { title: 'How much work does it take?', text: 'A contact person who provides local information. We handle building and updates.' },
       { title: 'Do we need an app or a technician?', text: 'No. It opens in the browser with a link or QR code: nothing to install.' },
-      { title: 'Who decides what goes in the map?', text: 'The destination approves the content before publication.' },
+      { title: 'Who decides what goes in the guide?', text: 'The destination approves the content before publication.' },
       { title: 'How long does the collaboration last?', text: 'We define duration and scope together in the agreement, before starting.' }
     ]
   },
   chiusura: {
-    title: 'You have the territory. You have the channels.\nLet’s make the map of {{destinazione}}.',
+    title: 'You have the territory. You have the channels.\nLet’s make the guide of {{destinazione}}.',
     body: 'Massimo Morgante',
     note: 'Founder & CEO, Speaqi',
     items: [

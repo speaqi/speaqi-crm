@@ -29,6 +29,7 @@ beforeEach(() => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://office-test.invalid'
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-finta'
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-finta'
+  process.env.OFFICE_WORKER_ENABLED = 'false'
   process.env.AUTOMATION_SECRET = 'segreto-finto'
   process.env.AUTOMATION_WORKSPACE_USER_ID = OWNER
   mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
@@ -42,7 +43,9 @@ beforeEach(() => {
     if (url.includes('/auth/v1/user')) return Response.json({ id: member ? MEMBER : OWNER, email: 'test@example.it', app_metadata: {}, user_metadata: {} })
     if (url.includes('/team_members')) return Response.json([{ id: 'membro', user_id: OWNER, name: 'Persona', allowed_areas: ['oggi'] }])
     if (url.includes('/office_agents') && method === 'GET') {
-      const id = new URL(url).searchParams.get('id')?.replace(/^eq\./, '')
+      // Il controllo del registro chiede tutti gli agenti in una volta (id=in.(…)).
+      const raw = new URL(url).searchParams.get('id') || ''
+      const id = raw.startsWith('eq.') ? raw.slice(3) : null
       return Response.json(Object.values(OFFICE_AGENT_DEFINITIONS).filter((d) => !id || d.id === id).map((d) => ({ ...d, user_id: OWNER })))
     }
     if (url.includes('/rpc/claim_office_agent_run')) return Response.json({ claimed: false, reason: 'disabled', run: { status: 'skipped_disabled' } })
@@ -64,7 +67,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   mock.restoreAll(); invalidateRouteUserCaches()
-  for (const key of ['NEXT_PUBLIC_SUPABASE_URL','NEXT_PUBLIC_SUPABASE_ANON_KEY','SUPABASE_SERVICE_ROLE_KEY','AUTOMATION_SECRET','AUTOMATION_WORKSPACE_USER_ID','TELEGRAM_BOT_TOKEN','TELEGRAM_NOTIFY_CHAT_ID']) {
+  for (const key of ['NEXT_PUBLIC_SUPABASE_URL','NEXT_PUBLIC_SUPABASE_ANON_KEY','SUPABASE_SERVICE_ROLE_KEY','AUTOMATION_SECRET','AUTOMATION_WORKSPACE_USER_ID','OFFICE_WORKER_ENABLED','TELEGRAM_BOT_TOKEN','TELEGRAM_NOTIFY_CHAT_ID']) {
     if (originalEnv[key] === undefined) delete process.env[key]; else process.env[key] = originalEnv[key]
   }
 })
@@ -129,7 +132,7 @@ test('il titolare installa gli agenti spenti e legge totali zero', async () => {
   const response = await GET(request('/api/office', undefined, 'GET'))
   assert.equal(response.status, 200)
   const data = await response.json()
-  assert.deepEqual(data.agents.map((agent: { id: string }) => agent.id).sort(), ['db_cleaner', 'director', 'entity_enricher', 'events_scout', 'finance', 'languages_voice', 'maps_quality', 'mymaps_builder', 'news_watch', 'presentations', 'sales_followup', 'social']); assert.ok(data.agents.every((agent: { enabled: boolean }) => !agent.enabled)); assert.equal(data.pending_count, 0); assert.equal(data.totals.month_actual, 0)
+  assert.deepEqual(data.agents.map((agent: { id: string }) => agent.id).sort(), ['db_cleaner', 'demo_builder', 'director', 'entity_enricher', 'events_scout', 'finance', 'languages_voice', 'maps_quality', 'model_watch', 'mymaps_builder', 'news_watch', 'office_researcher', 'presentations', 'sales_followup', 'social']); assert.ok(data.agents.every((agent: { enabled: boolean }) => !agent.enabled)); assert.equal(data.pending_count, 0); assert.equal(data.totals.month_actual, 0)
 })
 
 test('la pagina oltre la coda restituisce il conteggio aggiornato e consente di tornare indietro', async () => {

@@ -143,6 +143,11 @@ export async function GET(request: NextRequest) {
       if (error) throw error
       return tourismResponse(data)
     }
+    if (params.get('view') === 'destinations') {
+      const { data, error } = await sb.rpc('tourism_destination_options')
+      if (error) throw error
+      return tourismResponse({ destinations: data || [] })
+    }
     if (params.get('view') === 'coverage') {
       const { data, error } = await sb.rpc('tourism_catalog_coverage')
       if (error) throw error
@@ -237,7 +242,8 @@ export async function GET(request: NextRequest) {
       0,
       Math.min(100000, Math.floor(Number(params.get('page')) || 0))
     )
-    const size = 50
+    const requestedSize = Math.floor(Number(params.get('size')) || 50)
+    const size = [50, 100, 200].includes(requestedSize) ? requestedSize : 50
     const crmFilter = params.get('crm') || ''
     if (crmFilter && crmFilter !== 'matched')
       throw new TourismInputError('Filtro CRM non valido')
@@ -245,6 +251,92 @@ export async function GET(request: NextRequest) {
     const fairFilter = params.get('fair') || ''
     if (fairFilter && !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(fairFilter))
       throw new TourismInputError('Fiera non valida')
+    // Più categorie insieme: «dmc,tour_operator,property_manager».
+    const typeList = (params.get('type') || '')
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean)
+    for (const t of typeList)
+      if (!Object.hasOwn(TOURISM_TYPES, t))
+        throw new TourismInputError('Categoria non valida')
+    const destination = params.get('destination') || ''
+    if (destination) {
+      requireId(destination)
+      if (
+        (params.get('kind') || 'organization') !== 'organization' ||
+        crmFilter ||
+        fairFilter ||
+        params.get('target') ||
+        params.get('outreach')
+      )
+        throw new TourismInputError(
+          'La destinazione non si combina con i filtri CRM, fiera, sito e lista contatti'
+        )
+      const status = params.get('status') || ''
+      if (status && !(ENTITY_STATUSES as readonly string[]).includes(status))
+        throw new TourismInputError('Stato non valido')
+      const availability = params.get('availability') || 'active'
+      if (!['active', 'disabled', 'all'].includes(availability))
+        throw new TourismInputError('Disponibilità non valida')
+      const country = params.get('country') || ''
+      if (country && !/^[A-Z]{2}$/.test(country))
+        throw new TourismInputError('Paese non valido')
+      const sortParam = params.get('sort') || 'name'
+      const { data: found, error: foundError } = await sb.rpc(
+        'tourism_destination_entities',
+        {
+          p_place: destination,
+          p_children: params.get('subareas') !== '0',
+          p_types: typeList.length ? typeList : null,
+          p_status: status || null,
+          p_availability: availability,
+          p_country: country || null,
+          p_q: (params.get('q') || '').slice(0, 200) || null,
+          p_sort: ['recent', 'outreach'].includes(sortParam)
+            ? sortParam
+            : 'name',
+          p_offset: page * size,
+          p_limit: size
+        }
+      )
+      if (foundError) throw foundError
+      const hits = (found?.items || []) as {
+        id: string
+        places: string[]
+        relations: string[]
+      }[]
+      if (!hits.length)
+        return tourismResponse({
+          entities: [],
+          total: found?.total || 0,
+          page,
+          size
+        })
+      const { data: rows, error: rowsError } = await sb
+        .from('tourism_entities')
+        .select(
+          '*, evidence:tourism_evidence(*), crm:tourism_crm_links(contact_id), matches:tourism_crm_matches(contact_id,score,state)'
+        )
+        .eq('user_id', owner)
+        .in(
+          'id',
+          hits.map((h) => h.id)
+        )
+      if (rowsError) throw rowsError
+      const byId = new Map((rows || []).map((r) => [r.id, r]))
+      return tourismResponse({
+        entities: hits
+          .filter((h) => byId.has(h.id))
+          .map((h) => ({
+            ...byId.get(h.id),
+            destination_places: h.places,
+            destination_relations: h.relations
+          })),
+        total: found?.total || 0,
+        page,
+        size
+      })
+    }
     let query = sb
       .from('tourism_entities')
       .select(
@@ -291,12 +383,11 @@ export async function GET(request: NextRequest) {
         throw new TourismInputError('Paese non valido')
       query = query.eq('country_code', country)
     }
-    const type = params.get('type')
-    if (type) {
-      if (!Object.hasOwn(TOURISM_TYPES, type))
-        throw new TourismInputError('Categoria non valida')
-      query = query.eq('type_code', type)
-    }
+    if (typeList.length)
+      query =
+        typeList.length === 1
+          ? query.eq('type_code', typeList[0])
+          : query.in('type_code', typeList)
     const status = params.get('status')
     if (status) {
       if (!(ENTITY_STATUSES as readonly string[]).includes(status))
@@ -494,6 +585,42 @@ export async function POST(request: NextRequest) {
       })
       if (error) throw new TourismInputError(error.message)
       return tourismResponse({ ...data, crm_error_text: crmErrorText(data?.crm_error) })
+    }
+    if (body.action === 'promote_many') {
+      const ids: unknown[] = Array.isArray(body.entity_ids) ? body.entity_ids : []
+      if (!ids.length || ids.length > 200)
+        throw new TourismInputError('Da 1 a 200 enti per volta')
+      const entityIds = [...new Set(ids.map(requireId))]
+      // Uno alla volta: ogni rifiuto del CRM (nome ambiguo, email già usata, non verificato)
+      // resta suo e non ferma gli altri. Nessuna iscrizione a campagne.
+      const results: {
+        id: string
+        ok: boolean
+        contact_id?: string
+        created?: boolean
+        error?: string
+      }[] = []
+      for (const id of entityIds) {
+        const { data, error } = await sb.rpc('tourism_promote', {
+          p_entity_id: id
+        })
+        results.push(
+          error
+            ? { id, ok: false, error: crmErrorText(error.message) ?? error.message }
+            : {
+                id,
+                ok: true,
+                contact_id: data?.contact_id,
+                created: Boolean(data?.created)
+              }
+        )
+      }
+      return tourismResponse({
+        results,
+        added: results.filter((r) => r.ok && r.created).length,
+        already: results.filter((r) => r.ok && !r.created).length,
+        refused: results.filter((r) => !r.ok).length
+      })
     }
     if (body.action === 'promote') {
       const { data, error } = await sb.rpc('tourism_promote', {

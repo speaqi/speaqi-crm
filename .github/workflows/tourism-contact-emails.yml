@@ -1,0 +1,67 @@
+name: Tourism contact emails
+
+# Cerca le email d'ufficio degli enti italiani senza email, leggendo i loro siti pubblici.
+# SOLA LETTURA sul database: scrive un CSV (artifact) che qualcuno guarda prima che le email entrino nel CRM.
+# Si lancia a mano: Actions → Tourism contact emails → Run workflow.
+#
+# Secret del repository: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, AUTOMATION_WORKSPACE_USER_ID.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tiers:
+        description: 'Livelli di tourism_distribution (A,B,C,D)'
+        default: 'A,B,C'
+      types:
+        description: 'Tipi di ente separati da virgola (vuoto = tutti)'
+        default: ''
+      limit:
+        description: 'Massimo enti (0 = tutti)'
+        default: '0'
+      concurrency:
+        description: 'Siti letti insieme (una richiesta alla volta per sito)'
+        default: '8'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tourism-contact-emails
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 170
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Leggi i siti
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          AUTOMATION_WORKSPACE_USER_ID: ${{ secrets.AUTOMATION_WORKSPACE_USER_ID }}
+          TIERS: ${{ inputs.tiers }}
+          TYPES: ${{ inputs.types }}
+          LIMIT: ${{ inputs.limit }}
+          CONCURRENCY: ${{ inputs.concurrency }}
+        run: |
+          npx tsx scripts/tourism/contact-emails.ts \
+            --tiers="$TIERS" --types="$TYPES" --limit="$LIMIT" --concurrency="$CONCURRENCY" \
+            --max-minutes=160 --out=out/contact-emails
+      - name: Riepilogo
+        if: always()
+        run: |
+          if [ -f out/contact-emails/summary.json ]; then
+            { echo '### Email degli enti'; echo '```json'; cat out/contact-emails/summary.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: contact-emails
+          path: out/contact-emails
+          retention-days: 14
