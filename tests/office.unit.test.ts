@@ -210,7 +210,7 @@ describe('accesso e prima pagina', () => {
     assert.equal(canAccessPath('/ufficio/prova', ['oggi'], true), true)
   })
   test('agenti installati; il Ricercatore lavora su richiesta con un budget separato', () => {
-    assert.deepEqual(Object.keys(OFFICE_AGENT_HANDLERS).sort(), ['db_cleaner', 'director', 'entity_enricher', 'events_scout', 'finance', 'languages_voice', 'maps_quality', 'mymaps_builder', 'news_watch', 'presentations', 'sales_followup', 'social'])
+    assert.deepEqual(Object.keys(OFFICE_AGENT_HANDLERS).sort(), ['db_cleaner', 'director', 'entity_enricher', 'events_scout', 'finance', 'languages_voice', 'maps_quality', 'model_watch', 'mymaps_builder', 'news_watch', 'presentations', 'sales_followup', 'social'])
     assert.ok(Object.values(OFFICE_AGENT_DEFINITIONS).filter((agent) => agent.id !== 'office_researcher').every((agent) => agent.enabled === false))
     assert.equal(OFFICE_AGENT_DEFINITIONS.office_researcher.enabled, false)
     assert.equal(OFFICE_AGENT_DEFINITIONS.office_researcher.schedule_job, null)
