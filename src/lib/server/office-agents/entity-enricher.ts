@@ -2,8 +2,9 @@ import { load } from 'cheerio'
 import { safePublicUrl } from '@/lib/tourism'
 import { officeRomeDay } from '@/lib/office/finance'
 import {
-  ENRICHMENT_SCHEMA, ENRICH_ORG_TYPES, MAX_ENTITIES_PER_RUN, RECHECK_DAYS, REJECTED_COOLDOWN_DAYS, contactLinks, enrichTargets, enrichmentPrompt,
-  matchOrganization, validateEnrichment, type EnrichOrg, type EnrichPage, type ModelEnrichment,
+  COMPANY_SCHEMA, COMPANY_TYPES, ENRICHMENT_SCHEMA, ENRICH_ORG_TYPES, MAX_COMPANIES_PER_RUN, MAX_ENTITIES_PER_RUN, RECHECK_DAYS, REJECTED_COOLDOWN_DAYS,
+  companyCandidates, companyPrompt, contactLinks, enrichTargets, enrichmentPrompt, matchOrganization, validateCompanyEnrichment, validateEnrichment,
+  type EnrichCompany, type EnrichOrg, type EnrichPage, type ModelCompanyEnrichment, type ModelEnrichment,
 } from '@/lib/office/entity-enricher'
 import { BudgetExceeded, callModel, type AgentHandler } from '../office-agents'
 import { createServiceRoleClient } from '../supabase'
@@ -65,7 +66,6 @@ export function entityEnricherHandler(admin: any, options: { now?: () => Date; f
     const placeById = new Map(places.map((p) => [p.id, p]))
     const destinations = destinationRows.flatMap((d) => { const p = placeById.get(d.entity_id); return p && !p.disabled ? [{ ...d, name: p.name, country_code: p.country_code, aliases: p.aliases }] : [] })
     const targets = enrichTargets({ hubs, destinations, places: places.filter((p) => !p.disabled) })
-    if (!targets.length) return { summary: 'Nessuna destinazione con superguida prioritaria: niente da arricchire.' }
 
     const orgs = await officeRows<EnrichOrg>(admin, userId, 'tourism_entities', 'id,name,country_code,type_code,aliases,website,email,phone,status,disabled',
       (q) => q.eq('kind', 'organization').in('type_code', [...ENRICH_ORG_TYPES]))
@@ -97,6 +97,7 @@ export function entityEnricherHandler(admin: any, options: { now?: () => Date; f
     const checkedToday: Record<string, string> = {}
     let proposals = 0; let stoppedForBudget = false
     for (const { target, org } of picked) {
+      if (stoppedForBudget) break
       try {
         const pages = await readEntitySite(org.website!, options.fetchPage)
         if (pages.reduce((n, p) => n + p.text.length, 0) < 120) { checkedToday[org.id] = day; lines.push(`${target.city} — ${org.name}: il sito non ha testo leggibile, da completare a mano.`); continue }
@@ -127,11 +128,51 @@ export function entityEnricherHandler(admin: any, options: { now?: () => Date; f
       }
     }
 
+    // Aziende che distribuiscono: agenzie, DMC, tour operator, property manager, catene.
+    const companyLimit = ctx.agent.settings?.companies === false ? 0 : Math.max(0, Math.min(50, Number(ctx.agent.settings?.companies_per_run ?? MAX_COMPANIES_PER_RUN) || 0))
+    const companyLines: string[] = []; let companyProposals = 0; let companiesRead = 0
+    if (companyLimit && !stoppedForBudget) {
+      const companies = await officeRows<EnrichCompany>(admin, userId, 'tourism_entities',
+        'id,name,country_code,type_code,aliases,website,email,phone,status,disabled,details,version',
+        (q) => q.eq('kind', 'organization').in('type_code', [...COMPANY_TYPES]))
+      const candidates = companyCandidates({ orgs: companies, linked, blocked, lastChecked, now, limit: companyLimit })
+      for (const org of candidates) {
+        companiesRead++
+        try {
+          const pages = await readEntitySite(org.website!, options.fetchPage)
+          if (pages.reduce((n, p) => n + p.text.length, 0) < 120) { checkedToday[org.id] = day; companyLines.push(`${org.name}: il sito non ha testo leggibile.`); continue }
+          const response = await (options.model || callModel)(ctx, { model: ctx.agent.model, maxOutputTokens: 1200,
+            input: companyPrompt(org, pages), jsonSchema: { name: 'company_enrichment', schema: COMPANY_SCHEMA as unknown as Record<string, unknown> } })
+          let parsed: ModelCompanyEnrichment
+          try { parsed = JSON.parse(response.text) } catch { companyLines.push(`${org.name}: risposta del modello non leggibile, nulla salvato.`); continue }
+          checkedToday[org.id] = day
+          const result = validateCompanyEnrichment({ org, pages, model: parsed })
+          if (!result.ready) {
+            companyLines.push(`${org.name}: non pronta, manca ${result.missing.join(', ')}.${result.rejected.length ? ` Scartato: ${result.rejected.join('; ')}.` : ''}`)
+            continue
+          }
+          const p = result.proposal
+          const added = [p.fill.email && `email ${p.fill.email}`, p.fill.phone && `telefono ${p.fill.phone}`].filter(Boolean).join(', ')
+          await addOfficeOutputOnce(admin, ctx, `enricher:company:${org.id}:${day}`, { kind: 'proposal', target_table: 'tourism_entities', target_id: org.id,
+            title: `${org.name}: recapiti d’ufficio dal sito (${added})`,
+            body: { ...p, scartato: result.rejected,
+              effetto: 'Approvando: i recapiti entrano nei campi vuoti con le frasi del sito come prova a tuo nome, l’azienda diventa verificata ed entra nel CRM (scope crm, nessuna campagna). Nessuna email parte.' } })
+          companyProposals++
+          companyLines.push(`${org.name}: proposta pronta (${added}).`)
+        } catch (error) {
+          if (error instanceof BudgetExceeded) { stoppedForBudget = true; companyLines.push('Budget di oggi finito: le altre aziende al prossimo giro.'); break }
+          checkedToday[org.id] = day
+          companyLines.push(`${org.name}: non letta (${error instanceof Error ? error.message : String(error)}).`)
+        }
+      }
+    }
+
+    if (!targets.length && !companiesRead) return { summary: 'Nessuna destinazione prioritaria e nessuna azienda da leggere: niente da arricchire.' }
     await addOfficeOutputOnce(admin, ctx, `enricher:day:${day}`, { kind: 'report', title: `Arricchimento enti — ${day}`,
-      body: { righe: lines, proposte: proposals, checked: checkedToday, gia_nel_crm: alreadyIn.slice(0, 30),
+      body: { righe: lines, proposte: proposals, aziende: companyLines, proposte_aziende: companyProposals, checked: checkedToday, gia_nel_crm: alreadyIn.slice(0, 30),
         ente_non_trovato: notFound.slice(0, 40), ente_non_trovato_totale: notFound.length, budget_finito: stoppedForBudget,
         nota: 'Napoli esclusa. Gli enti si cercano solo nel catalogo Tourism Intelligence: una città senza ente va aggiunta a mano. Nessuna email personale, nessun campo pieno sovrascritto, nessuna scrittura prima dell’approvazione.' } })
-    return { summary: `${picked.length} enti letti, ${proposals} proposte pronte${notFound.length ? `, ${notFound.length} città senza ente nel catalogo` : ''}.` }
+    return { summary: `${picked.length} enti letti, ${proposals} proposte pronte${notFound.length ? `, ${notFound.length} città senza ente nel catalogo` : ''}; ${companiesRead} aziende lette, ${companyProposals} proposte.` }
   }
 }
 

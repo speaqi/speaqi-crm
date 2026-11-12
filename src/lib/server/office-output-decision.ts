@@ -1,4 +1,5 @@
 import { approveDirectorContact, startAfterApproval } from './office-director-orders'
+import { approveEnrichedCompany } from './office-company-enrichment'
 import { loadDeck, setApproval } from './tourism-decks'
 import { getOrCreateDeckPdf } from './tourism-deck-pdf'
 import { sendDeckToTelegram } from './office-deck-telegram'
@@ -26,6 +27,10 @@ export async function decideOfficeOutput(admin: Admin, userId: string, id: strin
     const contact = await approveDirectorContact(admin, userId, id)
     if (contact && 'error' in contact) return { ok: false, error: String(contact.error), status: Number(contact.status) || 409 }
     if (contact) return { ok: true, output: contact.output, notice: contact.notice, contact_id: contact.contact_id }
+    // Azienda arricchita dal sito: recapiti, verifica e CRM nella stessa RPC dell'attivazione.
+    const company = await approveEnrichedCompany(admin, userId, id)
+    if (company && 'error' in company) return { ok: false, error: String(company.error), status: Number(company.status) || 409 }
+    if (company) return { ok: true, output: company.output, notice: company.notice, contact_id: company.contact_id }
   }
   // Decisione e coda interna nella stessa transazione; nessuna azione esterna.
   const { data, error } = await admin.rpc(officeWorkEnabled() ? 'office_work_decide_output' : 'decide_office_output', { p_output_id: id, p_user_id: userId, p_status: status })
