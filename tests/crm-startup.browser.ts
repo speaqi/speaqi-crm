@@ -182,10 +182,6 @@ async function main() {
             false,
             'Contatti visibili mentre il riepilogo è ancora sospeso'
           )
-          await page
-            .locator('.sidebar a[href="/todo"]')
-            .filter({ hasText: '1' })
-            .waitFor()
           assert.equal(await page.locator('.loading-screen').count(), 0)
         }
         summaryReleased = true
@@ -200,11 +196,6 @@ async function main() {
             .filter({ hasText: /^4321$/ })
             .waitFor()
           assert.equal(legacyCalls, 0)
-          // Uno storico fallito non deve cancellare le attività pending riuscite.
-          await page
-            .locator('.sidebar a[href="/todo"]')
-            .filter({ hasText: '1' })
-            .waitFor()
         }
         assert.deepEqual(unexpectedWrites, [])
         assert.deepEqual(errors, [])

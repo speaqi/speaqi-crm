@@ -1,712 +1,130 @@
 'use client'
 
-import Link from 'next/link'
-import { DragEvent, MouseEvent, KeyboardEvent, useMemo, useState } from 'react'
-import { ContactDrawer } from '@/components/crm/ContactDrawer'
-import { ContactModal } from '@/components/crm/ContactModal'
-import { DashboardHero } from '@/components/crm/DashboardHero'
-import { CommandCenter } from '@/components/crm/CommandCenter'
-import { canAccessPath } from '@/lib/areas'
-import { DashboardPriorityQueue, type QueueItem } from '@/components/crm/DashboardPriorityQueue'
-import { QuickDismissMenu } from '@/components/crm/QuickDismissMenu'
-import { DashboardRecoveryPanel, type RecoveryItem } from '@/components/crm/DashboardRecoveryPanel'
-import { DashboardRiskPanel } from '@/components/crm/DashboardRiskPanel'
-import { DashboardEmailInbox } from '@/components/crm/DashboardEmailInbox'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useCRMContext } from '@/components/layout/CRMContext'
-import { isClosedStatus, isInactiveStatus, statusLabel } from '@/lib/data'
-import { contactRelevanceScore } from '@/lib/contact-priority'
-import { buildScheduledCalls, dueAtLocalDateKey, localDayDateKey, type ScheduledCall } from '@/lib/schedule'
-import { startOfDay, dayKey } from '@/lib/schedule'
-import type { ContactInput, CRMContact } from '@/types'
+import { ContactDrawer } from '@/components/crm/ContactDrawer'
+import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
+import TourismWork from '@/components/tourism/TourismWork'
+import TodoPage from '../todo/page'
+import CalendarioPage from '../calendario/page'
+import PreviousDashboard from '@/components/crm/PreviousDashboard'
+import { canAccessPath } from '@/lib/areas'
 import { apiFetch } from '@/lib/api'
+import { isClosedStatus } from '@/lib/data'
+import { localDayDateKey, isCallTaskType } from '@/lib/schedule'
+import { closedWork, type WorkItem } from '@/lib/tourism-work'
+import type { Task, CRMContact, TaskWithContact } from '@/types'
+import styles from './workday.module.css'
 
-const DAY_MS = 24 * 60 * 60 * 1000
-const DAYS_BACK = 7
-const DAYS_AHEAD = 15
+type Row = { id: string; kind: 'task' | 'call' | 'tourism'; title: string; detail: string; date: string | null; fresh?: boolean; task?: Task; contact?: CRMContact; callTask?: TaskWithContact | null; work?: WorkItem }
+type Bucket = 'overdue' | 'today' | 'new' | 'future' | 'unplanned'
+const labels: Record<Bucket, string> = { overdue: 'Scaduti', today: 'Oggi', new: 'Nuove assegnazioni', future: 'Prossimi giorni', unplanned: 'Da pianificare' }
+const order: Bucket[] = ['overdue', 'today', 'new', 'future', 'unplanned']
 
-function formatItalianDate(date: Date) {
-  return date.toLocaleDateString('it-IT', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  })
-}
+export default function WorkdayPage() {
+  const crm = useCRMContext()
+  const { scheduledCalls, isAdmin, allowedAreas, loading, stages, completeTask, updateContact, addActivity, refresh, showToast } = crm
+  const canTodo = canAccessPath('/todo', allowedAreas, isAdmin)
+  const canCalls = canAccessPath('/calendario', allowedAreas, isAdmin)
+  const canTourism = canAccessPath('/tourism-lavoro', allowedAreas, isAdmin)
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [work, setWork] = useState<WorkItem[]>([])
+  const [errors, setErrors] = useState<{ todo?: string; tourism?: string }>({})
+  const [pending, setPending] = useState({ todo: false, tourism: false })
+  const [busy, setBusy] = useState('')
+  const [title, setTitle] = useState('')
+  const [date, setDate] = useState('')
+  const [filter, setFilter] = useState<'all' | Row['kind']>('all')
+  const [expanded, setExpanded] = useState<Partial<Record<Bucket, boolean>>>({})
+  const [drawer, setDrawer] = useState<string | null>(null)
+  const [outcome, setOutcome] = useState<{ contact: CRMContact; task: TaskWithContact | null } | null>(null)
+  const [selectedWork, setSelectedWork] = useState<string | null>(null)
+  const [panel, setPanel] = useState<'tourism' | 'todo' | 'calls' | 'overview' | null>(null)
+  const today = localDayDateKey(new Date())
 
-function dayLabelShort(date: Date, offset: number) {
-  if (offset === 0) return 'Oggi'
-  if (offset === 1) return 'Domani'
-  return date.toLocaleDateString('it-IT', { weekday: 'long' })
-}
-
-function dayNumber(date: Date) {
-  return date.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
-}
-
-function followupLabel(value?: string | null) {
-  if (!value) return 'Senza data'
-  return new Date(value).toLocaleDateString('it-IT', {
-    day: '2-digit',
-    month: '2-digit',
-  })
-}
-
-interface DragPayload {
-  contactId: string
-  taskId: string | null
-  dueAt: string
-  contactName: string
-}
-
-const DRAG_MIME = 'application/x-call'
-
-type DayBucket = {
-  key: string
-  date: Date
-  calls: ScheduledCall[]
-  offset: number
-  label?: string
-  dateLabel?: string
-  isPastRange?: boolean
-}
-
-function isInProgressStatus(status: string) {
-  return status.toLowerCase() !== 'new' && !isClosedStatus(status)
-}
-
-export default function OggiPage() {
-  const {
-    contacts,
-    allContacts,
-    tasks: crmTasks,
-    stages,
-    teamMembers,
-    isAdmin,
-    allowedAreas,
-    viewerMemberName,
-    authEmail,
-    partnerContacts,
-    contactCounts,
-    adminDashboardShowAllContacts,
-    setAdminDashboardShowAllContacts,
-    completeTask,
-    updateTask,
-    updateContact,
-    deleteContact,
-    refresh,
-    showToast,
-  } = useCRMContext()
-
-  const canImport = canAccessPath('/import', allowedAreas, isAdmin)
-  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
-  const [draggingId, setDraggingId] = useState<string | null>(null)
-  const [drawerContactId, setDrawerContactId] = useState<string | null>(null)
-  const [drawerAnchor, setDrawerAnchor] = useState<{ x: number; y: number } | null>(null)
-  const [editingContact, setEditingContact] = useState<CRMContact | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [weekExpanded, setWeekExpanded] = useState(false)
-  const [generatingDraftId, setGeneratingDraftId] = useState<string | null>(null)
-
-  const now = new Date()
-  const today = startOfDay(now)
-  const stagnantCutoff = new Date(today.getTime() - 14 * DAY_MS)
-
-  // ─── Scope contacts (admin filtering) ───
-  const scopeContactIds = useMemo(() => new Set(contacts.map((c) => c.id)), [contacts])
-  const scopeTasks = useMemo(() => crmTasks, [crmTasks])
-
-  // ─── Scheduled calls ───
-  const dashboardScheduledCalls = useMemo(
-    () => buildScheduledCalls(contacts, scopeTasks),
-    [contacts, scopeTasks]
-  )
-
-  const scheduledByContactId = useMemo(
-    () => new Map(dashboardScheduledCalls.map((call) => [call.contact.id, call])),
-    [dashboardScheduledCalls]
-  )
-
-  const todayKey = localDayDateKey(today)
-
-  // ─── Priority Queue ───
-  const queueItems = useMemo<QueueItem[]>(() => {
-    const items: QueueItem[] = []
-    const seen = new Set<string>()
-
-    for (const call of dashboardScheduledCalls) {
-      if (seen.has(call.contact.id)) continue
-      const due = new Date(call.due_at)
-      const dueKey = dueAtLocalDateKey(call.due_at)
-
-      let priority: QueueItem['priority'] = 'medium'
-      let reason = 'followup_due'
-
-      if (dueKey && dueKey < todayKey) {
-        priority = 'critical'
-        reason = 'overdue'
-      } else if ((call.contact.score || 0) >= 70) {
-        priority = 'high'
-        reason = 'hot_lead'
-      } else if (dueKey === todayKey) {
-        priority = 'high'
-        reason = 'followup_due'
-      }
-
-      items.push({
-        contact: call.contact,
-        due_at: call.due_at,
-        task: call.task,
-        quote: null,
-        reason,
-        priority,
-        score: call.contact.score || 0,
-      })
-      seen.add(call.contact.id)
-    }
-
-    // Sort: critical first, then high, then medium; a parità, i contatti più
-    // lavorati (pertinenza) salgono, poi lo score.
-    const priorityOrder = { critical: 0, high: 1, medium: 2 }
-    return items.sort((a, b) => {
-      const pDiff = priorityOrder[a.priority] - priorityOrder[b.priority]
-      if (pDiff !== 0) return pDiff
-      const relDiff =
-        contactRelevanceScore({ contact: b.contact }) - contactRelevanceScore({ contact: a.contact })
-      if (relDiff !== 0) return relDiff
-      return b.score - a.score
-    })
-  }, [dashboardScheduledCalls, todayKey])
-
-  // ─── Da recuperare: contatti aperti senza prossimo passo ───
-  const recoveryItems = useMemo<RecoveryItem[]>(() => {
-    const queuedContactIds = new Set(dashboardScheduledCalls.map((call) => call.contact.id))
-    const items: RecoveryItem[] = []
-
-    for (const contact of contacts) {
-      if (isClosedStatus(contact.status)) continue
-      if (queuedContactIds.has(contact.id)) continue
-
-      const followupAt = contact.next_followup_at ? new Date(contact.next_followup_at).getTime() : null
-      // Parcheggiato consapevolmente (es. Waiting "richiama tra 3 mesi") con data futura: non disturbare.
-      if (followupAt && followupAt > now.getTime()) continue
-
-      const lastContact = contact.last_contact_at ? new Date(contact.last_contact_at) : null
-      const daysStale = lastContact
-        ? Math.floor((now.getTime() - lastContact.getTime()) / DAY_MS)
-        : 999
-
-      items.push({
-        contact,
-        daysStale,
-        // Waiting/inattivo con richiamo scaduto: buildScheduledCalls lo salta, quindi riemerge qui.
-        reason: followupAt ? 'waiting_due' : 'no_next_step',
-      })
-    }
-
-    // Ordina per pertinenza: in cima chi ho lavorato di più / è più avanti in
-    // pipeline (non chi è semplicemente fermo da più giorni). La vecchiaia è
-    // solo lo spareggio a parità di pertinenza.
-    return items.sort((a, b) => {
-      const relA = contactRelevanceScore({
-        contact: a.contact,
-        recallOverdue: a.reason === 'waiting_due',
-      })
-      const relB = contactRelevanceScore({
-        contact: b.contact,
-        recallOverdue: b.reason === 'waiting_due',
-      })
-      if (relB !== relA) return relB - relA
-      return b.daysStale - a.daysStale
-    })
-  }, [contacts, dashboardScheduledCalls, now])
-
-  // ─── Risk items ───
-  const riskItems = useMemo(() => {
-    const items: Array<{
-      contact: CRMContact
-      reason: string
-      severity: 'critical' | 'warning'
-      quote: null
-      daysStale: number
-    }> = []
-
-    for (const contact of contacts) {
-      if (isInactiveStatus(contact.status)) continue
-      const lastContact = contact.last_contact_at ? new Date(contact.last_contact_at) : new Date(contact.created_at)
-      const daysStale = Math.floor((now.getTime() - lastContact.getTime()) / DAY_MS)
-
-      if (daysStale >= 14) {
-        items.push({
-          contact,
-          reason: `Fermo da ${daysStale} giorni`,
-          severity: 'critical',
-          quote: null,
-          daysStale,
-        })
-      } else if (daysStale >= 7 && (contact.status === 'Quote' || contact.priority >= 3)) {
-        items.push({
-          contact,
-          reason: 'In fase avanzata senza contatto',
-          severity: 'warning',
-          quote: null,
-          daysStale,
-        })
-      }
-    }
-
-    return items.sort((a, b) => b.daysStale - a.daysStale)
-  }, [contacts, now])
-
-  // ─── Top leads ───
-  const topLeads = useMemo(() => {
-    return contacts
-      .filter((c) => !isClosedStatus(c.status) && (c.score || 0) > 0)
-      .sort((a, b) => (b.score || 0) - (a.score || 0))
-      .slice(0, 6)
-      .map((c) => ({ contact: c, score: c.score || 0, value: c.value }))
-  }, [contacts])
-
-  // ─── Stats ───
-  const overdueCount = queueItems.filter((q) => q.priority === 'critical').length
-  const todayCount = dashboardScheduledCalls.filter(
-    (call) => dueAtLocalDateKey(call.due_at) === todayKey
-  ).length
-  const hotCount = contacts.filter((c) => (c.score || 0) >= 70 && !isClosedStatus(c.status)).length
-
-  // ─── Day buckets for week grid ───
-  const days = useMemo<DayBucket[]>(() => {
-    const buckets: DayBucket[] = []
-    const pastRangeStart = new Date(today.getTime() - DAYS_BACK * DAY_MS)
-    const pastCalls = dashboardScheduledCalls
-      .filter((call) => {
-        const due = new Date(call.due_at)
-        if (Number.isNaN(due.getTime())) return false
-        return due >= pastRangeStart && due < today
-      })
-      .sort((left, right) => new Date(left.due_at).getTime() - new Date(right.due_at).getTime())
-
-    buckets.push({
-      key: 'last-7-days',
-      date: pastRangeStart,
-      offset: -DAYS_BACK,
-      label: 'Ultimi 7 giorni',
-      dateLabel: `${dayNumber(pastRangeStart)} - ${dayNumber(new Date(today.getTime() - DAY_MS))}`,
-      isPastRange: true,
-      calls: pastCalls,
-    })
-
-    for (let offset = 0; offset < DAYS_AHEAD; offset += 1) {
-      const dayStart = new Date(today.getTime() + offset * DAY_MS)
-      const bucketKey = localDayDateKey(dayStart)
-      buckets.push({
-        key: bucketKey,
-        date: dayStart,
-        offset,
-        calls: dashboardScheduledCalls
-          .filter((call) => dueAtLocalDateKey(call.due_at) === bucketKey)
-          .sort((left, right) => new Date(left.due_at).getTime() - new Date(right.due_at).getTime()),
-      })
-    }
-    return buckets
-  }, [dashboardScheduledCalls, today])
-
-  // ─── Handlers ───
-  async function handleComplete(taskId: string | null) {
-    if (!taskId) return
+  const loadTasks = useCallback(async () => {
+    setPending((p) => ({ ...p, todo: true }))
     try {
-      await completeTask(taskId)
-    } catch { /* handled by layout */ }
-  }
-
-  async function handleReschedule(contactId: string, taskId: string | null, dayOffset: number) {
-    const call = scheduledByContactId.get(contactId)
-    const originalDue = call ? new Date(call.due_at) : new Date()
-    const targetDate = new Date(today.getTime() + dayOffset * DAY_MS)
-    targetDate.setHours(originalDue.getHours(), originalDue.getMinutes(), 0, 0)
-
-    if (dayOffset === 0 && targetDate.getTime() <= Date.now()) {
-      targetDate.setTime(Date.now() + 15 * 60 * 1000)
-      targetDate.setSeconds(0, 0)
-    }
-
+      const result = await apiFetch<{ tasks: Task[] }>('/api/tasks/standalone?status=pending')
+      setTasks(result.tasks || [])
+      setErrors((e) => ({ ...e, todo: undefined }))
+    } catch (e) { setErrors((v) => ({ ...v, todo: e instanceof Error ? e.message : 'Impossibile caricare le attività' })) } finally { setPending((p) => ({ ...p, todo: false })) }
+  }, [])
+  const loadWork = useCallback(async () => {
+    setPending((p) => ({ ...p, tourism: true }))
     try {
-      if (taskId) {
-        await updateTask(taskId, { due_date: targetDate.toISOString() })
-      } else {
-        await updateContact(contactId, { next_followup_at: targetDate.toISOString() })
-      }
-      showToast(`Spostato a ${dayOffset === 0 ? 'oggi' : `+${dayOffset} giorni`}`)
-    } catch (error) {
-      showToast(`Errore: ${error instanceof Error ? error.message : 'spostamento'}`)
+      const all: WorkItem[] = []
+      let page = 0
+      let total = 0
+      do {
+        const result = await apiFetch<{ items: WorkItem[]; total: number }>(`/api/tourism/work?page=${page}`)
+        all.push(...result.items)
+        total = result.total
+        if (!result.items.length) break
+        page++
+      } while (all.length < total)
+      setWork(all)
+      setErrors((e) => ({ ...e, tourism: undefined }))
+    } catch (e) { setErrors((v) => ({ ...v, tourism: e instanceof Error ? e.message : 'Impossibile caricare il lavoro Turismo' })) } finally { setPending((p) => ({ ...p, tourism: false })) }
+  }, [])
+  useEffect(() => { if (!loading && canTodo) void loadTasks() }, [loading, canTodo, loadTasks])
+  useEffect(() => { if (!loading && canTourism) void loadWork() }, [loading, canTourism, loadWork])
+
+  const rows = useMemo<Row[]>(() => [
+    ...(canTodo ? tasks.map((task): Row => ({ id: task.id, kind: 'task', title: task.title || task.note || 'Attività', detail: task.note && task.title ? task.note : 'Da fare', date: task.due_date || null, task })) : []),
+    ...(canTodo ? crm.tasks.filter((task) => task.status === 'pending' && !isCallTaskType(task.type)).map((task): Row => ({ id: task.id, kind: 'task', title: task.title || task.note || task.type, detail: task.contact?.name ? `Contatto: ${task.contact.name}` : 'Attività contatto', date: task.due_date || null, task })) : []),
+    ...(canCalls ? scheduledCalls.map((call): Row => ({ id: call.contact.id, kind: 'call', title: call.contact.company || call.contact.name, detail: `${call.task_type === 'call' ? 'Chiamata' : 'Follow-up'}${call.contact.company && call.contact.name ? ` · ${call.contact.name}` : ''}`, date: call.due_at, contact: call.contact, callTask: call.task })) : []),
+    ...(canTourism ? work.filter((item) => !closedWork(item)).map((item): Row => ({ id: item.id, kind: 'tourism', title: item.title, detail: item.next_action, date: item.due_on, fresh: !item.acknowledged_at, work: item })) : []),
+  ], [canTodo, canCalls, canTourism, tasks, crm.tasks, scheduledCalls, work])
+  const groups = useMemo(() => {
+    const result: Record<Bucket, Row[]> = { overdue: [], today: [], new: [], future: [], unplanned: [] }
+    for (const row of rows) {
+      if (filter !== 'all' && row.kind !== filter) continue
+      const key = row.date ? (row.date.length === 10 ? row.date : localDayDateKey(new Date(row.date))) : null
+      const bucket: Bucket = key && key < today ? 'overdue' : key === today ? 'today' : row.fresh ? 'new' : key ? 'future' : 'unplanned'
+      result[bucket].push(row)
     }
-  }
+    for (const group of order) result[group].sort((a, b) => (a.date || '').localeCompare(b.date || '') || a.title.localeCompare(b.title))
+    return result
+  }, [rows, filter, today])
 
-  async function handleDismiss(contactId: string, status: string, nextFollowupAt: string | null) {
-    try {
-      await updateContact(contactId, {
-        status,
-        next_followup_at: nextFollowupAt,
-      })
-      const label = status === 'Lost' ? 'Perso' : 'In attesa'
-      showToast(`${label} ✓`)
-    } catch (error) {
-      showToast(`Errore: ${error instanceof Error ? error.message : 'operazione'}`)
-    }
-  }
-
-  async function handleRecoverySchedule(contactId: string, followupAt: string) {
-    try {
-      await updateContact(contactId, { next_followup_at: followupAt })
-      showToast(`Richiamo fissato per il ${followupLabel(followupAt)}`)
-    } catch (error) {
-      showToast(`Errore: ${error instanceof Error ? error.message : 'pianificazione'}`)
-    }
-  }
-
-  async function handleGenerateDraft(contactId: string) {
-    if (generatingDraftId) return
-    setGeneratingDraftId(contactId)
-    try {
-      const result = await apiFetch<{ results: Array<{ error?: string; draft_id?: string }> }>('/api/ai/generate-drafts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ drafts: [{ contact_id: contactId }] }),
-      })
-      const first = result.results?.[0]
-      if (first?.error) throw new Error(first.error)
-      showToast('Bozza email generata ✓')
-      refresh()
-    } catch (error) {
-      showToast(`Errore: ${error instanceof Error ? error.message : 'generazione bozza'}`)
-    } finally {
-      setGeneratingDraftId(null)
-    }
-  }
-
-  function openDrawer(contactId: string, anchor?: { x: number; y: number } | null) {
-    setDrawerContactId(contactId)
-    setDrawerAnchor(anchor || null)
-  }
-
-  function closeDrawer() {
-    setDrawerContactId(null)
-    setDrawerAnchor(null)
-  }
-
-  function openDrawerFromMouse(contactId: string, event: MouseEvent<HTMLElement>) {
-    openDrawer(contactId, { x: event.clientX, y: event.clientY })
-  }
-
-  function openDrawerFromKeyboard(contactId: string, event: KeyboardEvent<HTMLElement>) {
-    if (event.key !== 'Enter' && event.key !== ' ') return
+  async function addTask(event: React.FormEvent) {
     event.preventDefault()
-    openDrawer(contactId, null)
-  }
-
-  function handleDragStart(event: DragEvent<HTMLElement>, call: ScheduledCall) {
-    const payload: DragPayload = {
-      contactId: call.contact.id,
-      taskId: call.task?.id || null,
-      dueAt: call.due_at,
-      contactName: call.contact.name,
-    }
-    event.dataTransfer.setData(DRAG_MIME, JSON.stringify(payload))
-    event.dataTransfer.effectAllowed = 'move'
-    setDraggingId(call.contact.id)
-  }
-
-  function handleDragEnd() {
-    setDraggingId(null)
-    setDragOverKey(null)
-  }
-
-  function handleDragOver(event: DragEvent<HTMLElement>, key: string) {
-    if (!event.dataTransfer.types.includes(DRAG_MIME)) return
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'move'
-    if (dragOverKey !== key) setDragOverKey(key)
-  }
-
-  function handleDragLeave(event: DragEvent<HTMLElement>, key: string) {
-    if (dragOverKey === key && !event.currentTarget.contains(event.relatedTarget as Node)) {
-      setDragOverKey(null)
-    }
-  }
-
-  async function handleDrop(event: DragEvent<HTMLElement>, targetDate: Date) {
-    event.preventDefault()
-    const raw = event.dataTransfer.getData(DRAG_MIME)
-    setDragOverKey(null)
-    setDraggingId(null)
-    if (!raw) return
-
-    let payload: DragPayload
+    if (!title.trim()) return
+    setBusy('new')
     try {
-      payload = JSON.parse(raw) as DragPayload
-    } catch {
-      return
-    }
-
-    const originalDue = new Date(payload.dueAt)
-    const newDue = new Date(targetDate)
-    newDue.setHours(originalDue.getHours(), originalDue.getMinutes(), 0, 0)
-
-    if (dayKey(originalDue) === dayKey(newDue)) return
-
-    try {
-      if (payload.taskId) {
-        await updateTask(payload.taskId, { due_date: newDue.toISOString() })
-      } else {
-        await updateContact(payload.contactId, { next_followup_at: newDue.toISOString() })
-      }
-      showToast(`${payload.contactName} spostato a ${dayNumber(newDue)}`)
-    } catch (error) {
-      showToast(`Errore: ${error instanceof Error ? error.message : 'spostamento'}`)
-    }
+      await apiFetch('/api/tasks/standalone', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title.trim(), due_date: date ? new Date(`${date}T12:00:00`).toISOString() : null, area: 'speaqi' }) })
+      setTitle(''); setDate(''); await loadTasks()
+    } catch (e) { showToast(e instanceof Error ? e.message : 'Impossibile aggiungere l’attività') } finally { setBusy('') }
   }
-
-  // ─── Onboarding per workspace vuoto ───
-  // Il totale arriva dal server: `allContacts` è solo il set di lavoro, e un
-  // workspace fatto di sole liste separate non è un workspace vuoto.
-  if (contactCounts.total === 0) {
-    return (
-      <div className="oggi-page oggi-v2">
-        <DashboardHero overdueCount={0} todayCount={0} hotCount={0} canImport={canImport} />
-        {isAdmin && <CommandCenter />}
-        <section className="oggi-onboarding">
-          <div className="oggi-onboarding-icon">👋</div>
-          <h2>Benvenuto in Speaqi!</h2>
-          <p>
-            Inizia caricando i tuoi contatti esistenti o crea il primo contatto manualmente.
-            Puoi anche provare il comando vocale per inserire dati senza scrivere.
-          </p>
-          <div className="oggi-onboarding-actions">
-            {canImport && <Link href="/import" className="btn btn-primary">📥 Importa CSV</Link>}
-            <Link href="/contacts?new=1" className="btn btn-ghost">➕ Crea contatto</Link>
-            <Link href="/voice" className="btn btn-ghost">🎤 Prova nota vocale</Link>
-          </div>
-        </section>
-        <Link href="/voice" className="voice-fab" title="Nota vocale rapida">🎤</Link>
-      </div>
-    )
+  async function finishTask(task: Task) {
+    setBusy(task.id)
+    try { if (task.contact_id) { await completeTask(task.id); } else { await apiFetch('/api/tasks/standalone', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: task.id, status: 'done' }) }); await loadTasks() } }
+    catch (e) { showToast(e instanceof Error ? e.message : 'Impossibile completare') } finally { setBusy('') }
   }
+  function openPanel(next: typeof panel, workId: string | null = null) {
+    setSelectedWork(workId); setPanel(next)
+    window.setTimeout(() => document.getElementById('workday-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+  }
+  function closePanel() { setPanel(null); if (canTodo) void loadTasks(); if (canTourism) void loadWork(); void refresh() }
 
-  return (
-    <div className="oggi-page oggi-v2">
-      <DashboardHero
-        canImport={canImport}
-        overdueCount={overdueCount}
-        todayCount={todayCount}
-        hotCount={hotCount}
-      />
-
-      {isAdmin && <CommandCenter />}
-
-      {/* Main 2-column layout */}
-      <div className="oggi-main-grid">
-        {/* Left: Priority Queue */}
-        <div className="oggi-main-left">
-          <DashboardPriorityQueue
-            items={queueItems}
-            onOpenContact={openDrawerFromMouse}
-            onComplete={handleComplete}
-            onReschedule={handleReschedule}
-            onDismiss={handleDismiss}
-            onGenerateDraft={handleGenerateDraft}
-            generatingDraftId={generatingDraftId}
-          />
-        </div>
-
-        {/* Right: Risk + Top Leads */}
-        <div className="oggi-main-right">
-          {isAdmin && teamMembers.length > 0 && (
-            <div className="oggi-admin-bar">
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={() => setAdminDashboardShowAllContacts((v) => !v)}
-                aria-pressed={adminDashboardShowAllContacts}
-              >
-                {adminDashboardShowAllContacts ? 'Solo i miei' : 'Vedi tutti'}
-              </button>
-            </div>
-          )}
-          <DashboardRiskPanel
-            riskItems={riskItems}
-            topLeads={topLeads}
-            onOpenContact={openDrawerFromMouse}
-          />
-        </div>
-      </div>
-
-      {/* ─── DA RECUPERARE ─── */}
-      <DashboardRecoveryPanel
-        items={recoveryItems}
-        onSchedule={handleRecoverySchedule}
-        onDismiss={handleDismiss}
-        onOpenContact={openDrawerFromMouse}
-      />
-
-      {/* ─── EMAIL INBOX ─── */}
-      <DashboardEmailInbox showToast={showToast} refresh={refresh} />
-
-      {/* Collapsible week grid */}
-      <section className="oggi-week">
-        <div className="oggi-week-head">
-          <h2>Pianificazione 2 settimane</h2>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={() => setWeekExpanded(!weekExpanded)}
-          >
-            {weekExpanded ? 'Comprimi' : 'Espandi'}
-          </button>
-          <Link href="/calendario" className="oggi-week-link">Vista calendario →</Link>
-        </div>
-        {weekExpanded && (
-          <div className="oggi-week-grid">
-            {days.map((day) => {
-              const key = day.key
-              const isDropTarget = dragOverKey === key
-              return (
-                <div
-                  key={key}
-                  className={`oggi-day-col ${day.offset === 0 ? 'is-today' : ''} ${day.isPastRange ? 'is-past-range' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
-                  onDragOver={day.isPastRange ? undefined : (event) => handleDragOver(event, key)}
-                  onDragLeave={day.isPastRange ? undefined : (event) => handleDragLeave(event, key)}
-                  onDrop={day.isPastRange ? undefined : (event) => handleDrop(event, day.date)}
-                >
-                  <div className="oggi-day-head">
-                    <span className="oggi-day-label">{day.label || dayLabelShort(day.date, day.offset)}</span>
-                    <span className="oggi-day-date">{day.dateLabel || dayNumber(day.date)}</span>
-                    {day.calls.length > 0 && <span className="oggi-day-count">{day.calls.length}</span>}
-                  </div>
-                  <div className="oggi-day-body">
-                    {day.calls.length === 0 ? (
-                      <div className="oggi-day-empty">{isDropTarget ? '⤵ Rilascia qui' : '—'}</div>
-                    ) : (
-                      day.calls.map((call) => (
-                        <div
-                          key={`d-${key}-${call.contact.id}`}
-                          className={`oggi-call-card is-${day.offset === 0 ? 'today' : 'upcoming'} ${call.contact.priority >= 3 ? 'is-hot' : ''} ${draggingId === call.contact.id ? 'is-dragging' : ''}`}
-                          draggable
-                          onDragStart={(event) => handleDragStart(event, call)}
-                          onDragEnd={handleDragEnd}
-                        >
-                          <div className="oggi-call-grip" aria-hidden>⋮⋮</div>
-                          <div className="oggi-call-time">
-                            {new Date(call.due_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                          <button
-                            type="button"
-                            className="oggi-call-body"
-                            onClick={(event) => openDrawerFromMouse(call.contact.id, event)}
-                          >
-                            <strong className="oggi-call-name">{call.contact.name}</strong>
-                            {call.contact.company && <span className="oggi-call-company">{call.contact.company}</span>}
-                          </button>
-                          {call.task?.id ? (
-                            <button
-                              type="button"
-                              className="oggi-call-done"
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                handleComplete(call.task!.id)
-                              }}
-                              title="Segna completato"
-                            >
-                              ✓
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              className="oggi-call-done"
-                              onClick={(event) => openDrawerFromMouse(call.contact.id, event)}
-                            >
-                              →
-                            </button>
-                          )}
-                          <QuickDismissMenu
-                            contactId={call.contact.id}
-                            contactName={call.contact.name}
-                            onDismiss={handleDismiss}
-                          />
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </section>
-
-      {/* ─── PARTNER ─── */}
-      {partnerContacts.length > 0 && (
-        <section className="oggi-partner">
-          <div className="oggi-partner-head">
-            <h2>🤝 Partner</h2>
-            <Link href="/partner" className="oggi-week-link">Vedi tutti ({partnerContacts.length}) →</Link>
-          </div>
-          <div className="oggi-partner-grid">
-            {partnerContacts.slice(0, 6).map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                className="oggi-partner-card"
-                onClick={(event) => openDrawerFromMouse(p.id, event)}
-              >
-                <strong>{p.name}</strong>
-                {p.company && <span className="oggi-partner-company">{p.company}</span>}
-                {p.note && <span className="oggi-partner-note">{p.note.slice(0, 80)}{p.note.length > 80 ? '…' : ''}</span>}
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <ContactDrawer
-        contactId={drawerContactId}
-        anchorPoint={drawerAnchor}
-        onClose={closeDrawer}
-        onEdit={(id) => {
-          const target = allContacts.find((contact) => contact.id === id) || null
-          setEditingContact(target)
-          setModalOpen(true)
-        }}
-      />
-
-      <Link href="/voice" className="voice-fab" title="Nota vocale rapida">
-        🎤
-      </Link>
-
-      <ContactModal
-        open={modalOpen}
-        title="Modifica contatto"
-        stages={stages}
-        teamMembers={teamMembers}
-        initialContact={editingContact}
-        onClose={() => {
-          setModalOpen(false)
-          setEditingContact(null)
-        }}
-        onSave={async (payload: ContactInput) => {
-          if (!editingContact) return
-          await updateContact(editingContact.id, payload)
-          showToast('Contatto aggiornato')
-          setDrawerContactId(editingContact.id)
-        }}
-        onDelete={
-          editingContact
-            ? async () => {
-                await deleteContact(editingContact.id)
-                setModalOpen(false)
-                closeDrawer()
-                showToast('Contatto eliminato')
-              }
-            : undefined
-        }
-      />
-    </div>
-  )
+  return <main className={styles.page}>
+    <header className={styles.header}><div><p className={styles.eyebrow}>IL MIO LAVORO</p><h1>La tua giornata, in un posto solo</h1><p>Attività, follow-up e Turismo insieme. Apri una voce per lavorarci.</p></div><button className="btn btn-ghost" onClick={() => { if (canTodo) void loadTasks(); if (canTourism) void loadWork(); void refresh() }}>Aggiorna</button></header>
+    {canTodo && <form className={styles.capture} onSubmit={addTask}><label className={styles.srOnly} htmlFor="new-work">Nuova attività</label><input id="new-work" placeholder="Aggiungi una cosa da fare…" value={title} onChange={(e) => setTitle(e.target.value)} /><label className={styles.srOnly} htmlFor="new-date">Scadenza</label><input id="new-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} /><button className="btn btn-primary" disabled={busy === 'new' || !title.trim()}>Aggiungi</button></form>}
+    {Object.entries(errors).filter(([, value]) => value).map(([source, value]) => <p className={styles.error} key={source}>{source === 'todo' ? 'Attività' : 'Turismo'}: {value} <button type="button" onClick={() => source === 'todo' ? void loadTasks() : void loadWork()}>Riprova</button></p>)}
+    {crm.error && <p className={styles.error}>CRM: {crm.error} <button type="button" onClick={() => void refresh()}>Riprova</button></p>}
+    {(pending.todo || pending.tourism) && <p>Caricamento di attività e Turismo…</p>}
+    <div className={styles.filters} aria-label="Filtra il lavoro">{([['all', 'Tutto'], ['task', 'Da fare'], ['call', 'Follow-up'], ['tourism', 'Turismo']] as const).filter(([key]) => key === 'all' || (key === 'task' ? canTodo : key === 'call' ? canCalls : canTourism)).map(([key, label]) => <button key={key} type="button" aria-pressed={filter === key} className={filter === key ? styles.active : ''} onClick={() => setFilter(key)}>{label} <span>{key === 'all' ? rows.length : rows.filter((r) => r.kind === key).length}</span></button>)}</div>
+    {loading ? <p>Caricamento del lavoro…</p> : order.map((bucket) => {
+      const group = groups[bucket]
+      if (!group.length) return null
+      const shown = expanded[bucket] ? group : group.slice(0, bucket === 'future' || bucket === 'unplanned' ? 5 : 15)
+      return <section className={styles.section} key={bucket}><h2>{labels[bucket]} <span>{group.length}</span></h2><div className={styles.list}>{shown.map((row) => <article className={styles.row} key={`${row.kind}:${row.id}`}><div className={styles.rowMain}><div className={styles.meta}><span>{row.kind === 'task' ? 'DA FARE' : row.kind === 'call' ? 'FOLLOW-UP' : 'TURISMO'}</span>{row.fresh && <span>NUOVA</span>}{row.date && <time>{new Date(row.date.length === 10 ? `${row.date}T12:00:00` : row.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}</time>}</div><strong>{row.title}</strong><p>{row.detail}</p></div><div className={styles.actions}>{row.kind === 'task' && <button className="btn btn-ghost btn-sm" disabled={busy === row.id} onClick={() => row.task && void finishTask(row.task)}>✓ Fatto</button>}{row.kind === 'call' && row.contact && <><button className="btn btn-primary btn-sm" onClick={() => setOutcome({ contact: row.contact!, task: row.callTask || null })}>Registra esito</button><button className="btn btn-ghost btn-sm" onClick={() => setDrawer(row.id)}>Apri contatto</button></>}{row.kind === 'tourism' && <button className="btn btn-primary btn-sm" onClick={() => openPanel('tourism', row.id)}>Gestisci</button>}</div></article>)}</div>{shown.length < group.length && <button className={styles.more} onClick={() => setExpanded((s) => ({ ...s, [bucket]: true }))}>Mostra tutte le {group.length} voci</button>}</section>
+    })}
+    {!loading && !pending.todo && !pending.tourism && rows.length === 0 && !crm.error && !Object.values(errors).some(Boolean) && <p className={styles.empty}>Nessuna attività aperta nelle aree disponibili.</p>}
+    <section className={styles.tools}><h2>Gestisci il lavoro</h2><p>Strumenti completi, sempre in questa pagina.</p><div className={styles.filters}>{canTodo && <button onClick={() => openPanel('todo')}>Lavagna attività</button>}{canCalls && <button onClick={() => openPanel('calls')}>Calendario follow-up</button>}{canTourism && <button onClick={() => openPanel('tourism')}>Gestione Turismo</button>}{isAdmin && <button onClick={() => openPanel('overview')}>Altri strumenti Oggi</button>}</div></section>
+    {panel && <section id="workday-detail" className={styles.detail}><div className={styles.detailHeader}><h2>{panel === 'todo' ? 'Lavagna attività' : panel === 'calls' ? 'Calendario follow-up' : panel === 'tourism' ? 'Gestione Turismo' : 'Altri strumenti Oggi'}</h2><button className="btn btn-ghost" onClick={closePanel}>Chiudi e aggiorna</button></div>{panel === 'todo' ? <TodoPage /> : panel === 'calls' ? <CalendarioPage /> : panel === 'tourism' ? <TourismWork key={selectedWork || 'list'} initialSelectedId={selectedWork} onChanged={loadWork} /> : <PreviousDashboard />}</section>}
+    <ContactDrawer contactId={drawer} onClose={() => setDrawer(null)} />
+    <CallOutcomeModal open={!!outcome} contact={outcome?.contact || null} task={outcome?.task} stages={stages} onClose={() => setOutcome(null)} onSave={async (payload) => { if (!outcome) return; if (outcome.task) await completeTask(outcome.task.id, { refresh: false }); if (payload.status !== outcome.contact.status || isClosedStatus(payload.status)) await updateContact(outcome.contact.id, { status: payload.status, next_followup_at: isClosedStatus(payload.status) ? '' : payload.next_followup_at }, { refresh: false }); await addActivity(outcome.contact.id, { type: 'call', content: payload.content, next_followup_at: isClosedStatus(payload.status) ? undefined : payload.next_followup_at, task_type: payload.task_type }, { refresh: false }); await refresh(); showToast('Esito registrato e follow-up aggiornato') }} />
+  </main>
 }

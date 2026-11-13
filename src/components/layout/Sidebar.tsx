@@ -35,10 +35,7 @@ const NAV_GROUPS: { label: string; icon: string; items: NavItem[] }[] = [
   {
     label: 'Lavoro', icon: '🏠',
     items: [
-      { href: '/dashboard', label: 'Oggi', icon: '🏠', badgeKey: 'oggi', badgeRed: true },
-      { href: '/todo', label: 'To Do', icon: '✅', badgeKey: 'todo', badgeRed: true },
-      { href: '/calendario', label: 'Follow-up', icon: '📅', badgeKey: 'tasks', badgeRed: true },
-      { href: '/tourism-lavoro', label: 'Turismo · Il mio lavoro', icon: '◎' },
+      { href: '/dashboard', label: 'Il mio lavoro', icon: '🏠' },
     ],
   },
   {

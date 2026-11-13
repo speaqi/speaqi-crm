@@ -74,7 +74,7 @@ const dateLabel = (v: string) =>
     timeZone: 'UTC',
   }).format(new Date(v))
 
-export default function TourismWork() {
+export default function TourismWork({ initialSelectedId = null, onChanged }: { initialSelectedId?: string | null; onChanged?: () => void } = {}) {
   const [data, setData] = useState<Data | null>(null),
     [error, setError] = useState(''),
     [notice, setNotice] = useState('')
@@ -85,7 +85,7 @@ export default function TourismWork() {
   const [view, setView] = useState('work'),
     [filter, setFilter] = useState('open'),
     [search, setSearch] = useState('')
-  const [selectedId, setSelectedId] = useState<string | null>(null),
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId),
     [detail, setDetail] = useState<Detail | null>(null),
     [creating, setCreating] = useState(false)
   const [generation, setGeneration] = useState(''),
@@ -157,6 +157,7 @@ export default function TourismWork() {
   }
   const refreshDetail = async () => {
     await load()
+    onChanged?.()
     if (selectedId)
       setDetail(await apiFetch<Detail>(`${ENDPOINT}?id=${selectedId}`))
   }
