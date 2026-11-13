@@ -9,11 +9,12 @@ import { statusLabel } from '@/lib/data'
 
 /**
  * Scheda completa di un cliente: tutto quello che c'e' su di lui, in una
- * pagina sola. Si legge e basta (le modifiche restano nelle loro pagine), con
- * una sola scrittura: collegare una mappa al contatto.
+ * pagina sola. Le modifiche restano nelle loro pagine; il titolare può anche
+ * collegare una mappa al contatto.
  */
 
 type Overview = {
+  is_owner: boolean
   contact: Record<string, any>
   headline: string
   deals: Array<{ id: string; title: string; counterparty: string | null; stage: string; value: number | null; outcome: string | null; closed_at: string | null; created_at: string }>
@@ -132,7 +133,7 @@ export default function SchedaPage() {
         </div>
         <div className="sc-head-side">
           <span className="sc-status">{statusLabel(c.status)}</span>
-          {c.responsible && <span className="cc-muted">Segue: {c.responsible}</span>}
+          {(c.responsible || c.assigned_agent) && <span className="cc-muted">Segue: {c.responsible || c.assigned_agent}</span>}
           <Link className="btn btn-ghost btn-sm" href={`/contacts/${c.id}`}>
             Apri il contatto
           </Link>
@@ -141,15 +142,18 @@ export default function SchedaPage() {
       {error && <p className="cc-error">{error}</p>}
 
       <div className="sc-facts">
+        <div><span className="cc-muted">Prossimo passo</span><b>{data.tasks[0]?.note || data.tasks[0]?.type || ((c.next_followup_at || c.next_action_at) ? 'Follow-up' : 'Da pianificare')}</b><span className="cc-muted">{d(data.tasks[0] ? data.tasks[0].due_date : (c.next_followup_at || c.next_action_at))}</span></div>
+        {data.is_owner && <>
         <div><span className="cc-muted">Incassato</span><b>{formatEuroPlain(paidTotal)}</b></div>
         <div><span className="cc-muted">Preventivi</span><b>{data.quotes.length}</b></div>
         <div><span className="cc-muted">Fatture</span><b>{data.invoices.length}</b></div>
         <div><span className="cc-muted">Mappe</span><b>{data.maps.length}</b></div>
+        </>}
         <div><span className="cc-muted">Da fare</span><b>{data.tasks.length}</b></div>
       </div>
 
       <div className="sc-grid">
-        <Section title="Contratti e preventivi" count={data.quotes.length}>
+        {data.is_owner && <><Section title="Contratti e preventivi" count={data.quotes.length}>
           {data.subscription && (
             <p className={`sc-sub ${data.subscription.status === 'past_due' ? 'sc-bad' : ''}`}>
               Abbonamento {data.subscription.status === 'past_due' ? 'con pagamento non riuscito' : data.subscription.cancel_at_period_end ? 'disdetto' : 'attivo'} · {formatEuroPlain(data.subscription.amount)}/anno · rinnovo {d(data.subscription.current_period_end)}
@@ -289,6 +293,7 @@ export default function SchedaPage() {
           </Section>
         )}
 
+        </>}
         <Section title="Da fare" count={data.tasks.length}>
           {data.tasks.length === 0 ? (
             <p className="cc-muted">Nessuna attività in sospeso.</p>
@@ -303,7 +308,7 @@ export default function SchedaPage() {
           )}
         </Section>
 
-        <Section title="Ultimi movimenti">
+        {data.is_owner && <Section title="Ultimi movimenti">
           <ul className="sc-list">
             {data.emails.map((m) => (
               <li key={`e-${m.id}`}>
@@ -320,7 +325,7 @@ export default function SchedaPage() {
             ))}
             {data.emails.length === 0 && data.activities.length === 0 && <li className="cc-muted">Nessun movimento registrato.</li>}
           </ul>
-        </Section>
+        </Section>}
       </div>
     </div>
   )

@@ -297,11 +297,9 @@ export default function ContactDetailPage() {
               </div>
             </div>
             <div className="detail-header-actions">
-              {isAdmin && (
-                <Link href={`/scheda/${contact.id}`} className="btn btn-ghost btn-sm">
-                  📋 Scheda completa
-                </Link>
-              )}
+              <Link href={`/scheda/${contact.id}`} className="btn btn-ghost btn-sm">
+                📋 Scheda completa
+              </Link>
               <button className="btn btn-primary btn-sm" onClick={() => setEditOpen(true)}>
                 ✏️ Modifica
               </button>

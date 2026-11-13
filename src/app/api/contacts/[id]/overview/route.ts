@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 import { errorMessage } from '@/lib/server/http'
 import { requireWorkspaceOwner } from '@/lib/server/owner-auth'
+import { requireRouteUser } from '@/lib/server/supabase'
+import { contactAssigneeMatchOrFilter } from '@/lib/server/collaborator-filters'
 import { loadMapsStatus, speaqiMapUrl } from '@/lib/server/maps-status'
 import { clientHeadline, findMapRow, isQuotePaid, MAP_STAGE_LABEL } from '@/lib/command-center'
 
@@ -16,10 +18,29 @@ import { clientHeadline, findMapRow, isQuotePaid, MAP_STAGE_LABEL } from '@/lib/
 const MAP_RELATIONS = ['COVERS', 'MANAGES', 'PROMOTES']
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const identity = await requireRouteUser(request)
+  if ('error' in identity) return identity.error
+  const { id } = await params
+
+  // Collaborators use their own JWT and RLS, never the owner service client.
+  // Return only the operational fields; financial documents stay owner-only.
+  if (!identity.isAdmin) {
+    const assignee = contactAssigneeMatchOrFilter(identity.memberName)
+    if (!assignee) return Response.json({ error: 'Contatto non trovato' }, { status: 404 })
+    const { data: contact, error } = await identity.supabase.from('contacts')
+      .select('id,name,company,email,phone,status,responsible,assigned_agent,next_followup_at,next_action_at')
+      .eq('user_id', identity.workspaceUserId).eq('id', id).or(assignee).maybeSingle()
+    if (error) return Response.json({ error: errorMessage(error, 'Impossibile caricare la scheda') }, { status: 500 })
+    if (!contact) return Response.json({ error: 'Contatto non trovato' }, { status: 404 })
+    const tasks = await identity.supabase.from('tasks').select('id,type,due_date,priority,note')
+      .eq('user_id', identity.workspaceUserId).eq('contact_id', id).eq('status', 'pending')
+      .order('due_date', { ascending: true }).limit(10)
+    if (tasks.error) return Response.json({ error: errorMessage(tasks.error, 'Impossibile caricare le attività') }, { status: 500 })
+    return Response.json({ contact, is_owner: false, headline: '', deals: [], quotes: [], subscription: null, invoices: [], agency: [], tourism: { entities: [], decks: [] }, maps: [], maps_sources: {}, tasks: tasks.data || [], activities: [], emails: [] })
+  }
   const auth = await requireWorkspaceOwner(request)
   if ('error' in auth) return auth.error
   const { admin, userId } = auth
-  const { id } = await params
 
   try {
     const contactRes = await admin.from('contacts').select('*').eq('user_id', userId).eq('id', id).maybeSingle()
@@ -98,6 +119,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const subscription = quotes.find((q: any) => q.billing_interval === 'year' && isQuotePaid(q)) || null
 
     return Response.json({
+      is_owner: true,
       contact,
       headline: clientHeadline({ status: contact.status, openDeal, quotes, signedQuoteIds: signatures.size }),
       deals: dealsRes.data || [],

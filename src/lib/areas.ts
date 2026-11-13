@@ -10,7 +10,7 @@ export const AREAS = [
   {
     key: 'contatti',
     label: 'Contatti',
-    paths: ['/contacts', '/personali', '/partner', '/vinitaly', '/speaqi', '/quick-capture', '/voice'],
+    paths: ['/contacts', '/scheda', '/personali', '/partner', '/vinitaly', '/speaqi', '/quick-capture', '/voice'],
     alwaysOn: false,
     defaultOn: true,
   },
@@ -42,7 +42,6 @@ export const SUPER_ADMIN_PATHS = [
   '/marketing/idee',
   '/incassi',
   '/fatture',
-  '/scheda',
   '/ufficio',
   '/opportunita',
   '/impostazioni/wine-project',
