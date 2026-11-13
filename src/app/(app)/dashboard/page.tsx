@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useCRMContext } from '@/components/layout/CRMContext'
 import { ContactDrawer } from '@/components/crm/ContactDrawer'
 import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
+import { Modal } from '@/components/ui/Modal'
+import { TodoRow } from '@/components/todo/TodoRow'
 import TourismWork from '@/components/tourism/TourismWork'
 import TodoWorkspace from '@/components/todo/TodoWorkspace'
 import CalendarioPage from '../calendario/page'
@@ -13,7 +15,7 @@ import { apiFetch } from '@/lib/api'
 import { isClosedStatus, isHiddenContact } from '@/lib/data'
 import { localDayDateKey, isCallTaskType, buildScheduledCalls } from '@/lib/schedule'
 import { closedWork, type WorkItem } from '@/lib/tourism-work'
-import type { Task, CRMContact, TaskWithContact } from '@/types'
+import type { Task, CRMContact, TaskWithContact, StandaloneTaskPatch } from '@/types'
 import styles from './workday.module.css'
 
 type Row = { id: string; kind: 'task' | 'call' | 'tourism'; title: string; detail: string; date: string | null; fresh?: boolean; task?: Task; contact?: CRMContact; callTask?: TaskWithContact | null; work?: WorkItem }
@@ -39,11 +41,13 @@ export default function WorkdayPage() {
   const [search, setSearch] = useState('')
   const [expanded, setExpanded] = useState<Partial<Record<Bucket, boolean>>>({})
   const [drawer, setDrawer] = useState<string | null>(null)
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [outcome, setOutcome] = useState<{ contact: CRMContact; task: TaskWithContact | null } | null>(null)
   const [selectedWork, setSelectedWork] = useState<string | null>(null)
   const [panel, setPanel] = useState<'tourism' | 'todo' | 'calls' | 'overview' | null>(null)
   const [workView, setWorkView] = useState<'today' | 'board'>('today')
   const today = localDayDateKey(new Date())
+  const editingTask = tasks.find((task) => task.id === editingTaskId) || null
 
   const loadTasks = useCallback(async () => {
     setPending((p) => ({ ...p, todo: true }))
@@ -118,6 +122,31 @@ export default function WorkdayPage() {
     try { if (task.contact_id) { await completeTask(task.id); } else { await apiFetch('/api/tasks/standalone', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: task.id, status: 'done' }) }); await loadTasks() } }
     catch (e) { showToast(e instanceof Error ? e.message : 'Impossibile completare') } finally { setBusy('') }
   }
+  async function patchStandaloneTask(taskId: string, patch: StandaloneTaskPatch) {
+    try {
+      const result = await apiFetch<{ task: Task }>('/api/tasks/standalone', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: taskId, ...patch }),
+      })
+      setTasks((current) => result.task.status === 'done'
+        ? current.filter((task) => task.id !== taskId)
+        : current.map((task) => task.id === taskId ? { ...task, ...result.task } : task))
+      if (result.task.status === 'done') setEditingTaskId(null)
+      void crm.loadStandaloneTasks()
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Impossibile aggiornare l’attività')
+    }
+  }
+  async function deleteStandaloneTask(taskId: string) {
+    try {
+      await apiFetch(`/api/tasks/standalone?id=${encodeURIComponent(taskId)}`, { method: 'DELETE' })
+      setTasks((current) => current.filter((task) => task.id !== taskId))
+      setEditingTaskId(null)
+      void crm.loadStandaloneTasks()
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Impossibile eliminare l’attività')
+    }
+  }
   async function handleContact(row: Row, choice: 'lost' | 'tomorrow' | 'week' | 'months') {
     if (!row.contact) return
     setBusy(row.id)
@@ -158,7 +187,7 @@ export default function WorkdayPage() {
       const group = groups[bucket]
       if (!group.length) return null
       const shown = expanded[bucket] ? group : group.slice(0, bucket === 'future' || bucket === 'unplanned' ? 5 : 15)
-      return <section className={styles.section} key={bucket}><h2>{labels[bucket]} <span>{group.length}</span></h2><div className={styles.list}>{shown.map((row) => <article className={styles.row} key={`${row.kind}:${row.id}`}><div className={styles.rowMain}><div className={styles.meta}><span>{row.kind === 'task' ? 'DA FARE' : row.kind === 'call' ? 'FOLLOW-UP' : 'TURISMO'}</span>{row.fresh && <span>NUOVA</span>}{row.date && <time>{new Date(row.date.length === 10 ? `${row.date}T12:00:00` : row.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}</time>}</div><strong>{row.title}</strong><p>{row.detail}</p></div><div className={styles.actions}>{row.kind === 'task' && <button className="btn btn-ghost btn-sm" disabled={busy === row.id} onClick={() => row.task && void finishTask(row.task)}>✓ Fatto</button>}{row.kind === 'call' && row.contact && <><button className="btn btn-primary btn-sm" onClick={() => setOutcome({ contact: row.contact!, task: row.callTask || null })}>Registra esito</button><button className="btn btn-ghost btn-sm" onClick={() => setDrawer(row.id)}>Apri contatto</button><div className={styles.quickActions} aria-label={`Azioni rapide ${row.title}`}><button type="button" disabled={busy === row.id} onClick={() => void handleContact(row, 'tomorrow')}>Domani</button><button type="button" disabled={busy === row.id} onClick={() => void handleContact(row, 'week')}>7 giorni</button><button type="button" disabled={busy === row.id} onClick={() => void handleContact(row, 'months')}>3 mesi</button><button type="button" disabled={busy === row.id} onClick={() => void handleContact(row, 'lost')}>Perso</button></div></>}{row.kind === 'tourism' && <button className="btn btn-primary btn-sm" onClick={() => openPanel('tourism', row.id)}>Gestisci</button>}</div></article>)}</div>{shown.length < group.length && <button className={styles.more} onClick={() => setExpanded((s) => ({ ...s, [bucket]: true }))}>Mostra tutte le {group.length} voci</button>}</section>
+      return <section className={styles.section} key={bucket}><h2>{labels[bucket]} <span>{group.length}</span></h2><div className={styles.list}>{shown.map((row) => <article className={styles.row} key={`${row.kind}:${row.id}`}><div className={styles.rowMain}><div className={styles.meta}><span>{row.kind === 'task' ? 'DA FARE' : row.kind === 'call' ? 'FOLLOW-UP' : 'TURISMO'}</span>{row.fresh && <span>NUOVA</span>}{row.date && <time>{new Date(row.date.length === 10 ? `${row.date}T12:00:00` : row.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}</time>}</div><strong>{row.title}</strong><p>{row.detail}</p></div><div className={styles.actions}>{row.kind === 'task' && <>{row.task?.contact_id ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDrawer(row.task!.contact_id!)}>Apri contatto</button> : <button type="button" className="btn btn-primary btn-sm" onClick={() => setEditingTaskId(row.id)}>Modifica</button>}<button type="button" className="btn btn-ghost btn-sm" disabled={busy === row.id} onClick={() => row.task && void finishTask(row.task)}>✓ Fatto</button></>}{row.kind === 'call' && row.contact && <><button className="btn btn-primary btn-sm" onClick={() => setOutcome({ contact: row.contact!, task: row.callTask || null })}>Registra esito</button><button className="btn btn-ghost btn-sm" onClick={() => setDrawer(row.id)}>Apri contatto</button><div className={styles.quickActions} aria-label={`Azioni rapide ${row.title}`}><button type="button" disabled={busy === row.id} onClick={() => void handleContact(row, 'tomorrow')}>Domani</button><button type="button" disabled={busy === row.id} onClick={() => void handleContact(row, 'week')}>7 giorni</button><button type="button" disabled={busy === row.id} onClick={() => void handleContact(row, 'months')}>3 mesi</button><button type="button" disabled={busy === row.id} onClick={() => void handleContact(row, 'lost')}>Perso</button></div></>}{row.kind === 'tourism' && <button className="btn btn-primary btn-sm" onClick={() => openPanel('tourism', row.id)}>Gestisci</button>}</div></article>)}</div>{shown.length < group.length && <button className={styles.more} onClick={() => setExpanded((s) => ({ ...s, [bucket]: true }))}>Mostra tutte le {group.length} voci</button>}</section>
     })}
     {!loading && !pending.todo && !pending.tourism && rows.length === 0 && !crm.error && !Object.values(errors).some(Boolean) && <p className={styles.empty}>Nessuna attività aperta nelle aree disponibili.</p>}
     {!loading && rows.length > 0 && order.every((key) => groups[key].length === 0) && <p className={styles.empty}>Nessun risultato per questa ricerca o filtro.</p>}
@@ -166,6 +195,9 @@ export default function WorkdayPage() {
     {panel && <section id="workday-detail" className={styles.detail}><div className={styles.detailHeader}><h2>{panel === 'todo' ? 'Lavagna attività' : panel === 'calls' ? 'Calendario follow-up' : panel === 'tourism' ? 'Gestione Turismo' : 'Altri strumenti Oggi'}</h2><button className="btn btn-ghost" onClick={closePanel}>Chiudi e aggiorna</button></div>{panel === 'todo' ? <TodoWorkspace forceBoard /> : panel === 'calls' ? <CalendarioPage /> : panel === 'tourism' ? <TourismWork key={selectedWork || 'list'} initialSelectedId={selectedWork} onChanged={loadWork} /> : <PreviousDashboard />}</section>}
     </>}
     <ContactDrawer contactId={drawer} onClose={() => setDrawer(null)} />
+    <Modal open={Boolean(editingTask)} onClose={() => setEditingTaskId(null)} title={editingTask?.title || 'Attività'} footer={<button type="button" className="btn btn-ghost" onClick={() => setEditingTaskId(null)}>Chiudi</button>}>
+      {editingTask && <div className="todo-modal-body"><TodoRow task={editingTask} today={new Date()} expanded onToggleExpanded={() => setEditingTaskId(null)} onPatch={(patch) => patchStandaloneTask(editingTask.id, patch)} onDelete={() => deleteStandaloneTask(editingTask.id)} /></div>}
+    </Modal>
     <CallOutcomeModal open={!!outcome} contact={outcome?.contact || null} task={outcome?.task} stages={stages} onClose={() => setOutcome(null)} onSave={async (payload) => { if (!outcome) return; if (outcome.task) await completeTask(outcome.task.id, { refresh: false }); if (payload.status !== outcome.contact.status || isClosedStatus(payload.status)) await updateContact(outcome.contact.id, { status: payload.status, next_followup_at: isClosedStatus(payload.status) ? '' : payload.next_followup_at }, { refresh: false }); await addActivity(outcome.contact.id, { type: 'call', content: payload.content, next_followup_at: isClosedStatus(payload.status) ? undefined : payload.next_followup_at, task_type: payload.task_type }, { refresh: false }); await refresh(); showToast('Esito registrato e follow-up aggiornato') }} />
   </main>
 }

@@ -31,7 +31,12 @@ async function main() {
       if (route.request().method() === 'DELETE') { linked = false; return json({ ok: true }) }
       return json({ links: linked ? [{task_id: taskId, invoice_id: invoiceId}] : [], candidates: [{id:invoiceId, numero:'12/2026', customer:{denominazione:'Cliente prova'}, totale:120, payment_state:'paid'}] })
     }
-    if (url.pathname === '/api/tasks/standalone' && route.request().method() === 'PATCH') { completed = true; return json({ task: { ...task, status: 'done' } }) }
+    if (url.pathname === '/api/tasks/standalone' && route.request().method() === 'PATCH') {
+      const patch = route.request().postDataJSON()
+      Object.assign(task, patch)
+      completed = patch.status === 'done' || patch.progress_state === 'done'
+      return json({ task: { ...task, status: completed ? 'done' : 'pending' } })
+    }
     if (url.pathname === `/api/contacts/${contactId}` && route.request().method() === 'PATCH') {
       Object.assign(contact, route.request().postDataJSON())
       return json({ contact })
@@ -54,6 +59,22 @@ async function main() {
     await page.getByText('Preparare proposta', { exact: true }).waitFor()
     await page.getByText('Azienda Test', { exact: true }).waitFor()
     await page.getByText('Destinazione Test', { exact: true }).waitFor()
+    const taskRow = page.getByRole('article').filter({ hasText: 'Preparare proposta' })
+    await taskRow.getByRole('button', { name: 'Modifica' }).click()
+    const taskModal = page.locator('.overlay.open')
+    await taskModal.getByText('Fatture collegate', { exact: true }).waitFor()
+    await Promise.all([
+      page.waitForResponse((response) => response.url().includes('/api/tasks/standalone') && response.request().method() === 'PATCH' && response.request().postDataJSON().progress_state === 'in_progress'),
+      taskModal.getByRole('button', { name: 'In corso', exact: true }).click(),
+    ])
+    const note = taskModal.getByPlaceholder('Dettagli, link, contesto…')
+    await note.fill('Attendo il materiale dal cliente')
+    await Promise.all([
+      page.waitForResponse((response) => response.url().includes('/api/tasks/standalone') && response.request().method() === 'PATCH' && response.request().postDataJSON().note === 'Attendo il materiale dal cliente'),
+      note.blur(),
+    ])
+    await taskModal.getByRole('button', { name: 'Chiudi', exact: true }).click()
+    await taskRow.getByText('Attendo il materiale dal cliente', { exact: false }).waitFor()
     const workPage = page.locator('main').first()
     const dimensions = await workPage.evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }))
     assert.ok(dimensions.scrollHeight > dimensions.clientHeight, 'La pagina deve avere contenuto scorrevole')
