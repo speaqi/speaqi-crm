@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .eq('user_id', identity.workspaceUserId).eq('id', id).or(assignee).maybeSingle()
     if (error) return Response.json({ error: errorMessage(error, 'Impossibile caricare la scheda') }, { status: 500 })
     if (!contact) return Response.json({ error: 'Contatto non trovato' }, { status: 404 })
-    const tasks = await identity.supabase.from('tasks').select('id,type,due_date,priority,note')
+    const tasks = await identity.supabase.from('tasks').select('id,type,due_date,priority,note,project_id')
       .eq('user_id', identity.workspaceUserId).eq('contact_id', id).eq('status', 'pending')
       .order('due_date', { ascending: true }).limit(10)
     if (tasks.error) return Response.json({ error: errorMessage(tasks.error, 'Impossibile caricare le attività') }, { status: 500 })
@@ -52,12 +52,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       admin.from('deals').select('id, title, counterparty, stage, value, outcome, quote_id, closed_at, created_at').eq('user_id', userId).eq('contact_id', id).order('created_at', { ascending: false }),
       admin
         .from('quotes')
-        .select('id, quote_number, title, status, payment_state, total_amount, paid_at, sent_at, accepted_at, created_at, billing_interval, subscription_status, current_period_end, cancel_at_period_end, public_token')
+        .select('id, quote_number, title, status, payment_state, total_amount, paid_at, sent_at, accepted_at, created_at, billing_interval, subscription_status, current_period_end, cancel_at_period_end, public_token, project_id')
         .eq('user_id', userId)
         .eq('contact_id', id)
         .order('created_at', { ascending: false }),
       admin.from('agency_projects').select('id, title, stage, created_at').eq('user_id', userId).eq('contact_id', id).order('created_at', { ascending: false }),
-      admin.from('tasks').select('id, type, due_date, priority, note, status').eq('user_id', userId).eq('contact_id', id).eq('status', 'pending').order('due_date', { ascending: true }).limit(10),
+      admin.from('tasks').select('id, type, due_date, priority, note, status, project_id').eq('user_id', userId).eq('contact_id', id).eq('status', 'pending').order('due_date', { ascending: true }).limit(10),
       admin.from('activities').select('id, type, content, created_at').eq('user_id', userId).eq('contact_id', id).order('created_at', { ascending: false }).limit(12),
       admin.from('gmail_messages').select('id, direction, subject, snippet, from_email, sent_at').eq('user_id', userId).eq('contact_id', id).order('sent_at', { ascending: false }).limit(6),
       admin.from('contact_map_links').select('id, map_ref, role, note, created_at').eq('user_id', userId).eq('contact_id', id),
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       quoteIds.length ? admin.from('quote_signatures').select('quote_id, signer_name, channel, signed_at').eq('user_id', userId).in('quote_id', quoteIds) : Promise.resolve({ data: [] as any[] }),
       admin
         .from('invoices')
-        .select('id, quote_id, source, status, numero, issue_date, totale, sdi_status, sdi_detail, last_error, sent_at, aruba_env')
+        .select('id, quote_id, source, status, numero, issue_date, totale, sdi_status, sdi_detail, last_error, sent_at, aruba_env, externally_issued, external_number, payment_state, paid_at, project_id')
         .eq('user_id', userId)
         .or(quoteIds.length ? `contact_id.eq.${id},quote_id.in.(${quoteIds.join(',')})` : `contact_id.eq.${id}`)
         .order('created_at', { ascending: false }),

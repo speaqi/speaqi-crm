@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const [quotesRes, invoicesRes, presentationsRes, decksRes, dealsRes, maps, officeResult] = await Promise.all([
       admin
         .from('quotes')
-        .select('id, quote_number, title, customer_name, customer_company, contact_id, status, payment_state, total_amount, paid_at, billing_interval, subscription_status, current_period_end, cancel_at_period_end, sent_at')
+        .select('id, quote_number, title, customer_name, customer_company, contact_id, status, payment_state, total_amount, paid_at, billing_interval, subscription_status, current_period_end, cancel_at_period_end, sent_at, invoiced_outside_at')
         .eq('user_id', userId)
         .neq('status', 'draft')
         .order('created_at', { ascending: false })

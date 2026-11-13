@@ -19,25 +19,25 @@ export async function GET(request: NextRequest) {
       loadInvoiceSettings(admin, userId),
       admin
         .from('invoices')
-        .select('id, quote_id, contact_id, source, status, year, number, numero, issue_date, customer, lines, payment_method, causale, imponibile, imposta, totale, warnings, aruba_env, aruba_filename, sdi_status, sdi_detail, last_error, sent_at, created_at, updated_at')
+        .select('id, quote_id, contact_id, source, status, year, number, numero, issue_date, customer, lines, payment_method, causale, imponibile, imposta, totale, warnings, aruba_env, aruba_filename, sdi_status, sdi_detail, last_error, sent_at, created_at, updated_at, externally_issued, external_number, payment_state, paid_at')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(300),
       admin
         .from('quotes')
-        .select('id, quote_number, title, customer_name, customer_company, total_amount, status, payment_state, paid_at, accepted_at, billing_interval')
+        .select('id, quote_number, title, customer_name, customer_company, total_amount, status, payment_state, paid_at, accepted_at, billing_interval, invoiced_outside_at')
         .eq('user_id', userId)
         .or('status.eq.paid,payment_state.eq.paid,status.eq.accepted')
-        .is('invoiced_outside_at', null)
         .order('paid_at', { ascending: false, nullsFirst: false })
         .limit(200),
     ])
     if (invoicesResult.error) throw invoicesResult.error
     if (quotesResult.error) throw quotesResult.error
 
-    const invoices = (invoicesResult.data || []) as InvoiceRow[]
+    const invoices = (invoicesResult.data || []) as unknown as InvoiceRow[]
     const invoicedQuotes = new Set(invoices.filter((row) => row.source === 'quote' && row.quote_id).map((row) => row.quote_id))
-    const toInvoice = (quotesResult.data || []).filter((quote: any) => !invoicedQuotes.has(quote.id))
+    const unlinked = (quotesResult.data || []).filter((quote: any) => !invoicedQuotes.has(quote.id))
+    const toInvoice = unlinked.filter((quote: any) => !quote.invoiced_outside_at)
 
     return Response.json({
       invoices: invoices.map((row) => ({
@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
         problems: EDITABLE_STATUSES.includes(row.status) ? invoiceProblems(row, settings) : [],
       })),
       to_invoice: toInvoice,
+      outside_quotes: unlinked.filter((quote: any) => quote.invoiced_outside_at),
       aruba: { configured: arubaConfigured(), env: arubaEnv() },
       settings_saved: saved,
     })

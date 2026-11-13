@@ -16,7 +16,7 @@ async function main() {
   }, { owner })
   let completed = false
   const contact = { id: contactId, user_id: owner, name: 'Mario Test', company: 'Azienda Test', status: 'New', source: 'manual', contact_scope: 'crm', priority: 0, hidden: false, next_followup_at: '2020-01-01T10:00:00Z', created_at: '2020-01-01T10:00:00Z', updated_at: '2020-01-01T10:00:00Z' }
-  const task = { id: taskId, user_id: owner, contact_id: null, type: 'todo', title: 'Preparare proposta', status: 'pending', due_date: '2020-01-01T10:00:00Z', created_at: '2020-01-01T10:00:00Z', updated_at: '2020-01-01T10:00:00Z' }
+  const task = { id: taskId, user_id: owner, contact_id: null, type: 'todo', title: 'Preparare proposta', board_column_id: 'web-column', status: 'pending', due_date: '2020-01-01T10:00:00Z', created_at: '2020-01-01T10:00:00Z', updated_at: '2020-01-01T10:00:00Z' }
   const work = { id: workId, user_id: owner, title: 'Destinazione Test', kind: 'territory', stage: 'contact', next_action: 'Scrivere al referente', due_on: '2020-01-01', acknowledged_at: null, collaborator_ids: [], checklist: [], version: 1, created_at: '2020-01-01T10:00:00Z', updated_at: '2020-01-01T10:00:00Z' }
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url())
@@ -33,6 +33,7 @@ async function main() {
     if (url.pathname === '/api/contacts') return json({ contacts: [contact] })
     if (url.pathname === '/api/contacts/summary') return json({ counts: { total: 1 } })
     if (url.pathname === '/api/tasks/standalone') return json({ tasks: url.searchParams.get('status') === 'done' || completed ? [] : [task] })
+    if (url.pathname === '/api/todo/columns') return json({ columns: [{id:'web-column',label:'Siti web'}] })
     if (url.pathname === '/api/tourism/work' && url.searchParams.has('id')) return json({ item: work, notes: [], events: [], children: [] })
     if (url.pathname === '/api/tourism/work') return json({ items: [work], total: 1, identity: { member_id: null, access_kind: 'owner' }, is_admin: true, members: [], rules: [], summary: { open: 1, today: 0, overdue: 1, fresh: 1, stale: 0, loads: [] } })
     return json({ tasks: [], columns: [] })
@@ -45,6 +46,10 @@ async function main() {
     await page.getByText('Preparare proposta', { exact: true }).waitFor()
     await page.getByText('Azienda Test', { exact: true }).waitFor()
     await page.getByText('Destinazione Test', { exact: true }).waitFor()
+    await page.getByLabel('Cerca contatto, azienda, categoria o attività').fill('Siti web')
+    await page.getByText('Preparare proposta', { exact: true }).waitFor()
+    assert.equal(await page.getByText('Azienda Test', { exact: true }).count(), 0)
+    await page.getByLabel('Cerca contatto, azienda, categoria o attività').fill('')
     assert.equal(await page.locator('.sidebar a[href="/todo"]').count(), 0)
     await page.getByRole('article').filter({ hasText: 'Preparare proposta' }).getByRole('button', { name: 'Fatto' }).click()
     await page.getByText('Preparare proposta', { exact: true }).waitFor({ state: 'hidden' })

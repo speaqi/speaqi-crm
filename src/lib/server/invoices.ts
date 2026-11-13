@@ -257,6 +257,7 @@ export async function createInvoiceDraftFromQuote(admin: any, userId: string, qu
     user_id: userId,
     quote_id: quote.id,
     contact_id: quote.contact_id || null,
+    project_id: quote.project_id || null,
     source: renewal ? 'stripe_renewal' : 'quote',
     stripe_invoice_id: renewal ? options.stripeInvoiceId : null,
     status: 'draft',

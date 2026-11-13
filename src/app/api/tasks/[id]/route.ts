@@ -61,6 +61,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (body.due_date !== undefined) updatePayload.due_date = body.due_date || null
     if (body.priority !== undefined) updatePayload.priority = body.priority || 'medium'
     if (body.action !== undefined) updatePayload.action = body.action || null
+    if (body.project_id !== undefined) {
+      const projectId = body.project_id ? String(body.project_id) : null
+      if (projectId) {
+        const { data: project, error: projectError } = await auth.supabase.from('crm_projects').select('id').eq('id', projectId).eq('user_id', auth.workspaceUserId).eq('contact_id', currentTask.contact_id).maybeSingle()
+        if (projectError) throw projectError
+        if (!project || !currentTask.contact_id) return Response.json({ error: 'Progetto non valido per questo contatto' }, { status: 400 })
+      }
+      updatePayload.project_id = projectId
+    }
     if (nextStatus) {
       updatePayload.status = nextStatus
       updatePayload.completed_at = nextStatus === 'done' ? new Date().toISOString() : null

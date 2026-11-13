@@ -7,6 +7,7 @@
  */
 
 export type MoneyQuote = {
+  invoiced_outside_at?: string | null
   id: string
   quote_number: string
   title?: string | null
@@ -120,7 +121,7 @@ export function summarizeMoney(quotes: MoneyQuote[], invoices: MoneyInvoice[], n
       paidMonthCents += cents(quote.total_amount)
       paidMonthCount += 1
     }
-    if (paid && !invoicedQuotes.has(quote.id)) toInvoice.push(quote)
+    if (paid && !quote.invoiced_outside_at && !invoicedQuotes.has(quote.id)) toInvoice.push(quote)
     if (quote.billing_interval === 'year' && quote.current_period_end && !quote.cancel_at_period_end && quote.subscription_status !== 'canceled') {
       const end = new Date(quote.current_period_end).getTime()
       if (end >= now.getTime() && end <= horizon) renewals.push({ quote, date: quote.current_period_end })

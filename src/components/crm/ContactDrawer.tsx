@@ -548,8 +548,9 @@ export function ContactDrawer({ contactId, onClose, onEdit, anchorPoint = null }
 
             <div className="drawer-footer">
               <Link href={`/contacts/${contact.id}`} className="btn btn-primary btn-sm">
-                Apri scheda completa →
+                Apri contatto →
               </Link>
+              <Link href={`/scheda/${contact.id}`} className="btn btn-ghost btn-sm">Progetti e attività →</Link>
             </div>
           </>
         )}

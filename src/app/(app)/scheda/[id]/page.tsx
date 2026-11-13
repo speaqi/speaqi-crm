@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { apiFetch } from '@/lib/api'
 import { formatEuroPlain } from '@/lib/command-center'
 import { statusLabel } from '@/lib/data'
+import { ContactProjects } from '@/components/crm/ContactProjects'
 
 /**
  * Scheda completa di un cliente: tutto quello che c'e' su di lui, in una
@@ -29,15 +30,16 @@ type Overview = {
     sent_at: string | null
     billing_interval: string | null
     public_token: string
+    project_id: string | null
     signature: { signer_name: string; channel: string; signed_at: string } | null
   }>
   subscription: { quote_id: string; status: string | null; current_period_end: string | null; cancel_at_period_end: boolean; amount: number } | null
-  invoices: Array<{ id: string; numero: string | null; status: string; issue_date: string | null; totale: number; sdi_status: string | null; last_error: string | null; aruba_env: string | null }>
+  invoices: Array<{ id: string; numero: string | null; status: string; issue_date: string | null; totale: number; sdi_status: string | null; last_error: string | null; aruba_env: string | null; externally_issued: boolean; external_number: string | null; payment_state: string; paid_at: string | null; project_id: string | null }>
   agency: Array<{ id: string; title: string; stage: string; presentations: Array<{ id: string; title: string; status: string; public_token: string | null }> }>
   tourism: { entities: Array<{ id: string; name: string; kind: string }>; decks: Array<{ id: string; title: string; destination: string | null; status: string; public_token: string | null }> }
   maps: Array<{ ref: string; origin: 'manual' | 'tourism'; name: string; stage_label: string; places: number | null; url: string | null; link_id?: string; role?: string; destination?: string | null }>
   maps_sources: { studiomap: string; speaqi: string }
-  tasks: Array<{ id: string; type: string; due_date: string | null; priority: string | null; note: string | null }>
+  tasks: Array<{ id: string; type: string; due_date: string | null; priority: string | null; note: string | null; project_id: string | null }>
   activities: Array<{ id: string; type: string; content: string | null; created_at: string }>
   emails: Array<{ id: string; direction: string; subject: string | null; snippet: string | null; sent_at: string | null }>
 }
@@ -153,6 +155,7 @@ export default function SchedaPage() {
       </div>
 
       <div className="sc-grid">
+        <ContactProjects contactId={id} tasks={data.tasks} documents={data.is_owner ? [...data.quotes.map(q => ({ id: q.id, kind: 'quote' as const, name: q.quote_number, project_id: q.project_id })), ...data.invoices.map(i => ({ id: i.id, kind: 'invoice' as const, name: i.externally_issued ? i.external_number || 'Fattura' : i.numero || 'Bozza fattura', project_id: i.project_id }))] : []} onChanged={load} />
         {data.is_owner && <><Section title="Contratti e preventivi" count={data.quotes.length}>
           {data.subscription && (
             <p className={`sc-sub ${data.subscription.status === 'past_due' ? 'sc-bad' : ''}`}>
@@ -194,12 +197,13 @@ export default function SchedaPage() {
                 {data.invoices.map((inv) => (
                   <tr key={inv.id}>
                     <td>
-                      <Link href="/fatture">{inv.numero ? `N. ${inv.numero}` : 'Bozza'}</Link>
+                      <Link href="/fatture">{inv.externally_issued ? `N. ${inv.external_number}` : inv.numero ? `N. ${inv.numero}` : 'Bozza'}</Link>
                       <div className="cc-muted">{d(inv.issue_date)}{inv.aruba_env === 'demo' ? ' · demo Aruba' : ''}</div>
                     </td>
                     <td>{formatEuroPlain(inv.totale)}</td>
                     <td>
-                      {INVOICE_STATUS[inv.status] || inv.status}
+                      {inv.externally_issued ? 'Emessa fuori dal CRM' : INVOICE_STATUS[inv.status] || inv.status}
+                      <div className="cc-muted">{inv.payment_state === 'paid' ? `Incassata ${d(inv.paid_at)}` : inv.payment_state === 'unpaid' ? 'Da incassare' : 'Pagamento da verificare'}</div>
                       {(inv.sdi_status || inv.last_error) && <div className="cc-muted">{inv.last_error || inv.sdi_status}</div>}
                     </td>
                     <td>

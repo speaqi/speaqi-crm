@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useCRMContext } from '@/components/layout/CRMContext'
 import { apiFetch } from '@/lib/api'
 import ReceivablesSection from '@/components/incassi/ReceivablesSection'
@@ -33,6 +33,10 @@ type Invoice = {
   sdi_detail: string | null
   last_error: string | null
   sent_at: string | null
+  externally_issued: boolean
+  external_number: string | null
+  payment_state: 'unknown' | 'unpaid' | 'paid'
+  paid_at: string | null
 }
 
 type QuoteToInvoice = {
@@ -67,6 +71,7 @@ type Settings = {
 type ListResponse = {
   invoices: Invoice[]
   to_invoice: QuoteToInvoice[]
+  outside_quotes: QuoteToInvoice[]
   aruba: { configured: boolean; env: 'demo' | 'production' }
   settings_saved: boolean
 }
@@ -108,6 +113,7 @@ export default function FatturePage() {
   const [loadError, setLoadError] = useState('')
   const [openId, setOpenId] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  const [reconcile, setReconcile] = useState<{ quote?: QuoteToInvoice; invoice?: Invoice; manual?: boolean } | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -123,9 +129,6 @@ export default function FatturePage() {
     load()
   }, [load])
 
-  useEffect(() => {
-    if (data && !data.settings_saved) setTab('dati')
-  }, [data])
 
   // Arrivando da «Genera fattura» nel preventivo (?invoice=<id>) la bozza si apre da sola.
   useEffect(() => {
@@ -153,33 +156,17 @@ export default function FatturePage() {
     }
   }
 
-  async function markOutside(quote: QuoteToInvoice) {
-    if (!window.confirm(`Segnare «${quote.quote_number}» come già fatturata fuori dal CRM? Esce da questa lista, senza creare una fattura.`)) return
-    setBusy(quote.id)
-    try {
-      await apiFetch('/api/invoices/outside', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quote_id: quote.id }),
-      })
-      await load()
-      showToast('Preventivo segnato come già fatturato')
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Impossibile segnare il preventivo')
-    } finally {
-      setBusy(null)
-    }
-  }
-
   const invoices = data?.invoices || []
   const totals = useMemo(() => {
     const year = new Date().getFullYear()
-    const issued = invoices.filter((inv) => inv.number != null && inv.year === year && !['rejected'].includes(inv.status))
+    const issued = invoices.filter((inv) => (inv.number != null && inv.year === year || inv.externally_issued && Number(inv.issue_date.slice(0, 4)) === year) && !['rejected'].includes(inv.status))
     return {
       year,
       issued: issued.reduce((sum, inv) => sum + inv.totale, 0),
       count: issued.length,
       drafts: invoices.filter((inv) => EDITABLE.includes(inv.status)).length,
+      unpaid: invoices.filter((inv) => inv.payment_state === 'unpaid').reduce((sum, inv) => sum + inv.totale, 0),
+      unpaidCount: invoices.filter((inv) => inv.payment_state === 'unpaid').length,
     }
   }, [invoices])
 
@@ -230,6 +217,7 @@ export default function FatturePage() {
               <strong>{totals.drafts}</strong>
               <small>da controllare e inviare</small>
             </div>
+            <div className="rc-total is-pending"><span>Da incassare</span><strong>{euro(totals.unpaid)}</strong><small>{totals.unpaidCount} fatture segnate da incassare</small></div>
           </div>
 
           {data.to_invoice.length ? (
@@ -255,8 +243,8 @@ export default function FatturePage() {
                         type="button"
                         className="btn btn-ghost btn-sm"
                         disabled={busy === quote.id}
-                        onClick={() => markOutside(quote)}
-                        title="Il lavoro è già stato fatturato fuori dal CRM: esce da questa lista, senza creare una fattura"
+                        onClick={() => setReconcile({ quote })}
+                        title="Registra numero, data e pagamento della fattura già emessa"
                       >
                         Già fatturata
                       </button>
@@ -267,8 +255,13 @@ export default function FatturePage() {
             </section>
           ) : null}
 
+          {data.outside_quotes?.length ? <section className="fe-section"><h2>Fatturate fuori: da completare</h2><p className="page-subtitle">Questi preventivi erano già segnati come fatturati fuori dal CRM. Aggiungi i dati solo dopo averli verificati.</p><ul className="rc-list">{data.outside_quotes.map((quote) => <li className="rc-row" key={quote.id}><div className="rc-main"><div className="rc-name">{quote.customer_company || quote.customer_name || 'Cliente'}</div><div className="rc-meta">{quote.quote_number} · {quote.title}</div></div><div className="rc-amount">{euro(quote.total_amount)}</div><button className="btn btn-ghost btn-sm" onClick={() => setReconcile({ quote })}>Registra fattura</button></li>)}</ul></section> : null}
+
+          {reconcile && <ExternalInvoiceForm key={reconcile.invoice?.id || reconcile.quote?.id || 'manual'} target={reconcile} onCancel={() => setReconcile(null)} onSaved={async () => { setReconcile(null); await load() }} />}
+
           <section className="fe-section">
             <h2>Fatture</h2>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setReconcile({ manual: true })}>+ Registra fattura esterna</button>
             {invoices.length ? (
               <ul className="rc-list">
                 {invoices.map((invoice) => (
@@ -278,6 +271,7 @@ export default function FatturePage() {
                     open={openId === invoice.id}
                     onToggle={() => setOpenId((current) => (current === invoice.id ? null : invoice.id))}
                     onChanged={load}
+                    onReconcile={() => setReconcile({ invoice })}
                   />
                 ))}
               </ul>
@@ -293,29 +287,73 @@ export default function FatturePage() {
   )
 }
 
-function InvoiceRow({ invoice, open, onToggle, onChanged }: { invoice: Invoice; open: boolean; onToggle: () => void; onChanged: () => Promise<void> }) {
+function InvoiceRow({ invoice, open, onToggle, onChanged, onReconcile }: { invoice: Invoice; open: boolean; onToggle: () => void; onChanged: () => Promise<void>; onReconcile: () => void }) {
   const awaitingManualUpload = invoice.status === 'sent' && invoice.aruba_env === 'manual' && !invoice.aruba_filename
-  const status = awaitingManualUpload
+  const status = invoice.externally_issued ? { label: 'Emessa fuori dal CRM', tone: 'is-ok' } : awaitingManualUpload
     ? { label: 'Da caricare su Aruba', tone: 'is-wait' }
     : STATUS_LABEL[invoice.status] || { label: invoice.status, tone: 'is-draft' }
   return (
     <li className={`fe-item${open ? ' is-open' : ''}`}>
       <button type="button" className="fe-head" onClick={onToggle} aria-expanded={open}>
-        <span className="fe-num">{invoice.numero ? `N. ${invoice.numero}` : 'Bozza'}</span>
+        <span className="fe-num">{invoice.externally_issued ? `N. ${invoice.external_number}` : invoice.numero ? `N. ${invoice.numero}` : 'Bozza'}</span>
         <span className="fe-who">
           <strong>{invoice.customer?.denominazione || 'Cliente'}</strong>
           <small>
             {day(invoice.issue_date)}
             {invoice.source === 'stripe_renewal' ? ' · rinnovo' : ''}
             {invoice.aruba_env === 'demo' && invoice.sent_at ? ' · prova Aruba' : ''}
+            {' · '}{invoice.payment_state === 'paid' ? `Pagata ${day(invoice.paid_at)}` : invoice.payment_state === 'unpaid' ? 'Da incassare' : 'Pagamento da verificare'}
           </small>
         </span>
         <span className={`fe-chip ${status.tone}`}>{status.label}</span>
         <span className="fe-total">{euro(invoice.totale)}</span>
       </button>
-      {open ? EDITABLE.includes(invoice.status) ? <InvoiceEditor invoice={invoice} onChanged={onChanged} /> : <InvoiceDetail invoice={invoice} onChanged={onChanged} /> : null}
+      {open ? <><PaymentForm invoice={invoice} onChanged={onChanged} />{((invoice.status === 'draft' && invoice.number == null) || awaitingManualUpload) && !invoice.externally_issued && <div className="fe-actions"><button type="button" className="btn btn-ghost btn-sm" onClick={onReconcile}>Già emessa fuori dal CRM</button></div>}{EDITABLE.includes(invoice.status) ? <InvoiceEditor invoice={invoice} onChanged={onChanged} /> : <InvoiceDetail invoice={invoice} onChanged={onChanged} />}</> : null}
     </li>
   )
+}
+
+function ExternalInvoiceForm({ target, onCancel, onSaved }: { target: { quote?: QuoteToInvoice; invoice?: Invoice; manual?: boolean }; onCancel: () => void; onSaved: () => Promise<void> }) {
+  const { showToast, allContacts } = useCRMContext()
+  const numbered = target.invoice?.number != null
+  const [number, setNumber] = useState(numbered ? target.invoice?.numero || '' : '')
+  const [issued, setIssued] = useState(numbered ? target.invoice?.issue_date.slice(0, 10) || '' : '')
+  const [payment, setPayment] = useState<'unknown' | 'unpaid' | 'paid'>('unknown')
+  const [paidAt, setPaidAt] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [contactId, setContactId] = useState('')
+  const [customerName, setCustomerName] = useState('')
+  const formRef = useRef<HTMLElement | null>(null)
+  useEffect(() => { formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, [])
+  const total = target.invoice?.totale ?? target.quote?.total_amount ?? 0
+  const [manualTotal, setManualTotal] = useState(target.manual ? '' : String(total))
+  async function save(e: React.FormEvent) {
+    e.preventDefault(); setSaving(true)
+    try {
+      await apiFetch('/api/invoices/reconcile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoice_id: target.invoice?.id, quote_id: target.quote?.id, customer_name: customerName, contact_id: contactId || null, total: manualTotal, number, issue_date: issued, payment_state: payment, paid_at: payment === 'paid' ? paidAt : null }) })
+      showToast('Fattura esterna registrata, senza invio allo SDI'); await onSaved()
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Impossibile registrare') } finally { setSaving(false) }
+  }
+  return <section ref={formRef} className="fe-section"><h2>Registra fattura già emessa</h2><p>{target.manual ? 'Inserisci i dati del documento originale.' : `Controlla il documento originale: importo CRM ${euro(total)}.`} Questa operazione non invia nulla allo SDI. Verifica la numerazione nei dati fiscali: il contatore delle nuove fatture non viene modificato.</p><form onSubmit={save} className="fe-body">
+    {target.manual && <div className="fe-actions"><label>Contatto (facoltativo) <select className="fi" value={contactId} onChange={e => { const id = e.target.value; setContactId(id); const c = allContacts.find(item => item.id === id); if (c) setCustomerName(c.company || c.name) }}><option value="">Nessun contatto</option>{allContacts.map(c => <option key={c.id} value={c.id}>{c.company || c.name}</option>)}</select></label><label>Cliente <input className="fi" required maxLength={200} value={customerName} onChange={e => setCustomerName(e.target.value)} /></label></div>}
+    <label>Totale del documento originale (€) <input className="fi" type="number" required min="0" step="0.01" readOnly={numbered} value={manualTotal} onChange={e => setManualTotal(e.target.value)} /></label>
+    <div className="fe-actions"><label>Numero fattura <input className="fi" required maxLength={100} readOnly={numbered} value={number} onChange={e => setNumber(e.target.value)} /></label><label>Data emissione <input className="fi" type="date" required readOnly={numbered} value={issued} onChange={e => setIssued(e.target.value)} /></label></div>
+    <div className="fe-actions"><label>Pagamento <select className="fi" value={payment} onChange={e => setPayment(e.target.value as typeof payment)}><option value="unknown">Da verificare</option><option value="unpaid">Da incassare</option><option value="paid">Già incassata</option></select></label>{payment === 'paid' && <label>Data incasso <input className="fi" type="date" required value={paidAt} onChange={e => setPaidAt(e.target.value)} /></label>}</div>
+    <div className="fe-actions"><button className="btn btn-primary" disabled={saving}>Registra</button><button type="button" className="btn btn-ghost" onClick={onCancel}>Annulla</button></div>
+  </form></section>
+}
+
+function PaymentForm({ invoice, onChanged }: { invoice: Invoice; onChanged: () => Promise<void> }) {
+  const { showToast } = useCRMContext()
+  const [state, setState] = useState(invoice.payment_state || 'unknown')
+  const [date, setDate] = useState(invoice.paid_at || '')
+  const [saving, setSaving] = useState(false)
+  async function save(e: React.FormEvent) {
+    e.preventDefault(); setSaving(true)
+    try { await apiFetch('/api/invoices/reconcile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoice_id: invoice.id, payment_state: state, paid_at: state === 'paid' ? date : null }) }); await onChanged(); showToast('Pagamento aggiornato') }
+    catch (error) { showToast(error instanceof Error ? error.message : 'Impossibile aggiornare') } finally { setSaving(false) }
+  }
+  return <form className="fe-actions" onSubmit={save}><label>Pagamento <select className="fi" value={state} onChange={e => setState(e.target.value as typeof state)}><option value="unknown">Da verificare</option><option value="unpaid">Da incassare</option><option value="paid">Incassata</option></select></label>{state === 'paid' && <label>Data incasso <input className="fi" type="date" required value={date} onChange={e => setDate(e.target.value)} /></label>}<button className="btn btn-ghost btn-sm" disabled={saving}>Salva pagamento</button></form>
 }
 
 async function downloadXml(invoice: Invoice, showToast: (text: string) => void) {
@@ -384,6 +422,7 @@ function InvoiceDetail({ invoice, onChanged }: { invoice: Invoice; onChanged: ()
   const awaitingManualUpload = invoice.status === 'sent' && invoice.aruba_env === 'manual' && !invoice.aruba_filename
   return (
     <div className="fe-body">
+      {invoice.externally_issued ? <p>Documento registrato come emesso fuori dal CRM. Lo stato SDI non è verificato automaticamente.</p> : <>
       {awaitingManualUpload ? <ArubaFileForm invoice={invoice} onChanged={onChanged} /> : null}
       <dl className="fe-kv">
         <dt>Stato SDI</dt>
@@ -410,6 +449,7 @@ function InvoiceDetail({ invoice, onChanged }: { invoice: Invoice; onChanged: ()
           Scarica XML
         </button>
       </div>
+      </>}
     </div>
   )
 }
