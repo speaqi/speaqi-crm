@@ -24,6 +24,10 @@ async function main() {
     if (!url.pathname.startsWith('/api/')) return route.continue()
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
     if (url.pathname === '/api/tasks/standalone' && route.request().method() === 'PATCH') { completed = true; return json({ task: { ...task, status: 'done' } }) }
+    if (url.pathname === `/api/contacts/${contactId}` && route.request().method() === 'PATCH') {
+      Object.assign(contact, route.request().postDataJSON())
+      return json({ contact })
+    }
     if (url.pathname === '/api/team-members') return json({ members: [], is_admin: true })
     if (url.pathname === '/api/pipeline-stages') return json({ stages: [] })
     if (url.pathname === '/api/contacts') return json({ contacts: [contact] })
@@ -45,6 +49,9 @@ async function main() {
     await page.getByRole('article').filter({ hasText: 'Preparare proposta' }).getByRole('button', { name: 'Fatto' }).click()
     await page.getByText('Preparare proposta', { exact: true }).waitFor({ state: 'hidden' })
     assert.equal(completed, true)
+    await page.getByRole('article').filter({ hasText: 'Azienda Test' }).getByRole('button', { name: '7 giorni' }).click()
+    await page.getByText('Ricontatto fissato', { exact: false }).waitFor()
+    assert.ok(new Date(contact.next_followup_at).getTime() > Date.now())
     await page.getByRole('article').filter({ hasText: 'Destinazione Test' }).getByRole('button', { name: 'Gestisci' }).click()
     await page.getByRole('region', { name: 'Scheda lavoro' }).getByText('Scrivere al referente').first().waitFor()
     await page.getByRole('button', { name: 'Chiudi e aggiorna' }).click()
