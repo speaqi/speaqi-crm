@@ -6,6 +6,7 @@ const owner = '11111111-1111-4111-8111-111111111111'
 const contactId = '33333333-3333-4333-8333-333333333333'
 const taskId = '44444444-4444-4444-8444-444444444444'
 const workId = '55555555-5555-4555-8555-555555555555'
+const invoiceId = '66666666-6666-4666-8666-666666666666'
 const base = process.env.CRM_STARTUP_TEST_URL || 'http://127.0.0.1:3100'
 async function main() {
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', headless: true, args: ['--no-sandbox'] })
@@ -13,8 +14,10 @@ async function main() {
   await context.addInitScript(({ owner }) => {
     const access_token = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' })) + '.' + btoa(JSON.stringify({ sub: owner, exp: Math.floor(Date.now() / 1000) + 3600 })) + '.test'
     localStorage.setItem('speaqi-crm-auth', JSON.stringify({ access_token, refresh_token: 'test', expires_at: Math.floor(Date.now() / 1000) + 3600, expires_in: 3600, token_type: 'bearer', user: { id: owner, email: 'owner@example.test', aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: '2026-01-01T00:00:00Z' } }))
+    localStorage.setItem('speaqi.todo.prefs', JSON.stringify({ view: 'list', grouping: 'progress', sort: 'priority', area: 'all', showDone: false, hiddenColumns: {} }))
   }, { owner })
   let completed = false
+  let linked = false
   const contact = { id: contactId, user_id: owner, name: 'Mario Test', company: 'Azienda Test', status: 'New', source: 'manual', contact_scope: 'crm', priority: 0, hidden: false, next_followup_at: '2020-01-01T10:00:00Z', created_at: '2020-01-01T10:00:00Z', updated_at: '2020-01-01T10:00:00Z' }
   const task = { id: taskId, user_id: owner, contact_id: null, type: 'todo', title: 'Preparare proposta', board_column_id: 'web-column', status: 'pending', due_date: '2020-01-01T10:00:00Z', created_at: '2020-01-01T10:00:00Z', updated_at: '2020-01-01T10:00:00Z' }
   const work = { id: workId, user_id: owner, title: 'Destinazione Test', kind: 'territory', stage: 'contact', next_action: 'Scrivere al referente', due_on: '2020-01-01', acknowledged_at: null, collaborator_ids: [], checklist: [], version: 1, created_at: '2020-01-01T10:00:00Z', updated_at: '2020-01-01T10:00:00Z' }
@@ -23,6 +26,11 @@ async function main() {
     if (url.origin !== new URL(base).origin) return route.abort()
     if (!url.pathname.startsWith('/api/')) return route.continue()
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
+    if (url.pathname === '/api/invoices/task-links') {
+      if (route.request().method() === 'POST') { linked = true; return json({ ok: true }) }
+      if (route.request().method() === 'DELETE') { linked = false; return json({ ok: true }) }
+      return json({ links: linked ? [{task_id: taskId, invoice_id: invoiceId}] : [], candidates: [{id:invoiceId, numero:'12/2026', customer:{denominazione:'Cliente prova'}, totale:120, payment_state:'paid'}] })
+    }
     if (url.pathname === '/api/tasks/standalone' && route.request().method() === 'PATCH') { completed = true; return json({ task: { ...task, status: 'done' } }) }
     if (url.pathname === `/api/contacts/${contactId}` && route.request().method() === 'PATCH') {
       Object.assign(contact, route.request().postDataJSON())
@@ -46,6 +54,29 @@ async function main() {
     await page.getByText('Preparare proposta', { exact: true }).waitFor()
     await page.getByText('Azienda Test', { exact: true }).waitFor()
     await page.getByText('Destinazione Test', { exact: true }).waitFor()
+    const workPage = page.locator('main').first()
+    const dimensions = await workPage.evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }))
+    assert.ok(dimensions.scrollHeight > dimensions.clientHeight, 'La pagina deve avere contenuto scorrevole')
+    await workPage.hover()
+    await page.mouse.wheel(0, 600)
+    await page.waitForTimeout(150)
+    assert.ok(await workPage.evaluate((el) => el.scrollTop) > 0, 'La rotella deve scorrere la pagina')
+    await workPage.evaluate((el) => { el.scrollTop = 0 })
+    await page.getByRole('button', { name: 'Kanban attività' }).click()
+    const board = page.getByRole('region', { name: 'Kanban attività' })
+    await board.locator('.todo-board').waitFor()
+    await board.getByText('Siti web', { exact: true }).waitFor()
+    await board.getByRole('button', { name: 'Preparare proposta' }).click()
+    await page.getByText('Fatture collegate', { exact: true }).waitFor()
+    await page.getByLabel('Collega una fattura').selectOption(invoiceId)
+    await page.getByRole('button', { name: 'Collega', exact: true }).click()
+    await page.getByRole('link', { name: /Fattura 12\/2026/ }).waitFor()
+    assert.equal(linked, true)
+    await page.getByRole('button', { name: 'Scollega' }).click()
+    await page.getByRole('link', { name: /Fattura 12\/2026/ }).waitFor({ state: 'hidden' })
+    assert.equal(linked, false)
+    await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: 'Oggi e follow-up' }).click()
     await page.getByLabel('Cerca contatto, azienda, categoria o attività').fill('Siti web')
     await page.getByText('Preparare proposta', { exact: true }).waitFor()
     assert.equal(await page.getByText('Azienda Test', { exact: true }).count(), 0)
@@ -63,6 +94,12 @@ async function main() {
     await page.getByRole('button', { name: /Turismo/ }).first().click()
     assert.equal(await page.getByText('Azienda Test', { exact: true }).count(), 0)
     assert.equal(await page.getByText('Destinazione Test', { exact: true }).count(), 1)
+    await page.setViewportSize({ width: 390, height: 720 })
+    await page.getByRole('button', { name: 'Kanban attività' }).click()
+    await page.getByRole('region', { name: 'Kanban attività' }).locator('.todo-board').waitFor()
+    const mobileBoard = page.getByRole('region', { name: 'Kanban attività' }).locator('.todo-page')
+    const mobileDimensions = await mobileBoard.evaluate(el => ({ height: el.clientHeight, overflow: getComputedStyle(el).overflowY }))
+    assert.ok(mobileDimensions.height > 0 && ['auto', 'scroll'].includes(mobileDimensions.overflow), 'Il Kanban deve restare scorrevole su telefono')
     assert.deepEqual(errors, [])
     console.log('PASS: attività, follow-up e Turismo nella stessa lista; completamento e filtro')
   } finally { await browser.close() }

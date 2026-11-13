@@ -15,6 +15,8 @@ import {
   taskProgressState,
 } from '@/lib/todo'
 import type { StandaloneTaskPatch, Task, TodoArea } from '@/types'
+import { useCRMContext } from '@/components/layout/CRMContext'
+import { InvoiceTaskLinks } from '@/components/todo/InvoiceTaskLinks'
 
 interface TodoRowProps {
   task: Task
@@ -26,6 +28,7 @@ interface TodoRowProps {
 }
 
 export function TodoRow({ task, today, expanded, onToggleExpanded, onPatch, onDelete }: TodoRowProps) {
+  const { isAdmin } = useCRMContext()
   const area = taskArea(task)
   const state = taskProgressState(task)
   const percent = taskProgressPercent(task)
@@ -203,6 +206,8 @@ export function TodoRow({ task, today, expanded, onToggleExpanded, onPatch, onDe
               }}
             />
           </label>
+
+          {isAdmin && <InvoiceTaskLinks taskId={task.id} />}
 
           <div className="todo-row-actions">
             <button

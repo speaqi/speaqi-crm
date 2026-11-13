@@ -6,6 +6,7 @@ import { apiFetch } from '@/lib/api'
 import ReceivablesSection from '@/components/incassi/ReceivablesSection'
 import { createClient } from '@/lib/supabase'
 import { computeFeTotals, NATURE_ESENTI, REGIMI_FISCALI, type FeCustomer, type FeLine } from '@/lib/fatturapa'
+import { InvoiceTaskLinks } from '@/components/todo/InvoiceTaskLinks'
 
 // Fatture elettroniche: bozza dal preventivo pagato, controllo, invio allo SDI con Aruba.
 
@@ -308,7 +309,7 @@ function InvoiceRow({ invoice, open, onToggle, onChanged, onReconcile }: { invoi
         <span className={`fe-chip ${status.tone}`}>{status.label}</span>
         <span className="fe-total">{euro(invoice.totale)}</span>
       </button>
-      {open ? <><PaymentForm invoice={invoice} onChanged={onChanged} />{((invoice.status === 'draft' && invoice.number == null) || awaitingManualUpload) && !invoice.externally_issued && <div className="fe-actions"><button type="button" className="btn btn-ghost btn-sm" onClick={onReconcile}>Già emessa fuori dal CRM</button></div>}{EDITABLE.includes(invoice.status) ? <InvoiceEditor invoice={invoice} onChanged={onChanged} /> : <InvoiceDetail invoice={invoice} onChanged={onChanged} />}</> : null}
+      {open ? <><InvoiceTaskLinks invoiceId={invoice.id} /><PaymentForm invoice={invoice} onChanged={onChanged} />{((invoice.status === 'draft' && invoice.number == null) || awaitingManualUpload) && !invoice.externally_issued && <div className="fe-actions"><button type="button" className="btn btn-ghost btn-sm" onClick={onReconcile}>Già emessa fuori dal CRM</button></div>}{EDITABLE.includes(invoice.status) ? <InvoiceEditor invoice={invoice} onChanged={onChanged} /> : <InvoiceDetail invoice={invoice} onChanged={onChanged} />}</> : null}
     </li>
   )
 }

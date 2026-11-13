@@ -11,6 +11,9 @@ async function main() {
     localStorage.setItem('speaqi-crm-auth', JSON.stringify({ access_token,refresh_token:'test',expires_at:Math.floor(Date.now()/1000)+3600,expires_in:3600,token_type:'bearer',user:{ id:owner,email:'owner@example.test',aud:'authenticated',role:'authenticated',app_metadata:{},user_metadata:{},created_at:'2026-01-01T00:00:00Z' } }))
   }, { owner })
   let saved: any = null
+  let linked = false
+  const taskId = '44444444-4444-4444-8444-444444444444'
+  const invoiceId = '66666666-6666-4666-8666-666666666666'
   const calls: string[] = []
   const quote = { id:'q-1',quote_number:'PREV-1',title:'Sito',customer_name:'Cliente',customer_company:null,total_amount:120,status:'paid',payment_state:'paid',paid_at:'2026-01-03',accepted_at:'2026-01-01' }
   await context.route('**/*', async route => {
@@ -18,12 +21,13 @@ async function main() {
     if (url.origin !== new URL(base).origin) return route.abort()
     if (!url.pathname.startsWith('/api/')) return route.continue()
     const json = (x:unknown) => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(x)})
-    if (route.request().method() !== 'GET') { calls.push(url.pathname); if (url.pathname === '/api/invoices/reconcile') { saved=route.request().postDataJSON(); return json({invoice:{id:'i-1'}}) } return route.fulfill({status:400,body:'Unexpected write'}) }
+    if (route.request().method() !== 'GET') { calls.push(url.pathname); if (url.pathname === '/api/invoices/reconcile') { saved=route.request().postDataJSON(); return json({invoice:{id:invoiceId}}) } if (url.pathname === '/api/invoices/task-links') { linked = true; return json({ok:true}) } return route.fulfill({status:400,body:'Unexpected write'}) }
     if (url.pathname === '/api/team-members') return json({members:[],is_admin:true})
     if (url.pathname === '/api/pipeline-stages') return json({stages:[]})
     if (url.pathname === '/api/contacts') return json({contacts:[{ id:'c-1',name:'Cliente',status:'New',source:'manual',contact_scope:'crm',priority:0,created_at:'2026-01-01',updated_at:'2026-01-01' }]})
     if (url.pathname === '/api/contacts/summary') return json({counts:{total:1}})
-    if (url.pathname === '/api/invoices') return json({invoices:[],to_invoice:saved?[]:[quote],outside_quotes:[],aruba:{configured:false,env:'production'},settings_saved:false})
+    if (url.pathname === '/api/invoices/task-links') return json({links:linked?[{task_id:taskId,invoice_id:invoiceId}]:[],candidates:[{id:taskId,title:'Sito web Cliente',status:'pending'}]})
+    if (url.pathname === '/api/invoices') return json({invoices:saved?[{id:invoiceId,quote_id:'q-1',source:'quote',status:'sent',numero:null,number:null,year:null,issue_date:'2026-01-02',customer:{denominazione:'Cliente'},lines:[],payment_method:'MP05',totale:120,imponibile:0,imposta:0,warnings:[],problems:[],aruba_env:null,aruba_filename:null,sdi_status:null,sdi_detail:null,last_error:null,sent_at:'2026-01-02',externally_issued:true,external_number:'17/2026',payment_state:'paid',paid_at:'2026-01-03'}]:[],to_invoice:saved?[]:[quote],outside_quotes:[],aruba:{configured:false,env:'production'},settings_saved:false})
     if (url.pathname === '/api/receivables') return json({receivables:[]})
     return json({tasks:[],columns:[]})
   })
@@ -38,7 +42,12 @@ async function main() {
     await page.getByRole('button',{name:'Registra',exact:true}).click()
     await page.getByText('Fattura esterna registrata', { exact:false }).waitFor()
     assert.equal(saved.quote_id,'q-1'); assert.equal(saved.payment_state,'paid'); assert.equal(saved.paid_at,'2026-01-03')
-    assert.deepEqual(calls,['/api/invoices/reconcile'])
+    await page.getByRole('button',{name:/N\. 17\/2026/}).click()
+    await page.getByLabel('Collega un’attività').selectOption(taskId)
+    await page.getByRole('button',{name:'Collega',exact:true}).click()
+    await page.getByText('Sito web Cliente',{exact:true}).waitFor()
+    assert.equal(linked,true)
+    assert.deepEqual(calls,['/api/invoices/reconcile','/api/invoices/task-links'])
     console.log('PASS: fattura esterna incassata senza invio SDI')
   } finally { await browser.close() }
 }

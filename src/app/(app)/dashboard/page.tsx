@@ -5,7 +5,7 @@ import { useCRMContext } from '@/components/layout/CRMContext'
 import { ContactDrawer } from '@/components/crm/ContactDrawer'
 import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
 import TourismWork from '@/components/tourism/TourismWork'
-import TodoPage from '../todo/page'
+import TodoWorkspace from '@/components/todo/TodoWorkspace'
 import CalendarioPage from '../calendario/page'
 import PreviousDashboard from '@/components/crm/PreviousDashboard'
 import { canAccessPath } from '@/lib/areas'
@@ -42,6 +42,7 @@ export default function WorkdayPage() {
   const [outcome, setOutcome] = useState<{ contact: CRMContact; task: TaskWithContact | null } | null>(null)
   const [selectedWork, setSelectedWork] = useState<string | null>(null)
   const [panel, setPanel] = useState<'tourism' | 'todo' | 'calls' | 'overview' | null>(null)
+  const [workView, setWorkView] = useState<'today' | 'board'>('today')
   const today = localDayDateKey(new Date())
 
   const loadTasks = useCallback(async () => {
@@ -145,6 +146,8 @@ export default function WorkdayPage() {
 
   return <main className={styles.page}>
     <header className={styles.header}><div><p className={styles.eyebrow}>IL MIO LAVORO</p><h1>La tua giornata, in un posto solo</h1><p>Attività, follow-up e Turismo insieme. Apri una voce per lavorarci.</p></div><button className="btn btn-ghost" onClick={() => { if (canTodo) void loadTasks(); if (canTourism) void loadWork(); void refresh() }}>Aggiorna</button></header>
+    {canTodo && <nav className={styles.filters} aria-label="Vista di lavoro"><button type="button" className={workView === 'today' ? styles.active : ''} aria-pressed={workView === 'today'} onClick={() => { setWorkView('today'); void loadTasks() }}>Oggi e follow-up</button><button type="button" className={workView === 'board' ? styles.active : ''} aria-pressed={workView === 'board'} onClick={() => { setPanel(null); setWorkView('board') }}>Kanban attività</button></nav>}
+    {workView === 'board' && canTodo ? <section className={styles.boardFrame} aria-label="Kanban attività"><TodoWorkspace forceBoard /></section> : <>
     {canTodo && <form className={styles.capture} onSubmit={addTask}><label className={styles.srOnly} htmlFor="new-work">Nuova attività</label><input id="new-work" placeholder="Aggiungi una cosa da fare…" value={title} onChange={(e) => setTitle(e.target.value)} /><label className={styles.srOnly} htmlFor="new-date">Scadenza</label><input id="new-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} /><button className="btn btn-primary" disabled={busy === 'new' || !title.trim()}>Aggiungi</button></form>}
     {Object.entries(errors).filter(([, value]) => value).map(([source, value]) => <p className={styles.error} key={source}>{source === 'todo' ? 'Attività' : 'Turismo'}: {value} <button type="button" onClick={() => source === 'todo' ? void loadTasks() : void loadWork()}>Riprova</button></p>)}
     {crm.error && <p className={styles.error}>CRM: {crm.error} <button type="button" onClick={() => void refresh()}>Riprova</button></p>}
@@ -159,8 +162,9 @@ export default function WorkdayPage() {
     })}
     {!loading && !pending.todo && !pending.tourism && rows.length === 0 && !crm.error && !Object.values(errors).some(Boolean) && <p className={styles.empty}>Nessuna attività aperta nelle aree disponibili.</p>}
     {!loading && rows.length > 0 && order.every((key) => groups[key].length === 0) && <p className={styles.empty}>Nessun risultato per questa ricerca o filtro.</p>}
-    <section className={styles.tools}><h2>Gestisci il lavoro</h2><p>Strumenti completi, sempre in questa pagina.</p><div className={styles.filters}>{canTodo && <button onClick={() => openPanel('todo')}>Lavagna attività</button>}{canCalls && <button onClick={() => openPanel('calls')}>Calendario follow-up</button>}{canTourism && <button onClick={() => openPanel('tourism')}>Gestione Turismo</button>}{isAdmin && <button onClick={() => openPanel('overview')}>Altri strumenti Oggi</button>}</div></section>
-    {panel && <section id="workday-detail" className={styles.detail}><div className={styles.detailHeader}><h2>{panel === 'todo' ? 'Lavagna attività' : panel === 'calls' ? 'Calendario follow-up' : panel === 'tourism' ? 'Gestione Turismo' : 'Altri strumenti Oggi'}</h2><button className="btn btn-ghost" onClick={closePanel}>Chiudi e aggiorna</button></div>{panel === 'todo' ? <TodoPage /> : panel === 'calls' ? <CalendarioPage /> : panel === 'tourism' ? <TourismWork key={selectedWork || 'list'} initialSelectedId={selectedWork} onChanged={loadWork} /> : <PreviousDashboard />}</section>}
+    <section className={styles.tools}><h2>Gestisci il lavoro</h2><p>Strumenti completi, sempre in questa pagina.</p><div className={styles.filters}>{canCalls && <button onClick={() => openPanel('calls')}>Calendario follow-up</button>}{canTourism && <button onClick={() => openPanel('tourism')}>Gestione Turismo</button>}{isAdmin && <button onClick={() => openPanel('overview')}>Altri strumenti Oggi</button>}</div></section>
+    {panel && <section id="workday-detail" className={styles.detail}><div className={styles.detailHeader}><h2>{panel === 'todo' ? 'Lavagna attività' : panel === 'calls' ? 'Calendario follow-up' : panel === 'tourism' ? 'Gestione Turismo' : 'Altri strumenti Oggi'}</h2><button className="btn btn-ghost" onClick={closePanel}>Chiudi e aggiorna</button></div>{panel === 'todo' ? <TodoWorkspace forceBoard /> : panel === 'calls' ? <CalendarioPage /> : panel === 'tourism' ? <TourismWork key={selectedWork || 'list'} initialSelectedId={selectedWork} onChanged={loadWork} /> : <PreviousDashboard />}</section>}
+    </>}
     <ContactDrawer contactId={drawer} onClose={() => setDrawer(null)} />
     <CallOutcomeModal open={!!outcome} contact={outcome?.contact || null} task={outcome?.task} stages={stages} onClose={() => setOutcome(null)} onSave={async (payload) => { if (!outcome) return; if (outcome.task) await completeTask(outcome.task.id, { refresh: false }); if (payload.status !== outcome.contact.status || isClosedStatus(payload.status)) await updateContact(outcome.contact.id, { status: payload.status, next_followup_at: isClosedStatus(payload.status) ? '' : payload.next_followup_at }, { refresh: false }); await addActivity(outcome.contact.id, { type: 'call', content: payload.content, next_followup_at: isClosedStatus(payload.status) ? undefined : payload.next_followup_at, task_type: payload.task_type }, { refresh: false }); await refresh(); showToast('Esito registrato e follow-up aggiornato') }} />
   </main>
