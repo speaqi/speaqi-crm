@@ -13,5 +13,6 @@ export async function resetWorkDatabase(database: string) {
     '20261024120000_opportunities.sql',
     '20261024140000_office_queue_update.sql',
     OFFICE_WORK_SCHEMA_MIGRATION,
+    '20261114150215_office_naples_unlocked.sql',
   ])
 }

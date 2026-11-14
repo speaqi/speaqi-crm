@@ -5,7 +5,6 @@
  * pagina letta davvero, e un campo già pieno non si tocca.
  */
 import { normalizeForSearch } from '../command-center'
-import { officeIsNaples } from './director'
 
 export const ENRICH_ORG_TYPES = ['dmo', 'cvb', 'local_office', 'rto', 'municipality'] as const
 const TYPE_RANK: Record<string, number> = { dmo: 0, cvb: 1, local_office: 2, rto: 3, municipality: 4 }
@@ -52,20 +51,19 @@ function cityOf(hub: EnrichHub) {
 
 /**
  * Le città da cui partire: i porti con la superguida da fare (priorità 1-2) e le
- * destinazioni con la stessa priorità. Napoli fuori, sempre.
+ * destinazioni con la stessa priorità.
  */
 export function enrichTargets(input: { hubs: EnrichHub[]; destinations: EnrichDestination[]; places: EnrichPlace[] }): EnrichTarget[] {
   const byKey = new Map<string, EnrichTarget>()
   const open = (status: string, priority: number | null) => ['planned', 'in_progress'].includes(status) && (priority === 1 || priority === 2)
   const add = (city: string, country: string | null, extra: string[], priority: number, inProgress: boolean, placeId: string | null) => {
     const code = String(country || '').toUpperCase()
-    if (!city || !/^[A-Z]{2}$/.test(code) || officeIsNaples(city, ...extra)) return
+    if (!city || !/^[A-Z]{2}$/.test(code)) return
     const key = `${code}:${nameKey(city)}`
     const names = [city, ...extra, ...(EXONYMS[nameKey(city)] || [])]
     const keys = new Set(names.map(nameKey))
     const place = placeId ? null : input.places.find((p) => p.country_code === code && [p.name, ...(p.aliases || [])].some((n) => keys.has(nameKey(n))))
     const all = [...names, ...(place ? [place.name, ...(place.aliases || [])] : [])]
-    if (officeIsNaples(...all)) return
     const previous = byKey.get(key)
     const merged = [...new Map([...(previous?.names || []), ...all].map((n) => [nameKey(n), n.trim()])).values()].filter(Boolean)
     byKey.set(key, { key, city: previous?.city || city, country: code, names: merged, priority: Math.min(priority, previous?.priority ?? 9),
@@ -87,7 +85,7 @@ function containsWords(haystack: string, needle: string) {
  */
 export function matchOrganization(target: EnrichTarget, orgs: EnrichOrg[]): EnrichOrg | null {
   const candidates = orgs.filter((o) => o.country_code === target.country && o.type_code && o.type_code in TYPE_RANK && !o.disabled
-    && !['INACTIVE', 'DUPLICATE'].includes(o.status) && !!o.website && !officeIsNaples(o.name, ...(o.aliases || []))
+    && !['INACTIVE', 'DUPLICATE'].includes(o.status) && !!o.website
     && [o.name, ...(o.aliases || [])].some((n) => target.names.some((city) => containsWords(n, city))))
   candidates.sort((a, b) => TYPE_RANK[a.type_code!] - TYPE_RANK[b.type_code!] || Number(b.status === 'VERIFIED') - Number(a.status === 'VERIFIED')
     || a.name.length - b.name.length || a.id.localeCompare(b.id))

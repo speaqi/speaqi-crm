@@ -13,7 +13,7 @@ let outputId:string
 const decide=(status='approved',owner=OWNER,id=outputId)=>scalar(`select public.decide_office_output('${id}','${owner}','${status}')`).then((s)=>JSON.parse(s!))
 
 before(async()=>{
-  await resetOfficeDatabase(DB)
+  await resetOfficeDatabase(DB,['20261114150215_office_naples_unlocked.sql'])
   await sql(`insert into auth.users(id) values('${OWNER}'),('${OTHER}')`)
 })
 beforeEach(async()=>{
@@ -65,9 +65,7 @@ test('Direttore: rifiuto tracciato, altro workspace e destinatario mancante non 
   assert.equal(await scalar(`select (decided_at is not null)::text from office_agent_outputs where id='${outputId}'`),'true')
 })
 
-test('Direttore: Napoli, target alterati e chiamate non privilegiate rifiutati',async()=>{
-  await sql(`update office_agent_outputs set body=jsonb_set(body,'{city}','"Naples"') where id='${outputId}'`)
-  assert.match((await expectError(`select public.decide_office_output('${outputId}','${OWNER}','approved')`))!,/Napoli/)
+test('Direttore: target alterati e chiamate non privilegiate rifiutati',async()=>{
   await sql(`update office_agent_outputs set body=jsonb_set(body,'{city}','"Marsiglia"'),target_table='contacts' where id='${outputId}'`)
   assert.match((await expectError(`select public.decide_office_output('${outputId}','${OWNER}','approved')`))!,/non valida/)
   assert.match((await expectError(`set role authenticated;select public.decide_office_output('${outputId}','${OWNER}','approved')`))!,/permission denied/)

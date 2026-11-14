@@ -88,14 +88,15 @@ test('una sintesi riuscita non chiude il lavoro se il servizio lascia una riserv
   assert.equal(db.rows[0].reason_code, 'reconciliation_required')
 })
 
-test('azioni chiuse, identificativi e payload impediscono deleghe libere e Napoli', () => {
+test('azioni chiuse, identificativi e payload impediscono deleghe libere', () => {
   assert.throws(() => officeWorkSpec({ agent_id: 'director', action: 'send_email', source_key: 'bad' }), /non ammesso/)
   assert.throws(() => officeWorkSpec({ agent_id: 'director', action: 'interpret_order', source_key: '' }), /Chiave/)
   assert.throws(() => validateWorkPayload('director', 'interpret_order', { enabled: true }), /Campo/)
   assert.throws(() => validateWorkPayload('presentations', 'prepare_presentation', { entity_id: 'foreign' }), /Identificativo/)
   assert.throws(() => validateWorkPayload('presentations', 'prepare_presentation', { photos: ['../other.jpg'] }), /Foto/)
   assert.doesNotThrow(() => validateWorkPayload('presentations', 'prepare_presentation', { entity_id: ID, photos: [`${OWNER}/${ID}/${ID}.jpg`] }))
-  for (const slug of ['napolimap', 'naples', '%6eapoli']) assert.throws(() => validateWorkPayload('mymaps_builder', 'import_mymaps', { city: slug }), /Napoli/)
+  // Dal 14/11/2026 Napoli è una città come le altre.
+  assert.doesNotThrow(() => validateWorkPayload('mymaps_builder', 'import_mymaps', { city: 'Napoli', slug: 'napolimap' }))
   assert.equal(officeWorkSpec({ agent_id: 'mymaps_builder', action: 'import_mymaps', source_key: 'map:1', payload: { slug: 'marsiglia' } }).payload?.slug, 'marsiglia')
 })
 

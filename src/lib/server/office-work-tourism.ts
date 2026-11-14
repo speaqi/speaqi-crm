@@ -1,5 +1,4 @@
 import type { OfficeWorkItem, WorkOutcome } from '../office-work'
-import { officeIsNaples } from '../office/director'
 import { cityForEntity, siteCandidates, siteMatchesEntity, websiteFromText } from '../office/entity-activation'
 import {
   ENRICHMENT_SCHEMA, enrichmentPrompt, validateEnrichment,
@@ -110,7 +109,6 @@ export async function verifyTourismWork(ctx: AgentContext, work: OfficeWorkItem,
   const city = text(work.payload.city || work.payload.proposed_city, 80) || cityForEntity({ proposed: null,
     entityName: entity.name, aliases: entity.aliases, orderText })
   if (!city) return blocked('city_missing', 'Manca la destinazione di cui si occupa l’ente.', 'Indica la città nei dati di questo lavoro; l’ordine riprenderà da qui.')
-  if (officeIsNaples(city, entity.name, ...(entity.aliases || []))) return blocked('protected_map', 'Napoli è esclusa dal lavoro degli agenti.', 'Scegli un’altra destinazione.')
   const checkpoint: Checkpoint = { ...work.checkpoint }
   const persist = checkpointWriter(admin, work, deps)
   const model = deps.model || callModel

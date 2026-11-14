@@ -68,12 +68,9 @@ test('presentazioni: timeout non ripaga e non approva; la pipeline conserva fail
   const f=fixture();let calls=0;const handler=presentationsHandler(f.db,{create:f.create,model:async()=>{calls++;throw new Error('Timeout')}})
   await assert.rejects(handler(f.ctx),/Timeout/);await handler(f.ctx);assert.equal(calls,1);assert.equal(f.db.tables.tourism_decks[0].status,'failed')
 })
-test('presentazioni: Napoli, altri workspace e destinazione ambigua non avviano generazioni',async()=>{
+test('presentazioni: altri workspace e destinazione ambigua non avviano generazioni',async()=>{
   const f=fixture();await assert.rejects(presentationEntities(f.db,'other',{entity_id:ENTITY,destination_id:DEST}),/non verificato/)
   await assert.rejects(presentationEntities(f.db,'owner',{entity_id:ENTITY}),/Nessuna destinazione unica/)
-  f.db.tables.tourism_entities[1].name='Napoli';await presentationsHandler(f.db,{create:f.create})(f.ctx)
-  assert.equal(f.db.calls.some((c)=>c.rpc==='claim_office_presentation'),false)
-  assert.equal(f.db.tables.tourism_decks.length,0)
 })
 test('presentazioni: la pipeline esistente vieta approvazione con segnaposto',async()=>{
   await assert.rejects(setApproval(new FakeSupabase(),{slides,status:'ready'} as any,true),/DA VERIFICARE/)

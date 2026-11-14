@@ -3,7 +3,6 @@ import type { OfficeWorkItem, OfficeWorkSpec, WorkOutcome } from '../office-work
 import { DIRECTOR_ORDER_SCHEMA, directorFollowUp, directorOrderPrompt, interpretDirectorOrder, type DirectorOrderPlan } from '../office/director-orders'
 import { officeRomeDay } from '../office/finance'
 import { officeMapSlot } from '../office/maps'
-import { officeIsNaples } from '../office/director'
 import { cityForEntity, isCountryDestination, isNationalTourismBody, websiteFromText } from '../office/entity-activation'
 import { callModel, createOfficeStore, officeModelKey, runAgent, type AgentContext, type AgentHandler } from './office-agents'
 import { researchLocation, type ResearchLocation } from './office-agents/researcher'
@@ -230,7 +229,7 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
         .in('type_code', DESTINATION_TYPES)
         .in('status', ['VERIFIED', 'UNVERIFIED', 'NEEDS_REVIEW'])
         .order('outreach_priority', { ascending: true }).limit(200)) || []
-      targets = candidates.filter((entity: any) => !done.has(entity.id) && entity.website && !officeIsNaples(entity.name)
+      targets = candidates.filter((entity: any) => !done.has(entity.id) && entity.website
         && cityForEntity({ proposed: null, entityName: entity.name, aliases: entity.aliases, orderText: '' }))
         .slice(0, plan.count).map((entity: any) => entity.name)
       if (!targets.length) return blockedWork('Non trovo destinazioni con fonte e città da proporre.', 'Indica un ente e la destinazione nello stesso lavoro.', 'Titolare', 'entity_missing')
@@ -300,7 +299,6 @@ export async function interpretOrderWork(ctx: AgentContext, work: OfficeWorkItem
           awaiting: { need: 'city', resume: `presentazione per ${target}` } } }).eq('id', order.id).eq('user_id', work.user_id))
         return blockedWork('Per quale città preparo la presentazione?', 'Rispondi con la città oppure completa il testo dello stesso lavoro.', 'Titolare', 'needs_information')
       }
-      if (officeIsNaples(entity.name, city)) return blockedWork('Napoli è esclusa dal lavoro degli agenti.', 'Scegli una destinazione diversa nello stesso incarico.', 'Titolare', 'protected_destination')
       const photos = targets.length === 1 ? { photos: (order.attachments || []).map((item) => item.path) } : {}
       if (ready) {
         children.push(child('presentations', 'prepare_presentation', { entity_id: entity.id, city: ready.destination.name || city,
@@ -358,7 +356,6 @@ export async function executeOfficeWork(ctx: AgentContext, work: OfficeWorkItem,
     const mapId = String(work.payload.map_id || work.payload.target_id || '')
     if (!api || !mapId) return blockedWork('Mancano API Speaqi o identificativo della mappa.', 'Completa la configurazione o collega la mappa a questo incarico.', 'Titolare', 'configuration')
     const identity = await api.status(mapId)
-    if (officeIsNaples(identity.name, identity.slug, identity.studiomap_slug)) return blockedWork('Napoli è esclusa dal lavoro degli agenti.', 'Scegli un’altra destinazione.', 'Titolare', 'protected_destination')
     const progress = await api.translations(mapId)
     if (!progress.target_languages?.length) return blockedWork('Nessuna lingua di destinazione è configurata.', 'Scegli le lingue della mappa su Speaqi e riprendi lo stesso lavoro.', 'Titolare', 'languages_missing')
     const pending = [progress.summary.text, progress.summary.audio].some((counts) => counts.missing + counts.failed + counts.stuck + counts.processing + counts.outdated > 0)

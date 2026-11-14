@@ -2,7 +2,6 @@ import { looksLikeProductionQuestion, productionQuestion, productionReply } from
 import { loadOfficeProduction } from './office-production'
 import { createHash, randomUUID } from 'node:crypto'
 import { BudgetExceeded, callModel, runAgent, type AgentContext } from './office-agents'
-import { officeIsNaples } from '../office/director'
 import { EXONYMS, nameKey } from '../office/entity-enricher'
 import { safePublicUrl, TOURISM_TYPES } from '../tourism'
 import { readEntitySite } from './office-agents/entity-enricher'
@@ -333,10 +332,9 @@ export async function presentationEmailFor(admin: Admin, ctx: AgentContext, user
       results.push({ status: 'failed', outputs: [], queued: [], reply: `${target}: non ci sono riuscito (${errorMessage(error, 'errore')}).` })
     }
   }
-  const skipped = plan.skipped.length ? ['Napoli resta fuori dal lavoro degli agenti: per lei non preparo niente.'] : []
   const status: Outcome['status'] = results.some((r) => r.status === 'done') ? 'done' : results.some((r) => r.status === 'waiting_you') ? 'waiting_you' : 'failed'
-  if (results.length === 1 && !skipped.length) return results[0]
-  return { status, outputs: [], queued: [], reply: [...results.map((r) => `• ${r.reply}`), ...skipped].join('\n\n') }
+  if (results.length === 1) return results[0]
+  return { status, outputs: [], queued: [], reply: results.map((r) => `• ${r.reply}`).join('\n\n') }
 }
 
 type PresentationContact = { id: string; name: string | null; email: string | null; hidden: boolean | null; email_unsubscribed_at: string | null }
@@ -657,7 +655,6 @@ async function partnerPresentation(admin: Admin, ctx: AgentContext, order: Direc
   const name = entity?.name || target
   const city = plan.city
   if (!city) return { status: 'waiting_you', outputs: [], queued: [], reply: `Per quale città è la guida che proponi a ${name}? Scrivimi «presentazione partner per ${name}, guida di …».` }
-  if (officeIsNaples(city)) return { status: 'failed', outputs: [], queued: [], reply: 'Napoli resta fuori dal lavoro degli agenti.' }
   if (entity) {
     const existing = checked(await admin.from('tourism_decks').select('id,title').eq('user_id', userId).eq('entity_id', entity.id)
       .eq('input->>modello', 'partner').ilike('destination', city).limit(1).maybeSingle()) as { id: string; title: string } | null
@@ -709,7 +706,7 @@ async function autoDestinationPresentations(admin: Admin, ctx: AgentContext, ord
   if (rows.error) throw rows.error
   const done = new Set(decks.map((d) => d.entity_id).filter(Boolean))
   const candidates = ((rows.data || []) as Array<ActivationEntity & { outreach_priority: number | null }>)
-    .filter((e) => !done.has(e.id) && !officeIsNaples(e.name))
+    .filter((e) => !done.has(e.id))
     // Si attiva solo chi ha una città leggibile dal nome («Visit Bergamo»): gli altri si fermerebbero a chiederla.
     .filter((e) => e.status === 'VERIFIED' || cityForEntity({ proposed: null, entityName: e.name, aliases: e.aliases, orderText: '' }))
     // A parità di priorità prima chi è già verificato: costa meno attivarlo.
@@ -893,7 +890,7 @@ async function addEntity(admin: Admin, ctx: AgentContext, order: DirectorOrderRo
   // «…e poi fammi la presentazione»: l'ente è attivo, la presentazione parte subito.
   const fresh = await findEntity(admin, userId, [entity.name]) || { ...entity, status: 'VERIFIED' }
   const deckPlan: PresentationPlan = { intent: 'presentation', targets: [entity.name], count: null, audience: 'destinazione', brief: null,
-    city, skipped: [], country_code: entity.country_code, type_code: entity.type_code }
+    city, country_code: entity.country_code, type_code: entity.type_code }
   const deck = await presentationFor(admin, ctx, userId, fresh, deckPlan, order.text, entity.name, [], contact?.id || activated.contactId)
   return { ...deck, reply: `${first} ${activated.note} ${link}\n${deck.reply}` }
 }
@@ -915,7 +912,6 @@ async function renameEntity(admin: Admin, ctx: AgentContext, order: DirectorOrde
   if (!entity) return { status: 'failed', outputs: [], queued: [], reply: found
     ? `Non trovo un ente che si chiami esattamente «${plan.from}»: il più vicino è «${found.name}». Se è lui, scrivimi «rinomina ${found.name} in ${plan.to}».`
     : `Non trovo «${plan.from}» fra gli enti di Tourism Intelligence. Scrivimi il nome come lo vedi nella scheda.` }
-  if (officeIsNaples(entity.name)) return { status: 'failed', outputs: [], queued: [], reply: 'Gli enti di Napoli restano fuori dal lavoro degli agenti: rinominalo tu dalla scheda Tourism.' }
   const link = `${base}/tourism?entity=${entity.id}`
   let renamed: ActivationEntity = entity
   let first = `${entity.name} si chiama già così.`
@@ -940,7 +936,7 @@ async function renameEntity(admin: Admin, ctx: AgentContext, order: DirectorOrde
   // Un ente nazionale promuove il paese: come in add_entity, la «città» della presentazione è il paese.
   const national = renamed.type_code === 'nto' || renamed.type_code === 'ministry'
   const deckPlan: PresentationPlan = { intent: 'presentation', targets: [renamed.name], count: null, audience: 'destinazione', brief: null,
-    city: national && renamed.country_code ? countryName(renamed.country_code) : null, skipped: [], country_code: renamed.country_code, type_code: renamed.type_code }
+    city: national && renamed.country_code ? countryName(renamed.country_code) : null, country_code: renamed.country_code, type_code: renamed.type_code }
   const photos = (order.attachments || []).map((a) => a.path)
   if (renamed !== entity) {
     // Una presentazione fatta col nome di prima non si manda come nuova: si riattiva l'ente e si chiede di rigenerarla.
@@ -1070,7 +1066,7 @@ export function eventSourcesRequestId(orderId: string) {
 /**
  * «Trovami le fonti eventi di Marsiglia»: la ricerca la fa StudioMap (la stessa di
  * «Cerca siti eventi»), il CRM la prenota nel budget del Direttore prima e la salda col
- * costo dichiarato dopo. Un rifiuto di StudioMap (400: città assente, Napoli, ricerca già
+ * costo dichiarato dopo. Un rifiuto di StudioMap (400: città assente, ricerca già
  * in corso) non ha speso niente; un altro errore lascia la riserva, perché l'esito è incerto.
  */
 export async function eventSourcesFor(ctx: AgentContext, order: Pick<DirectorOrderRow, 'id'>,
@@ -1178,8 +1174,7 @@ export async function executePlan(admin: Admin, ctx: AgentContext, order: Direct
         outcomes.push({ status: 'failed', outputs: [], queued: [], reply: `${target}: non ci sono riuscito (${errorMessage(error, 'errore')}).` })
       }
     }
-    const skipped = plan.skipped.length ? 'Napoli l’ho lasciata fuori: resta fuori dal lavoro degli agenti.' : ''
-    return combineOutcomes(outcomes, skipped)
+    return combineOutcomes(outcomes)
   }
   if (plan.intent === 'find_partners') return findPartners(admin, ctx, order, plan)
   if (plan.intent === 'add_entity') return addEntity(admin, ctx, order, plan)

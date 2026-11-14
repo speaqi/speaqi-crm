@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test, mock } from 'node:test'
-import { directorPriorities, directorReportLines, directorSuppressed, officeIsNaples, type DirectorDestination } from '../src/lib/office/director'
+import { directorPriorities, directorReportLines, directorSuppressed, type DirectorDestination } from '../src/lib/office/director'
 import { directorHandler, loadDirectorCoverage } from '../src/lib/server/office-agents/director'
 import type { MapsStatus } from '../src/lib/server/maps-status'
 import type { MapStatusRow } from '../src/lib/command-center'
@@ -31,10 +31,9 @@ test('Direttore: niente priorità inventate da dati stimati, senza fonti o catal
   assert.equal(directorPriorities({...data,maps:[map('Marsiglia',{stage:'in_lavorazione'})],coverage:[],destinations:[destination('Marsiglia')]}).length,0)
 })
 
-test('Direttore: Napoli, Naples e napolimap esclusi da tutte le proposte', () => {
-  assert.equal(officeIsNaples('Naples'),true); assert.equal(officeIsNaples('napolimap'),true); assert.equal(officeIsNaples('%6eapoli'),true)
-  const result = directorPriorities({...data,destinations:[destination('Napoli'),destination('Naples')],maps:[map('Napoli'),map('Nascosta',{stage:'online',speaqi_slug:'napolimap'})]})
-  assert.deepEqual(result,[])
+test('Direttore: Napoli è una città come le altre (dal 14/11/2026)', () => {
+  const result = directorPriorities({...data,destinations:[destination('Napoli')],maps:[map('Bari')],coverage:[]})
+  assert.deepEqual(result.map((p) => p.city),['Napoli','Bari'])
 })
 
 test('Direttore: numeri inventati vengono riscritti senza numeri e il rifiuto dura quattro settimane', () => {
@@ -45,7 +44,7 @@ test('Direttore: numeri inventati vengono riscritti senza numeri e il rifiuto du
   assert.deepEqual(suppressed,[priority.key]); assert.ok(!directorPriorities({...data,suppressed}).some((p) => p.key===priority.key))
 })
 
-test('Direttore: copertura da GET autenticato, nessuna lettura per Napoli, dati mancanti dichiarati', async () => {
+test('Direttore: copertura da GET autenticato per ogni mappa online, dati mancanti dichiarati', async () => {
   const old = process.env.SPEAQI_API_KEY; process.env.SPEAQI_API_KEY='chiave-finta'
   const maps: MapsStatus={rows:[map('Marsiglia',{key:'33333333-3333-4333-8333-333333333333',stage:'online'}),map('Napoli',{key:'44444444-4444-4444-8444-444444444444',stage:'online'})],sources:{speaqi:'ok',studiomap:'ok'},fetched_at:NOW.toISOString()}
   const fetch = mock.method(globalThis,'fetch',async (url: unknown,init?: RequestInit) => {
@@ -54,7 +53,7 @@ test('Direttore: copertura da GET autenticato, nessuna lettura per Napoli, dati 
     return Response.json({summary:{text:{done:8,missing:2,failed:0,outdated:0,stuck:0,processing:0}}})
   })
   try {
-    const result=await loadDirectorCoverage(maps); assert.equal(result.rows[0].total,10); assert.equal(fetch.mock.callCount(),1)
+    const result=await loadDirectorCoverage(maps); assert.equal(result.rows[0].total,10); assert.equal(result.rows.length,2); assert.equal(fetch.mock.callCount(),2)
     delete process.env.SPEAQI_API_KEY
     const absent=await loadDirectorCoverage(maps); assert.equal(absent.rows.length,0);assert.ok(absent.warnings[0].includes('non verificata'))
   } finally {fetch.mock.restore();if(old===undefined)delete process.env.SPEAQI_API_KEY;else process.env.SPEAQI_API_KEY=old}

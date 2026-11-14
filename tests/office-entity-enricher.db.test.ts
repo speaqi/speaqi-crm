@@ -30,7 +30,7 @@ const decide = (id: string, status = 'approved') => json(`select public.decide_o
 before(async () => {
   await resetOfficeDatabase(DB, ['20261017205455_tourism_intelligence.sql', '20261017214525_tourism_acquisition_matching.sql',
     '20261018185155_tourism_site_research.sql', '20261019051155_tourism_sitemap_targeting.sql', '20261023120000_office_entity_enricher.sql',
-    '20261023120100_office_events.sql'])
+    '20261023120100_office_events.sql', '20261114150215_office_naples_unlocked.sql'])
   // Colonne di produzione (hospitality_outreach) che la base minima dell'ufficio non carica: tourism_promote le scrive.
   await sql(`alter table contacts add column if not exists company text, add column if not exists country text,
     add column if not exists marketing_eligibility text not null default 'review';
@@ -86,8 +86,7 @@ test('se il CRM rifiuta, non resta niente: proposta in attesa, ente e catalogo c
   assert.equal(await scalar(`select jsonb_array_length(settings->'queue') from office_agents where id='presentations'`), '0')
 })
 
-test('Napoli, prove senza frase e rifiuti non scrivono nulla', async () => {
-  assert.match((await decide((await proposal({ city: 'Napoli' }))!)).error, /Napoli/)
+test('prove senza frase e rifiuti non scrivono nulla', async () => {
   const noQuote = (await proposal({ evidence: { identity: { source_url: URL, quote: '' }, coverage: { source_url: URL, quote: 'Nous assurons la promotion de Marseille.', relation: 'PROMOTES' } } }))!
   assert.match((await decide(noQuote)).error, /senza fonte o senza frase/)
   const rejected = await decide((await proposal())!, 'rejected')

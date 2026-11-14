@@ -15,7 +15,7 @@ const deck=async(text='Da rivedere')=>sql(`insert into tourism_decks(id,user_id,
 before(async()=>{
   await resetOfficeDatabase(DB,[
     '20261017205455_tourism_intelligence.sql','20261018185155_tourism_site_research.sql',
-    '20261019051155_tourism_sitemap_targeting.sql','20261019190000_tourism_decks.sql','20261023090100_office_presentations.sql'
+    '20261019051155_tourism_sitemap_targeting.sql','20261019190000_tourism_decks.sql','20261023090100_office_presentations.sql','20261114150215_office_naples_unlocked.sql'
   ])
   await sql(`insert into auth.users(id)values('${OWNER}'),('${OTHER}')`)
 })
@@ -85,13 +85,11 @@ test('presentazioni DB: approvazione e registrazione concorrenti non bloccano e 
   assert.equal(await scalar('select count(*) from email_drafts'),'1')
   assert.equal(await scalar('select count(*) from office_agent_outputs'),'1')
 })
-test('presentazioni DB: RLS e RPC private, corsa scaduta e Napoli bloccate',async()=>{
+test('presentazioni DB: RLS e RPC private, corsa scaduta bloccata',async()=>{
   task=(await claim()).task.id
   assert.equal((await sql(`set role authenticated;set request.jwt.claim.sub='${OTHER}';select count(*) from office_presentation_tasks`)).at(-1)?.[0],'0')
   assert.match((await error(`set role authenticated;select public.prepare_office_presentation_email('${task}','${OWNER}')`))!,/permission denied/)
   assert.match((await error(`set role authenticated;delete from office_presentation_tasks`))!,/permission denied/)
-  await sql(`set request.jwt.claim.sub='${OWNER}';update tourism_entities set name='Napoli' where id='${DEST}'`)
-  assert.match((await error(`select public.claim_office_presentation('${run}','${ENTITY}','${DEST}','https://crm.example.org')`))!,/non verificati|Napoli/)
   await sql(`update office_agent_runs set started_at=now()-interval '31 minutes' where id='${run}'`)
   assert.match((await error(`select public.claim_office_presentation('${run}','${ENTITY}','${DEST}','https://crm.example.org')`))!,/non attiva/)
 })

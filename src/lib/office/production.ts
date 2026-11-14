@@ -61,7 +61,7 @@ export function normalizeProduction(raw: unknown, studioUrl: string): Production
   for (const item of body.rows as Array<Record<string, unknown>>) {
     const slug = text(item?.slug, 121), list = phases(item?.phases)
     if (!SLUG.test(slug) || !list) continue
-    const isProtected = item.protected === true || /napoli|naples/i.test(`${slug} ${text(item.name, 120)}`)
+    const isProtected = item.protected === true
     const first = list.find((phase) => phase.state !== 'done')
     const nextText = text((item.next as Record<string, unknown> | null)?.text, 160)
     rows.push({

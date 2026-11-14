@@ -232,7 +232,7 @@ export function ProductionBoard({ onOrdered, openSlug }: { onOrdered?: () => voi
                   {row.writing_usd !== null && <span>Scrivere temi e presentazione che mancano: ~{usd(row.writing_usd)} (stima)</span>}
                   <a href={productionStudioLink(data.studio_url, row.slug)} target="_blank" rel="noreferrer">Apri la città in StudioMap ↗</a>
                   {row.public_url && <a href={row.public_url} target="_blank" rel="noreferrer">Apri la guida ↗</a>}
-                  {row.protected && <span>Napoli è protetta: dall’Ufficio si guarda soltanto.</span>}
+                  {row.protected && <span>Città protetta: dall’Ufficio si guarda soltanto.</span>}
                 </p>
               </td></tr>,
             ]

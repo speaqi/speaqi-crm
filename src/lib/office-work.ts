@@ -90,12 +90,6 @@ export function validateWorkPayload(agentId: string, action: string, raw: unknow
     if (['slug', 'map_slug'].includes(key) && value !== null && (typeof value !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,99}$/.test(value))) throw new Error('Slug della mappa non valido')
     if (['text', 'order_text', 'brief'].includes(key) && value !== null && (typeof value !== 'string' || value.length > 4000)) throw new Error('Testo del lavoro troppo lungo')
   }
-  if (['create_demo', 'import_mymaps', 'check_map', 'complete_languages', 'refresh_outdated'].includes(action)) {
-    const identity = [payload.slug, payload.map_slug, payload.city, payload.map_id].filter((x) => typeof x === 'string').join(' ')
-    let decoded = identity
-    try { decoded = decodeURIComponent(identity) } catch { /* Anche l'identificativo grezzo viene controllato. */ }
-    if (/napoli|naples/i.test(decoded.normalize('NFKD'))) throw new Error('Napoli è esclusa dai lavori sulle mappe')
-  }
   return structuredClone(payload)
 }
 export function officeWorkSpec(raw: OfficeWorkSpec): OfficeWorkSpec {

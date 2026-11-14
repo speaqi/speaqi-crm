@@ -284,7 +284,11 @@ test('dipendenze e riferimenti: workspace estranei, cicli e risultati mancanti r
   assert.match((await error(`select office_work_add_dependencies('${w.id}','${OWNER}',${quote([child.id])})`))!, /ciclica/)
   const [active] = await claim()
   assert.match((await error(`select office_work_transition('${active.id}','${active.lease_token}','{"status":"succeeded"}')`))!, /verificabile/)
-  assert.match((await error(`select office_work_enqueue('${OWNER}',${quote({ agent_id: 'mymaps_builder', action: 'import_mymaps', source_key: 'napoli', payload: { slug: 'napolimap' } })})`))!, /Napoli/)
+  // Dal 14/11/2026 Napoli si lavora come le altre: nessuna funzione la rifiuta più.
+  await sql(`select office_work_enqueue('${OWNER}',${quote({ agent_id: 'mymaps_builder', action: 'import_mymaps', source_key: 'napoli', payload: { slug: 'napolimap' } })})`)
+  assert.equal(await scalar(`select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'
+    and p.prosrc ~ '~\\s*''\\(napoli\\|naples\\)''(?!\\s*and false)'`), '0')
+  assert.ok(Number(await scalar(`select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prosrc like '%(napoli|naples)'' and false%'`)) > 0)
 })
 
 test('notifiche persistenti: claim unico, consegna registrata, timeout mai ripetuto alla cieca', async () => {

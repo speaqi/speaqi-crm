@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto'
 import { BudgetExceeded, type AgentContext, type AgentHandler } from '../office-agents'
 import { createServiceRoleClient } from '../supabase'
-import { officeIsNaples } from '@/lib/office/director'
 import { officeRomeDay } from '@/lib/office/finance'
 import {
   LANGUAGES_INCLUDE, MAX_MAPS_PER_NIGHT, euro, nightWindow, languagesQueue, launchOptions, percentDone, progressCheck, summaryLine, usdToCents,
@@ -95,15 +94,12 @@ export function languagesVoiceHandler(admin: any, options: { api?: SpeaqiTransla
     await addOfficeOutputOnce(admin, ctx, `languages:night:${day}`, { kind: 'report', title: `Lingue e voce — ${day}`,
       body: { righe: lines, maps, rimandate: deferred, speso_cents: spent, cambio_usd_eur: usdToEur,
         costo: 'Stima di Speaqi al lancio (testi in differita a metà prezzo + voce). Il costo vero dei testi è in translation_batches su Speaqi e non è ancora esposto all’API.',
-        nota: 'Napoli esclusa. Le traduzioni da aggiornare (outdated) non partono mai da sole: sono proposte da approvare.' } })
+        nota: 'Le traduzioni da aggiornare (outdated) non partono mai da sole: sono proposte da approvare.' } })
     return { summary: `${launched} mappe avviate, speso ${euro(spent)} (stima)${lines.length ? `. ${lines[0]}` : ''}` }
 
     async function workMap(entry: LanguagesQueueEntry) {
       const status = await api!.status(entry.map_id)
       const name = status.name || entry.city || entry.map_id
-      if (officeIsNaples(status.name, status.slug, status.studiomap_slug)) {
-        lines.push(`${name}: esclusa, è Napoli.`); return null
-      }
       const tr = await api!.translations(entry.map_id)
       if (!tr.target_languages?.length) { lines.push(`${name}: nessuna lingua scelta su Speaqi, niente da fare.`); return null }
       const check = status.live ? progressCheck(before[entry.map_id] || null, tr.summary) : null

@@ -1,5 +1,7 @@
 # Ufficio — dalle opportunità alla distribuzione (piano, 24 ottobre 2026)
 
+> **Aggiornamento 14/11/2026:** Napoli non è più protetta: si lavora come le altre città, in StudioMap e nel CRM. La migration `20261114150215_office_naples_unlocked.sql` toglie il blocco anche dal database (va applicata prima o insieme al deploy). Le righe qui sotto che parlano di «Napoli esclusa/rifiutata/protetta» descrivono il comportamento precedente.
+
 **Stato (24/10/2026)**: fasi A (percorso unico) e B (Direttore sulle opportunità) nel codice, migration `20261024120000_opportunities.sql` da applicare prima del deploy. C, D, E da fare.
 
 Obiettivo nuovo dell'ufficio: **trovare opportunità, trasformarle in accordi, attivare la distribuzione delle guide.**
