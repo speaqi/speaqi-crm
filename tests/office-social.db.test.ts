@@ -10,7 +10,7 @@ const guide:SocialGuide={id:'marsiglia',slug:'marsiglia',name:'Marsiglia',url:'h
 let run:string,batch:string
 const claim=(source=guide)=>scalar(`select public.claim_office_social_batch('${run}','${JSON.stringify([source])}')`).then((s)=>JSON.parse(s!))
 const finish=(posts=buildSocialPosts(null,[guide]))=>scalar(`select public.finish_office_social_batch('${batch}','${run}','${JSON.stringify(posts)}')`).then((s)=>JSON.parse(s!))
-before(async()=>{await resetOfficeDatabase(DB,['20261023060654_office_social_drafts.sql','20261114180000_office_naples_unlocked.sql']);await sql(`insert into auth.users(id)values('${OWNER}'),('${OTHER}')`)})
+before(async()=>{await resetOfficeDatabase(DB,['20261023060654_office_social_drafts.sql','20261114150215_office_naples_unlocked.sql']);await sql(`insert into auth.users(id)values('${OWNER}'),('${OTHER}')`)})
 beforeEach(async()=>{await sql(`truncate office_social_snapshots,office_social_batches,office_agents cascade;insert into office_agents(id,user_id,name,department,enabled)values('social','${OWNER}','Social','marketing',true);`)
   run=JSON.parse((await scalar(`select public.claim_office_agent_run('social','${OWNER}','run')`))!).run.id})
 test('social DB: schema reale mantiene i CHECK email source/status e non crea email',async()=>{

@@ -1,6 +1,6 @@
 # Ufficio — sala di controllo di StudioMap
 
-> **Aggiornamento 14/11/2026:** Napoli non è più protetta: si lavora come le altre città, in StudioMap e nel CRM. La migration `20261114180000_office_naples_unlocked.sql` toglie il blocco anche dal database (va applicata prima o insieme al deploy). Le righe qui sotto che parlano di «Napoli esclusa/rifiutata/protetta» descrivono il comportamento precedente.
+> **Aggiornamento 14/11/2026:** Napoli non è più protetta: si lavora come le altre città, in StudioMap e nel CRM. La migration `20261114150215_office_naples_unlocked.sql` toglie il blocco anche dal database (va applicata prima o insieme al deploy). Le righe qui sotto che parlano di «Napoli esclusa/rifiutata/protetta» descrivono il comportamento precedente.
 
 Stato al 12 novembre 2026. L'unità di lavoro dell'Ufficio è la **città**, non l'agente: ogni città attraversa le stesse fasi e l'Ufficio dice a che punto è, cosa la blocca e chi la sblocca.
 
