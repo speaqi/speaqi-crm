@@ -10,7 +10,7 @@ const guide:SocialGuide={id:'marsiglia',slug:'marsiglia',name:'Marsiglia',url:'h
 let run:string,batch:string
 const claim=(source=guide)=>scalar(`select public.claim_office_social_batch('${run}','${JSON.stringify([source])}')`).then((s)=>JSON.parse(s!))
 const finish=(posts=buildSocialPosts(null,[guide]))=>scalar(`select public.finish_office_social_batch('${batch}','${run}','${JSON.stringify(posts)}')`).then((s)=>JSON.parse(s!))
-before(async()=>{await resetOfficeDatabase(DB,['20261023060654_office_social_drafts.sql']);await sql(`insert into auth.users(id)values('${OWNER}'),('${OTHER}')`)})
+before(async()=>{await resetOfficeDatabase(DB,['20261023060654_office_social_drafts.sql','20261114100000_office_naples_unlocked.sql']);await sql(`insert into auth.users(id)values('${OWNER}'),('${OTHER}')`)})
 beforeEach(async()=>{await sql(`truncate office_social_snapshots,office_social_batches,office_agents cascade;insert into office_agents(id,user_id,name,department,enabled)values('social','${OWNER}','Social','marketing',true);`)
   run=JSON.parse((await scalar(`select public.claim_office_agent_run('social','${OWNER}','run')`))!).run.id})
 test('social DB: schema reale mantiene i CHECK email source/status e non crea email',async()=>{
@@ -28,13 +28,12 @@ test('social DB: tre bozze atomiche solo draft_post pending, snapshot e replay s
   assert.equal(await scalar('select count(*) from office_social_snapshots'),'1');assert.equal(await scalar('select count(*) from email_drafts'),'0')
   assert.equal(await scalar("select count(*) from office_agent_outputs where status<>'pending' or kind<>'draft_post'"),'0')
 })
-test('social DB: UTM, foto e Napoli alterati respinti senza salvataggi parziali',async()=>{
+test('social DB: UTM e foto alterati respinti senza salvataggi parziali',async()=>{
   batch=(await claim()).id
   const posts=buildSocialPosts(null,[guide]);posts[2].photo_url='https://images.speaqi.com/inventata.jpg'
   await assert.rejects(finish(posts),/foto inventata/);assert.equal(await scalar('select count(*) from office_agent_outputs'),'0')
   const links=buildSocialPosts(null,[guide]);links[1].platforms.instagram.url='https://invented.example.org/'
   await assert.rejects(finish(links),/UTM/);assert.equal(await scalar('select count(*) from office_social_snapshots'),'0')
-  assert.match((await error(`select public.claim_office_social_batch('${run}','${JSON.stringify([{...guide,slug:'napolimap',name:'Napoli',url:'https://guides.speaqi.com/maps/napolimap'}])}')`))!,/Napoli/)
 })
 test('social DB: dati di altro run, RLS e privilegi browser rifiutati',async()=>{
   batch=(await claim()).id;await finish()

@@ -17,7 +17,7 @@ const queue = (agent: string, entry: Record<string, unknown>, owner = OWNER) =>
 let outputId: string
 
 before(async () => {
-  await resetOfficeDatabase(DB, ['20261024090000_office_director_orders.sql', '20261024140000_office_queue_update.sql'])
+  await resetOfficeDatabase(DB, ['20261024090000_office_director_orders.sql', '20261024140000_office_queue_update.sql', '20261114100000_office_naples_unlocked.sql'])
   await sql(`insert into auth.users(id) values('${OWNER}'),('${OTHER}')`)
 })
 beforeEach(async () => {
@@ -33,15 +33,15 @@ beforeEach(async () => {
     '{"action":"create_contact","contact":{"name":"Marie Dupont"},"category":"destinazione"}') returning id`))!
 })
 
-test('coda: elenco chiuso, Napoli fuori, nessun doppione, impostazioni intatte', async () => {
+test('coda: elenco chiuso, Napoli come le altre, nessun doppione, impostazioni intatte', async () => {
   assert.match(String(await expectError(`select public.office_director_queue('${OWNER}','finance','{"key":"x"}')`)), /Destinatario non ammesso/)
-  assert.match(String(await expectError(`select public.office_director_queue('${OWNER}','mymaps_builder','{"key":"build_map:napoli","slug":"napoli","city":"Napoli"}')`)), /Napoli/)
+  assert.equal((await queue('mymaps_builder', { key: 'build_map:napoli', slug: 'napoli', city: 'Napoli' })).queued, true)
   assert.match(String(await expectError(`select public.office_director_queue('${OWNER}','maps_quality','{"slug":"x"}')`)), /senza chiave/)
   assert.equal((await queue('agency', { key: 'agency:contact:1' })).reason, 'agent_missing')
   const results = await Promise.all(Array.from({ length: 8 }, () => queue('mymaps_builder', { key: 'build_map:marsiglia', slug: 'marsiglia', city: 'Marsiglia' })))
   assert.equal(results.filter((r) => r.queued).length, 1)
   assert.equal(results.every((r) => r.enabled === false), true)
-  assert.equal(await scalar(`select jsonb_array_length(settings->'queue') from office_agents where id='mymaps_builder'`), '1')
+  assert.equal(await scalar(`select jsonb_array_length(settings->'queue') from office_agents where id='mymaps_builder'`), '2')
   assert.equal(await scalar(`select settings->>'run_budget_cents' from office_agents where id='mymaps_builder'`), '300')
   assert.equal(await scalar(`select settings->'queue'->0->>'origin' from office_agents where id='mymaps_builder'`), 'director_order')
   // Un altro workspace non vede l'agente: niente coda.

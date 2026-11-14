@@ -1,5 +1,4 @@
 import { safePublicUrl } from '../tourism'
-import { officeIsNaples } from './director'
 export const SOCIAL_PLATFORMS=['instagram','linkedin','facebook'] as const
 export type SocialPlatform=typeof SOCIAL_PLATFORMS[number]
 export type SocialGuide={id:string;slug:string;name:string;url:string;points:number|null;languages:string[]|null;routes:number|null;
@@ -12,8 +11,7 @@ const photo=(value:unknown)=>typeof value==='string'&&value.startsWith('https://
 /** I target_languages sono intenzioni, non prova delle lingue completate. */
 export function socialGuideFromPublic(catalog:any,payload:any,sourceUrl:string):SocialGuide|null {
   if(!catalog||typeof catalog.slug!=='string'||!/^[a-z0-9][a-z0-9_-]{0,99}$/.test(catalog.slug)||!payload||payload.slug!==catalog.slug||payload.id!==catalog.id
-    ||typeof payload.name!=='string'||!payload.name.trim()||payload.name.length>160||payload.visibility&&payload.visibility!=='public'||payload.is_draft===true
-    ||officeIsNaples(catalog.slug,catalog.name,payload.slug,payload.name))return null
+    ||typeof payload.name!=='string'||!payload.name.trim()||payload.name.length>160||payload.visibility&&payload.visibility!=='public'||payload.is_draft===true)return null
   const items=Array.isArray(payload.items)?payload.items:[]
   const photos=[...new Set([catalog.cover_image_url,payload.share_image_url,...items.flatMap((item:any)=>[item.thumb_url,item.qrcode?.image_url,item.qrcode?.map_thumbnail_url])].map(photo).filter((url):url is string=>!!url))].slice(0,20)
   if(!photos.length)return null
@@ -50,7 +48,7 @@ export function validSocialCopy(value:unknown,guide:SocialGuide):SocialCopy|null
   if(!row||typeof row.text!=='string'||!row.text.trim()||row.text.length>2200||!Array.isArray(row.hashtags)||row.hashtags.length>5
     ||row.hashtags.some((h)=>typeof h!=='string'||!/^#[\p{L}_]+$/u.test(h))||new Set(row.hashtags).size!==row.hashtags.length)return null
   const text=row.text.trim()
-  if(!text.includes(guide.name)||officeIsNaples(text)||/https?:\/\/|www\.|\b(?:[a-z0-9-]+\.)+[a-z]{2,24}\b|gratuit|gratis|miglior|imperdibil|perfett|garantit|illimitat|senza limiti/i.test(text)
+  if(!text.includes(guide.name)||/https?:\/\/|www\.|\b(?:[a-z0-9-]+\.)+[a-z]{2,24}\b|gratuit|gratis|miglior|imperdibil|perfett|garantit|illimitat|senza limiti/i.test(text)
     ||!socialNumbersAllowed(text,guide)||(!guide.changes.length&&/\b(nuov[oaie]|appena|aggiunt[oaie])\b/i.test(text)))return null
   return{text,hashtags:row.hashtags}
 }

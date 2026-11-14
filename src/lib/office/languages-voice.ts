@@ -3,7 +3,6 @@
  * budget che resta, come raccontarlo. La pipeline delle traduzioni sta su Speaqi
  * (`/maps/:id/studiomap/translations/fill`): qui si decide solo se e cosa chiamare.
  */
-import { officeIsNaples } from './director'
 
 export type LanguagesQueueEntry = { key: string; map_id: string; city: string | null; map_slug: string | null; source_output_id: string | null }
 
@@ -40,7 +39,6 @@ export function languagesQueue(raw: unknown): { entries: LanguagesQueueEntry[]; 
     const slug = typeof row.map_slug === 'string' ? row.map_slug.trim() || null : null
     if (row.status && !['pending', 'queued'].includes(String(row.status))) continue
     if (row.action && row.action !== 'complete_languages') { rejected.push({ entry: item, reason: 'Azione diversa da «completare le lingue».' }); continue }
-    if (officeIsNaples(city, slug, mapId)) { rejected.push({ entry: item, reason: 'Napoli è esclusa: non si traduce e non si genera voce.' }); continue }
     if (!UUID.test(mapId)) { rejected.push({ entry: item, reason: 'Manca l’id Speaqi della mappa.' }); continue }
     if (seen.has(mapId.toLowerCase())) continue
     seen.add(mapId.toLowerCase())

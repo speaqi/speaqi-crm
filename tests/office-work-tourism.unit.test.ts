@@ -157,11 +157,9 @@ test('checkpoint con prove già lette: dopo riavvio ricrea soltanto la proposta 
   assert.equal(result.status, 'waiting_owner')
 })
 
-test('workspace e Napoli sono ricontrollati prima della ricerca', async () => {
+test('il workspace è ricontrollato prima della ricerca', async () => {
   const f = fixture(); f.work.user_id = 'other'
   assert.equal((await verifyTourismWork(f.ctx, f.work, f.db, f.deps)).reason_code, 'work_owner_mismatch')
-  f.work.user_id = USER; f.work.payload.city = 'Napoli'
-  assert.equal((await verifyTourismWork(f.ctx, f.work, f.db, f.deps)).reason_code, 'protected_map')
   assert.equal(f.checkpoints.length, 0)
 })
 

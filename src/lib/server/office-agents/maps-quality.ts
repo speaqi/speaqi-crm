@@ -1,5 +1,4 @@
 import { qualityAssignments, qualityInventory, qualityReport, qualityModelFindings, QUALITY_RESPONSE_SCHEMA, type QualityReport, type QualityIssue } from '@/lib/office/map-quality'
-import { officeIsNaples } from '@/lib/office/director'
 import { officeRomeDay } from '@/lib/office/finance'
 import { BudgetExceeded, callModel, type AgentHandler } from '../office-agents'
 import { createServiceRoleClient } from '../supabase'
@@ -34,8 +33,7 @@ export function mapsQualityHandler(admin:any,options:{now?:()=>Date;bridge?:type
       const output=await addOfficeOutputOnce(admin,ctx,key,{kind:'report',title:`Qualità mappa: ${report.city}`,body,target_table:'studiomap_maps',target_id:map.slug})
       if(!output.created) continue
       reports++;issues+=report.findings.length
-      // Napoli è solo lettura e rapporto: nessuna proposta operativa su di essa.
-      if(!report.naples && !officeIsNaples(map.slug,report.city)) for(const finding of report.findings.filter((f)=>f.severity==='serious')) {
+      for(const finding of report.findings.filter((f)=>f.severity==='serious')) {
         await addOfficeOutputOnce(admin,ctx,`${key}:fix:${finding.place_key}:${finding.code}`,{kind:'data_fix',title:`Da verificare: ${finding.message}`,
           body:{map_slug:map.slug,place_key:finding.place_key,finding,proposta:finding.proposal || {action:'verifica_manuale',value:null},fingerprint:report.fingerprint,
             nota:'Non applicata. Coordinate corrette non inventate: servono una fonte e una decisione umana.'},target_table:'studiomap_maps',target_id:map.slug})

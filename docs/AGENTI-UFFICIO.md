@@ -1,5 +1,7 @@
 # Ufficio Speaqi — gli agenti da costruire
 
+> **Aggiornamento 14/11/2026:** Napoli non è più protetta: si lavora come le altre città, in StudioMap e nel CRM. La migration `20261114100000_office_naples_unlocked.sql` toglie il blocco anche dal database (va applicata prima o insieme al deploy). Le righe qui sotto che parlano di «Napoli esclusa/rifiutata/protetta» descrivono il comportamento precedente.
+
 Ogni prompt qui sotto è pensato per essere incollato così com'è in ChatGPT (o Codex) che lavora sui repository. **Si parte dal prompt 0**, la base comune: gli altri agenti la danno per esistente.
 
 Regole che valgono per tutti (sono ripetute in ogni prompt, apposta):

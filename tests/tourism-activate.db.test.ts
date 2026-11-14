@@ -16,7 +16,7 @@ const activate = (payload: Record<string, unknown>, owner = OWNER, entity = ORG)
 before(async () => {
   await resetOfficeDatabase(DB, ['20261017205455_tourism_intelligence.sql', '20261017214525_tourism_acquisition_matching.sql',
     '20261018185155_tourism_site_research.sql', '20261019051155_tourism_sitemap_targeting.sql', '20261024150000_tourism_activate.sql',
-    '20261025080000_tourism_activate_coverage.sql', '20261025150000_tourism_activate_link_contact.sql'])
+    '20261025080000_tourism_activate_coverage.sql', '20261025150000_tourism_activate_link_contact.sql', '20261114100000_office_naples_unlocked.sql'])
   await sql(`alter table contacts add column if not exists company text, add column if not exists country text,
     add column if not exists marketing_eligibility text not null default 'review';
     insert into auth.users(id) values('${OWNER}'),('${OTHER}')`)
@@ -92,8 +92,7 @@ test('il contatto che c’è già si collega, senza crearne un altro (caso Sibiu
   assert.match(String(await error(`select public.tourism_activate('${OWNER}','${ORG}','{"origin":"director","contact_id":"x"}'::jsonb)`)), /Contatto non valido/)
 })
 
-test('Napoli fuori per il Direttore, ente di un altro workspace, versione cambiata, permessi', async () => {
-  assert.match(String(await error(`select public.tourism_activate('${OWNER}','${ORG}','{"origin":"director","city":"Napoli"}'::jsonb)`)), /Napoli/)
+test('ente di un altro workspace, versione cambiata, permessi', async () => {
   assert.match(String(await error(`select public.tourism_activate('${OTHER}','${ORG}','{"origin":"owner"}'::jsonb)`)), /non disponibile/)
   assert.match(String(await error(`select public.tourism_activate('${OWNER}','${ORG}','{"origin":"owner","version":999}'::jsonb)`)), /cambiata/)
   assert.match(String(await error(`set role authenticated; select public.tourism_activate('${OWNER}','${ORG}','{}'::jsonb)`)), /permission denied/)

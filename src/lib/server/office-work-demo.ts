@@ -1,4 +1,3 @@
-import { officeIsNaples } from '../office/director'
 import type { OfficeWorkItem, WorkOutcome } from '../office-work'
 import type { AgentContext } from './office-agents'
 import { officeStudioRequest } from './office-agents/maps-bridge'
@@ -7,7 +6,7 @@ import { officeStudioRequest } from './office-agents/maps-bridge'
 export async function createDemoWork(ctx: AgentContext, work: OfficeWorkItem, admin: any, bridge: typeof officeStudioRequest = officeStudioRequest): Promise<WorkOutcome> {
   if (ctx.agent.id !== 'demo_builder' || ctx.agent.user_id !== work.user_id) throw new Error('Lavoro demo non autorizzato')
   const city = String(work.payload.city || '').trim()
-  if (!city || city.length > 70 || officeIsNaples(city, typeof work.payload.slug === 'string' ? work.payload.slug : null)) throw new Error('Destinazione non valida o protetta')
+  if (!city || city.length > 70) throw new Error('Destinazione non valida')
   const previous = work.checkpoint || {}
   let ledger = typeof previous.demo_ledger_id === 'string' ? previous.demo_ledger_id : ''
   if (!ledger) {
@@ -36,7 +35,7 @@ export async function createDemoWork(ctx: AgentContext, work: OfficeWorkItem, ad
   if (response.error || response.interrupted || !response.result) throw new Error(`Riserva mantenuta: demo interrotta (${String(response.error || 'esito da verificare')}).`)
   const result = response.result
   const costs = [result.google_usd, result.theme_usd, result.map_ai_usd]
-  if (typeof result.slug !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,99}$/.test(result.slug) || officeIsNaples(result.slug) || result.city !== city
+  if (typeof result.slug !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,99}$/.test(result.slug) || result.city !== city
     || typeof result.complete !== 'boolean' || !Number.isSafeInteger(result.point_count) || result.point_count < 0 || result.point_count > 100000 || !Number.isSafeInteger(result.theme_count) || result.theme_count < 0 || result.theme_count > 7 || (result.complete && (result.point_count < 10 || result.theme_count !== 7))
     || costs.some((v) => typeof v !== 'number' || !Number.isFinite(v) || v < 0)) throw new Error('Ricevuta demo non valida: riconcilia prima di riprovare')
   const cents = Math.ceil(costs.reduce((a, b) => a + b, 0) * 100)

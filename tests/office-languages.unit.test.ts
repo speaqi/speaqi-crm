@@ -16,7 +16,7 @@ const counts = (done: number, missing: number, extra: Partial<Record<'failed' | 
 const summary = (text = counts(240, 1020), audio = counts(0, 1260)): TranslationsSummary => ({ languages: Array.from({ length: 11 }, (_, i) => `l${i}`), points: 115, text, audio })
 
 describe('Lingue e voce: regole pure', () => {
-  test('coda: Napoli scartata anche per slug, doppioni e voci senza id fuori', () => {
+  test('coda: Napoli come le altre, doppioni e voci senza id fuori', () => {
     const { entries, rejected } = languagesQueue([
       { key: 'complete_languages:a', action: 'complete_languages', target_id: CAPRI, city: 'Capri', status: 'pending' },
       { map_id: CAPRI },
@@ -25,9 +25,8 @@ describe('Lingue e voce: regole pure', () => {
       { city: 'Roma' },
       { map_id: CAPRI, status: 'done' },
     ])
-    assert.deepEqual(entries.map((e) => e.map_id), [CAPRI])
-    assert.equal(rejected.filter((r) => /Napoli/.test(r.reason)).length, 2)
-    assert.equal(rejected.length, 3)
+    assert.deepEqual(entries.map((e) => e.map_id), [CAPRI, NAPOLI])
+    assert.equal(rejected.length, 1)
   })
 
   test('budget: prima tutto, poi solo i testi; senza stima niente', () => {
@@ -101,11 +100,10 @@ describe('Lingue e voce: handler', () => {
     assert.match(f.db.tables.office_agent_outputs.find((o) => o.kind === 'report')!.body.righe[0], /budget di oggi non basta/)
   })
 
-  test('Napoli non si tocca, nemmeno se arriva in coda con un altro nome', async () => {
+  test('Napoli in coda si lavora come le altre mappe (dal 14/11/2026)', async () => {
     const f = fixture({ budget: 5000, queue: [{ map_id: NAPOLI, city: 'Golfo' }] })
     await f.run()
-    assert.equal(f.calls.length, 0)
-    assert.equal(f.ledger.length, 0)
+    assert.ok(f.launches().length > 0)
   })
 
   test('le vecchie diventano una proposta, non un lancio; partono solo dopo l’approvazione, una volta', async () => {

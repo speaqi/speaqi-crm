@@ -1,6 +1,5 @@
 import { siteCandidates, siteMatchesEntity } from '@/lib/office/entity-activation'
 import { nameKey, normalizeQuoteText } from '@/lib/office/entity-enricher'
-import { officeIsNaples } from '@/lib/office/director'
 import { callModel, type AgentContext } from '../office-agents'
 import { readEntitySite } from './entity-enricher'
 
@@ -32,14 +31,13 @@ export function validateLocation(raw: unknown, target: string, website: string, 
   }
   const city = string('city')
   const cityProof = evidence('city')
-  const cityValue = city.length >= 3 && city.length <= 80 && cityProof && includes(cityProof.quote, city) && !officeIsNaples(city, target) ? city : null
+  const cityValue = city.length >= 3 && city.length <= 80 && cityProof && includes(cityProof.quote, city) ? city : null
   const sources = [countryCode && countryProof, cityValue && cityProof].filter((p): p is { url: string; quote: string } => !!p)
   return countryCode || cityValue ? { country_code: countryCode, city: cityValue, website, sources } : null
 }
 
 export async function researchLocation(ctx: AgentContext, input: { target: string; country?: string | null; website?: string | null },
   deps: { model?: typeof callModel; readSite?: typeof readEntitySite } = {}): Promise<ResearchLocation | null> {
-  if (officeIsNaples(input.target)) return null
   const model = deps.model || callModel, read = deps.readSite || readEntitySite
   let candidates = input.website ? siteCandidates(input.website, []) : []
   if (!candidates.length) {

@@ -1,4 +1,4 @@
-import { directorPriorities, directorReportLines, directorSuppressed, officeIsNaples, type DirectorCoverage, type DirectorDestination } from '@/lib/office/director'
+import { directorPriorities, directorReportLines, directorSuppressed, type DirectorCoverage, type DirectorDestination } from '@/lib/office/director'
 import { summarizeMoney, type MoneyInvoice, type MoneyQuote } from '@/lib/command-center'
 import { officeRomeDay } from '@/lib/office/finance'
 import { callModel, type AgentHandler } from '../office-agents'
@@ -27,7 +27,7 @@ export async function loadDirectorCoverage(maps: MapsStatus): Promise<{ rows: Di
   if (!key) return { rows: [], warnings: ['Copertura lingue non verificata: manca SPEAQI_API_KEY.'] }
   const base = (process.env.SPEAQI_PUBLIC_API_URL || 'https://api.speaqi.com/api/v1').replace(/\/$/, '')
   const rows: DirectorCoverage[] = []; const warnings: string[] = []
-  const online = maps.rows.filter((map) => map.stage === 'online' && !officeIsNaples(map.name, map.speaqi_slug, map.studiomap_slug))
+  const online = maps.rows.filter((map) => map.stage === 'online')
   for (let from = 0; from < online.length; from += 4) await Promise.all(online.slice(from, from + 4).map(async (map) => {
     if (!/^[0-9a-f-]{36}$/i.test(map.key)) { warnings.push(`Copertura non verificabile per ${map.name}: manca l'id Speaqi.`); return }
     const source = `${base}/maps/${encodeURIComponent(map.key)}/studiomap/translations`

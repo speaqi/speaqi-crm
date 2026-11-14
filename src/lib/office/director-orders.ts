@@ -1,5 +1,4 @@
 import { formatEuroPlain, normalizeForSearch } from '../command-center'
-import { officeIsNaples } from './director'
 import { TOURISM_TYPES } from '../tourism'
 import { websiteFromText } from './entity-activation'
 
@@ -28,12 +27,12 @@ export type DirectorOrderPlan =
       category: ContactCategory; category_reason: string; brief: string | null; card_text: string | null }
   | { intent: 'build_map'; city: string; slug: string; source: string | null; demo?: boolean }
   | { intent: 'check_map'; city: string; slug: string }
-  | { intent: 'presentation'; targets: string[]; count: number | null; audience: PresentationAudience; brief: string | null; city: string | null; skipped: string[]
+  | { intent: 'presentation'; targets: string[]; count: number | null; audience: PresentationAudience; brief: string | null; city: string | null
       country_code: string | null; type_code: string | null; language?: 'it' | 'en' | null }
   | { intent: 'find_partners'; city: string; count: number; brief: string | null }
   | { intent: 'add_entity'; name: string; country_code: string; type_code: string; city: string | null; website: string | null; presentation: boolean }
   | { intent: 'rename_entity'; from: string; to: string; website: string | null; presentation: boolean }
-  | { intent: 'presentation_email'; targets: string[]; note: string | null; skipped: string[] }
+  | { intent: 'presentation_email'; targets: string[]; note: string | null }
   | { intent: 'help' }
   | { intent: 'status' }
   | { intent: 'events' }
@@ -208,7 +207,6 @@ export function interpretDirectorOrder(parsed: unknown, input: { text: string; t
     if (!city) return intent === 'event_sources'
       ? { intent: 'unknown', question: 'Di quale città cerco le fonti degli eventi?', awaiting: { need: 'city', resume: 'trovami le fonti eventi di {}' } }
       : { intent: 'unknown', question: 'Di quale città parliamo?' }
-    if (officeIsNaples(city)) return { intent: 'unknown', question: 'Napoli resta fuori dal lavoro degli agenti: la mappa in produzione non si tocca. Vuoi provare con un’altra città?' }
     const slug = directorSlug(city)
     if (!slug) return { intent: 'unknown', question: 'Il nome della città non è valido.' }
     if (intent === 'check_map' || intent === 'event_sources') return { intent, city, slug }
@@ -220,25 +218,19 @@ export function interpretDirectorOrder(parsed: unknown, input: { text: string; t
   if (intent === 'presentation_email') {
     const named = [...(Array.isArray(raw.targets) ? raw.targets : []), raw.target].map((t) => str(t, 160)).filter((t): t is string => !!t)
     const unique = named.filter((t, i) => named.findIndex((other) => flat(other) === flat(t)) === i)
-    const skipped = unique.filter((t) => officeIsNaples(t))
-    const targets = unique.filter((t) => !officeIsNaples(t)).slice(0, MAX_ORDER_PRESENTATIONS)
-    if (!targets.length) return skipped.length
-      ? { intent: 'unknown', question: 'Napoli resta fuori dal lavoro degli agenti. Per quale altro ente preparo l’email?' }
-      : { intent: 'unknown', question: 'Per quale ente preparo l’email con la presentazione?', awaiting: { need: 'target', resume: 'prepara la bozza email con la presentazione per {}' } }
-    return { intent, targets, note: str(raw.email_note, 1000), skipped }
+    const targets = unique.slice(0, MAX_ORDER_PRESENTATIONS)
+    if (!targets.length) return { intent: 'unknown', question: 'Per quale ente preparo l’email con la presentazione?', awaiting: { need: 'target', resume: 'prepara la bozza email con la presentazione per {}' } }
+    return { intent, targets, note: str(raw.email_note, 1000) }
   }
   if (intent === 'presentation') {
     const audience: PresentationAudience = raw.audience === 'partner' ? 'partner' : 'destinazione'
     const named = [...(Array.isArray(raw.targets) ? raw.targets : []), raw.target].map((t) => str(t, 160)).filter((t): t is string => !!t)
     const unique = named.filter((t, i) => named.findIndex((other) => flat(other) === flat(t)) === i)
-    const skipped = unique.filter((t) => officeIsNaples(t))
-    const targets = unique.filter((t) => !officeIsNaples(t)).slice(0, MAX_ORDER_PRESENTATIONS)
+    const targets = unique.slice(0, MAX_ORDER_PRESENTATIONS)
     const city = str(raw.city, 80)
-    if (city && officeIsNaples(city)) return { intent: 'unknown', question: 'Napoli resta fuori dal lavoro degli agenti. Per quale altra città preparo la presentazione?' }
     const count = Number.isInteger(raw.count) && raw.count > 0 ? Math.min(MAX_ORDER_PRESENTATIONS, raw.count) : null
     if (!targets.length) {
-      if (skipped.length) return { intent: 'unknown', question: 'Napoli resta fuori dal lavoro degli agenti. Per quale altro ente preparo la presentazione?' }
-      if (count && audience === 'destinazione') return { intent, targets: [], count, audience, brief: str(raw.brief, 1000), city: null, skipped, country_code: null, type_code: null }
+      if (count && audience === 'destinazione') return { intent, targets: [], count, audience, brief: str(raw.brief, 1000), city: null, country_code: null, type_code: null }
       return audience === 'partner'
         ? { intent: 'unknown', question: 'Per quale partner preparo la presentazione? Scrivimi il nome e la città della guida (es. «presentazione partner per Hotel Laguna, Venezia»).',
           awaiting: { need: 'target', resume: 'presentazione partner per {}' } }
@@ -247,7 +239,7 @@ export function interpretDirectorOrder(parsed: unknown, input: { text: string; t
     const code = typeof raw.country_code === 'string' ? raw.country_code.trim().toUpperCase() : ''
     // La lingua vale solo se l'ordine la dice davvero: il modello da solo non cambia la lingua di una presentazione.
     const language = raw.language === 'en' && ENGLISH_ORDER.test(input.text) ? 'en' : null
-    return { intent, targets, count: null, audience, brief: str(raw.brief, 1000), city, skipped,
+    return { intent, targets, count: null, audience, brief: str(raw.brief, 1000), city,
       country_code: /^[A-Z]{2}$/.test(code) ? code : null, type_code: DIRECTOR_ENTITY_TYPES.includes(raw.entity_type) ? raw.entity_type as string : null, language }
   }
   if (intent === 'find_partners') {
@@ -260,7 +252,6 @@ export function interpretDirectorOrder(parsed: unknown, input: { text: string; t
   if (intent === 'add_entity') {
     const name = str(raw.target, 160)
     if (!name || name.length < 2) return { intent: 'unknown', question: 'Quale ente aggiungo? Scrivimi il nome.', awaiting: { need: 'target', resume: 'aggiungi {} a Tourism Intelligence e ai contatti' } }
-    if (officeIsNaples(name)) return { intent: 'unknown', question: 'Gli enti di Napoli restano fuori dal lavoro degli agenti: aggiungilo tu dalla scheda Tourism.' }
     const code = typeof raw.country_code === 'string' ? raw.country_code.trim().toUpperCase() : ''
     if (!/^[A-Z]{2}$/.test(code)) return { intent: 'unknown', question: `Di quale paese è ${name}?`,
       awaiting: { need: 'country', resume: `aggiungi ${name} a Tourism Intelligence e ai contatti` } }
@@ -274,7 +265,6 @@ export function interpretDirectorOrder(parsed: unknown, input: { text: string; t
     const to = str(raw.new_name, 160)
     if (!from || !to) return { intent: 'unknown', question: 'Quale ente rinomino, e con che nome? Scrivimi «rinomina X in Y».' }
     if (to.length < 3) return { intent: 'unknown', question: `«${to}» è troppo corto per il nome di un ente: scrivimi il nome intero.` }
-    if (officeIsNaples(from) || officeIsNaples(to)) return { intent: 'unknown', question: 'Gli enti di Napoli restano fuori dal lavoro degli agenti: rinominalo tu dalla scheda Tourism.' }
     if (flat(from) === flat(to)) return { intent: 'unknown', question: `${to} si chiama già così. Cosa devo cambiare?` }
     return { intent, from, to, website: websiteFromText(input.text), presentation: raw.then_presentation === true }
   }
@@ -693,7 +683,7 @@ export function directorHelpText(baseUrl: string) {
     '• «Domani alle 15 chiamo Rossi, giovedì alle 10 riunione con SNAV per un’ora» → una attività per ognuna nel To Do e in Google Calendar (quelle con un giorno).',
     '',
     'Le proposte (nuovi contatti, partner) ti arrivano qui con «Approva» e «Rifiuta»: il tocco vale come il clic nell’Ufficio. Scrivere «sì» non approva niente.',
-    'Non faccio da solo: invii di email, invii allo SDI, pubblicazioni e lavoro su Napoli.',
+    'Non faccio da solo: invii di email, invii allo SDI e pubblicazioni.',
     `Tutto il dettaglio: ${baseUrl}/ufficio`,
   ].join('\n')
 }

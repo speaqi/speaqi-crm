@@ -9,22 +9,13 @@ export type DirectorPriority = { key: string; action: DirectorAction; recipient:
   title: string; target_table: string; target_id: string; map_slug: string | null; rank: number; volume: number;
   facts: Record<string, unknown> }
 
-/** Copre anche lo slug storico napolimap e il nome inglese del catalogo. */
-export function officeIsNaples(...values: Array<string | null | undefined>) {
-  return values.some((value) => {
-    let decoded = value || ''
-    try { decoded = decodeURIComponent(decoded) } catch { /* Un identificatore malformato non viene decodificato. */ }
-    return normalizeForSearch(decoded).split(' ').some((part) => part.startsWith('napoli') || part.startsWith('naples'))
-  })
-}
-
 export function directorPriorities(input: { destinations: DirectorDestination[]; maps: MapStatusRow[]; coverage: DirectorCoverage[];
   catalogKnown: boolean; speaqiKnown: boolean; suppressed?: string[] }): DirectorPriority[] {
   const candidates: DirectorPriority[] = []
   const suppressed = new Set(input.suppressed || [])
   if (input.catalogKnown && input.speaqiKnown) {
     for (const destination of input.destinations) {
-      if (officeIsNaples(destination.name, ...(destination.aliases || [])) || destination.guide_status !== 'planned' || destination.guide_priority !== 1
+      if (destination.guide_status !== 'planned' || destination.guide_priority !== 1
         || !Number.isFinite(destination.volume) || (destination.volume || 0) <= 0 || !destination.year || !destination.source?.trim() || destination.estimated) continue
       if ([destination.name, ...(destination.aliases || [])].some((name) => findMapStatus(input.maps, name))) continue
       candidates.push({ key: `build_map:${normalizeForSearch(destination.name)}`, action: 'build_map', recipient: 'mymaps_builder',
@@ -33,7 +24,6 @@ export function directorPriorities(input: { destinations: DirectorDestination[];
           guide_status: destination.guide_status, guide_priority: destination.guide_priority, source_table: destination.table, source_id: destination.id } })
     }
     for (const map of input.maps) {
-      if (officeIsNaples(map.name, map.studiomap_slug, map.speaqi_slug)) continue
       if (map.stage === 'pronta' && map.studiomap_slug && !map.speaqi_slug) candidates.push({ key: `publication_review:${map.studiomap_slug}`,
         action: 'publication_review', recipient: 'maps_quality', city: map.name, title: `Pubblicare ${map.name}`, target_table: 'studiomap_maps',
         target_id: map.studiomap_slug, map_slug: map.studiomap_slug, rank: 1, volume: 0,
@@ -42,7 +32,7 @@ export function directorPriorities(input: { destinations: DirectorDestination[];
     }
   }
   if (input.speaqiKnown) for (const map of input.maps) {
-    if (map.stage !== 'online' || officeIsNaples(map.name, map.studiomap_slug, map.speaqi_slug)) continue
+    if (map.stage !== 'online') continue
     const coverage = input.coverage.find((row) => row.map_id === map.key)
     if (!coverage || !Number.isFinite(coverage.done) || !Number.isFinite(coverage.total) || coverage.total <= 0 || coverage.done < 0
       || coverage.done > coverage.total || coverage.done / coverage.total >= .9) continue

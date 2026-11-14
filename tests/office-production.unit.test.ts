@@ -35,16 +35,16 @@ test('una risposta senza righe dice che non è leggibile, non «zero città»', 
   assert.equal(normalizeProduction(null, STUDIO).available, false)
 })
 
-test('Napoli resta in sola lettura anche se StudioMap non la segna: nessun passo, stima o ordine', () => {
+test('Napoli è una città come le altre: in sola lettura solo ciò che StudioMap segna protetto', () => {
   const data = normalizeProduction({ rows: [row('napolimap', 'Guida', { phases: phases({ intro: 'todo' }), next: { phase: 'intro', text: 'Scrivere' }, writing_usd: 3 }),
-    row('golfo', 'Naples', { phases: phases({ checks: 'partial' }) })] }, STUDIO)
+    row('golfo', 'Naples', { phases: phases({ checks: 'partial' }), protected: true })] }, STUDIO)
   assert.ok(data.available)
   if (!data.available) return
-  for (const item of data.rows) {
-    assert.equal(item.protected, true); assert.equal(item.next, null); assert.equal(item.writing_usd, null)
-    assert.equal(productionOrder(item, 'checks'), null)
-  }
-  assert.equal(data.totals.in_progress, 0)
+  const [napoli, protetta] = data.rows
+  assert.equal(napoli.protected, false); assert.equal(napoli.next?.phase, 'intro'); assert.equal(napoli.writing_usd, 3)
+  assert.equal(protetta.protected, true); assert.equal(protetta.next, null); assert.equal(protetta.writing_usd, null)
+  assert.equal(productionOrder(protetta, 'checks'), null)
+  assert.equal(productionOrder(napoli, 'checks'), 'Controlla la mappa di Guida')
 })
 
 test('un link pubblico non https e un numero storto si scartano', () => {
@@ -107,7 +107,7 @@ test('il registro degli agenti si controlla una volta per processo', async () =>
   } finally { process.env.AUTOMATION_WORKSPACE_USER_ID = previous; forgetEnsuredOfficeAgents() }
 })
 
-test('ogni fase ha il suo comando; Napoli e le fasi concluse nessuno', () => {
+test('ogni fase ha il suo comando; le città protette e le fasi concluse nessuno', () => {
   const phase = (key: string, state: string) => ({ key, state, detail: '' }) as any
   const row = { protected: false }
   assert.equal(productionActionFor(row, phase('texts', 'partial')), 'write_texts')

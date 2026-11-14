@@ -87,12 +87,12 @@ describe('nuovo contatto dal bigliettino', () => {
 })
 
 describe('mappe, presentazioni, attività', () => {
-  test('Napoli non passa mai agli agenti', () => {
+  test('Napoli passa agli agenti come le altre città (dal 14/11/2026)', () => {
     for (const intent of ['build_map', 'check_map']) {
-      assert.equal(interpretDirectorOrder(answer({ intent, city: 'Napoli' }), { text: 'mappa di Napoli', today: TODAY }).intent, 'unknown')
-      assert.equal(interpretDirectorOrder(answer({ intent, city: 'Naples' }), { text: 'Naples', today: TODAY }).intent, 'unknown')
+      assert.equal(interpretDirectorOrder(answer({ intent, city: 'Napoli' }), { text: 'mappa di Napoli', today: TODAY }).intent, intent)
+      assert.equal(interpretDirectorOrder(answer({ intent, city: 'Naples' }), { text: 'Naples', today: TODAY }).intent, intent)
     }
-    assert.equal(interpretDirectorOrder(answer({ intent: 'presentation', target: 'Comune di Napoli' }), { text: '', today: TODAY }).intent, 'unknown')
+    assert.equal(interpretDirectorOrder(answer({ intent: 'presentation', target: 'Comune di Napoli' }), { text: '', today: TODAY }).intent, 'presentation')
   })
 
   test('il link My Maps vale solo se è nell’ordine', () => {
@@ -298,12 +298,11 @@ describe('fattura di un preventivo', () => {
 describe('i cinque comandi nuovi', async () => {
   const mod = await import('../src/lib/office/director-orders')
 
-  test('più presentazioni in un ordine, Napoli tolta, al massimo cinque', () => {
+  test('più presentazioni in un ordine, doppioni tolti, al massimo cinque', () => {
     const plan = interpretDirectorOrder(answer({ intent: 'presentation', targets: ['Visit Bergamo', 'Bibione', 'Comune di Napoli', 'bibione', 'A', 'B', 'C', 'D'] }), { text: '', today: TODAY })
     assert.equal(plan.intent, 'presentation')
     if (plan.intent !== 'presentation') return
-    assert.deepEqual(plan.targets, ['Visit Bergamo', 'Bibione', 'A', 'B', 'C'])
-    assert.deepEqual(plan.skipped, ['Comune di Napoli'])
+    assert.deepEqual(plan.targets, ['Visit Bergamo', 'Bibione', 'Comune di Napoli', 'A', 'B'])
     assert.equal(plan.audience, 'destinazione')
   })
 
@@ -317,16 +316,16 @@ describe('i cinque comandi nuovi', async () => {
 
   test('«preparami 5 presentazioni di destinazioni»: un numero senza nomi lo scelgo io', () => {
     const plan = interpretDirectorOrder(answer({ intent: 'presentation', targets: [], count: 9 }), { text: 'preparami 5 presentazioni di destinazioni', today: TODAY })
-    assert.deepEqual(plan, { intent: 'presentation', targets: [], count: 5, audience: 'destinazione', brief: null, city: null, skipped: [], country_code: null, type_code: null })
+    assert.deepEqual(plan, { intent: 'presentation', targets: [], count: 5, audience: 'destinazione', brief: null, city: null, country_code: null, type_code: null })
     // Per un partner il numero da solo non basta: serve il nome.
     assert.equal(interpretDirectorOrder(answer({ intent: 'presentation', targets: [], count: 3, audience: 'partner' }), { text: '', today: TODAY }).intent, 'unknown')
   })
 
-  test('presentazione partner: il vecchio campo target vale ancora, Napoli come città no', () => {
+  test('presentazione partner: il vecchio campo target vale ancora, anche con Napoli come città', () => {
     const plan = interpretDirectorOrder(answer({ intent: 'presentation', target: 'Hotel Laguna', audience: 'partner', city: 'Venezia' }), { text: '', today: TODAY })
     assert.equal(plan.intent === 'presentation' && plan.audience, 'partner')
     assert.equal(plan.intent === 'presentation' && plan.targets[0], 'Hotel Laguna')
-    assert.equal(interpretDirectorOrder(answer({ intent: 'presentation', target: 'Hotel X', audience: 'partner', city: 'Napoli' }), { text: '', today: TODAY }).intent, 'unknown')
+    assert.equal(interpretDirectorOrder(answer({ intent: 'presentation', target: 'Hotel X', audience: 'partner', city: 'Napoli' }), { text: '', today: TODAY }).intent, 'presentation')
   })
 
   test('trova partner: città obbligatoria, cinque di default, al massimo dieci', () => {
@@ -349,7 +348,7 @@ describe('i cinque comandi nuovi', async () => {
   test('aiuto: l’elenco dei comandi lo scrive il codice', () => {
     assert.deepEqual(interpretDirectorOrder(answer({ intent: 'help' }), { text: 'cosa posso chiederti?', today: TODAY }), { intent: 'help' })
     const help = mod.directorHelpText('https://crm.speaqi.com')
-    for (const word of ['partner', 'Tourism Intelligence', 'presentazioni', 'fattura', 'Napoli', 'https://crm.speaqi.com/ufficio']) assert.ok(help.includes(word), word)
+    for (const word of ['partner', 'Tourism Intelligence', 'presentazioni', 'fattura', 'https://crm.speaqi.com/ufficio']) assert.ok(help.includes(word), word)
   })
 
   test('partner dal web: valgono nome e sito ufficiale, uno per sito', () => {
@@ -490,11 +489,11 @@ describe('rinomina un ente', () => {
     assert.deepEqual(plan, { intent: 'rename_entity', from: 'Gustavo Cardenas Tourism Ministry Venezuela', to: 'Tourism Ministry Venezuela', website: 'https://venezuela.com.ve', presentation: true })
   })
 
-  test('senza il nome nuovo, uguale, troppo corto o di Napoli si chiede', () => {
+  test('senza il nome nuovo, uguale o troppo corto si chiede; Napoli si rinomina come gli altri', () => {
     assert.equal(interpretDirectorOrder(answer({ intent: 'rename_entity', target: 'Visit Lima' }), { text: '', today: TODAY }).intent, 'unknown')
     assert.equal(interpretDirectorOrder(answer({ intent: 'rename_entity', target: 'Visit Lima', new_name: 'visit  lima' }), { text: '', today: TODAY }).intent, 'unknown')
     assert.equal(interpretDirectorOrder(answer({ intent: 'rename_entity', target: 'Visit Lima', new_name: 'VL' }), { text: '', today: TODAY }).intent, 'unknown')
-    assert.equal(interpretDirectorOrder(answer({ intent: 'rename_entity', target: 'Comune di Napoli', new_name: 'Napoli Turismo' }), { text: '', today: TODAY }).intent, 'unknown')
+    assert.equal(interpretDirectorOrder(answer({ intent: 'rename_entity', target: 'Comune di Napoli', new_name: 'Napoli Turismo' }), { text: '', today: TODAY }).intent, 'rename_entity')
   })
 
   test('lo schema chiede il nome nuovo e l’elenco dei comandi lo dice', async () => {
@@ -556,7 +555,7 @@ describe('Direttore: email con la presentazione', () => {
   test('«creami la bozza da inviare» per Visit Bergamo è presentation_email, non una nuova presentazione', () => {
     const plan = interpretDirectorOrder(answer({ intent: 'presentation_email', target: 'Visit Bergamo' }),
       { text: 'Abbiamo preparato la presentazione per Visit Bergamo. Possiamo creare una bozza da inviare? E me la metti in Gmail?', today: TODAY })
-    assert.deepEqual(plan, { intent: 'presentation_email', targets: ['Visit Bergamo'], note: null, skipped: [] })
+    assert.deepEqual(plan, { intent: 'presentation_email', targets: ['Visit Bergamo'], note: null })
   })
   test('più enti e il messaggio personale: tutti, non solo il primo', () => {
     const text = 'Preparami le email in bozza per visitbergamo, bibione, Costa dei Borghi e Asiago 7 Comuni. Scrivi che ci siamo conosciuti al TTG di Rimini e che vorrei una call la settimana prossima.'
@@ -585,8 +584,8 @@ describe('Direttore: email con la presentazione', () => {
     assert.equal(plan.intent, 'unknown')
     assert.deepEqual((plan as any).awaiting, { need: 'target', resume: 'prepara la bozza email con la presentazione per {}' })
   })
-  test('Napoli resta fuori', () => {
-    assert.equal(interpretDirectorOrder(answer({ intent: 'presentation_email', target: 'Comune di Napoli' }), { text: '', today: TODAY }).intent, 'unknown')
+  test('Napoli si lavora come gli altri enti', () => {
+    assert.equal(interpretDirectorOrder(answer({ intent: 'presentation_email', target: 'Comune di Napoli' }), { text: '', today: TODAY }).intent, 'presentation_email')
   })
   test('il destinatario: prima il contatto con l’email dell’ente, mai uno disiscritto o nascosto', () => {
     const contacts = [
@@ -634,9 +633,9 @@ describe('fonti eventi di una città (StudioMap)', async () => {
   process.env.OFFICE_STUDIOMAP_URL = 'https://studio.example.org'
   delete process.env.OFFICE_USD_TO_EUR
 
-  test('l’ordine si capisce, Napoli no, senza città si chiede e si riprende', () => {
+  test('l’ordine si capisce, anche per Napoli, senza città si chiede e si riprende', () => {
     assert.deepEqual(interpretDirectorOrder(answer({ intent: 'event_sources', city: 'Marsiglia' }), { text: 'trovami le fonti eventi di Marsiglia', today: TODAY }), plan)
-    assert.equal(interpretDirectorOrder(answer({ intent: 'event_sources', city: 'Napoli' }), { text: '', today: TODAY }).intent, 'unknown')
+    assert.equal(interpretDirectorOrder(answer({ intent: 'event_sources', city: 'Napoli' }), { text: '', today: TODAY }).intent, 'event_sources')
     const asked = interpretDirectorOrder(answer({ intent: 'event_sources' }), { text: 'trovami le fonti eventi', today: TODAY })
     assert.equal(asked.intent === 'unknown' && asked.awaiting?.resume, 'trovami le fonti eventi di {}')
     assert.ok(DIRECTOR_ORDER_SCHEMA.properties.intent.enum.includes('event_sources'))

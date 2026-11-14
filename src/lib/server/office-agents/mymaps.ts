@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto'
 import { officeMapQueue, officeMapSlot } from '@/lib/office/maps'
-import { officeIsNaples } from '@/lib/office/director'
 import type { AgentHandler } from '../office-agents'
 import { createServiceRoleClient } from '../supabase'
 import { officeStudioRequest } from './maps-bridge'
@@ -43,7 +42,7 @@ export function myMapsHandler(admin: any, options: { now?: () => Date; bridge?: 
       request_id:requestId(`${ctx.agent.user_id}:${key}:${map.key}`),slug:map.slug,city:map.city,...(map.source ? {source:map.source} : {})})
     const counts=['read','created','existing','duplicates','skipped','remaining'] as const
     if (!result || result.requested_slug!==map.slug || typeof result.slug!=='string' || !/^[a-z0-9][a-z0-9_-]{0,99}$/.test(result.slug)
-      || officeIsNaples(result.slug) || result.city!==map.city || result.cost_cents!==0 || typeof result.ready!=='boolean'
+      || result.city!==map.city || result.cost_cents!==0 || typeof result.ready!=='boolean'
       || counts.some((field) => !Number.isSafeInteger(result[field]) || result[field]<0) || result.created>150) throw new Error('Ricevuta import StudioMap non valida')
     await ctx.settle(ledger,0)
     const summary=`${map.city}: ${result.read} luoghi letti, ${result.created} nuovi, ${result.existing} già presenti, ${result.duplicates} scartati (doppioni); ${result.remaining} rimasti.`

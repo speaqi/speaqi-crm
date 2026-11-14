@@ -28,13 +28,13 @@ function fixture() {
   const db=new FakeSupabase({office_agent_outputs:[]});const order:string[]=[]
   const ctx:AgentContext={agent:{...OFFICE_AGENT_DEFINITIONS.maps_quality,user_id:'owner'},runId:'run',async reserve(){order.push('reserve');return'ledger'},async settle(){order.push('settle')},log(){},
     async addOutput(o){order.push(`output:${o.kind}`);const id=db.nextId('out');db.tables.office_agent_outputs.push({id,user_id:'owner',agent_id:'maps_quality',output_key:o.key,status:'pending',...o});return id}}
-  const bridge=async(_path:unknown,body:any)=> body.slug ? {slug:body.slug,city:'Marsiglia',total:1,read_only:true,naples:body.slug==='napolimap',fingerprint:'a'.repeat(64),translations_checked:0,warnings:['Traduzioni non disponibili'],groups:{},
+  const bridge=async(_path:unknown,body:any)=> body.slug ? {slug:body.slug,city:'Marsiglia',total:1,read_only:true,naples:false,fingerprint:'a'.repeat(64),translations_checked:0,warnings:['Traduzioni non disponibili'],groups:{},
     findings:[{code:'invalid_coordinates',place_key:'museo',severity:'serious',message:'Coordinate da verificare',proposal:{action:'verifica',value:null}}],
     sample:body.indices.length?[{key:'museo',name:'Museo',text:'Questo museo contiene una collezione archeologica.',sources:[{ref:'https://museo.test',data:'Fonte salvata'}]}]:[]}
     :{maps:[{slug:'marsiglia',city:'Marsiglia',total:1},{slug:'napolimap',city:'Napoli',total:1}]}
   return{db,ctx,order,bridge}
 }
-test('qualità: rapporti prima della spesa, JSON strict, budget prima del modello, niente fix Napoli e niente doppio costo',async()=>{
+test('qualità: rapporti prima della spesa, JSON strict, budget prima del modello, fix anche per Napoli e niente doppio costo',async()=>{
   const f=fixture();const previous=process.env.OPENROUTER_API_KEY;process.env.OPENROUTER_API_KEY='finta'
   const fetch=mock.method(globalThis,'fetch',async(_url:unknown,init?:RequestInit)=>{
     const body=JSON.parse(String(init?.body));assert.equal(body.response_format.type,'json_schema');assert.equal(body.response_format.json_schema.strict,true)
@@ -44,7 +44,7 @@ test('qualità: rapporti prima della spesa, JSON strict, budget prima del modell
   try{
     const run=mapsQualityHandler(f.db,{now:()=>new Date('2026-10-23T08:00:00Z'),bridge:f.bridge});await run(f.ctx);const calls=fetch.mock.callCount();await run(f.ctx)
     assert.equal(calls,2);assert.equal(fetch.mock.callCount(),2)
-    assert.equal(f.db.tables.office_agent_outputs.filter((o)=>o.kind==='data_fix').length,1)
+    assert.equal(f.db.tables.office_agent_outputs.filter((o)=>o.kind==='data_fix').length,2)
     assert.ok(f.db.tables.office_agent_outputs.filter((o)=>o.kind==='report').every((o)=>o.body.model_status==='completato'&&o.body.model_findings.length===0))
     const providers=f.order.map((v,i)=>v==='provider'?i:-1).filter((i)=>i>=0);assert.ok(providers.every((i)=>f.order[i-1]==='reserve'&&f.order[i+1]==='settle'))
   }finally{fetch.mock.restore();if(previous===undefined)delete process.env.OPENROUTER_API_KEY;else process.env.OPENROUTER_API_KEY=previous}

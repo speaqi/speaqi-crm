@@ -171,7 +171,7 @@ export function entityEnricherHandler(admin: any, options: { now?: () => Date; f
     await addOfficeOutputOnce(admin, ctx, `enricher:day:${day}`, { kind: 'report', title: `Arricchimento enti — ${day}`,
       body: { righe: lines, proposte: proposals, aziende: companyLines, proposte_aziende: companyProposals, checked: checkedToday, gia_nel_crm: alreadyIn.slice(0, 30),
         ente_non_trovato: notFound.slice(0, 40), ente_non_trovato_totale: notFound.length, budget_finito: stoppedForBudget,
-        nota: 'Napoli esclusa. Gli enti si cercano solo nel catalogo Tourism Intelligence: una città senza ente va aggiunta a mano. Nessuna email personale, nessun campo pieno sovrascritto, nessuna scrittura prima dell’approvazione.' } })
+        nota: 'Gli enti si cercano solo nel catalogo Tourism Intelligence: una città senza ente va aggiunta a mano. Nessuna email personale, nessun campo pieno sovrascritto, nessuna scrittura prima dell’approvazione.' } })
     return { summary: `${picked.length} enti letti, ${proposals} proposte pronte${notFound.length ? `, ${notFound.length} città senza ente nel catalogo` : ''}; ${companiesRead} aziende lette, ${companyProposals} proposte.` }
   }
 }

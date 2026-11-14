@@ -1,4 +1,3 @@
-import { officeIsNaples } from '@/lib/office/director'
 import { buildSocialPosts,socialGuideFromPublic,type SocialGuide } from '@/lib/office/social'
 import { officeRomeDay } from '@/lib/office/finance'
 import { loadMapsStatus,type MapsStatus } from '../maps-status'
@@ -18,9 +17,9 @@ async function publicJson(path:string) {
 export async function loadSocialGuides(maps:MapsStatus,read:typeof publicJson=publicJson):Promise<{guides:SocialGuide[];warnings:string[]}> {
   if(maps.sources.speaqi!=='ok')return{guides:[],warnings:['Catalogo Speaqi non verificato: nessuna bozza da dati mancanti.']}
   const catalog=await read('/public/guides/maps');if(!Array.isArray(catalog?.maps))throw new Error('Catalogo pubblico non valido')
-  const eligible=new Set(maps.rows.filter((m)=>m.stage==='online'&&!officeIsNaples(m.name,m.speaqi_slug,m.studiomap_slug)).map((m)=>m.key))
+  const eligible=new Set(maps.rows.filter((m)=>m.stage==='online').map((m)=>m.key))
   const guides:SocialGuide[]=[];const warnings:string[]=[]
-  for(const row of catalog.maps.filter((m:any)=>m&&eligible.has(m.id)&&!officeIsNaples(m.name,m.slug)).sort((a:any,b:any)=>String(a.slug).localeCompare(String(b.slug)))) {
+  for(const row of catalog.maps.filter((m:any)=>m&&eligible.has(m.id)).sort((a:any,b:any)=>String(a.slug).localeCompare(String(b.slug)))) {
     if(typeof row.slug!=='string'||!/^[a-z0-9][a-z0-9_-]{0,99}$/.test(row.slug))continue
     try{
       const path=`/public/maps/${encodeURIComponent(row.slug)}`;const payload=await read(path)
@@ -38,7 +37,7 @@ export function socialHandler(admin:any,options:{now?:()=>Date;maps?:()=>Promise
     if(previous.error)throw previous.error
     if(previous.data?.length)return{summary:'Settimana social già preparata o tentativo da riconciliare: nessuna nuova spesa.'}
     const sources=await(options.guides||loadSocialGuides)(await(options.maps||loadMapsStatus)())
-    const guides=sources.guides.filter((g)=>!officeIsNaples(g.name,g.slug)&&g.photo_urls.length>0).slice(0,5)
+    const guides=sources.guides.filter((g)=>g.photo_urls.length>0).slice(0,5)
     if(!guides.length){await addOfficeOutputOnce(admin,ctx,`social:missing:${week}`,{kind:'report',title:'Social: fonti da verificare',body:{week,warnings:sources.warnings,nota:'Nessuna guida online con foto verificata. Nessuna spesa e nessuna bozza inventata.'}});return{summary:'Nessuna guida pubblica verificata con foto: dati da completare.'}}
     for(const guide of guides){
       const snapshot=await admin.from('office_social_snapshots').select('facts').eq('user_id',ctx.agent.user_id).eq('map_slug',guide.slug).lt('week',week).order('week',{ascending:false}).limit(1)

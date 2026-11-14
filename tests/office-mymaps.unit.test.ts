@@ -6,10 +6,9 @@ import { OFFICE_AGENT_DEFINITIONS } from '../src/lib/server/office-agents/defini
 import type { AgentContext } from '../src/lib/server/office-agents'
 import { FakeSupabase } from './fake-supabase'
 
-test('My Maps: coda del titolare e del Direttore, Napoli esclusa e turno di due giorni oltre fine mese',()=>{
+test('My Maps: coda del titolare e del Direttore, Napoli come le altre e turno di due giorni oltre fine mese',()=>{
   assert.equal(officeMapQueue([{key:'build',city:'Marsiglia',map_slug:null}])[0].slug,'marsiglia')
-  assert.throws(()=>officeMapQueue([{slug:'napolimap',city:'Altra'}]),/Napoli/)
-  assert.throws(()=>officeMapQueue([{slug:'mappa',city:'Naples'}]),/Napoli/)
+  assert.equal(officeMapQueue([{slug:'napolimap',city:'Napoli'}])[0].slug,'napolimap')
   const slots=Array.from({length:5},(_,i)=>officeMapSlot(new Date(Date.UTC(2026,9,30+i,8))))
   assert.ok(slots.every((s,i)=>i===0||s-slots[i-1]<=1))
   assert.equal(OFFICE_AGENT_DEFINITIONS.mymaps_builder.enabled,false)

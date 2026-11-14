@@ -1,4 +1,3 @@
-import { officeIsNaples } from './director'
 
 export type OfficeMapQueue = { key: string; slug: string; city: string; source?: string }
 export function officeMapQueue(value: unknown): OfficeMapQueue[] {
@@ -12,7 +11,6 @@ export function officeMapQueue(value: unknown): OfficeMapQueue[] {
     if (typeof slug !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,99}$/.test(slug) || typeof city !== 'string' || !city.trim()) {
       throw new Error('Indicare slug della mappa e città nella coda approvata')
     }
-    if (officeIsNaples(slug,city)) throw new Error('Napoli non modificabile')
     if (row.source !== undefined && (typeof row.source !== 'string' || row.source.length > 2000)) throw new Error('Fonte My Maps non valida')
     return { key:typeof row.key === 'string' ? row.key : slug,slug,city:city.trim(),...(row.source ? {source:row.source} : {}) }
   }).filter((row) => { if (seen.has(row.slug)) return false; seen.add(row.slug); return true })

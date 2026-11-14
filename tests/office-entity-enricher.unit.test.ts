@@ -28,7 +28,7 @@ const model = (patch: Partial<ModelEnrichment> = {}): ModelEnrichment => ({
   decision_maker_type: 'direttore', decision_maker_quote: 'Le directeur général de l’Office conduit la stratégie.', decision_maker_url: URL_CONTACT, ...patch })
 
 describe('Arricchimento enti: regole pure', () => {
-  test('città dai porti prioritari: destinazione o nome fra parentesi, nomi locali, Napoli fuori', () => {
+  test('città dai porti prioritari: destinazione o nome fra parentesi, nomi locali, Napoli come le altre', () => {
     const targets = enrichTargets({ places: [{ id: 'place-mrs', name: 'Marseille', country_code: 'FR', aliases: [] }], destinations: [], hubs: [
       { id: 'h1', name: 'Marsiglia', destination: null, country: 'FR', guide_status: 'in_progress', guide_priority: 1 },
       { id: 'h2', name: 'Pireo (Atene)', destination: null, country: 'GR', guide_status: 'planned', guide_priority: 2 },
@@ -36,9 +36,9 @@ describe('Arricchimento enti: regole pure', () => {
       { id: 'h4', name: 'Molo Beverello', destination: 'Naples', country: 'IT', guide_status: 'planned', guide_priority: 1 },
       { id: 'h5', name: 'Savona', destination: null, country: 'IT', guide_status: 'planned', guide_priority: 3 },
     ] })
-    assert.deepEqual(targets.map((t) => t.city), ['Marsiglia', 'Atene'])
+    assert.deepEqual(targets.map((t) => t.city), ['Marsiglia', 'Naples', 'Atene'])
     assert.ok(targets[0].names.includes('Marseille')); assert.equal(targets[0].place_id, 'place-mrs')
-    assert.ok(targets[1].names.includes('Athens'))
+    assert.ok(targets[2].names.includes('Athens'))
   })
 
   test('l’ente: stesso paese, tipo di governo, città come parola intera, con un sito', () => {
@@ -124,13 +124,13 @@ describe('Arricchimento enti: handler', () => {
     return { db, run, fetched, calls }
   }
 
-  test('propone l’ente con fonti, non scrive nel catalogo né nel CRM, Napoli mai letta', async () => {
+  test('propone l’ente con fonti, non scrive nel catalogo né nel CRM, Napoli letta come le altre', async () => {
     const f = fixture()
     const result = await f.run()
     const proposal = f.db.tables.office_agent_outputs.find((o) => o.kind === 'proposal')!
     assert.equal(proposal.body.action, 'enrich_entity'); assert.equal(proposal.target_id, 'org-1')
     assert.equal(proposal.body.fill.email, 'info@marseille-tourisme.example')
-    assert.ok(!f.fetched.some((u) => u.includes('napoli'))); assert.ok(f.calls.every((c) => !/Napoli/.test(c)))
+    assert.ok(f.fetched.some((u) => u.includes('napoli')))
     assert.equal(f.db.tables.tourism_entities!.find((e) => e.id === 'org-1')!.email, null)
     assert.equal(f.db.tables.tourism_crm_links.length, 0)
     const report = f.db.tables.office_agent_outputs.find((o) => o.kind === 'report')!

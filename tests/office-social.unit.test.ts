@@ -21,7 +21,7 @@ test('social: UTM per piattaforma corretti e foto solo da payload pubblico, targ
   const guide=socialGuideFromPublic({id:'m',slug:'marsiglia',points:28,cover_image_url:GUIDE.photo_urls[0]},
     {id:'m',slug:'marsiglia',name:'Marsiglia',target_languages:['it','en','fr'],items:[],routes:[]},'/public/maps/marsiglia')!
   assert.equal(guide.languages,null);assert.deepEqual(guide.photo_urls,GUIDE.photo_urls)
-  assert.equal(socialGuideFromPublic({id:'m',slug:'napolimap',cover_image_url:GUIDE.photo_urls[0]},{id:'m',slug:'napolimap',name:'Napoli'},'source'),null)
+  assert.notEqual(socialGuideFromPublic({id:'m',slug:'napolimap',cover_image_url:GUIDE.photo_urls[0]},{id:'m',slug:'napolimap',name:'Napoli',items:[]},'source'),null)
   assert.equal(socialGuideFromPublic({id:'m',slug:'marsiglia'},{id:'m',slug:'marsiglia',name:'Marsiglia',items:[]},'source'),null)
 })
 test('social: guide a pagamento non deducono itinerari dal paywall e contatori mancanti non sono zero',()=>{
@@ -29,8 +29,8 @@ test('social: guide a pagamento non deducono itinerari dal paywall e contatori m
     {id:'m',slug:'marsiglia',name:'Marsiglia',is_paid:true,access_status:'locked',items:[],routes:[]},'source')!
   assert.equal(guide.routes,null);assert.equal(guide.points,null);assert.equal(guide.audio_minutes,null)
 })
-test('social: tono, massimo cinque hashtag, nessun link nel testo o nuovo contenuto Napoli',()=>{
-  for(const patch of [{text:'Marsiglia, la migliore guida gratuita.'},{text:'Marsiglia: visita anche Napoli.'},{text:'Nuova guida Marsiglia.'},{text:'Marsiglia https://invented.example.org'},{text:'Marsiglia: invented.org'},{text:'Marsiglia',hashtags:Array(6).fill('#Guida')}])
+test('social: tono, massimo cinque hashtag, nessun link nel testo',()=>{
+  for(const patch of [{text:'Marsiglia, la migliore guida gratuita.'},{text:'Nuova guida Marsiglia.'},{text:'Marsiglia https://invented.example.org'},{text:'Marsiglia: invented.org'},{text:'Marsiglia',hashtags:Array(6).fill('#Guida')}])
     assert.equal(validSocialCopy({hashtags:['#Speaqi'],...patch},GUIDE),null)
 })
 test('social: post invalidi scartati e sostituiti da bozze deterministiche con link e foto veri',()=>{
@@ -38,9 +38,9 @@ test('social: post invalidi scartati e sostituiti da bozze deterministiche con l
   assert.equal(posts.length,3);assert.ok(posts.every((p)=>p.origin==='verified_fallback'&&p.photo_url===GUIDE.photo_urls[0]))
   assert.ok(posts.every((p)=>SOCIAL_PLATFORMS.every((platform)=>!p.platforms[platform].text.includes('999'))))
 })
-test('social: payload pubblico soltanto per guide online, nessuna lettura Napoli, copertura assente dichiarata',async()=>{
+test('social: payload pubblico soltanto per guide online, Napoli come le altre, copertura assente dichiarata',async()=>{
   const calls:string[]=[];const result=await loadSocialGuides(maps,async(path)=>{calls.push(path);if(path==='/public/guides/maps')return{maps:[{...GUIDE,cover_image_url:GUIDE.photo_urls[0]},{id:'napoli',slug:'napolimap',name:'Napoli'}]};return{...GUIDE,available_languages:['it','en'],items:[],routes:[]}})
-  assert.equal(result.guides.length,1);assert.deepEqual(calls,['/public/guides/maps','/public/maps/marsiglia'])
+  assert.equal(result.guides.length,1);assert.ok(result.warnings.some((w)=>w.includes('napolimap')));assert.deepEqual(calls,['/public/guides/maps','/public/maps/marsiglia','/public/maps/napolimap'])
   assert.equal((await loadSocialGuides({...maps,sources:{...maps.sources,speaqi:'error'}})).guides.length,0)
 })
 test('social: prenota prima del modello, solo draft_post pending via RPC, nessuna API social e niente seconda spesa',async()=>{

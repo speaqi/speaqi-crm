@@ -1,5 +1,7 @@
 # Speaqi — audit del sistema AI e percorso verso l'autonomia
 
+> **Aggiornamento 14/11/2026:** Napoli non è più protetta: si lavora come le altre città, in StudioMap e nel CRM. La migration `20261114100000_office_naples_unlocked.sql` toglie il blocco anche dal database (va applicata prima o insieme al deploy). Le righe qui sotto che parlano di «Napoli esclusa/rifiutata/protetta» descrivono il comportamento precedente.
+
 **Aggiornamento: 25 ottobre 2026.** Codice CRM esaminato: `main` con PR #76, #77 e #79 (`f789b30`), integrato nel ramo della proposta #78. StudioMap: `eded91d`; piattaforma Speaqi: `75676003`. Fonti operative: `CLAUDE.md`, [modello di business](SPEAQI-BUSINESS-MODEL.md), [Business OS](BUSINESS-OS.md), [audit del 24 ottobre](UFFICIO-AUDIT-2026-10-24.md) e [proposta dei lavori persistenti](UFFICIO-LAVORI.md).
 
 **Verdetto:** i servizi specialistici esistono, ma non formano ancora un'organizzazione autonoma completa. I correttivi recenti migliorano smistamento, ricerca e messaggi; non sostituiscono lavoro persistente, dipendenze, recupero e verifica dell'obiettivo. Il primo incremento del motore è implementato e collaudato nel ramo #78; non è attivato in produzione. Le tabelle sotto descrivono la base osservata e i gap: risultati e limiti del codice consegnato sono nel [rapporto di verifica](UFFICIO-TEST-REPORT.md).

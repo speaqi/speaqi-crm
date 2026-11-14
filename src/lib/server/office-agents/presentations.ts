@@ -1,5 +1,4 @@
 import { safePublicUrl } from '@/lib/tourism'
-import { officeIsNaples } from '@/lib/office/director'
 import { deckPlaceholders, presentationFixes, presentationQueue, type PresentationEvidence, type PresentationQueueItem } from '@/lib/office/presentations'
 import { callModel, type AgentHandler } from '../office-agents'
 import { createServiceRoleClient } from '../supabase'
@@ -57,7 +56,6 @@ export async function presentationEntities(admin: any, userId: string, item: Pre
   }
   const destination = checked(await admin.from('tourism_entities').select('*').eq('user_id', userId).eq('id', destinationId).maybeSingle())
   if (!destination || destination.kind !== 'place' || destination.status !== 'VERIFIED' || destination.disabled) throw new Error('Destinazione non verificata o disabilitata')
-  if (officeIsNaples(entity.name, destination.name)) throw new Error('Napoli esclusa dalle presentazioni dell’ufficio')
   return { entity, destination }
 }
 
