@@ -19,9 +19,9 @@ import type { Task, CRMContact, TaskWithContact, StandaloneTaskPatch } from '@/t
 import styles from './workday.module.css'
 
 type Row = { id: string; kind: 'task' | 'call' | 'tourism'; title: string; detail: string; date: string | null; fresh?: boolean; task?: Task; contact?: CRMContact; callTask?: TaskWithContact | null; work?: WorkItem }
-type Bucket = 'overdue' | 'today' | 'new' | 'future' | 'unplanned'
-const labels: Record<Bucket, string> = { overdue: 'Scaduti', today: 'Oggi', new: 'Nuove assegnazioni', future: 'Prossimi giorni', unplanned: 'Da pianificare' }
-const order: Bucket[] = ['overdue', 'today', 'new', 'unplanned', 'future']
+type Bucket = 'tourism' | 'overdue' | 'today' | 'new' | 'future' | 'unplanned'
+const labels: Record<Bucket, string> = { tourism: 'Tourism Intelligence', overdue: 'Scaduti', today: 'Oggi', new: 'Nuove assegnazioni', future: 'Prossimi giorni', unplanned: 'Da pianificare' }
+const order: Bucket[] = ['tourism', 'today', 'new', 'unplanned', 'future', 'overdue']
 
 export default function WorkdayPage() {
   const crm = useCRMContext()
@@ -30,6 +30,9 @@ export default function WorkdayPage() {
   const canCalls = canAccessPath('/calendario', allowedAreas, isAdmin)
   const canTourism = canAccessPath('/tourism-lavoro', allowedAreas, isAdmin)
   const [tasks, setTasks] = useState<Task[]>([])
+  const [linkedContacts, setLinkedContacts] = useState<Record<string, CRMContact>>({})
+  const [tourismContactIds, setTourismContactIds] = useState<string[]>([])
+  const [candidates, setCandidates] = useState<{ taskId: string; contacts: CRMContact[] } | null>(null)
   const [columns, setColumns] = useState<Array<{ id: string; label: string }>>([])
   const [work, setWork] = useState<WorkItem[]>([])
   const [errors, setErrors] = useState<{ todo?: string; tourism?: string }>({})
@@ -58,6 +61,10 @@ export default function WorkdayPage() {
       ])
       if (result.status === 'rejected') throw result.reason
       setTasks(result.value.tasks || [])
+      try {
+        const links = await apiFetch<{ links: Array<{ task_id: string; contact: CRMContact | null }> }>('/api/tasks/contact-links')
+        setLinkedContacts(Object.fromEntries(links.links.filter((link) => link.contact).map((link) => [link.task_id, link.contact!])))
+      } catch (error) { throw error }
       if (columnResult.status === 'fulfilled') setColumns(columnResult.value.columns || [])
       setErrors((e) => ({ ...e, todo: columnResult.status === 'rejected' ? 'Attività caricate, ma categorie della lavagna non disponibili.' : undefined }))
     } catch (e) { setErrors((v) => ({ ...v, todo: e instanceof Error ? e.message : 'Impossibile caricare le attività' })) } finally { setPending((p) => ({ ...p, todo: false })) }
@@ -76,6 +83,8 @@ export default function WorkdayPage() {
         page++
       } while (all.length < total)
       setWork(all)
+      const links = await apiFetch<{ contactIds: string[] }>('/api/workday/tourism-contacts')
+      setTourismContactIds(links.contactIds)
       setErrors((e) => ({ ...e, tourism: undefined }))
     } catch (e) { setErrors((v) => ({ ...v, tourism: e instanceof Error ? e.message : 'Impossibile caricare il lavoro Turismo' })) } finally { setPending((p) => ({ ...p, tourism: false })) }
   }, [])
@@ -83,30 +92,32 @@ export default function WorkdayPage() {
   useEffect(() => { if (!loading && canTourism) void loadWork() }, [loading, canTourism, loadWork])
 
   const allCalls = useMemo(() => {
-    const contacts = crm.allContacts.filter((c) => !isHiddenContact(c))
+    const linkedIds = new Set(Object.values(linkedContacts).map((c) => c.id))
+    const contacts = crm.allContacts.filter((c) => !isHiddenContact(c) && !linkedIds.has(c.id))
     const scheduled = buildScheduledCalls(contacts, crm.allTasks)
     const seen = new Set(scheduled.map((c) => c.contact.id))
     const remaining = contacts.filter((c) => !seen.has(c.id) && !isClosedStatus(c.status)).map((contact) => ({ contact, task: null, due_at: contact.next_followup_at || '', task_type: 'follow-up', source: 'contact' as const }))
     return [...scheduled, ...remaining]
-  }, [crm.allContacts, crm.allTasks])
+  }, [crm.allContacts, crm.allTasks, linkedContacts])
   const rows = useMemo<Row[]>(() => [
-    ...(canTodo ? tasks.map((task): Row => ({ id: task.id, kind: 'task', title: task.title || task.note || 'Attività', detail: [task.note && task.title ? task.note : 'Da fare', task.area, columns.find(c => c.id === task.board_column_id)?.label].filter(Boolean).join(' · '), date: task.due_date || null, task })) : []),
+    ...(canTodo ? tasks.map((task): Row => { const linked = linkedContacts[task.id]; const contact = linked && (crm.allContacts.find((c) => c.id === linked.id) || linked); return { id: task.id, kind: 'task', title: task.title || task.note || 'Attività', detail: [task.note && task.title ? task.note : 'Da fare', task.area, columns.find(c => c.id === task.board_column_id)?.label, contact && `Contatto: ${contact.status}`].filter(Boolean).join(' · '), date: contact?.next_followup_at || task.due_date || null, task, contact } }) : []),
     ...(canTodo ? crm.allTasks.filter((task) => task.contact_id && task.status === 'pending' && !isCallTaskType(task.type)).map((task): Row => ({ id: task.id, kind: 'task', title: task.title || task.note || task.type, detail: task.contact?.name ? `Contatto: ${task.contact.name}` : 'Attività contatto', date: task.due_date || null, task })) : []),
     ...(canCalls ? allCalls.map((call): Row => ({ id: call.contact.id, kind: 'call', title: call.contact.company || call.contact.name, detail: [call.due_at ? (call.task_type === 'call' ? 'Chiamata' : 'Follow-up') : 'Da pianificare', call.contact.company && call.contact.name, call.contact.category, call.contact.list_name, call.contact.source].filter(Boolean).join(' · '), date: call.due_at || null, contact: call.contact, callTask: call.task })) : []),
     ...(canTourism ? work.filter((item) => !closedWork(item)).map((item): Row => ({ id: item.id, kind: 'tourism', title: item.title, detail: item.next_action, date: item.due_on, fresh: !item.acknowledged_at, work: item })) : []),
-  ], [canTodo, canCalls, canTourism, tasks, columns, crm.allTasks, allCalls, work])
+  ], [canTodo, canCalls, canTourism, tasks, columns, crm.allTasks, crm.allContacts, allCalls, work, linkedContacts])
   const groups = useMemo(() => {
-    const result: Record<Bucket, Row[]> = { overdue: [], today: [], new: [], future: [], unplanned: [] }
+    const result: Record<Bucket, Row[]> = { tourism: [], overdue: [], today: [], new: [], future: [], unplanned: [] }
     for (const row of rows) {
-      if (filter !== 'all' && row.kind !== filter) continue
+      const isTourism = row.kind === 'tourism' || Boolean(row.contact && (row.contact.source === 'tourism-intelligence' || tourismContactIds.includes(row.contact.id)))
+      if (filter !== 'all' && (filter === 'tourism' ? !isTourism : row.kind !== filter)) continue
       if (search.trim() && !`${row.title} ${row.detail} ${row.contact?.email || ''}`.toLowerCase().includes(search.trim().toLowerCase())) continue
       const key = row.date ? (row.date.length === 10 ? row.date : localDayDateKey(new Date(row.date))) : null
-      const bucket: Bucket = key && key < today ? 'overdue' : key === today ? 'today' : row.fresh ? 'new' : key ? 'future' : 'unplanned'
+      const bucket: Bucket = isTourism ? 'tourism' : key && key < today ? 'overdue' : key === today ? 'today' : row.fresh ? 'new' : key ? 'future' : 'unplanned'
       result[bucket].push(row)
     }
     for (const group of order) result[group].sort((a, b) => (a.date || '').localeCompare(b.date || '') || a.title.localeCompare(b.title))
     return result
-  }, [rows, filter, today, search])
+  }, [rows, filter, today, search, tourismContactIds])
 
   async function addTask(event: React.FormEvent) {
     event.preventDefault()
@@ -152,7 +163,8 @@ export default function WorkdayPage() {
     setBusy(row.id)
     try {
       if (choice === 'lost') {
-        await updateContact(row.id, { status: 'Lost', next_followup_at: '' })
+        const updated = await updateContact(row.contact.id, { status: 'Lost', next_followup_at: '' }, { refresh: false })
+        if (row.kind === 'task') setLinkedContacts((current) => ({ ...current, [row.id]: updated }))
         showToast('Contatto segnato come perso')
       } else {
         const date = new Date()
@@ -161,11 +173,26 @@ export default function WorkdayPage() {
           date.setDate(Math.min(day, new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()))
         } else date.setDate(date.getDate() + (choice === 'week' ? 7 : 1))
         date.setHours(9, 0, 0, 0)
-        await updateContact(row.id, { next_followup_at: date.toISOString() })
+        const updated = await updateContact(row.contact.id, { next_followup_at: date.toISOString(), ...(row.contact.contact_scope === 'holding' ? { contact_scope: 'crm' as const } : {}), ...(isClosedStatus(row.contact.status) ? { status: 'New' } : {}) }, { refresh: false })
+        if (row.kind === 'task') setLinkedContacts((current) => ({ ...current, [row.id]: updated }))
         showToast(`Ricontatto fissato per ${date.toLocaleDateString('it-IT')}`)
       }
-      await refresh()
     } catch (e) { showToast(e instanceof Error ? e.message : 'Impossibile aggiornare il contatto') } finally { setBusy('') }
+  }
+  async function activateContact(taskId: string, contactId?: string) {
+    setBusy(taskId)
+    try {
+      const result = await apiFetch<{ status: string; contact?: CRMContact; candidates?: CRMContact[] }>('/api/tasks/contact-links', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task_id: taskId, contact_id: contactId }),
+      })
+      if (result.status === 'matches') setCandidates({ taskId, contacts: result.candidates || [] })
+      else if (result.contact) {
+        setLinkedContacts((current) => ({ ...current, [taskId]: result.contact! }))
+        setCandidates(null)
+        showToast(result.status === 'created' ? 'Contatto creato e collegato' : 'Contatto collegato')
+      }
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Impossibile attivare il contatto') }
+    finally { setBusy('') }
   }
   function openPanel(next: typeof panel, workId: string | null = null) {
     setSelectedWork(workId); setPanel(next)
@@ -179,21 +206,25 @@ export default function WorkdayPage() {
     {workView === 'board' && canTodo ? <section className={styles.boardFrame} aria-label="Kanban attività"><TodoWorkspace forceBoard /></section> : <>
     {canTodo && <form className={styles.capture} onSubmit={addTask}><label className={styles.srOnly} htmlFor="new-work">Nuova attività</label><input id="new-work" placeholder="Aggiungi una cosa da fare…" value={title} onChange={(e) => setTitle(e.target.value)} /><label className={styles.srOnly} htmlFor="new-date">Scadenza</label><input id="new-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} /><button className="btn btn-primary" disabled={busy === 'new' || !title.trim()}>Aggiungi</button></form>}
     {Object.entries(errors).filter(([, value]) => value).map(([source, value]) => <p className={styles.error} key={source}>{source === 'todo' ? 'Attività' : 'Turismo'}: {value} <button type="button" onClick={() => source === 'todo' ? void loadTasks() : void loadWork()}>Riprova</button></p>)}
-    {crm.error && <p className={styles.error}>CRM: {crm.error} <button type="button" onClick={() => void refresh()}>Riprova</button></p>}
+    {crm.error && <p className={styles.error}>CRM: {crm.error} {crm.error.includes('Sessione scaduta') && <a href="/login">Accedi di nuovo</a>} <button type="button" onClick={() => void refresh()}>Riprova</button></p>}
     {(pending.todo || pending.tourism) && <p>Caricamento di attività e Turismo…</p>}
     <label className={styles.search}>Cerca contatto, azienda, categoria o attività <input className="fi" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Ad esempio: siti web" /></label>
-    <div className={styles.filters} aria-label="Filtra il lavoro">{([['all', 'Tutto'], ['task', 'Da fare'], ['call', 'Follow-up'], ['tourism', 'Turismo']] as const).filter(([key]) => key === 'all' || (key === 'task' ? canTodo : key === 'call' ? canCalls : canTourism)).map(([key, label]) => <button key={key} type="button" aria-pressed={filter === key} className={filter === key ? styles.active : ''} onClick={() => setFilter(key)}>{label} <span>{key === 'all' ? rows.length : rows.filter((r) => r.kind === key).length}</span></button>)}</div>
+    <div className={styles.filters} aria-label="Filtra il lavoro">{([['all', 'Tutto'], ['task', 'Da fare'], ['call', 'Follow-up'], ['tourism', 'Turismo']] as const).filter(([key]) => key === 'all' || (key === 'task' ? canTodo : key === 'call' ? canCalls : canTourism)).map(([key, label]) => <button key={key} type="button" aria-pressed={filter === key} className={filter === key ? styles.active : ''} onClick={() => setFilter(key)}>{label} <span>{key === 'all' ? rows.length : key === 'tourism' ? rows.filter((r) => r.kind === 'tourism' || (r.contact && (r.contact.source === 'tourism-intelligence' || tourismContactIds.includes(r.contact.id)))).length : rows.filter((r) => r.kind === key).length}</span></button>)}</div>
     {loading ? <p>Caricamento del lavoro…</p> : order.map((bucket) => {
       const group = groups[bucket]
       if (!group.length) return null
       const shown = expanded[bucket] ? group : group.slice(0, bucket === 'future' || bucket === 'unplanned' ? 5 : 15)
-      return <section className={styles.section} key={bucket}><h2>{labels[bucket]} <span>{group.length}</span></h2><div className={styles.list}>{shown.map((row) => <article className={styles.row} key={`${row.kind}:${row.id}`}><div className={styles.rowMain}><div className={styles.meta}><span>{row.kind === 'task' ? 'DA FARE' : row.kind === 'call' ? 'FOLLOW-UP' : 'TURISMO'}</span>{row.fresh && <span>NUOVA</span>}{row.date && <time>{new Date(row.date.length === 10 ? `${row.date}T12:00:00` : row.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}</time>}</div><strong>{row.title}</strong><p>{row.detail}</p></div><div className={styles.actions}>{row.kind === 'task' && <>{row.task?.contact_id ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDrawer(row.task!.contact_id!)}>Apri contatto</button> : <button type="button" className="btn btn-primary btn-sm" onClick={() => setEditingTaskId(row.id)}>Modifica</button>}<button type="button" className="btn btn-ghost btn-sm" disabled={busy === row.id} onClick={() => row.task && void finishTask(row.task)}>✓ Fatto</button></>}{row.kind === 'call' && row.contact && <><button className="btn btn-primary btn-sm" onClick={() => setOutcome({ contact: row.contact!, task: row.callTask || null })}>Registra esito</button><button className="btn btn-ghost btn-sm" onClick={() => setDrawer(row.id)}>Apri contatto</button><div className={styles.quickActions} aria-label={`Azioni rapide ${row.title}`}><button type="button" disabled={busy === row.id} onClick={() => void handleContact(row, 'tomorrow')}>Domani</button><button type="button" disabled={busy === row.id} onClick={() => void handleContact(row, 'week')}>7 giorni</button><button type="button" disabled={busy === row.id} onClick={() => void handleContact(row, 'months')}>3 mesi</button><button type="button" disabled={busy === row.id} onClick={() => void handleContact(row, 'lost')}>Perso</button></div></>}{row.kind === 'tourism' && <button className="btn btn-primary btn-sm" onClick={() => openPanel('tourism', row.id)}>Gestisci</button>}</div></article>)}</div>{shown.length < group.length && <button className={styles.more} onClick={() => setExpanded((s) => ({ ...s, [bucket]: true }))}>Mostra tutte le {group.length} voci</button>}</section>
+      return <section className={styles.section} key={bucket}><h2>{labels[bucket]} <span>{group.length}</span></h2><div className={styles.list}>{shown.map((row) => <article className={styles.row} key={`${row.kind}:${row.id}`}><div className={styles.rowMain}><div className={styles.meta}><span>{row.kind === 'task' ? 'DA FARE' : row.kind === 'call' ? 'FOLLOW-UP' : 'TURISMO'}</span>{row.fresh && <span>NUOVA</span>}{row.date && <time>{new Date(row.date.length === 10 ? `${row.date}T12:00:00` : row.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}</time>}</div><strong>{row.title}</strong><p>{row.detail}</p></div><div className={styles.actions}>{row.kind === 'task' && <>{row.task?.contact_id ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDrawer(row.task!.contact_id!)}>Apri contatto</button> : <><button type="button" className="btn btn-primary btn-sm" onClick={() => setEditingTaskId(row.id)}>Modifica</button>{!row.contact && <button type="button" className="btn btn-ghost btn-sm" disabled={busy === row.id} onClick={() => void activateContact(row.id)}>Attiva contatto</button>}</>}<button type="button" className="btn btn-ghost btn-sm" disabled={busy === row.id} onClick={() => row.task && void finishTask(row.task)}>✓ Fatto</button></>}{(row.kind === 'call' || row.kind === 'task') && row.contact && <><button className="btn btn-primary btn-sm" onClick={() => setOutcome({ contact: row.contact!, task: row.callTask || null })}>Registra esito</button><button className="btn btn-ghost btn-sm" onClick={() => setDrawer(row.contact!.id)}>Apri contatto</button><div className={styles.quickActions} aria-label={`Azioni rapide ${row.title}`}><button type="button" disabled={busy === row.id} onClick={() => void handleContact(row, 'tomorrow')}>Domani</button><button type="button" disabled={busy === row.id} onClick={() => void handleContact(row, 'week')}>7 giorni</button><button type="button" disabled={busy === row.id} onClick={() => void handleContact(row, 'months')}>3 mesi</button><button type="button" disabled={busy === row.id} onClick={() => void handleContact(row, 'lost')}>Perso</button></div></>}{row.kind === 'tourism' && <button className="btn btn-primary btn-sm" onClick={() => openPanel('tourism', row.id)}>Gestisci</button>}</div></article>)}</div>{shown.length < group.length && <button className={styles.more} onClick={() => setExpanded((s) => ({ ...s, [bucket]: true }))}>Mostra tutte le {group.length} voci</button>}</section>
     })}
     {!loading && !pending.todo && !pending.tourism && rows.length === 0 && !crm.error && !Object.values(errors).some(Boolean) && <p className={styles.empty}>Nessuna attività aperta nelle aree disponibili.</p>}
     {!loading && rows.length > 0 && order.every((key) => groups[key].length === 0) && <p className={styles.empty}>Nessun risultato per questa ricerca o filtro.</p>}
     <section className={styles.tools}><h2>Gestisci il lavoro</h2><p>Strumenti completi, sempre in questa pagina.</p><div className={styles.filters}>{canCalls && <button onClick={() => openPanel('calls')}>Calendario follow-up</button>}{canTourism && <button onClick={() => openPanel('tourism')}>Gestione Turismo</button>}{isAdmin && <button onClick={() => openPanel('overview')}>Altri strumenti Oggi</button>}</div></section>
     {panel && <section id="workday-detail" className={styles.detail}><div className={styles.detailHeader}><h2>{panel === 'todo' ? 'Lavagna attività' : panel === 'calls' ? 'Calendario follow-up' : panel === 'tourism' ? 'Gestione Turismo' : 'Altri strumenti Oggi'}</h2><button className="btn btn-ghost" onClick={closePanel}>Chiudi e aggiorna</button></div>{panel === 'todo' ? <TodoWorkspace forceBoard /> : panel === 'calls' ? <CalendarioPage /> : panel === 'tourism' ? <TourismWork key={selectedWork || 'list'} initialSelectedId={selectedWork} onChanged={loadWork} /> : <PreviousDashboard />}</section>}
     </>}
+    <Modal open={Boolean(candidates)} onClose={() => setCandidates(null)} title="Contatto già presente" footer={<button type="button" className="btn btn-ghost" onClick={() => setCandidates(null)}>Annulla</button>}>
+      <p>Abbiamo trovato questi nominativi. Scegli quello da collegare all’attività:</p>
+      {candidates?.contacts.map((contact) => <p key={contact.id}><button type="button" className="btn btn-ghost" disabled={Boolean(busy)} onClick={() => void activateContact(candidates.taskId, contact.id)}>{contact.name}{contact.company ? ` · ${contact.company}` : ''} · {contact.status}</button></p>)}
+    </Modal>
     <ContactDrawer contactId={drawer} onClose={() => setDrawer(null)} />
     <Modal open={Boolean(editingTask)} onClose={() => setEditingTaskId(null)} title={editingTask?.title || 'Attività'} footer={<button type="button" className="btn btn-ghost" onClick={() => setEditingTaskId(null)}>Chiudi</button>}>
       {editingTask && <div className="todo-modal-body"><TodoRow task={editingTask} today={new Date()} expanded onToggleExpanded={() => setEditingTaskId(null)} onPatch={(patch) => patchStandaloneTask(editingTask.id, patch)} onDelete={() => deleteStandaloneTask(editingTask.id)} /></div>}

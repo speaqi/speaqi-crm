@@ -494,16 +494,15 @@ export function useCRM(_pathname = '') {
           previous.contacts.map((contact) => (contact.id === id ? response.contact : contact))
         )
 
-        const tasks = sortTasks(
-          previous.tasks.map((task) =>
-            task.contact_id === id
-              ? {
-                  ...task,
-                  contact: buildTaskContactSnapshot(response.contact),
-                }
-              : task
-          )
-        )
+        const pendingCalls = previous.tasks.filter((task) => task.contact_id === id && task.status === 'pending' && isCallTaskType(task.type))
+          .sort((a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999'))
+        const nextDate = response.contact.next_followup_at
+        const primary = payload.next_followup_at !== undefined && nextDate && !pendingCalls.some((task) => task.due_date === nextDate) ? pendingCalls[0] : null
+        const tasks = sortTasks(previous.tasks
+          .filter((task) => !(isClosedStatus(response.contact.status) && task.contact_id === id && task.status === 'pending' && isCallTaskType(task.type)))
+          .map((task) => task.contact_id === id
+            ? { ...task, ...(primary?.id === task.id ? { due_date: nextDate } : {}), contact: buildTaskContactSnapshot(response.contact) }
+            : task))
 
         return {
           ...previous,

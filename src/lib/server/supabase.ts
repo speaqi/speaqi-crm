@@ -263,6 +263,9 @@ export async function requireRouteUser(request: NextRequest) {
     const authClient = createPublicServerClient()
     const { data, error } = await authClient.auth.getUser(token)
     if (error || !data.user) {
+      if (error && (isTransientSupabaseError(error) || Number(error.status) >= 500 || error.name === 'AuthRetryableFetchError')) {
+        return { error: Response.json({ error: 'Autenticazione temporaneamente non disponibile. Riprova tra poco.' }, { status: 503 }) }
+      }
       return {
         error: Response.json({ error: 'Unauthorized' }, { status: 401 }),
       }
