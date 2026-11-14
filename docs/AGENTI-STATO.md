@@ -1,6 +1,6 @@
 # Ufficio — lavoro assegnato a Codex
 
-> **Aggiornamento 14/11/2026:** Napoli non è più protetta: si lavora come le altre città, in StudioMap e nel CRM. La migration `20261114100000_office_naples_unlocked.sql` toglie il blocco anche dal database (va applicata prima o insieme al deploy). Le righe qui sotto che parlano di «Napoli esclusa/rifiutata/protetta» descrivono il comportamento precedente.
+> **Aggiornamento 14/11/2026:** Napoli non è più protetta: si lavora come le altre città, in StudioMap e nel CRM. La migration `20261114180000_office_naples_unlocked.sql` toglie il blocco anche dal database (va applicata prima o insieme al deploy). Le righe qui sotto che parlano di «Napoli esclusa/rifiutata/protetta» descrivono il comportamento precedente.
 
 Richiesta corrente: **02 Costruttore My Maps** e **04 Controllo qualità mappe**.
 **03 Lingue e voce** e **05 Pulizia database** sono assegnati a Claude.

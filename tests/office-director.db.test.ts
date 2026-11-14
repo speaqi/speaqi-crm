@@ -13,7 +13,7 @@ let outputId:string
 const decide=(status='approved',owner=OWNER,id=outputId)=>scalar(`select public.decide_office_output('${id}','${owner}','${status}')`).then((s)=>JSON.parse(s!))
 
 before(async()=>{
-  await resetOfficeDatabase(DB,['20261114100000_office_naples_unlocked.sql'])
+  await resetOfficeDatabase(DB,['20261114180000_office_naples_unlocked.sql'])
   await sql(`insert into auth.users(id) values('${OWNER}'),('${OTHER}')`)
 })
 beforeEach(async()=>{

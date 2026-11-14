@@ -17,7 +17,7 @@ const queue = (agent: string, entry: Record<string, unknown>, owner = OWNER) =>
 let outputId: string
 
 before(async () => {
-  await resetOfficeDatabase(DB, ['20261024090000_office_director_orders.sql', '20261024140000_office_queue_update.sql', '20261114100000_office_naples_unlocked.sql'])
+  await resetOfficeDatabase(DB, ['20261024090000_office_director_orders.sql', '20261024140000_office_queue_update.sql', '20261114180000_office_naples_unlocked.sql'])
   await sql(`insert into auth.users(id) values('${OWNER}'),('${OTHER}')`)
 })
 beforeEach(async () => {

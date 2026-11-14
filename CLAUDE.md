@@ -19,7 +19,7 @@
 ## Napoli non è più protetta (14/11/2026)
 
 - Il titolare ha tolto la regola «Napoli intoccabile»: Napoli si lavora come le altre città, in StudioMap e nel CRM (Direttore, code, agenti, produzione città, presentazioni, social, arricchimento enti, `tourism_activate`). `officeIsNaples` è stato eliminato.
-- Le guardie stavano anche nel database: la migration **`20261114100000_office_naples_unlocked.sql`** riscrive sul posto le funzioni che le contenevano (`office_director_queue`, `decide_office_output`, `office_enrich_entity`, `claim_office_presentation`, `claim_office_social_batch`, `finish_office_social_batch`, `tourism_activate`, `office_work_check_owner`), spegnendo il controllo (`~ '(napoli|naples)' and false`). Va applicata **prima o insieme** al deploy del codice: senza, il database continua a rifiutare i lavori su Napoli.
+- Le guardie stavano anche nel database: la migration **`20261114180000_office_naples_unlocked.sql`** riscrive sul posto le funzioni che le contenevano (`office_director_queue`, `decide_office_output`, `office_enrich_entity`, `claim_office_presentation`, `claim_office_social_batch`, `finish_office_social_batch`, `tourism_activate`, `office_work_check_owner`), spegnendo il controllo (`~ '(napoli|naples)' and false`). Va applicata **prima o insieme** al deploy del codice: senza, il database continua a rifiutare i lavori su Napoli.
 - Le frasi «Napoli esclusa/rifiutata» rimaste più sotto descrivono il comportamento di prima.
 - Restano dati, non protezioni: i porti (`calls_naples`), i punteggi di Tourism distribution, i testi di esempio.
 

@@ -15,7 +15,7 @@ const deck=async(text='Da rivedere')=>sql(`insert into tourism_decks(id,user_id,
 before(async()=>{
   await resetOfficeDatabase(DB,[
     '20261017205455_tourism_intelligence.sql','20261018185155_tourism_site_research.sql',
-    '20261019051155_tourism_sitemap_targeting.sql','20261019190000_tourism_decks.sql','20261023090100_office_presentations.sql','20261114100000_office_naples_unlocked.sql'
+    '20261019051155_tourism_sitemap_targeting.sql','20261019190000_tourism_decks.sql','20261023090100_office_presentations.sql','20261114180000_office_naples_unlocked.sql'
   ])
   await sql(`insert into auth.users(id)values('${OWNER}'),('${OTHER}')`)
 })
