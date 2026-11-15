@@ -12,16 +12,20 @@ import { ProductionBoard } from '@/components/office/ProductionBoard'
 import styles from './ufficio.module.css'
 
 /**
- * L'Ufficio in una pagina: il campus 3D a sinistra, a destra il pannello da cui si fa tutto
+ * L'Ufficio in una pagina: la scena 3D a sinistra, a destra il pannello da cui si fa tutto
  * (Direttore, proposte da decidere, agenti, piano di oggi). Lo schermo intero tiene entrambi.
+ *
+ * Viste: «Città» (sala di controllo), «Ufficio 3D» (`campus`: il nuovo open space; la chiave resta quella
+ * di prima, così chi aveva scelto il 3D ci torna) e «Campus» (`classic`: la scena di prima, per confronto).
  */
+type View = 'production' | 'campus' | 'classic'
 export default function UfficioPage() {
   const room = useRef<HTMLDivElement>(null)
   const frame = useRef<HTMLIFrameElement>(null)
   const snapshot = useRef<OfficeSceneSnapshot | null>(null)
   const refreshController = useRef<AbortController | null>(null)
   const dataError = useRef('')
-  const [html, setHtml] = useState<string | null>(null)
+  const [scene, setScene] = useState<{ view: View; html: string } | null>(null)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
   const [sceneFailed, setSceneFailed] = useState(false)
@@ -36,15 +40,19 @@ export default function UfficioPage() {
   // Quello che il campus mostra oltre agli agenti: città, comando in corso in StudioMap, pianificatore e backup.
   const overviewRef = useRef<OfficeOverview | null>(null)
   const extras = useRef<{ production: ProductionOverview | null; command: OfficeSceneCommand | null; system: OfficeSceneSystem | null }>({ production: null, command: null, system: null })
-  // La vista di partenza è la sala di controllo delle città; il campus 3D (800 KB) si carica solo se lo si sceglie.
-  const [view, setView] = useState<'production' | 'campus'>('production')
+  // La vista di partenza è la sala di controllo delle città; una scena 3D (quasi 1 MB) si carica solo se la si sceglie.
+  const [view, setView] = useState<View>('production')
+  const scene3d = view !== 'production'
+  const html = scene && scene.view === view ? scene.html : null
   useEffect(() => {
     const asked = new URLSearchParams(window.location.search).get('vista')
     let saved: string | null = null
     try { saved = window.localStorage.getItem('speaqi.ufficio.vista') } catch { /* senza storage vale la vista di partenza */ }
-    if (asked === 'campus' || (asked !== 'citta' && saved === 'campus')) setView('campus')
+    if (asked === 'classico') setView('classic')
+    else if (asked === 'campus') setView('campus')
+    else if (asked !== 'citta' && (saved === 'campus' || saved === 'classic')) setView(saved)
   }, [])
-  const pickView = useCallback((next: 'production' | 'campus') => {
+  const pickView = useCallback((next: View) => {
     setView(next)
     try { window.localStorage.setItem('speaqi.ufficio.vista', next) } catch { /* preferenza non salvata */ }
   }, [])
@@ -91,13 +99,13 @@ export default function UfficioPage() {
   }, [refresh])
 
   useEffect(() => {
-    if (view !== 'campus' || html) return
+    if (!scene3d || html) return
     const controller = new AbortController()
     setSceneFailed(false)
     void (async () => {
       try {
         const { data } = await createClient().auth.getSession()
-        const response = await fetch('/api/ufficio/scena', {
+        const response = await fetch(view === 'classic' ? '/api/ufficio/scena?scena=campus' : '/api/ufficio/scena', {
           headers: data.session ? { Authorization: `Bearer ${data.session.access_token}` } : {},
           signal: controller.signal,
         })
@@ -106,18 +114,18 @@ export default function UfficioPage() {
           throw new Error(payload?.error || 'Impossibile aprire l’ufficio')
         }
         const text = await response.text()
-        if (!controller.signal.aborted) setHtml(text)
+        if (!controller.signal.aborted) setScene({ view, html: text })
       } catch (err) {
         if (!controller.signal.aborted) setError(err instanceof Error ? err.message : 'Impossibile aprire l’ufficio')
       }
     })()
     return () => controller.abort()
-  }, [view, html, attempt])
+  }, [view, scene3d, html, attempt])
 
-  // Solo con il campus aperto: le città (una lettura al minuto, in cache sul server), lo stato del sistema
+  // Solo con una scena 3D aperta: le città (una lettura al minuto, in cache sul server), lo stato del sistema
   // e il comando lanciato dalla riga di una città, che qui si segue anche se la sala «Città» è chiusa.
   useEffect(() => {
-    if (view !== 'campus') return
+    if (!scene3d) return
     let stopped = false
     const cities = async () => {
       try { extras.current.production = await apiFetch<ProductionOverview>('/api/office/production') }
@@ -148,7 +156,7 @@ export default function UfficioPage() {
     const timers = [setInterval(() => { if (!document.hidden) void cities() }, 60_000), setInterval(() => { if (!document.hidden) void system() }, 300_000),
       setInterval(() => { if (!document.hidden) void command() }, 4_000)]
     return () => { stopped = true; timers.forEach(clearInterval) }
-  }, [view, publish])
+  }, [scene3d, publish])
 
   const activeWork = overview?.works?.some((work) => ['ready', 'running'].includes(work.status)) || overview?.runs.some((run) => run.status === 'running')
   useEffect(() => {
@@ -164,12 +172,18 @@ export default function UfficioPage() {
       // L’iframe sandbox ha origine opaca: l’identità è la finestra, mai il payload.
       if (event.source !== frame.current?.contentWindow) return
       if (event.data?.type === 'office:ready') {
-        // Barra e pannello li disegna la pagina: alla scena resta il campus.
-        send({ type: 'office:embed', panel: false })
+        // Barra e pannello li disegna la pagina: alla scena resta l’ufficio. Le etichette spente restano spente
+        // (la scena sta in un iframe senza storage: la preferenza la ricorda la pagina).
+        let labels = true
+        try { labels = window.localStorage.getItem('speaqi.ufficio.etichette') !== '0' } catch { /* senza storage: etichette accese */ }
+        send({ type: 'office:embed', panel: false, labels })
         if (snapshot.current) send({ type: 'office:snapshot', snapshot: snapshot.current })
         if (dataError.current) send({ type: 'office:error', message: dataError.current })
       } else if (event.data?.type === 'office:refresh') void refresh()
       else if (event.data?.type === 'office:failed') setSceneFailed(true)
+      else if (event.data?.type === 'office:pref') {
+        try { window.localStorage.setItem('speaqi.ufficio.etichette', event.data.labels === false ? '0' : '1') } catch { /* preferenza non salvata */ }
+      }
       else if (event.data?.type === 'office:escape') { if (!document.fullscreenElement) setFull(false) }
       else if (event.data?.type === 'office:focus') {
         const id = event.data.department
@@ -237,20 +251,21 @@ export default function UfficioPage() {
     <div className={styles.stage}>
     <div className={styles.viewSwitch} role="tablist" aria-label="Vista dell’Ufficio">
       <button type="button" role="tab" aria-selected={view === 'production'} onClick={() => pickView('production')}>Città</button>
-      <button type="button" role="tab" aria-selected={view === 'campus'} onClick={() => pickView('campus')}>Campus 3D</button>
+      <button type="button" role="tab" aria-selected={view === 'campus'} onClick={() => pickView('campus')}><span className={styles.wide}>Ufficio 3D</span><span className={styles.narrow}>3D</span></button>
+      <button type="button" role="tab" aria-selected={view === 'classic'} onClick={() => pickView('classic')} title="Il campus 3D di prima, per confronto">Campus</button>
       <button type="button" onClick={() => { void toggleFull() }} aria-pressed={full}
         aria-label={full ? 'Esci da schermo intero' : 'Schermo intero'} title={full ? 'Esci da schermo intero' : 'Schermo intero'}>{full ? '✕' : '⛶'}</button>
       {full && <button type="button" onClick={() => setDrawer((open) => !open)} aria-pressed={drawer}>{drawer ? 'Chiudi pannello' : 'Pannello'}</button>}
     </div>
-    {(error || (view === 'campus' && sceneFailed)) && <div role="alert" style={{ padding: '10px 16px', color: '#fff2cb', background: '#3e3025', display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+    {(error || (scene3d && sceneFailed)) && <div role="alert" style={{ padding: '10px 16px', color: '#fff2cb', background: '#3e3025', display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
       <span>{error || 'Il 3D non è disponibile in questo browser.'}</span>
-      <button className="btn btn-ghost btn-sm" onClick={() => { setError(''); if (view === 'campus' && (!html || sceneFailed)) { setHtml(null); setAttempt((n) => n + 1) } else void refresh() }}>Riprova</button>
+      <button className="btn btn-ghost btn-sm" onClick={() => { setError(''); if (scene3d && (!html || sceneFailed)) { setScene(null); setAttempt((n) => n + 1) } else void refresh() }}>Riprova</button>
       <Link href="/ufficio/agenti" style={{ color: 'inherit' }}>Apri agenti e bozze →</Link>
     </div>}
     {view === 'production' ? <ProductionBoard onOrdered={reload} openSlug={openCity} />
-      : html ? <iframe ref={frame} title="Ufficio Speaqi" srcDoc={html} sandbox="allow-scripts"
+      : html ? <iframe key={view} ref={frame} title="Ufficio Speaqi" srcDoc={html} sandbox="allow-scripts"
         style={{ flex: 1, border: 0, width: '100%', minHeight: 0 }} />
-      : !error && <p style={{ margin: 'auto', color: '#b9c8d0' }}>Apro il campus…</p>}
+      : !error && <p style={{ margin: 'auto', color: '#b9c8d0' }}>Apro l’ufficio…</p>}
     </div>
     <div className={styles.side}><OfficePanel data={overview} reload={reload} tab={tab} setTab={setTab}
       department={department} setDepartment={pickDepartment} highlight={highlight} selectedAgentId={selectedAgentId} selectAgent={selectAgent} /></div>
