@@ -7,6 +7,7 @@ import { chromium } from 'playwright'
 import type { OfficeAgent, OfficeOverview, OfficeOutput, OfficeRun } from '../src/lib/office'
 import type { OfficeWorkSummary } from '../src/lib/office-activity'
 import { UFFICIO_SCENE_HTML } from '../src/lib/server/ufficio-scene'
+import { UFFICIO_CAMPUS_SCENE_HTML } from '../src/lib/server/ufficio-campus-scene'
 import { OFFICE_AGENT_DEFINITIONS } from '../src/lib/server/office-agents/definitions'
 
 const base = process.env.OFFICE_TEST_URL || 'http://127.0.0.1:3215'
@@ -63,7 +64,8 @@ async function main() {
       const method = req.method(); const body = method === 'GET' ? null : req.postDataJSON()
       calls.push({ method, path: url.pathname, body, key: req.headers()['idempotency-key'] })
       const json = (value: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) })
-      if (url.pathname === '/api/ufficio/scena') return route.fulfill({ contentType: 'text/html', body: UFFICIO_SCENE_HTML })
+      if (url.pathname === '/api/ufficio/scena') return route.fulfill({ contentType: 'text/html',
+        body: url.searchParams.get('scena') === 'campus' ? UFFICIO_CAMPUS_SCENE_HTML : UFFICIO_SCENE_HTML })
       if (url.pathname === '/api/ufficio/sblocca') return json({ enabled: false, locked: false })
       if (url.pathname === '/api/office/production/action') {
         if (body.dry_run) return json({ ok: true, plan: { action: body.action, name: 'Marsiglia', allowed: true, reason: 'Da scrivere: 3 temi e la presentazione. I testi già scritti restano.',
@@ -402,6 +404,19 @@ async function main() {
     await page.screenshot({ path: `${out}/10-coda-mobile.png`, fullPage: true })
     await inbox.getByRole('button', { name: 'Archivia avvisi selezionati (1)' }).click()
     await inbox.getByText('Nessuna uscita da valutare.', { exact: true }).waitFor()
+
+    // Il campus di prima resta accanto al nuovo ufficio, per confrontarli: stessa pagina, stesso pannello.
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await page.getByRole('tab', { name: 'Campus', exact: true }).click()
+    await office.locator('#stage canvas').waitFor()
+    await office.locator('#app.embedded').waitFor({ state: 'attached' })
+    assert.equal(await office.locator('#dock').count(), 0, 'nella scheda Campus gira la scena di prima')
+    assert.equal(await office.locator('.tag:not(.kiosk):not(.cities)').count(), 8)
+    assert.ok(await page.getByRole('heading', { name: 'Scrivi al Direttore' }).isVisible())
+    await page.screenshot({ path: `${out}/11-campus-di-prima.png`, fullPage: true })
+    await page.getByRole('tab', { name: 'Ufficio 3D' }).click()
+    await office.locator('#dock .dock-chip[data-dept]').first().waitFor()
+    assert.equal(await page.evaluate(() => localStorage.getItem('speaqi.ufficio.vista')), 'campus')
 
     // Senza WebGL la scena lo dice e la gestione resta tutta nel pannello.
     const fallbackPage = await context.newPage()
