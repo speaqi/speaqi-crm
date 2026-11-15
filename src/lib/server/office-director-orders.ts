@@ -12,6 +12,10 @@ import { officeRows } from './office-read'
 import { createLeadFromInput } from './lead-ops'
 import { loadDirectorPlan } from './opportunities'
 import { directorPlanBrief } from '../office/director-plan'
+import {
+  directorContactReply, directorContactRequest, linkedDirectorContactId, rankDirectorContacts,
+  type DirectorCrmContact, type DueTourismContact,
+} from '../office/director-contact-recommendations'
 import { photoForModel, sniffUpload, safeFileName } from './tourism-deck-assets'
 import { errorMessage } from './http'
 import { searchPattern } from '../command-center'
@@ -1303,6 +1307,30 @@ export async function pendingDirectorQuestion(admin: Admin, userId: string,
 export async function processDirectorOrder(admin: Admin, userId: string, orderId: string, options: { now?: () => Date } = {}): Promise<DirectorOrderRow> {
   const order = checked(await admin.from('office_director_orders').select('*').eq('id', orderId).eq('user_id', userId).single()) as DirectorOrderRow
   if (order.status !== 'received') return order
+  const now = options.now?.() || new Date()
+  const request = order.attachments?.length ? null : directorContactRequest(order.text, officeRomeDay(now))
+  if (request) {
+    let patch: Record<string, unknown>
+    try {
+      const items = checked(await admin.from('tourism_work_items').select('title,stage,segment,due_on,website,next_action')
+        .eq('user_id', userId).in('stage', ['contact', 'contacted', 'proposal'])
+        .like('website', 'https://crm.speaqi.com/contacts/%').lte('due_on', request.day)
+        .order('due_on', { ascending: false }).order('id').limit(150)) as DueTourismContact[]
+      const ids = [...new Set(items.map(item => linkedDirectorContactId(item.website)).filter((id): id is string => !!id))]
+      const contacts = ids.length ? checked(await admin.from('contacts')
+        .select('id,name,company,email,phone,status,hidden,email_unsubscribed_at')
+        .eq('user_id', userId).in('id', ids)) as DirectorCrmContact[] : []
+      const picks = rankDirectorContacts(request, items, contacts)
+      patch = { status: 'done', reply: directorContactReply(request.day, picks), error: null }
+    } catch (error) {
+      console.error('[direttore] lettura contatti', errorMessage(error, 'errore'))
+      patch = { status: 'failed', reply: 'Non sono riuscito a leggere i contatti dal CRM. Riprova tra poco.', error: 'crm_contact_lookup_failed' }
+    }
+    const saved = checked(await admin.from('office_director_orders')
+      .update({ ...patch, interpretation: { lookup: 'contact_recommendations', ...request } })
+      .eq('id', order.id).eq('user_id', userId).eq('status', 'received').select('*').maybeSingle()) as DirectorOrderRow | null
+    return saved || order
+  }
   if (officeWorkEnabled()) {
     try {
       await enqueueOfficeWork(admin, userId, { agent_id: 'director', action: 'interpret_order', source_key: `order:${order.id}:interpret`,
@@ -1320,7 +1348,6 @@ export async function processDirectorOrder(admin: Admin, userId: string, orderId
   const taken = checked(await admin.from('office_director_orders').update({ status: 'working' }).eq('id', order.id)
     .eq('user_id', userId).eq('status', 'received').select('id')) as Array<{ id: string }> | null
   if (!taken?.length) return order
-  const now = options.now?.() || new Date()
   let outcome: Outcome | null = null
   let plan: DirectorOrderPlan | null = null
   // La risposta a una domanda del Direttore («ecco il sito …») riprende l'ordine rimasto in
