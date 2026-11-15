@@ -10,6 +10,8 @@ import { UFFICIO_SCENE_HTML } from '../src/lib/server/ufficio-scene'
 import { OFFICE_AGENT_DEFINITIONS } from '../src/lib/server/office-agents/definitions'
 
 const base = process.env.OFFICE_TEST_URL || 'http://127.0.0.1:3215'
+// Dal bordo basso del cartellino al corpo della persona, in pixel, con l'agente inquadrato.
+const BODY_BELOW_TAG = 160
 const out = process.env.OFFICE_TEST_OUTPUT || '/tmp/speaqi-office-ui'
 const OWNER = '11111111-1111-4111-8111-111111111111'
 const spend = { agent_id: 'prova', day_actual: 12, day_reserved: 5, week_actual: 24, week_reserved: 5, month_actual: 40, month_reserved: 5 }
@@ -166,6 +168,8 @@ async function main() {
     await page.getByRole('alert').filter({ hasText: 'Database di prova non disponibile' }).waitFor({ state: 'detached' })
     await page.setViewportSize({ width: 1440, height: 1000 })
     await page.goto(`${base}/dashboard`)
+    // Il riepilogo del titolare sta dietro «Altri strumenti Oggi», nella pagina Oggi.
+    await page.getByRole('button', { name: 'Altri strumenti Oggi' }).click()
     await page.locator('.cc-card').getByRole('heading', { name: 'Ufficio', exact: true }).waitFor()
     assert.ok(await page.getByRole('link', { name: 'Apri l’Ufficio →' }).count())
     assert.ok(await page.locator('.cc-list').getByRole('link', { name: /Report da controllare/ }).count())
@@ -215,26 +219,29 @@ async function main() {
     await page.getByRole('searchbox', { name: 'Cerca una città' }).fill('rom')
     assert.equal(await page.getByRole('button', { name: 'Marsiglia' }).count(), 0)
     await page.screenshot({ path: `${out}/ufficio-citta.png` })
-    await page.getByRole('tab', { name: 'Campus 3D' }).click()
+    await page.getByRole('tab', { name: 'Ufficio 3D' }).click()
     const office = page.frameLocator('iframe[title="Ufficio Speaqi"]')
     await office.locator('#stage canvas').waitFor()
     // Una pagina sola: la scena senza il suo pannello, la gestione nel pannello della pagina.
     await office.locator('#app.embedded').waitFor({ state: 'attached' })
-    assert.equal(await office.locator('#panel').isHidden(), true)
+    assert.equal(await office.locator('#panel').count(), 0)
     assert.equal(await office.locator('#fallback').isHidden(), true)
+    // Otto zone, una per reparto; la barra in basso le elenca tutte e «Adesso in ufficio» dice chi fa cosa.
     assert.equal(await office.locator('.tag:not(.kiosk):not(.cities)').count(), 8)
+    assert.equal(await office.locator('#dock .dock-chip[data-dept]').count(), 8)
+    await office.getByRole('button', { name: 'Vai da Arricchimento enti' }).waitFor()
     await page.getByRole('heading', { name: 'Scrivi al Direttore' }).waitFor()
     await page.getByRole('tab', { name: /Aspetta te/ }).getByText('1').waitFor()
     await page.getByRole('heading', { name: 'Ente con recapiti da verificare' }).waitFor()
     await page.screenshot({ path: `${out}/04-campus.png`, fullPage: true })
-    // Il clic su un padiglione apre la sua squadra nel pannello; gli altri padiglioni restano.
+    // Il clic su una zona apre la sua squadra nel pannello; le altre zone restano.
     await office.locator('.tag:not(.kiosk):not(.cities)', { hasText: 'Ricerca' }).click()
     await page.getByRole('tab', { name: /Ricerca/, selected: true }).waitFor()
     await page.getByRole('heading', { name: 'Arricchimento enti' }).waitFor()
     await page.screenshot({ path: `${out}/05-reparto.png`, fullPage: true })
     assert.equal(await office.locator('.tag:not(.kiosk):not(.cities)').count(), 8)
     const shown = await office.locator('.tag:not(.kiosk):not(.cities)').evaluateAll((tags) => tags.filter((t) => (t as HTMLElement).style.display !== 'none').length)
-    assert.ok(shown >= 2, `con un reparto aperto restano a schermo anche gli altri padiglioni (${shown})`)
+    assert.ok(shown >= 2, `con un reparto aperto restano a schermo anche le altre zone (${shown})`)
     // Clic sul cartellino del personaggio: scheda esatta, lavori attuali e storico anche fuori dalle proposte recenti.
     await office.getByRole('button', { name: 'Apri scheda di Arricchimento enti', exact: true }).click()
     const activity = page.getByRole('region', { name: 'Scheda di Arricchimento enti', exact: true })
@@ -257,8 +264,10 @@ async function main() {
     await office.locator('button.person-tag.sel[aria-label="Apri scheda di Arricchimento enti"]').waitFor({ state: 'attached' })
     const canvas = office.locator('#stage canvas')
     const canvasBox = await canvas.boundingBox()
-    assert.ok(canvasBox)
-    await canvas.click({ position: { x: canvasBox.width * 0.47, y: canvasBox.height * 0.42 } })
+    const tagBox = await office.locator('button.person-tag.sel[aria-label="Apri scheda di Arricchimento enti"]').boundingBox()
+    assert.ok(canvasBox && tagBox)
+    // Il cartellino sta sopra la testa: poco sotto c'è il corpo della persona.
+    await canvas.click({ position: { x: tagBox.x + tagBox.width / 2 - canvasBox.x, y: tagBox.y + tagBox.height + BODY_BELOW_TAG - canvasBox.y } })
     await activity.getByRole('heading', { name: 'Cosa sta facendo' }).waitFor()
     await activity.getByRole('button', { name: 'Chiudi scheda di Arricchimento enti' }).click()
     // Lo stato bloccato dell'incarico prevale sulla corsa conclusa: stesso stato nel pannello e nel 3D.
@@ -272,8 +281,26 @@ async function main() {
     // Scegliere il reparto dal pannello muove anche la camera, e «Tutti» torna alla vista completa.
     await page.getByRole('button', { name: 'Tutti', exact: true }).click()
     await page.getByRole('tab', { name: /Squadra/, selected: true }).waitFor()
-    await office.getByRole('button', { name: '↺ Vista completa' }).click()
+    await office.getByRole('button', { name: 'Vista completa' }).click()
+    // «Adesso in ufficio»: una riga porta dalla persona, senza cercarla nella stanza.
+    await office.getByRole('button', { name: 'Vai da Arricchimento enti' }).click()
+    await office.locator('button.person-tag.sel[aria-label="Apri scheda di Arricchimento enti"]').waitFor({ state: 'attached' })
+    await page.getByRole('tab', { name: /Ricerca/, selected: true }).waitFor()
+    await page.getByRole('region', { name: 'Scheda di Arricchimento enti', exact: true }).getByRole('button', { name: 'Chiudi scheda di Arricchimento enti' }).click()
+    // Senza etichette: la stanza resta navigabile dalla barra delle zone e la scelta si ricorda.
+    await office.getByRole('button', { name: 'Etichette' }).click()
+    assert.equal(await office.locator('.labels').isHidden(), true, 'etichette spente')
+    assert.equal(await page.evaluate(() => localStorage.getItem('speaqi.ufficio.etichette')), '0')
+    await office.locator('#dock .dock-chip[data-dept="finanza"]').click()
+    await page.getByRole('tab', { name: /Finanza/, selected: true }).waitFor()
+    await page.screenshot({ path: `${out}/06-senza-etichette.png`, fullPage: true })
+    await office.getByRole('button', { name: 'Etichette' }).click()
+    assert.equal(await office.locator('.labels').isVisible(), true, 'etichette riaccese')
+    assert.equal(await page.evaluate(() => localStorage.getItem('speaqi.ufficio.etichette')), '1')
+    await office.getByRole('button', { name: 'Vista completa' }).click()
     await office.getByRole('button', { name: 'Sera', exact: true }).click()
+    assert.equal(await office.locator('.viewport').getAttribute('data-light'), 'night')
+    await page.waitForTimeout(700)
     await page.screenshot({ path: `${out}/07-sera.png`, fullPage: true })
     // Il totem «Aspetta te» non cambia pagina: apre le proposte nel pannello.
     await office.getByRole('button', { name: 'Aspetta te: 1 proposta da decidere' }).click()
@@ -282,20 +309,20 @@ async function main() {
     await page.getByRole('button', { name: /Schermo intero/ }).click()
     await page.getByRole('button', { name: /Esci da schermo intero/ }).waitFor()
     const fullBox = await page.locator('iframe').boundingBox()
-    assert.ok(fullBox && fullBox.x === 0 && fullBox.y === 0, 'a schermo intero il campus parte dal bordo')
-    // A schermo intero il campus prende tutto lo schermo; il pannello è un cassetto.
-    assert.ok(fullBox.width >= 1430, `a schermo intero il campus è largo quanto lo schermo (${fullBox.width})`)
+    assert.ok(fullBox && fullBox.x === 0 && fullBox.y === 0, 'a schermo intero l’ufficio parte dal bordo')
+    // A schermo intero l’ufficio prende tutto lo schermo; il pannello è un cassetto.
+    assert.ok(fullBox.width >= 1430, `a schermo intero l’ufficio è largo quanto lo schermo (${fullBox.width})`)
     await page.getByRole('button', { name: 'Pannello', exact: true }).click()
     await page.getByRole('heading', { name: 'Scrivi al Direttore' }).waitFor()
     assert.ok((await page.getByRole('heading', { name: 'Scrivi al Direttore' }).boundingBox())!.x > 900, 'il cassetto si apre a destra')
     await page.getByRole('button', { name: 'Chiudi pannello', exact: true }).click()
-    // Il campus mostra anche le città, il sistema e la giornata.
+    // L’ufficio mostra anche le città, il sistema e la giornata.
     await office.locator('.tag.cities').getByText('1 in produzione · 1 online').waitFor({ state: 'attached' })
     await office.locator('.task-tag.sys').getByText(/Pianificatore acceso · solo backup/).waitFor({ state: 'attached' })
     await office.locator('.task-tag.money').getByText(/Credito StudioMap: 3,50 \$ · sotto 5 \$/).waitFor({ state: 'attached' })
-    await office.getByRole('button', { name: '▶ Rivedi oggi' }).click()
+    await office.getByRole('button', { name: 'Rivedi oggi' }).click()
     await office.locator('#replay-line').waitFor()
-    await office.getByRole('button', { name: '■ Ferma' }).click().catch(() => {})
+    await office.getByRole('button', { name: 'Ferma' }).click().catch(() => {})
     await page.getByRole('button', { name: /Esci da schermo intero/ }).click()
     await page.getByRole('button', { name: /Schermo intero/ }).waitFor()
     fail = true
@@ -305,7 +332,7 @@ async function main() {
     await page.getByRole('button', { name: 'Riprova', exact: true }).click()
     await page.getByRole('alert').filter({ hasText: 'Database di prova non disponibile' }).waitFor({ state: 'detached' })
     await page.setViewportSize({ width: 390, height: 844 })
-    // Dove il browser non concede lo schermo intero (iPhone), il campus copre comunque tutta la finestra.
+    // Dove il browser non concede lo schermo intero (iPhone), l’ufficio copre comunque tutta la finestra.
     await page.evaluate(() => { Element.prototype.requestFullscreen = () => Promise.reject(new Error('non permesso')) })
     await page.getByRole('button', { name: /Schermo intero/ }).click()
     await page.getByRole('button', { name: /Esci da schermo intero/ }).waitFor()
@@ -390,7 +417,7 @@ async function main() {
     await fallbackPage.close()
 
     assert.deepEqual(errors, [])
-    console.log('Ufficio: gestione agenti, budget e decisioni; campus 3D, stati reali, reparti, luce, errore/recupero, link alle bozze, telefono e fallback senza WebGL verificati. Screenshot: ' + out)
+    console.log('Ufficio: gestione agenti, budget e decisioni; ufficio 3D, stati reali, zone, «Adesso in ufficio», etichette spente, luce, errore/recupero, link alle bozze, telefono e fallback senza WebGL verificati. Screenshot: ' + out)
   } finally { await browser.close() }
 }
 main().catch((error) => { console.error(error); process.exitCode = 1 })

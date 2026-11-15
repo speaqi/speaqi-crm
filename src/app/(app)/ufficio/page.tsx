@@ -164,12 +164,18 @@ export default function UfficioPage() {
       // L’iframe sandbox ha origine opaca: l’identità è la finestra, mai il payload.
       if (event.source !== frame.current?.contentWindow) return
       if (event.data?.type === 'office:ready') {
-        // Barra e pannello li disegna la pagina: alla scena resta il campus.
-        send({ type: 'office:embed', panel: false })
+        // Barra e pannello li disegna la pagina: alla scena resta l’ufficio. Le etichette spente restano spente
+        // (la scena sta in un iframe senza storage: la preferenza la ricorda la pagina).
+        let labels = true
+        try { labels = window.localStorage.getItem('speaqi.ufficio.etichette') !== '0' } catch { /* senza storage: etichette accese */ }
+        send({ type: 'office:embed', panel: false, labels })
         if (snapshot.current) send({ type: 'office:snapshot', snapshot: snapshot.current })
         if (dataError.current) send({ type: 'office:error', message: dataError.current })
       } else if (event.data?.type === 'office:refresh') void refresh()
       else if (event.data?.type === 'office:failed') setSceneFailed(true)
+      else if (event.data?.type === 'office:pref') {
+        try { window.localStorage.setItem('speaqi.ufficio.etichette', event.data.labels === false ? '0' : '1') } catch { /* preferenza non salvata */ }
+      }
       else if (event.data?.type === 'office:escape') { if (!document.fullscreenElement) setFull(false) }
       else if (event.data?.type === 'office:focus') {
         const id = event.data.department
@@ -237,7 +243,7 @@ export default function UfficioPage() {
     <div className={styles.stage}>
     <div className={styles.viewSwitch} role="tablist" aria-label="Vista dell’Ufficio">
       <button type="button" role="tab" aria-selected={view === 'production'} onClick={() => pickView('production')}>Città</button>
-      <button type="button" role="tab" aria-selected={view === 'campus'} onClick={() => pickView('campus')}>Campus 3D</button>
+      <button type="button" role="tab" aria-selected={view === 'campus'} onClick={() => pickView('campus')}>Ufficio 3D</button>
       <button type="button" onClick={() => { void toggleFull() }} aria-pressed={full}
         aria-label={full ? 'Esci da schermo intero' : 'Schermo intero'} title={full ? 'Esci da schermo intero' : 'Schermo intero'}>{full ? '✕' : '⛶'}</button>
       {full && <button type="button" onClick={() => setDrawer((open) => !open)} aria-pressed={drawer}>{drawer ? 'Chiudi pannello' : 'Pannello'}</button>}
@@ -250,7 +256,7 @@ export default function UfficioPage() {
     {view === 'production' ? <ProductionBoard onOrdered={reload} openSlug={openCity} />
       : html ? <iframe ref={frame} title="Ufficio Speaqi" srcDoc={html} sandbox="allow-scripts"
         style={{ flex: 1, border: 0, width: '100%', minHeight: 0 }} />
-      : !error && <p style={{ margin: 'auto', color: '#b9c8d0' }}>Apro il campus…</p>}
+      : !error && <p style={{ margin: 'auto', color: '#b9c8d0' }}>Apro l’ufficio…</p>}
     </div>
     <div className={styles.side}><OfficePanel data={overview} reload={reload} tab={tab} setTab={setTab}
       department={department} setDepartment={pickDepartment} highlight={highlight} selectedAgentId={selectedAgentId} selectAgent={selectAgent} /></div>

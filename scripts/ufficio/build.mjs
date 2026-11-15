@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { build } from 'esbuild'
 
 const result = await build({ entryPoints: [new URL('./scene.js', import.meta.url).pathname], bundle: true,
-  write: false, minify: true, format: 'iife', target: 'es2020', legalComments: 'inline', loader: { '.png': 'dataurl' } })
+  write: false, minify: true, format: 'iife', target: 'es2020', legalComments: 'inline', loader: { '.png': 'dataurl', '.woff2': 'dataurl' } })
 const script = result.outputFiles[0].text.replace(/<\/script/gi, '<\\/script')
 const html = readFileSync(new URL('./scena.html', import.meta.url), 'utf8').replace('<!-- SCENE_SCRIPT -->', () => `<script>${script}</script>`)
 writeFileSync(
