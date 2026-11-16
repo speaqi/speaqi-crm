@@ -12,6 +12,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/todo': '✅ To Do',
   '/operativo': '◎ Centro Operativo',
   '/contacts': '👥 Contatti',
+  '/leadocean': '◎ Esplora LeadOcean',
   '/marketing': '✉️ Marketing',
   '/marketing/idee': '💡 Idee per le guide',
   '/personali': '🗂️ Personali',

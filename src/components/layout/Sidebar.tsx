@@ -43,6 +43,7 @@ const NAV_GROUPS: { label: string; icon: string; items: NavItem[] }[] = [
     items: [
       { href: '/contacts', label: 'Tutti i contatti', icon: '👥', badgeKey: 'contacts' },
       { href: '/import', label: 'Importa', icon: '📥' },
+      { href: '/leadocean', label: 'Esplora LeadOcean', icon: '◎' },
     ],
   },
   {
