@@ -10,8 +10,8 @@ import { LEADOCEAN_CATEGORY_GROUPS } from '@/lib/leadocean-categories'
 type Kind = 'companies' | 'people'
 type Result = { name: string; domain?: string; description?: string; industry?: string; city?: string; country?: string; employees?: number | null; linkedin?: string; headline?: string; company?: string; title?: string; hasEmail?: boolean; emailStatus?: string }
 type ResponseData = { items?: Result[]; total: number | null; nextCursor?: string | null; depthCapped?: boolean; unsupportedFilters?: string[]; notice?: string | null }
-type Filters = { query: string; country: string; industry: string; title: string; domain: string; categories: string[] }
-const empty: Filters = { query: '', country: '', industry: '', title: '', domain: '', categories: [] }
+type Filters = { query: string; country: string; industry: string; title: string; domain: string; companyCountry: string; categories: string[] }
+const empty: Filters = { query: '', country: '', industry: '', title: '', domain: '', companyCountry: '', categories: [] }
 function safeUrl(value?: string, domain = false) {
   if (!value) return null
   try { const url = new URL(domain ? `https://${value}` : value); return ['http:', 'https:'].includes(url.protocol) ? url.href : null } catch { return null }
@@ -64,7 +64,7 @@ export default function LeadOceanPage() {
           <label className={styles.wide}>{kind === 'companies' ? 'Altra parola chiave aziendale' : 'Nome o parole nel profilo'}<input value={filters.query} onChange={e => update('query', e.target.value)} placeholder={kind === 'companies' ? 'Es. tour operator' : 'Es. tourism, partnership…'} /></label>
           <label>Paese <small>codice ISO</small><input value={filters.country} maxLength={2} onChange={e => update('country', e.target.value.toUpperCase())} placeholder="Es. IT, FR, US" /></label>
           <label>Settore <small>cerca tra 534 categorie</small><input list="leadocean-industries" value={filters.industry} onChange={e => update('industry', e.target.value)} placeholder="Es. Travel Arrangements" /><datalist id="leadocean-industries">{industries.map(x => <option key={x} value={x} />)}</datalist></label>
-          {kind === 'people' && <><label>Ruolo<input value={filters.title} onChange={e => update('title', e.target.value)} placeholder="Es. Partnership Manager" /></label><label>Dominio aziendale<input value={filters.domain} onChange={e => update('domain', e.target.value)} placeholder="Es. azienda.com" /></label></>}
+          {kind === 'people' && <><label>Ruolo<input value={filters.title} onChange={e => update('title', e.target.value)} placeholder="Es. Partnership Manager" /></label><label>Paese sede aziendale <small>codice ISO, consigliato per le categorie</small><input value={filters.companyCountry} maxLength={2} onChange={e => update('companyCountry', e.target.value.toUpperCase())} placeholder="Es. IT, FR, US" /></label><label>Dominio aziendale<input value={filters.domain} onChange={e => update('domain', e.target.value)} placeholder="Es. azienda.com" /></label></>}
         </div>
         <fieldset className={styles.categoryPicker}>
           <legend>CATEGORIE DI ATTIVITÀ {filters.categories.length > 0 && <span>· {filters.categories.length} selezionate</span>}</legend>
@@ -73,7 +73,7 @@ export default function LeadOceanPage() {
             const selected = filters.categories.includes(category.id)
             return <button key={category.id} type="button" aria-pressed={selected} onClick={() => toggleCategory(category.id)}>{selected ? '✓ ' : '+ '}{category.label}</button>
           })}</div></div>)}
-          <p className={styles.categoryHint}>Le categorie usano parole chiave: i risultati vanno verificati. {kind === 'companies' ? 'La parola chiave aziendale si aggiunge alle categorie come alternativa. ' : 'Le parole nel profilo restringono la ricerca. '}Paese e settore restringono ulteriormente i risultati.</p>
+          <p className={styles.categoryHint}>Le categorie usano parole chiave: i risultati vanno verificati. {kind === 'companies' ? 'La parola chiave aziendale si aggiunge alle categorie come alternativa. ' : 'Le parole nel profilo restringono la ricerca. '}Paese e settore restringono ulteriormente i risultati.{kind === 'people' && ' Se le categorie non vengono applicate, specifica anche il paese della sede aziendale.'}</p>
         </fieldset>
         <div className={styles.actions}><button className={styles.primary} type="submit" disabled={!!busy || configured !== true}>{busy === 'search' ? 'Ricerca in corso…' : `Cerca ${kind === 'companies' ? 'aziende' : 'persone'} →`}</button><button className={styles.secondary} type="button" disabled={!!busy || configured !== true} onClick={() => void run('count')}>{busy === 'count' ? 'Conteggio…' : 'Conta i risultati'}</button><p>Il conteggio è gratuito. La ricerca utilizza fino a 25 unità per pagina.</p></div>
       </form>
