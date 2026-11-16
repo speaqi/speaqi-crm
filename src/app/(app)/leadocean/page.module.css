@@ -30,10 +30,16 @@
 .wide { grid-column: 1 / -1; }
 .grid input, .grid select { width: 100%; min-height: 43px; padding: 10px 11px; border: 1px solid #dce5e1; border-radius: 8px; background: #fbfdfc; color: #263c36; font-size: 13px; }
 .grid input:focus-visible, .grid select:focus-visible, .page button:focus-visible, .page a:focus-visible { outline: 2px solid #2c8a75; outline-offset: 2px; }
-.suggestions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 24px; }
-.suggestions > span { flex-basis: 100%; color: #8a9993; font-size: 9px; font-weight: 800; letter-spacing: .1em; margin-bottom: 2px; }
-.suggestions button { border: 1px solid #dce9e4; border-radius: 6px; background: #f6faf8; padding: 7px 9px; font-size: 11px; color: #41675c; }
-.suggestions b { margin-left: 4px; color: #63a492; }
+.categoryPicker { border: 0; border-top: 1px solid #edf1ef; margin: 24px 0 0; padding: 18px 0 0; min-width: 0; }
+.categoryPicker legend { color: #4d8e7d; font-size: 10px; font-weight: 800; letter-spacing: .1em; padding-right: 8px; }
+.categoryPicker legend span { color: #236f5e; letter-spacing: 0; text-transform: none; }
+.categoryPicker > p { color: #6e8079; font-size: 12px; line-height: 1.5; }
+.categoryGroup { margin-top: 17px; }
+.categoryGroup h3 { font-size: 11px; color: #465f55; margin-bottom: 8px; }
+.suggestions { display: flex; flex-wrap: wrap; gap: 7px; }
+.suggestions button { border: 1px solid #dce9e4; border-radius: 6px; background: #f6faf8; padding: 7px 9px; font-size: 11px; color: #41675c; text-align: left; }
+.suggestions button[aria-pressed='true'] { border-color: #387c6b; background: #dcefe7; color: #165f4e; font-weight: 700; }
+.categoryPicker .categoryHint { margin-top: 16px; color: #82928b; font-size: 11px; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; border-top: 1px solid #edf1ef; margin-top: 24px; padding-top: 20px; }
 .actions button, .more { padding: 11px 14px; border-radius: 8px; font-weight: 700; font-size: 12px; }
 .primary { color: #fff; background: #236f5e; }

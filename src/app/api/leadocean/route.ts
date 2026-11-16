@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { requireRouteUser } from '@/lib/server/supabase'
 import industries from '@/lib/leadocean-industries.json'
+import { LEADOCEAN_CATEGORIES, categorySearchFilters } from '@/lib/leadocean-categories'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
   return Response.json({ configured: Boolean(process.env.LEADOCEAN_API_KEY) }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
-type SearchRequest = { kind?: unknown; action?: unknown; query?: unknown; country?: unknown; industry?: unknown; title?: unknown; domain?: unknown; cursor?: unknown }
+type SearchRequest = { kind?: unknown; action?: unknown; query?: unknown; country?: unknown; industry?: unknown; title?: unknown; domain?: unknown; categories?: unknown; cursor?: unknown }
 const str = (value: unknown, max = 160) => typeof value === 'string' ? value.trim().slice(0, max) : ''
 
 export async function POST(request: NextRequest) {
@@ -39,11 +40,12 @@ export async function POST(request: NextRequest) {
   const title = str(body.title)
   const domain = str(body.domain)
   const cursor = countOnly ? '' : str(body.cursor, 4096)
+  const categories = body.categories === undefined ? [] : body.categories
+  if (!Array.isArray(categories) || categories.some(id => typeof id !== 'string' || !LEADOCEAN_CATEGORIES.some(category => category.id === id))) return Response.json({ error: 'Categoria non valida.' }, { status: 400 })
   if (industry && !industries.includes(industry)) return Response.json({ error: 'Seleziona un settore tra quelli suggeriti.' }, { status: 400 })
   if (country && !/^[A-Z]{2}$/.test(country)) return Response.json({ error: 'Usa un codice paese di due lettere, per esempio IT.' }, { status: 400 })
   if (domain && !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)) return Response.json({ error: 'Inserisci un dominio valido, per esempio azienda.com.' }, { status: 400 })
-  const filters: Record<string, unknown> = {}
-  if (query) filters[kind === 'companies' ? 'keywords' : 'q'] = kind === 'companies' ? [query] : query
+  const filters: Record<string, unknown> = categorySearchFilters(kind, query, categories)
   if (country) filters[kind === 'companies' ? 'hqCountry' : 'country'] = [country]
   if (industry) filters.industry = [industry]
   if (kind === 'people' && title) filters.title = [title]
