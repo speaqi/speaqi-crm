@@ -52,7 +52,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     router.replace('/dashboard')
   }, [authChecked, areaBlocked, router, showToast])
 
-  if (!authChecked || crm.loading) {
+  const waitForData = pathname === '/dashboard' ? crm.identityLoading : crm.loading
+  if (!authChecked || waitForData) {
     return (
       <div className="loading-screen">
         <BrandLockup tone="dark" size="hero" centered />

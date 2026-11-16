@@ -165,6 +165,8 @@ export function useCRM(_pathname = '') {
   /** Nome nel team per il collaboratore loggato (dal server); null per admin o non risolto. */
   const [viewerMemberName, setViewerMemberName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  // La dashboard può mostrare le prime attività appena sono noti i permessi.
+  const [identityLoading, setIdentityLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [authEmail, setAuthEmail] = useState<string | null>(null)
@@ -350,7 +352,14 @@ export function useCRM(_pathname = '') {
           allowed_areas?: AreaKey[]
         }>(
           '/api/team-members'
-        ),
+        ).then((team) => {
+          setTeamMembers(team.members || [])
+          setIsAdmin(Boolean(team.is_admin ?? true))
+          setAllowedAreas(Array.isArray(team.allowed_areas) ? team.allowed_areas : null)
+          setViewerMemberName(team.member_name != null && String(team.member_name).trim() ? String(team.member_name).trim() : null)
+          setIdentityLoading(false)
+          return team
+        }),
         apiFetch<{ stages: PipelineStage[] }>('/api/pipeline-stages'),
         apiFetch<{ contacts: CRMContact[] }>(WORKING_SET_QUERY),
         apiFetch<{ tasks: TaskWithContact[] }>('/api/tasks?status=pending'),
@@ -429,6 +438,7 @@ export function useCRM(_pathname = '') {
     } finally {
       hasLoadedRef.current = true
       if (shouldBlockUI) setLoading(false)
+      setIdentityLoading(false)
     }
   }, [])
 
@@ -444,6 +454,7 @@ export function useCRM(_pathname = '') {
         loadAll()
       } else {
         setLoading(false)
+        setIdentityLoading(false)
         setAuthEmail(null)
       }
     })
@@ -975,6 +986,7 @@ export function useCRM(_pathname = '') {
     viewerMemberName,
     authEmail,
     loading,
+    identityLoading,
     error,
     userId,
     standaloneTasks,

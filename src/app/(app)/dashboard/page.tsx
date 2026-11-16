@@ -1,15 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useCRMContext } from '@/components/layout/CRMContext'
 import { ContactDrawer } from '@/components/crm/ContactDrawer'
 import { CallOutcomeModal } from '@/components/crm/CallOutcomeModal'
 import { Modal } from '@/components/ui/Modal'
 import { TodoRow } from '@/components/todo/TodoRow'
-import TourismWork from '@/components/tourism/TourismWork'
-import TodoWorkspace from '@/components/todo/TodoWorkspace'
-import CalendarioPage from '../calendario/page'
-import PreviousDashboard from '@/components/crm/PreviousDashboard'
 import { canAccessPath } from '@/lib/areas'
 import { apiFetch } from '@/lib/api'
 import { isClosedStatus, isHiddenContact } from '@/lib/data'
@@ -18,6 +15,11 @@ import { closedWork, type WorkItem } from '@/lib/tourism-work'
 import type { Task, CRMContact, TaskWithContact, StandaloneTaskPatch } from '@/types'
 import styles from './workday.module.css'
 
+const TourismWork = dynamic(() => import('@/components/tourism/TourismWork'), { ssr: false })
+const TodoWorkspace = dynamic(() => import('@/components/todo/TodoWorkspace'), { ssr: false })
+const CalendarioPage = dynamic(() => import('../calendario/page'), { ssr: false })
+const PreviousDashboard = dynamic(() => import('@/components/crm/PreviousDashboard'), { ssr: false })
+
 type Row = { id: string; kind: 'task' | 'call' | 'tourism'; title: string; detail: string; date: string | null; fresh?: boolean; task?: Task; contact?: CRMContact; callTask?: TaskWithContact | null; work?: WorkItem }
 type Bucket = 'tourism' | 'overdue' | 'today' | 'new' | 'future' | 'unplanned'
 const labels: Record<Bucket, string> = { tourism: 'Tourism Intelligence', overdue: 'Scaduti', today: 'Oggi', new: 'Nuove assegnazioni', future: 'Prossimi giorni', unplanned: 'Da pianificare' }
@@ -25,7 +27,7 @@ const order: Bucket[] = ['tourism', 'today', 'new', 'unplanned', 'future', 'over
 
 export default function WorkdayPage() {
   const crm = useCRMContext()
-  const { isAdmin, allowedAreas, loading, stages, completeTask, updateContact, addActivity, refresh, showToast } = crm
+  const { isAdmin, allowedAreas, loading, identityLoading, stages, completeTask, updateContact, addActivity, refresh, showToast } = crm
   const canTodo = canAccessPath('/todo', allowedAreas, isAdmin)
   const canCalls = canAccessPath('/calendario', allowedAreas, isAdmin)
   const canTourism = canAccessPath('/tourism-lavoro', allowedAreas, isAdmin)
@@ -55,16 +57,15 @@ export default function WorkdayPage() {
   const loadTasks = useCallback(async () => {
     setPending((p) => ({ ...p, todo: true }))
     try {
-      const [result, columnResult] = await Promise.allSettled([
+      const [result, columnResult, linksResult] = await Promise.allSettled([
         apiFetch<{ tasks: Task[] }>('/api/tasks/standalone?status=pending'),
         apiFetch<{ columns: Array<{ id: string; label: string }> }>('/api/todo/columns'),
+        apiFetch<{ links: Array<{ task_id: string; contact: CRMContact | null }> }>('/api/tasks/contact-links'),
       ])
       if (result.status === 'rejected') throw result.reason
       setTasks(result.value.tasks || [])
-      try {
-        const links = await apiFetch<{ links: Array<{ task_id: string; contact: CRMContact | null }> }>('/api/tasks/contact-links')
-        setLinkedContacts(Object.fromEntries(links.links.filter((link) => link.contact).map((link) => [link.task_id, link.contact!])))
-      } catch (error) { throw error }
+      if (linksResult.status === 'rejected') throw linksResult.reason
+      setLinkedContacts(Object.fromEntries(linksResult.value.links.filter((link) => link.contact).map((link) => [link.task_id, link.contact!])))
       if (columnResult.status === 'fulfilled') setColumns(columnResult.value.columns || [])
       setErrors((e) => ({ ...e, todo: columnResult.status === 'rejected' ? 'Attività caricate, ma categorie della lavagna non disponibili.' : undefined }))
     } catch (e) { setErrors((v) => ({ ...v, todo: e instanceof Error ? e.message : 'Impossibile caricare le attività' })) } finally { setPending((p) => ({ ...p, todo: false })) }
@@ -72,6 +73,8 @@ export default function WorkdayPage() {
   const loadWork = useCallback(async () => {
     setPending((p) => ({ ...p, tourism: true }))
     try {
+      const linksRequest = apiFetch<{ contactIds: string[] }>('/api/workday/tourism-contacts')
+        .then((links) => ({ links }), (error: unknown) => ({ error }))
       const all: WorkItem[] = []
       let page = 0
       let total = 0
@@ -83,13 +86,14 @@ export default function WorkdayPage() {
         page++
       } while (all.length < total)
       setWork(all)
-      const links = await apiFetch<{ contactIds: string[] }>('/api/workday/tourism-contacts')
-      setTourismContactIds(links.contactIds)
+      const result = await linksRequest
+      if ('error' in result) throw result.error
+      setTourismContactIds(result.links.contactIds)
       setErrors((e) => ({ ...e, tourism: undefined }))
     } catch (e) { setErrors((v) => ({ ...v, tourism: e instanceof Error ? e.message : 'Impossibile caricare il lavoro Turismo' })) } finally { setPending((p) => ({ ...p, tourism: false })) }
   }, [])
-  useEffect(() => { if (!loading && canTodo) void loadTasks() }, [loading, canTodo, loadTasks])
-  useEffect(() => { if (!loading && canTourism) void loadWork() }, [loading, canTourism, loadWork])
+  useEffect(() => { if (!identityLoading && canTodo) void loadTasks() }, [identityLoading, canTodo, loadTasks])
+  useEffect(() => { if (!identityLoading && canTourism) void loadWork() }, [identityLoading, canTourism, loadWork])
 
   const allCalls = useMemo(() => {
     const linkedIds = new Set(Object.values(linkedContacts).map((c) => c.id))
@@ -100,9 +104,9 @@ export default function WorkdayPage() {
     return [...scheduled, ...remaining]
   }, [crm.allContacts, crm.allTasks, linkedContacts])
   const rows = useMemo<Row[]>(() => [
-    ...(canTodo ? tasks.map((task): Row => { const linked = linkedContacts[task.id]; const contact = linked && (crm.allContacts.find((c) => c.id === linked.id) || linked); return { id: task.id, kind: 'task', title: task.title || task.note || 'Attività', detail: [task.note && task.title ? task.note : 'Da fare', task.area, columns.find(c => c.id === task.board_column_id)?.label, contact && `Contatto: ${contact.status}`].filter(Boolean).join(' · '), date: contact?.next_followup_at || task.due_date || null, task, contact } }) : []),
+    ...(canTodo ? tasks.map((task): Row => { const linked = linkedContacts[task.id]; const contact = linked && (crm.allContacts.find((c) => c.id === linked.id) || linked); return { id: task.id, kind: 'task', title: task.title || task.note || 'Attività', detail: [task.note && task.title ? task.note : 'Da fare', task.area, columns.find(c => c.id === task.board_column_id)?.label, contact && `Contatto: ${contact.status}`, contact?.phone, contact?.email].filter(Boolean).join(' · '), date: contact?.next_followup_at || task.due_date || null, task, contact } }) : []),
     ...(canTodo ? crm.allTasks.filter((task) => task.contact_id && task.status === 'pending' && !isCallTaskType(task.type)).map((task): Row => ({ id: task.id, kind: 'task', title: task.title || task.note || task.type, detail: task.contact?.name ? `Contatto: ${task.contact.name}` : 'Attività contatto', date: task.due_date || null, task })) : []),
-    ...(canCalls ? allCalls.map((call): Row => ({ id: call.contact.id, kind: 'call', title: call.contact.company || call.contact.name, detail: [call.due_at ? (call.task_type === 'call' ? 'Chiamata' : 'Follow-up') : 'Da pianificare', call.contact.company && call.contact.name, call.contact.category, call.contact.list_name, call.contact.source].filter(Boolean).join(' · '), date: call.due_at || null, contact: call.contact, callTask: call.task })) : []),
+    ...(canCalls ? allCalls.map((call): Row => ({ id: call.contact.id, kind: 'call', title: call.contact.company || call.contact.name, detail: [call.due_at ? (call.task_type === 'call' ? 'Chiamata' : 'Follow-up') : 'Da pianificare', call.contact.company && call.contact.name, call.contact.category, call.contact.list_name, call.contact.phone, call.contact.email, call.contact.responsible, call.contact.source].filter(Boolean).join(' · '), date: call.due_at || null, contact: call.contact, callTask: call.task })) : []),
     ...(canTourism ? work.filter((item) => !closedWork(item)).map((item): Row => ({ id: item.id, kind: 'tourism', title: item.title, detail: item.next_action, date: item.due_on, fresh: !item.acknowledged_at, work: item })) : []),
   ], [canTodo, canCalls, canTourism, tasks, columns, crm.allTasks, crm.allContacts, allCalls, work, linkedContacts])
   const groups = useMemo(() => {
@@ -207,10 +211,10 @@ export default function WorkdayPage() {
     {canTodo && <form className={styles.capture} onSubmit={addTask}><label className={styles.srOnly} htmlFor="new-work">Nuova attività</label><input id="new-work" placeholder="Aggiungi una cosa da fare…" value={title} onChange={(e) => setTitle(e.target.value)} /><label className={styles.srOnly} htmlFor="new-date">Scadenza</label><input id="new-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} /><button className="btn btn-primary" disabled={busy === 'new' || !title.trim()}>Aggiungi</button></form>}
     {Object.entries(errors).filter(([, value]) => value).map(([source, value]) => <p className={styles.error} key={source}>{source === 'todo' ? 'Attività' : 'Turismo'}: {value} <button type="button" onClick={() => source === 'todo' ? void loadTasks() : void loadWork()}>Riprova</button></p>)}
     {crm.error && <p className={styles.error}>CRM: {crm.error} {crm.error.includes('Sessione scaduta') && <a href="/login">Accedi di nuovo</a>} <button type="button" onClick={() => void refresh()}>Riprova</button></p>}
-    {(pending.todo || pending.tourism) && <p>Caricamento di attività e Turismo…</p>}
+    {(loading || pending.todo || pending.tourism) && <p role="status">Caricamento delle informazioni rimanenti…</p>}
     <label className={styles.search}>Cerca contatto, azienda, categoria o attività <input className="fi" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Ad esempio: siti web" /></label>
-    <div className={styles.filters} aria-label="Filtra il lavoro">{([['all', 'Tutto'], ['task', 'Da fare'], ['call', 'Follow-up'], ['tourism', 'Turismo']] as const).filter(([key]) => key === 'all' || (key === 'task' ? canTodo : key === 'call' ? canCalls : canTourism)).map(([key, label]) => <button key={key} type="button" aria-pressed={filter === key} className={filter === key ? styles.active : ''} onClick={() => setFilter(key)}>{label} <span>{key === 'all' ? rows.length : key === 'tourism' ? rows.filter((r) => r.kind === 'tourism' || (r.contact && (r.contact.source === 'tourism-intelligence' || tourismContactIds.includes(r.contact.id)))).length : rows.filter((r) => r.kind === key).length}</span></button>)}</div>
-    {loading ? <p>Caricamento del lavoro…</p> : order.map((bucket) => {
+    <div className={styles.filters} aria-label="Filtra il lavoro">{([['all', 'Tutto'], ['task', 'Da fare'], ['call', 'Follow-up'], ['tourism', 'Turismo']] as const).filter(([key]) => key === 'all' || (key === 'task' ? canTodo : key === 'call' ? canCalls : canTourism)).map(([key, label]) => <button key={key} type="button" aria-pressed={filter === key} className={filter === key ? styles.active : ''} onClick={() => setFilter(key)}>{label} <span>{loading || pending.todo || pending.tourism ? '…' : key === 'all' ? rows.length : key === 'tourism' ? rows.filter((r) => r.kind === 'tourism' || (r.contact && (r.contact.source === 'tourism-intelligence' || tourismContactIds.includes(r.contact.id)))).length : rows.filter((r) => r.kind === key).length}</span></button>)}</div>
+    {order.map((bucket) => {
       const group = groups[bucket]
       if (!group.length) return null
       const shown = expanded[bucket] ? group : group.slice(0, bucket === 'future' || bucket === 'unplanned' ? 5 : 15)
