@@ -1,4 +1,4 @@
-.page { max-width: 1360px; margin: 0 auto; color: #202b3a; padding-bottom: 60px; }
+.page { flex: 1; min-height: 0; width: 100%; max-width: 1360px; margin: 0 auto; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; color: #202b3a; padding-bottom: 60px; }
 .hero { min-height: 226px; padding: 36px 42px; display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; background: #172d39; color: white; border-radius: 16px; position: relative; overflow: hidden; }
 .hero:after { content: ''; position: absolute; width: 350px; height: 350px; right: -88px; top: -181px; border-radius: 50%; border: 48px solid rgba(159, 209, 195, .08); pointer-events: none; }
 .hero > div { position: relative; z-index: 1; }
