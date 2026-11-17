@@ -408,6 +408,7 @@ export type ResearchFetch = (url: string) => Promise<{
   text: string
   bytes: number
   headers: Record<string, string | string[] | undefined>
+  buffer?: Buffer
 }>
 export const fetchResearchPage: ResearchFetch = async (url) => {
   if (!researchUrl(url)) throw new Error('Public URL required')
@@ -430,7 +431,7 @@ export const fetchResearchPage: ResearchFetch = async (url) => {
     headers: {
       'user-agent': CRAWLER_AGENT,
       accept:
-        'text/html,application/xhtml+xml,application/xml,text/xml,text/plain;q=0.8',
+        'text/html,application/xhtml+xml,application/xml,text/xml,image/png,image/jpeg,image/webp,text/plain;q=0.8',
       'accept-encoding': 'identity'
     }
   })
@@ -459,6 +460,7 @@ export const fetchResearchPage: ResearchFetch = async (url) => {
   return {
     status: response.statusCode,
     text: content.toString('utf8'),
+    buffer: content,
     bytes,
     headers: response.headers
   }
@@ -466,6 +468,7 @@ export const fetchResearchPage: ResearchFetch = async (url) => {
 
 export type WebsiteMaterial = {
   pages: { url: string; title: string; text: string }[]
+  logo?: { url: string; buffer: Buffer }
   warning?: string
 }
 
@@ -485,6 +488,7 @@ export async function readWebsiteMaterial(
     options.pause ||
     ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)))
   const pages: WebsiteMaterial['pages'] = []
+  let logo: WebsiteMaterial['logo']
   try {
     const policies = new Map<string, RobotsPolicy>()
     const policyFor = async (url: string) => {
@@ -538,6 +542,28 @@ export async function readWebsiteMaterial(
       if (!/html|xhtml/i.test(String(page.headers['content-type'] || 'text/html')))
         continue
       const $ = load(page.text)
+      if (!logo && visited.size === 1) {
+        // Solo immagini esplicitamente indicate come logo sul dominio ufficiale.
+        const candidates = $('img').toArray().map((el) => {
+          const node = $(el)
+          const marker = [node.attr('alt'), node.attr('class'), node.attr('id'), node.attr('src'), node.parent().attr('class')].join(' ')
+          return /\blogo\b|site-logo|custom-logo/i.test(marker) ? researchUrl(node.attr('data-src') || node.attr('src') || '', pageUrl) : null
+        }).filter((url): url is string => !!url && sameSite(url, site)).slice(0, 4)
+        for (const candidate of [...new Set(candidates)]) {
+          if (!(await policyFor(candidate)).allowed(candidate)) continue
+          try {
+            await pause((await policyFor(candidate)).delayMs)
+            const image = await fetcher(candidate)
+            const bytes = image.buffer
+            if (image.status === 200 && bytes && bytes.length <= 2_000_000 &&
+              ((bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) ||
+               bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])) ||
+               (bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP')))
+              logo = { url: candidate, buffer: bytes }
+          } catch { /* Il sito resta utilizzabile anche senza logo. */ }
+          if (logo) break
+        }
+      }
       const title = (
         $('title').first().text() || $('meta[property="og:title"]').attr('content') || ''
       )
@@ -586,7 +612,7 @@ export async function readWebsiteMaterial(
       if (queue.length && requests < 4) await pause(pagePolicy.delayMs)
     }
     return pages.length
-      ? { pages }
+      ? { pages, ...(logo ? { logo } : {}) }
       : {
           pages,
           warning:
@@ -594,7 +620,7 @@ export async function readWebsiteMaterial(
         }
   } catch (error) {
     return {
-      pages,
+      pages, ...(logo ? { logo } : {}),
       warning: (error instanceof Error ? error.message : 'Lettura del sito non riuscita.').slice(0, 240)
     }
   }

@@ -192,6 +192,23 @@ test('il sito pubblico dell’ente entra nei materiali con la fonte e i blocchi 
   assert.ok(deck.warnings.some((warning) => /Sito ufficiale non acquisito/.test(warning.message)))
 })
 
+test('il logo del partner è salvato separatamente dalle fotografie e disponibile nella vista pubblica', async () => {
+  seedGeneric()
+  const entityId = '99999999-9999-4999-8999-999999999999'
+  db.tables.tourism_entities.push({ id: entityId, user_id: USER, name: 'Partner', website: 'https://example.com', type_code: 'dmc', details: {} })
+  const row = await createDeck(db, USER, { ...fields, entity_id: entityId, input: { ...fields.input, modello: 'partner' } })
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZ1sAAAAASUVORK5CYII=', 'base64')
+  const deck = await generateIntoDeck(db, db, row, undefined, async ({ template, input }) => ({ slides: applyVars(template, input), missing: [], warnings: [] } as any), async () => ({ photos: [], note: null }), {
+    readWebsite: async () => ({ pages: [{url:'https://example.com/',title:'Partner',text:'Tour operator'}], logo: {url:'https://example.com/logo.png',buffer:png} })
+  })
+  const logo = deck.assets.find((a) => a.source === 'partner_logo')
+  assert.ok(logo)
+  assert.ok(deck.slides.every((s) => s.image_asset_id !== logo.id))
+  db.tables.tourism_decks.find((r) => r.id === deck.id)!.status = 'approved'
+  const view = await loadPublicDeck(db, deck.public_token)
+  assert.ok(view?.partnerLogo)
+})
+
 test('se l’agente fallisce il deck resta modificabile a mano', async () => {
   const row = await createDeck(db, USER, fields)
   const before = JSON.stringify(row.slides)

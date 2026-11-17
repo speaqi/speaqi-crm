@@ -431,11 +431,22 @@ export const PARTNER_DECK_TEMPLATE: DeckTemplate = {
     slide({
       id: 'cover',
       kind: 'cover',
-      kicker: 'Speaqi Guides per {{ente}}',
-      title: 'La guida della città,\nofferta ai vostri ospiti.',
-      body: 'Una guida digitale multilingua di {{destinazione}}, da dare a chi arriva da voi. Con il vostro nome.',
+      kicker: 'Una proposta Speaqi Guides',
+      title: 'Speaqi per\n{{ente}}',
+      body: 'Guide digitali multilingue: partiamo da {{destinazione}}, insieme.',
       art: 'cover',
-      hint: 'Adatta «ospiti» a chi serve il partner: ospiti per un hotel, passeggeri per una compagnia di navigazione o di trasporto, clienti per un’agenzia o un tour operator. Come foto, la più rappresentativa di {{destinazione}}.'
+      fixed: true,
+      hint: 'Come foto, la più rappresentativa di {{destinazione}}.'
+    }),
+    slide({
+      id: 'vantaggi-partner', kind: 'cards', kicker: 'I vantaggi per {{ente}}',
+      title: 'Più valore per i vostri clienti.\nPiù opportunità per voi.',
+      items: [
+        { title: 'Nuovi ricavi', text: 'Proponete guide multilingue insieme alle vostre esperienze e guadagnate sulle vendite.', icon: 'star' },
+        { title: 'Margini da sviluppare', text: 'Arricchite la proposta con un servizio digitale, secondo le condizioni concordate.', icon: 'zap' },
+        { title: 'Un servizio in più', text: 'Offrite ai clienti racconti e percorsi nella loro lingua, prima e durante il viaggio.', icon: 'users' },
+        { title: 'Un catalogo con il vostro logo', text: 'Partite da {{destinazione}} e proponete le altre guide del catalogo nella vostra vetrina.', icon: 'globe' }
+      ], fixed: true
     }),
     slide({
       id: 'partenza',

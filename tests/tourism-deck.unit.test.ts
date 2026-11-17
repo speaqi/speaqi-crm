@@ -201,10 +201,11 @@ test('resolveVars non lascia mai un valore vuoto', () => {
   assert.equal(v.ente, DECK_TODO)
 })
 
-test('base Partner: dodici slide, condizioni da scrivere, contatti di Speaqi in chiusura', async () => {
+test('base Partner: vantaggi, condizioni da scrivere, contatti di Speaqi in chiusura', async () => {
   const { PARTNER_DECK_TEMPLATE, PARTNER_BASE, deckModel } = await import('../src/lib/tourism-deck')
   assert.equal(PARTNER_DECK_TEMPLATE.base, PARTNER_BASE)
-  assert.equal(PARTNER_DECK_TEMPLATE.slides.length, 12)
+  assert.equal(PARTNER_DECK_TEMPLATE.slides.length, 13)
+  assert.equal(PARTNER_DECK_TEMPLATE.slides.find((s) => s.id === 'vantaggi-partner')?.items.length, 4)
   // Passa intatta dalla normalizzazione: è la stessa forma di un modello salvato.
   assert.deepEqual(normalizeTemplate(PARTNER_DECK_TEMPLATE).slides, PARTNER_DECK_TEMPLATE.slides)
   for (const s of PARTNER_DECK_TEMPLATE.slides) {

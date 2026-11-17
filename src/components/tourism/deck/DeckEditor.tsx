@@ -355,7 +355,7 @@ export default function DeckEditor({ id }: { id: string }) {
         </div>
 
         <div className={`${e.col} ${e.sticky}`}>
-          <DeckPlayer slides={slides} images={images} credits={credits} destination={deck.destination} lang={deckLanguage(deck.input)} index={index} onIndexChange={setIndex} />
+          <DeckPlayer slides={slides} images={images} partnerLogo={deck.assets.find((a) => a.source === 'partner_logo')?.url} credits={credits} destination={deck.destination} lang={deckLanguage(deck.input)} index={index} onIndexChange={setIndex} />
           <span className={e.help}>Anteprima in tempo reale: è quello che vede chi riceve il link. In PDF ogni slide è una pagina 16:9.</span>
         </div>
       </div>

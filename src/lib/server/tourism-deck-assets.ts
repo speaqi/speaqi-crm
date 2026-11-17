@@ -23,7 +23,7 @@ export type DeckAsset = {
    * scelta a mano dalla ricerca su Commons ('wikimedia_search', vale come una foto caricata) o
    * arrivata con un ordine su Telegram.
    */
-  source?: 'wikimedia' | 'wikimedia_search' | 'telegram'
+  source?: 'wikimedia' | 'wikimedia_search' | 'telegram' | 'partner_logo'
   /** Autore e licenza, da mostrare sulla slide (le licenze Creative Commons lo chiedono). */
   credit?: string
   source_url?: string

@@ -156,6 +156,22 @@ test('presentation website reading reports blocked robots and refuses off-site r
   assert.match(redirected.warning || '', /reindirizza fuori/)
   assert.ok(!calls.some((url) => url.includes('other.example')))
 })
+test('il logo esplicito del sito viene acquisito solo dal dominio ufficiale e nel rispetto di robots.txt', async () => {
+  const png = Buffer.from([137,80,78,71,13,10,26,10,1,2,3])
+  const calls: string[] = []
+  const fetch = async (url: string) => {
+    calls.push(url)
+    if (url.endsWith('/robots.txt')) return {status:200,text:'User-agent: *\nDisallow: /private',bytes:0,headers:{}}
+    if (url.endsWith('/logo.png')) return {status:200,text:'',buffer:png,bytes:png.length,headers:{'content-type':'image/png'}}
+    return {status:200,text:'<title>Partner</title><header><img class="logo" src="/logo.png"></header><main>Tour operator</main>',bytes:100,headers:{'content-type':'text/html'}}
+  }
+  const result = await readWebsiteMaterial('https://example.com/', {fetch, pause:async()=>{}})
+  assert.equal(result.logo?.url, 'https://example.com/logo.png')
+  assert.deepEqual(result.logo?.buffer, png)
+  const offsite = await readWebsiteMaterial('https://example.com/', {fetch:async (url) => url.endsWith('/robots.txt') ? fetch(url) : {status:200,text:'<title>Partner</title><img alt="logo" src="https://elsewhere.example/logo.png">',bytes:50,headers:{}}, pause:async()=>{}})
+  assert.equal(offsite.logo, undefined)
+  assert.ok(!calls.some((url) => url.includes('elsewhere.example')))
+})
 test('structured places preserve valid zero coordinates and ignore people, organizations and invalid geo', () => {
   const page = analyseTourismHtml(
     '<script type="application/ld+json">' +

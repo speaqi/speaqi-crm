@@ -88,6 +88,7 @@ export function SlideView({
   n,
   total,
   active,
+  partnerLogo,
   lang = 'it'
 }: {
   slide: DeckSlide
@@ -100,6 +101,7 @@ export function SlideView({
   /** Non più mostrata a piè di slide; resta per compatibilità con chi la passa. */
   destination?: string
   active: boolean
+  partnerLogo?: string | null
   /** Lingua del deck: decide la scritta sulle foto di esempio. */
   lang?: DeckLanguage
 }) {
@@ -122,6 +124,7 @@ export function SlideView({
         <div className={d.coverText}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img className={d.logo} src="/deck/logo-on-color.png" alt="Speaqi" />
+          {partnerLogo && <img className={d.partnerLogo} src={partnerLogo} alt="Logo del partner" />}
           <Kicker value={slide.kicker} />
           <h1><Lines value={slide.title} /></h1>
           {slide.body && <p className={d.sub}><Text value={slide.body} /></p>}
@@ -411,6 +414,7 @@ export function SlideView({
 export default function DeckPlayer({
   slides,
   images,
+  partnerLogo,
   credits = {},
   destination,
   mode = 'embedded',
@@ -424,6 +428,7 @@ export default function DeckPlayer({
 }: {
   slides: DeckSlide[]
   images: Record<string, string>
+  partnerLogo?: string | null
   /** Autore e licenza per foto (id → testo): le foto di Wikimedia Commons lo chiedono. */
   credits?: Record<string, string>
   destination: string
@@ -495,7 +500,7 @@ export default function DeckPlayer({
       <div className={d.bar}><span style={{ width: `${((current + 1) / Math.max(slides.length, 1)) * 100}%` }} /></div>
       <div className={d.stage} style={{ transform: `translate(${fit.x}px, ${fit.y}px) scale(${fit.scale})` }}>
         {slides.map((s, i) => (
-          <SlideView key={s.id} slide={s} image={s.image_asset_id ? images[s.image_asset_id] : null} credit={s.image_asset_id ? credits[s.image_asset_id] : null} n={i + 1} total={slides.length} active={i === current} lang={lang} />
+          <SlideView key={s.id} slide={s} image={s.image_asset_id ? images[s.image_asset_id] : null} partnerLogo={partnerLogo} credit={s.image_asset_id ? credits[s.image_asset_id] : null} n={i + 1} total={slides.length} active={i === current} lang={lang} />
         ))}
       </div>
       <div className={d.controls}>

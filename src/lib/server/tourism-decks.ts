@@ -302,6 +302,7 @@ export async function loadMaterials(service: Sb, row: DeckRow): Promise<{ materi
   const skipped: string[] = []
   let pdfBytes = 0
   for (const asset of row.assets) {
+    if (asset.source === 'partner_logo') continue
     const file = await service.storage.from(DECK_BUCKET).download(asset.path)
     if (file.error || !file.data) {
       skipped.push(`${asset.name}: non scaricabile`)
@@ -408,7 +409,7 @@ export async function addWikimediaPhoto(sb: Sb, service: Sb, row: DeckRow, title
 
 /** Le foto del deck in ordine di preferenza: prima quelle scelte da chi lavora, poi quelle trovate. */
 export const deckPhotoIds = (assets: DeckAsset[]) => {
-  const photos = assets.filter((a) => a.kind === 'photo')
+  const photos = assets.filter((a) => a.kind === 'photo' && a.source !== 'partner_logo')
   return [...photos.filter((a) => a.source !== 'wikimedia'), ...photos.filter((a) => a.source === 'wikimedia')].map((a) => a.id)
 }
 
@@ -443,18 +444,29 @@ export async function generateIntoDeck(sb: Sb, service: Sb, row: DeckRow, instru
   }
   try {
     const template = await templateForDeck(sb, row.user_id, row.input)
+    const entity = await entityContext(sb, row.user_id, row.entity_id)
+    const website = entity?.website ? await (options.readWebsite || readWebsiteMaterial)(entity.website) : null
+    const partner = deckModel(row.input) === 'partner'
+    const siteWarnings: string[] = []
+    if (partner && !entity?.website) siteWarnings.push('Sito ufficiale del partner non disponibile: aggiungilo alla scheda e rigenera.')
+    if (partner && website && !row.assets.some((a) => a.source === 'partner_logo')) {
+      if (website.logo) {
+        try {
+          await addAssets(sb, service, row, [{ name: 'logo-partner', buffer: website.logo.buffer, source: 'partner_logo', source_url: website.logo.url }])
+        } catch { siteWarnings.push('Logo del partner non acquisito: controlla i file e lo spazio disponibile.') }
+      } else siteWarnings.push('Logo del partner non trovato sul sito ufficiale: verifica il sito e il formato dell’immagine.')
+    }
     const photoNote = await addDestinationPhotos(sb, service, row, template, findPhotos)
     const { materials, skipped } = await loadMaterials(service, row)
-    const entity = await entityContext(sb, row.user_id, row.entity_id)
+    skipped.push(...siteWarnings)
     if (entity?.website) {
-      const website = await (options.readWebsite || readWebsiteMaterial)(entity.website)
-      for (const page of website.pages) {
+      for (const page of website!.pages) {
         materials.documents.push({
           name: `Sito ufficiale · ${page.title || page.url} · ${page.url}`,
           text: page.text
         })
       }
-      if (website.warning) skipped.push(`Sito ufficiale non acquisito: ${website.warning}`)
+      if (website!.warning) skipped.push(`Sito ufficiale non acquisito: ${website!.warning}`)
     }
     const result = await agent({
       template,
@@ -657,11 +669,12 @@ export async function loadPublicRow(service: Sb, token: string, render?: string)
 export async function loadPublicDeck(service: Sb, token: string, render?: string) {
   const row = await loadPublicRow(service, token, render)
   if (!row) return null
-  const urls = await signedAssetUrls(service, row.assets.filter((a) => row.slides.some((s) => s.image_asset_id === a.id)), PUBLIC_URL_TTL_S)
+  const urls = await signedAssetUrls(service, row.assets.filter((a) => a.source === 'partner_logo' || row.slides.some((s) => s.image_asset_id === a.id)), PUBLIC_URL_TTL_S)
   const quotes = await deckQuotes(service, row)
   const quote = quoteSummary(quotes.find((q: any) => ['sent', 'accepted', 'paid'].includes(q.status)))
   const credits = Object.fromEntries(row.assets.filter((a) => a.credit && urls.has(a.id)).map((a) => [a.id, a.credit as string]))
-  return { title: row.title, destination: row.destination, lang: deckLanguage(row.input), slides: row.slides, images: Object.fromEntries(urls), credits, quote }
+  const logo = row.assets.find((a) => a.source === 'partner_logo')
+  return { title: row.title, destination: row.destination, lang: deckLanguage(row.input), slides: row.slides, images: Object.fromEntries(urls), partnerLogo: logo ? urls.get(logo.id) || null : null, credits, quote }
 }
 
 /** Una migration non ancora applicata non deve oscurare le presentazioni esistenti. */
