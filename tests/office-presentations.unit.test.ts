@@ -68,7 +68,31 @@ test('presentazioni: timeout non ripaga e non approva; la pipeline conserva fail
   const f=fixture();let calls=0;const handler=presentationsHandler(f.db,{create:f.create,model:async()=>{calls++;throw new Error('Timeout')}})
   await assert.rejects(handler(f.ctx),/Timeout/);await handler(f.ctx);assert.equal(calls,1);assert.equal(f.db.tables.tourism_decks[0].status,'failed')
 })
+test('DMC e tour operator usano la base partner, conservando la città e il catalogo; una DMO usa la base destinazione',async()=>{
+  for (const type of ['dmc', 'tour_operator', 'dmo']) {
+    const f=fixture(); f.db.tables.tourism_entities[0].type_code=type
+    const generate: any = async (_db:any,_service:any,deck:any) => ({...deck,status:'ready'})
+    await presentationsHandler(f.db,{create:f.create,generate})(f.ctx)
+    const deck=f.db.tables.tourism_decks[0]
+    assert.equal(deck.destination,'Marsiglia')
+    assert.equal(deck.input.modello,type === 'dmo' ? 'destinazione' : 'partner')
+    if (type !== 'dmo') {
+      assert.ok(deck.slides.some((s:any)=>s.id === 'modi' && JSON.stringify(s).includes('tutto il catalogo')))
+      assert.ok(deck.slides.some((s:any)=>s.id === 'cover' && JSON.stringify(s).includes('Marsiglia')))
+    }
+  }
+})
+test('una vecchia bozza destinazione per un DMC viene segnalata senza rigenerarla',async()=>{
+  const f=fixture(); f.db.tables.tourism_entities[0].type_code='dmc'
+  f.db.tables.office_presentation_tasks.push({id:'task',user_id:'owner',state:'ready',email_prepared_at:null})
+  f.db.tables.tourism_decks.push({id:'task',user_id:'owner',status:'ready',input:{},slides:[],version:1})
+  let generated=false
+  await presentationsHandler(f.db,{generate:async()=>{generated=true; throw new Error('non deve generare')}})(f.ctx)
+  assert.equal(generated,false)
+  assert.ok(f.db.tables.office_agent_outputs.some((o:any)=>o.title === 'Presentazione: modello da correggere'))
+})
 test('presentazioni: altri workspace e destinazione ambigua non avviano generazioni',async()=>{
+
   const f=fixture();await assert.rejects(presentationEntities(f.db,'other',{entity_id:ENTITY,destination_id:DEST}),/non verificato/)
   await assert.rejects(presentationEntities(f.db,'owner',{entity_id:ENTITY}),/Nessuna destinazione unica/)
 })

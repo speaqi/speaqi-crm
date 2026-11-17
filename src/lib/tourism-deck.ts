@@ -499,7 +499,7 @@ export const PARTNER_DECK_TEMPLATE: DeckTemplate = {
       items: [
         { value: 'QR e link', title: 'Il vostro QR', text: 'In reception, in camera, al banco o a bordo. Chi compra la guida dal vostro QR genera una commissione per voi.', icon: 'zap' },
         { value: 'Codici', title: 'Codici per i vostri ospiti', text: 'Lotti di codici che aprono le guide per le ore che decidete. Si paga solo quello che viene attivato.', icon: 'users', highlight: true },
-        { value: 'Vetrina', title: 'Il vostro catalogo', text: 'Le guide Speaqi con il vostro marchio: «{{ente}} by Speaqi».', icon: 'globe' }
+        { value: 'Vetrina', title: 'Il vostro catalogo', text: 'Accesso a tutto il catalogo delle guide Speaqi in una vetrina riservata con il vostro logo: «{{ente}} by Speaqi».', icon: 'globe' }
       ],
       fixed: true,
       hint: 'Testi fissi: sono i tre modi che Speaqi offre oggi.'

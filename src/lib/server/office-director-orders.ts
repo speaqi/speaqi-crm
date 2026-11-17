@@ -2,6 +2,7 @@ import { looksLikeProductionQuestion, productionQuestion, productionReply } from
 import { loadOfficeProduction } from './office-production'
 import { createHash, randomUUID } from 'node:crypto'
 import { BudgetExceeded, callModel, runAgent, type AgentContext } from './office-agents'
+import { presentationModel } from '../office/presentations'
 import { EXONYMS, nameKey } from '../office/entity-enricher'
 import { safePublicUrl, TOURISM_TYPES } from '../tourism'
 import { readEntitySite } from './office-agents/entity-enricher'
@@ -283,11 +284,15 @@ async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, 
     note = `${activated.note} `
   }
   // «Fammela in inglese»: un deck nuovo in inglese, quello italiano resta com'è.
+  if (plan.language === 'en' && presentationModel(entity.type_code) === 'partner')
+    return { status: 'waiting_you', outputs: [], queued: [], reply: `Per ${label} serve il modello partner, che non è ancora disponibile in inglese. La presentazione italiana può essere preparata con la città della guida.` }
   if (plan.language === 'en') return englishPresentation(admin, ctx, userId, entity, destination, label, note, photos)
   if (!photos.length) {
     // C'è già una presentazione pronta per questo ente: non si rifà, si manda.
     const ready = checked(await admin.from('tourism_decks').select('*').eq('user_id', userId).eq('entity_id', entity.id)
       .in('status', ['ready', 'approved', 'failed']).order('updated_at', { ascending: false }).limit(1).maybeSingle()) as DeckRow | null
+    if (ready && presentationModel(entity.type_code) === 'partner' && ready.input?.modello !== 'partner')
+      return { status: 'waiting_you', outputs: [], queued: [], reply: `La bozza esistente per ${label} usa il modello destinazione. Crea una nuova presentazione con il modello Partner e la città della guida; non approvare la bozza precedente.` }
     if (ready?.status === 'failed') return retryFailedDeck(admin, ctx, ready, label, note)
     if (ready) {
       const sent = await sendDeckToTelegram(admin, ready)
@@ -299,6 +304,8 @@ async function presentationFor(admin: Admin, ctx: AgentContext, userId: string, 
     // Le foto mandate col comando sono della presentazione: se esiste già, ci vanno adesso.
     const existing = checked(await admin.from('tourism_decks').select('*').eq('user_id', userId).eq('entity_id', entity.id)
       .order('created_at', { ascending: false }).limit(1).maybeSingle()) as DeckRow | null
+    if (existing && presentationModel(entity.type_code) === 'partner' && existing.input?.modello !== 'partner')
+      return { status: 'waiting_you', outputs: [], queued: [], reply: `La bozza esistente per ${label} usa il modello destinazione. Crea una nuova presentazione con il modello Partner e la città della guida.` }
     if (existing) {
       const files = await directorPhotoFiles(admin, userId, photos)
       const { deck, added, skipped } = await addPhotosToDeck(admin, admin, existing, files)

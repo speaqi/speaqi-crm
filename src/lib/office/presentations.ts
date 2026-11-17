@@ -2,6 +2,11 @@ import { DECK_TODO_PATTERN, type DeckSlide } from '../tourism-deck'
 import { isUuid, safePublicUrl } from '../tourism'
 
 export type PresentationQueueItem = { entity_id: string; destination_id?: string; photos?: string[] }
+
+/** La città descrive la guida proposta; il tipo dell'organizzazione sceglie la base commerciale. */
+export function presentationModel(type: unknown): 'partner' | 'destinazione' {
+  return type === 'dmc' || type === 'tour_operator' ? 'partner' : 'destinazione'
+}
 export function presentationQueue(raw: unknown): PresentationQueueItem[] {
   if (!Array.isArray(raw) || raw.length > 100) throw new Error('Coda presentazioni: massimo 100 enti')
   const items = raw.map((item) => typeof item === 'string' ? { entity_id: item } : item)

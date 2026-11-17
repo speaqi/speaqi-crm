@@ -10,6 +10,7 @@ import { callModel, officeModelKey, type AgentContext, type AgentHandler } from 
 import { readEntitySite } from './office-agents/entity-enricher'
 import { officeDeckAgent, presentationEntities, presentationsHandler } from './office-agents/presentations'
 import { sendDeckToTelegram } from './office-deck-telegram'
+import { presentationModel } from '../office/presentations'
 import { generateIntoDeck, type DeckRow } from './tourism-decks'
 
 type Admin = any
@@ -262,6 +263,9 @@ export async function preparePresentationWork(ctx: AgentContext, work: OfficeWor
     .eq('entity_id', entityId).eq('id', receipt.deck_id || receipt.id).maybeSingle()) : null
   const existing = await task()
   let deck = await deckFor(existing)
+  if (deck && presentationModel(entities.entity.type_code) === 'partner' && deck.input?.modello !== 'partner')
+    return blocked('presentation_wrong_model', 'La presentazione esistente usa il modello destinazione per un DMC o tour operator.',
+      'Crea una nuova presentazione con il modello Partner; la bozza precedente va rivista.', 'Presentazioni / titolare')
   // Una presentazione rimasta «non riuscita», chiesta di nuovo dal titolare con un ordine, si rifà:
   // la sua richiesta è la decisione. Una volta sola per versione, e solo se nessuno l'ha toccata.
   const regenerationKey = deck ? `${deck.id}:v${deck.version}` : null

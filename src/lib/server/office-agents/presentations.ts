@@ -1,5 +1,5 @@
 import { safePublicUrl } from '@/lib/tourism'
-import { deckPlaceholders, presentationFixes, presentationQueue, type PresentationEvidence, type PresentationQueueItem } from '@/lib/office/presentations'
+import { deckPlaceholders, presentationFixes, presentationModel, presentationQueue, type PresentationEvidence, type PresentationQueueItem } from '@/lib/office/presentations'
 import { callModel, type AgentHandler } from '../office-agents'
 import { createServiceRoleClient } from '../supabase'
 import { officeRows } from '../office-read'
@@ -99,7 +99,7 @@ export function presentationsHandler(admin: any, options: {
         deck = await (options.create || createDeck)(admin, userId, {
           entity_id: entity.id, destination: destination.name, notes,
           input: { destinazione: destination.name, ente: entity.name, paese: destination.country_code || entity.country_code,
-            prezzo: '', contatto: '[DA VERIFICARE]' }
+            prezzo: '', contatto: '[DA VERIFICARE]', modello: presentationModel(entity.type_code) }
         }, claim.task.id)
         // Le foto mandate al Direttore con l'ordine vanno nei materiali prima della generazione.
         if (item.photos?.length) deck = (await addPhotosToDeck(admin, admin, deck, await directorPhotoFiles(admin, userId, item.photos))).deck
@@ -116,6 +116,14 @@ export function presentationsHandler(admin: any, options: {
             p_report: { message: 'Generazione non conclusa: verificare deck e riserva prima di riprovare. Nessun retry automatico.', error: deck.error } }))
           throw providerError
         }
+      }
+      else if (deck && presentationModel(entity.type_code) === 'partner' && deck.input?.modello !== 'partner') {
+        warnings++
+        await addOfficeOutputOnce(admin, ctx, `presentation:model:${deck.id}`, {
+          kind: 'report', title: 'Presentazione: modello da correggere', target_table: 'tourism_decks', target_id: deck.id,
+          body: { deck_id: deck.id, message: 'La bozza esistente usa il modello destinazione per un DMC o tour operator. Crea una nuova presentazione partner; non approvare questa bozza.' }
+        })
+        continue
       }
       else if (deck && item.photos?.length) {
         // Presentazione già fatta: le foto arrivate dopo si aggiungono (una volta sola), senza rigenerare.
