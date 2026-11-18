@@ -3,9 +3,10 @@ import { isUuid, safePublicUrl } from '../tourism'
 
 export type PresentationQueueItem = { entity_id: string; destination_id?: string; photos?: string[] }
 
-/** La città descrive la guida proposta; il tipo dell'organizzazione sceglie la base commerciale. */
+/** Chi vende o ospita turisti (tour operator, DMC, property manager, agenzie, OTA, hotel, compagnie…) riceve la presentazione partner, orientata al suo guadagno. Gli enti che promuovono un territorio e i tipi non classificati restano sulla base destinazione. */
+export const PARTNER_TYPES = ['dmc', 'tour_operator', 'property_manager', 'travel_agency', 'ota', 'bedbank', 'experience_marketplace', 'accommodation', 'cruise_line', 'ferry_operator', 'transport', 'rail_operator', 'tourism_supplier', 'travel_media'] as const
 export function presentationModel(type: unknown): 'partner' | 'destinazione' {
-  return type === 'dmc' || type === 'tour_operator' ? 'partner' : 'destinazione'
+  return typeof type === 'string' && (PARTNER_TYPES as readonly string[]).includes(type) ? 'partner' : 'destinazione'
 }
 export function presentationQueue(raw: unknown): PresentationQueueItem[] {
   if (!Array.isArray(raw) || raw.length > 100) throw new Error('Coda presentazioni: massimo 100 enti')
