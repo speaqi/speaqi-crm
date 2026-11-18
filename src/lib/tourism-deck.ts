@@ -6,7 +6,7 @@ export const DECK_TODO = '[DA VERIFICARE]'
 /** Ogni segnaposto da completare, anche con la nota ("[DA VERIFICARE per questo ente]"). */
 export const DECK_TODO_PATTERN = /\[DA VERIFICARE[^\]]{0,80}\]/g
 
-export const DECK_SLIDE_KINDS = ['cover', 'statement', 'list', 'cards', 'steps', 'languages', 'showcase', 'figures', 'compare', 'demo', 'media', 'closing'] as const
+export const DECK_SLIDE_KINDS = ['cover', 'statement', 'list', 'cards', 'steps', 'languages', 'showcase', 'figures', 'compare', 'demo', 'vetrina', 'media', 'closing'] as const
 export type DeckSlideKind = (typeof DECK_SLIDE_KINDS)[number]
 
 /** Sfondo della slide; vuoto = quello del tipo. */
@@ -28,6 +28,7 @@ export const DECK_ART = {
   proposta: '/deck/destinazioni/proposta.webp',
   lingue: '/deck/destinazioni/lingue.webp',
   telefoni: '/deck/destinazioni/telefoni.webp',
+  citta: '/deck/destinazioni/citta.webp',
   azione: '/deck/destinazioni/azione.webp',
   'qr-napoli': '/deck/destinazioni/qr-napoli.png',
   'qr-destinazioni': '/deck/destinazioni/qr-destinazioni.png',
@@ -439,6 +440,21 @@ export const PARTNER_DECK_TEMPLATE: DeckTemplate = {
       hint: 'Come foto, la più rappresentativa di {{destinazione}}.'
     }),
     slide({
+      id: 'chi-siamo',
+      kind: 'list',
+      tone: 'light',
+      kicker: 'Chi siamo',
+      title: 'Speaqi crea guide digitali multilingue innovative per le città.',
+      items: [
+        { title: '10 città in Italia', text: 'e altre guide in produzione' },
+        { title: 'Da un link o da un QR', text: '' },
+        { title: 'Nessuna app da scaricare', text: '' }
+      ],
+      art: 'citta',
+      fixed: true,
+      hint: 'Testi fissi: spiegano cosa fa Speaqi. Non cambiare i numeri.'
+    }),
+    slide({
       id: 'vantaggi-partner', kind: 'cards', kicker: 'I vantaggi per {{ente}}',
       title: 'Più valore per i vostri clienti.\nPiù opportunità per voi.',
       items: [
@@ -514,6 +530,23 @@ export const PARTNER_DECK_TEMPLATE: DeckTemplate = {
       ],
       fixed: true,
       hint: 'Testi fissi: sono i tre modi che Speaqi offre oggi.'
+    }),
+    slide({
+      id: 'vetrina',
+      kind: 'vetrina',
+      kicker: 'La vostra vetrina',
+      note: '{{ente}}',
+      title: 'Guide digitali delle città, nella tua lingua.',
+      body: 'Il catalogo Speaqi con il vostro logo, pronto da condividere con i clienti.',
+      items: [
+        { title: 'Milano', text: 'Disponibile' },
+        { title: 'Venezia', text: 'Disponibile' },
+        { title: 'Firenze', text: 'Disponibile' },
+        { title: 'Roma', text: 'Disponibile' },
+        { title: 'Napoli', text: 'Disponibile ora', highlight: true }
+      ],
+      fixed: true,
+      hint: 'Testo fisso. Il logo del partner e il suo nome compaiono nell’intestazione della pagina: non scrivere indirizzi web.'
     }),
     slide({
       id: 'ospite',
