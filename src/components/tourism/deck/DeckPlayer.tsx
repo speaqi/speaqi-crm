@@ -311,18 +311,19 @@ export function SlideView({
           </div>
           <div className={d.vetrinaBody}>
             <div className={d.vetrinaCopy}>
-              <Kicker value={slide.kicker} />
               <h2><Lines value={slide.title} /></h2>
               {slide.body && <p className={d.vetrinaLead}><Text value={slide.body} /></p>}
-              <p className={d.vetrinaLink}>Tutte le altre guide: <b>guides.speaqi.com</b></p>
             </div>
             <div className={d.vetrinaCities}>
               {slide.items.map((item, i) => (
-                <div className={cls(d.vetrinaCity, item.highlight && d.hl)} key={i}>
+                <div className={d.vetrinaCity} style={item.art ? photo(DECK_ART[item.art]) : undefined} key={i}>
                   <b><Text value={item.title} /></b>
-                  {item.text && <small><Text value={item.text} /></small>}
                 </div>
               ))}
+              <div className={cls(d.vetrinaCity, d.vetrinaMore)}>
+                <small>Tutte le altre guide</small>
+                <b>guides.speaqi.com</b>
+              </div>
             </div>
           </div>
         </div>

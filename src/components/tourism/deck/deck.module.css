@@ -237,20 +237,21 @@
 }
 
 /* Vetrina del partner: la pagina che Speaqi genera col suo logo. */
-.vetrina { flex: 1; margin: -28px 0 70px; border: 1px solid rgba(255, 255, 255, .14); border-radius: 28px; overflow: hidden; display: flex; flex-direction: column; background: #101a2e; box-shadow: 0 30px 80px rgba(16, 26, 46, .35); }
+.vetrina { flex: 1; margin: -28px 0 56px; border: 1px solid rgba(255, 255, 255, .14); border-radius: 28px; overflow: hidden; display: flex; flex-direction: column; background: #101a2e; box-shadow: 0 30px 80px rgba(16, 26, 46, .35); }
 .vetrinaBar { display: flex; align-items: center; gap: 26px; height: 104px; padding: 0 52px; background: #fff; flex: none; }
 .vetrinaLogo { max-height: 76px; max-width: 320px; object-fit: contain; }
 .vetrinaName { font-family: var(--title); font-synthesis: none; font-size: 46px; color: #101a2e; }
 .vetrinaBy { font-size: 30px; color: #6b7785; }
 .vetrinaSpeaqi { height: 52px; }
-.vetrinaBody { flex: 1; display: flex; align-items: center; gap: 48px; padding: 0 64px; color: #fff; }
-.vetrinaCopy { width: 54%; }
-.vetrinaCopy h2 { font-size: 72px; color: #fff; }
-.vetrinaLead { margin: 22px 0 0; font-size: 27px; line-height: 1.4; color: #cfd6e2; }
-.vetrinaLink { margin: 26px 0 0; font-size: 28px; color: #cfd6e2; }
-.vetrinaLink b { color: #ff8a57; font-weight: 700; }
-.vetrinaCities { flex: 1; display: flex; flex-direction: column; gap: 8px; }
-.vetrinaCity { display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 8px 24px; border-radius: 14px; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .18); }
-.vetrinaCity b { font-family: var(--title); font-synthesis: none; font-weight: 400; font-size: 30px; }
-.vetrinaCity small { font-size: 16px; letter-spacing: .12em; text-transform: uppercase; color: #f0a98a; }
-.vetrinaCity.hl { border-color: #ff5a1f; background: rgba(255, 90, 31, .18); }
+.vetrinaBody { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 22px; padding: 0 48px 28px; color: #fff; }
+.vetrinaCopy { display: flex; align-items: center; justify-content: space-between; gap: 48px; }
+.vetrinaCopy h2 { font-size: 52px; color: #fff; max-width: 900px; }
+.vetrinaLead { margin: 0; font-size: 26px; line-height: 1.4; color: #cfd6e2; max-width: 620px; }
+.vetrinaCities { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.vetrinaCity { position: relative; display: flex; align-items: flex-end; height: 196px; padding: 16px 20px; border-radius: 20px; overflow: hidden; background-size: cover; background-position: center; }
+.vetrinaCity::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8, 14, 28, 0) 45%, rgba(8, 14, 28, .78)); }
+.vetrinaCity b { position: relative; font-family: var(--title); font-synthesis: none; font-weight: 400; font-size: 36px; line-height: 1.05; }
+.vetrinaMore { flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px; background: rgba(255, 90, 31, .16); border: 1px solid #ff5a1f; }
+.vetrinaMore::before { display: none; }
+.vetrinaMore small { position: relative; font-size: 18px; letter-spacing: .12em; text-transform: uppercase; color: #f0a98a; }
+.vetrinaMore b { font-size: 32px; color: #ff8a57; }
