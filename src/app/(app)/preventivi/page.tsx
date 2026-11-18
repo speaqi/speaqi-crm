@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { apiFetch } from '@/lib/api'
-import { DEFAULT_BANK_TRANSFER_INSTRUCTIONS, DEFAULT_CONTRACT_TERMS } from '@/lib/quote-defaults'
+import { DEFAULT_BANK_TRANSFER_INSTRUCTIONS, DEFAULT_CONTRACT_TERMS, VIDEO_MAP_CONTRACT_TERMS } from '@/lib/quote-defaults'
 import { agencyParticularTerms, ensureAgencyContractTerms, isAgencyContract, AGENCY_GENERAL_TERMS } from '@/lib/agency-contract'
 import { defaultQuoteTemplate, quoteCompletionIssues } from '@/lib/commercial-proposal'
 import {
@@ -384,6 +384,10 @@ export default function PreventiviPage() {
           items: [...previous.items, quoteLineFromPackage(key, makeLineId())],
           ...SUBSCRIPTION_PAYMENT_TERMS,
           billing_interval: 'year',
+          contract_terms:
+            key === 'video_map' && (!previous.contract_terms || previous.contract_terms === DEFAULT_CONTRACT_TERMS)
+              ? VIDEO_MAP_CONTRACT_TERMS
+              : previous.contract_terms,
           payment_terms_note: previous.payment_terms_note || SUBSCRIPTION_PAYMENT_TERMS_NOTE,
           public_note:
             !previous.public_note || previous.public_note === DEFAULT_PUBLIC_NOTE
