@@ -14,11 +14,12 @@ export const KIND_LABELS: Record<DeckSlideKind, string> = {
   figures: 'Numeri grandi',
   compare: 'Confronto a due colonne',
   demo: 'Prova (QR)',
+  vetrina: 'Vetrina del partner (logo)',
   media: 'Immagine grande',
   closing: 'Chiusura'
 }
 
-const WITH_ITEMS: DeckSlideKind[] = ['list', 'cards', 'steps', 'showcase', 'figures', 'compare', 'closing']
+const WITH_ITEMS: DeckSlideKind[] = ['list', 'cards', 'steps', 'showcase', 'figures', 'compare', 'vetrina', 'closing']
 const WITH_VALUE: DeckSlideKind[] = ['cards', 'showcase', 'figures']
 const WITH_PHOTO: DeckSlideKind[] = ['cover', 'statement', 'list']
 
