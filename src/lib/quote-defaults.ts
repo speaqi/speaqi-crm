@@ -191,7 +191,7 @@ Il corrispettivo di un periodo già pagato non è rimborsabile, salvo diversa pr
 
 A6. Cessazione
 
-Alla scadenza o in caso di disdetta, il video e la scheda sono rimossi dalla mappa. Speaqi conserva i file per 30 giorni per consentire la riattivazione, poi li cancella, salvo obblighi di legge. Il Cliente può chiedere in qualsiasi momento una copia del proprio video.
+Alla scadenza o in caso di disdetta, il video e la scheda sono rimossi dalla mappa. Speaqi conserva i file per 60 giorni per consentire la riattivazione, poi li cancella, salvo obblighi di legge. Il Cliente può chiedere in qualsiasi momento una copia del proprio video.
 
 A7. Dati personali
 
