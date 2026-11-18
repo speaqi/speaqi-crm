@@ -545,13 +545,13 @@ export const PARTNER_DECK_TEMPLATE: DeckTemplate = {
       title: 'Guide digitali delle città, nella tua lingua.',
       body: 'Il catalogo Speaqi con il vostro logo, pronto da condividere con i clienti.',
       items: [
-        { title: 'Napoli', art: 'guida-napoli' },
-        { title: 'Roma', art: 'guida-roma' },
-        { title: 'Milano', art: 'guida-milano' },
-        { title: 'Venezia', art: 'guida-venezia' },
-        { title: 'Firenze', art: 'guida-firenze' },
-        { title: 'Pompei', art: 'guida-pompei' },
-        { title: 'Capri', art: 'guida-capri' }
+        { title: 'Napoli', text: '', art: 'guida-napoli' },
+        { title: 'Roma', text: '', art: 'guida-roma' },
+        { title: 'Milano', text: '', art: 'guida-milano' },
+        { title: 'Venezia', text: '', art: 'guida-venezia' },
+        { title: 'Firenze', text: '', art: 'guida-firenze' },
+        { title: 'Pompei', text: '', art: 'guida-pompei' },
+        { title: 'Capri', text: '', art: 'guida-capri' }
       ],
       fixed: true,
       hint: 'Testo fisso. Il logo del partner e il suo nome compaiono nell’intestazione della pagina: non scrivere indirizzi web.'
