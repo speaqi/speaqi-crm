@@ -247,11 +247,11 @@
 .vetrinaCopy { display: flex; align-items: center; justify-content: space-between; gap: 48px; }
 .vetrinaCopy h2 { font-size: 52px; color: #fff; max-width: 900px; }
 .vetrinaLead { margin: 0; font-size: 26px; line-height: 1.4; color: #cfd6e2; max-width: 620px; }
-.vetrinaCities { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-.vetrinaCity { position: relative; display: flex; align-items: flex-end; height: 196px; padding: 16px 20px; border-radius: 20px; overflow: hidden; background-size: cover; background-position: center; }
+.vetrinaCities { display: grid; grid-template-columns: repeat(8, 1fr); gap: 12px; }
+.vetrinaCity { position: relative; display: flex; align-items: flex-end; height: 440px; padding: 16px 14px; border-radius: 20px; overflow: hidden; background-size: cover; background-position: 62% center; }
 .vetrinaCity::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8, 14, 28, 0) 45%, rgba(8, 14, 28, .78)); }
-.vetrinaCity b { position: relative; font-family: var(--title); font-synthesis: none; font-weight: 400; font-size: 36px; line-height: 1.05; }
+.vetrinaCity b { position: relative; font-family: var(--title); font-synthesis: none; font-weight: 400; font-size: 30px; line-height: 1.05; }
 .vetrinaMore { flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px; background: rgba(255, 90, 31, .16); border: 1px solid #ff5a1f; }
 .vetrinaMore::before { display: none; }
-.vetrinaMore small { position: relative; font-size: 18px; letter-spacing: .12em; text-transform: uppercase; color: #f0a98a; }
-.vetrinaMore b { font-size: 32px; color: #ff8a57; }
+.vetrinaMore small { position: relative; font-size: 15px; letter-spacing: .12em; text-transform: uppercase; color: #f0a98a; }
+.vetrinaMore b { font-size: 19px; color: #ff8a57; white-space: nowrap; }
