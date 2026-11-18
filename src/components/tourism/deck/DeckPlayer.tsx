@@ -64,6 +64,7 @@ const DEFAULT_TONE: Record<DeckSlide['kind'], DeckTone> = {
   figures: 'deep',
   compare: 'light',
   demo: 'accent',
+  vetrina: 'dark',
   media: 'dark',
   closing: 'dark'
 }
@@ -139,7 +140,7 @@ export function SlideView({
   if (slide.kind === 'list') {
     return (
       <section className={cls(base, !!picture && d.withSide)} aria-hidden={!active}>
-        {picture && <div className={d.side} style={photo(picture)}>{photoLabel && <span className={d.photoCredit}>{photoLabel}</span>}</div>}
+        {picture && <div className={cls(d.side, slide.art === 'telefoni' && !image && d.sideContain)} style={photo(picture)}>{photoLabel && <span className={d.photoCredit}>{photoLabel}</span>}</div>}
         <div className={d.listText}>
           <Kicker value={slide.kicker} />
           <h2><Lines value={slide.title} /></h2>
@@ -289,6 +290,43 @@ export function SlideView({
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         {picture && <img className={d.demoArt} src={picture} alt="" />}
+        {foot}
+      </section>
+    )
+  }
+
+  if (slide.kind === 'vetrina') {
+    const partnerName = slide.note || ''
+    return (
+      <section className={base} aria-hidden={!active}>
+        <div className={d.vetrina}>
+          <div className={d.vetrinaBar}>
+            {partnerLogo
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img className={d.vetrinaLogo} src={partnerLogo} alt={partnerName || 'Logo del partner'} />
+              : <span className={d.vetrinaName}>{partnerName}</span>}
+            <span className={d.vetrinaBy}>by</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img className={d.vetrinaSpeaqi} src="/deck/logo.png" alt="Speaqi" />
+          </div>
+          <div className={d.vetrinaBody}>
+            <div className={d.vetrinaCopy}>
+              <h2><Lines value={slide.title} /></h2>
+              {slide.body && <p className={d.vetrinaLead}><Text value={slide.body} /></p>}
+            </div>
+            <div className={d.vetrinaCities}>
+              {slide.items.map((item, i) => (
+                <div className={d.vetrinaCity} style={item.art ? photo(DECK_ART[item.art]) : undefined} key={i}>
+                  <b><Text value={item.title} /></b>
+                </div>
+              ))}
+              <div className={cls(d.vetrinaCity, d.vetrinaMore)}>
+                <small>Tutte le altre guide</small>
+                <b>guides.speaqi.com</b>
+              </div>
+            </div>
+          </div>
+        </div>
         {foot}
       </section>
     )
