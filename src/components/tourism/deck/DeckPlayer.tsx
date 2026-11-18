@@ -140,7 +140,7 @@ export function SlideView({
   if (slide.kind === 'list') {
     return (
       <section className={cls(base, !!picture && d.withSide)} aria-hidden={!active}>
-        {picture && <div className={cls(d.side, slide.art === 'citta' && !image && d.sideContain)} style={photo(picture)}>{photoLabel && <span className={d.photoCredit}>{photoLabel}</span>}</div>}
+        {picture && <div className={cls(d.side, slide.art === 'telefoni' && !image && d.sideContain)} style={photo(picture)}>{photoLabel && <span className={d.photoCredit}>{photoLabel}</span>}</div>}
         <div className={d.listText}>
           <Kicker value={slide.kicker} />
           <h2><Lines value={slide.title} /></h2>
@@ -314,6 +314,7 @@ export function SlideView({
               <Kicker value={slide.kicker} />
               <h2><Lines value={slide.title} /></h2>
               {slide.body && <p className={d.vetrinaLead}><Text value={slide.body} /></p>}
+              <p className={d.vetrinaLink}>Tutte le altre guide: <b>guides.speaqi.com</b></p>
             </div>
             <div className={d.vetrinaCities}>
               {slide.items.map((item, i) => (

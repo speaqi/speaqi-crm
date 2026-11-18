@@ -28,7 +28,6 @@ export const DECK_ART = {
   proposta: '/deck/destinazioni/proposta.webp',
   lingue: '/deck/destinazioni/lingue.webp',
   telefoni: '/deck/destinazioni/telefoni.webp',
-  citta: '/deck/destinazioni/citta.webp',
   azione: '/deck/destinazioni/azione.webp',
   'qr-napoli': '/deck/destinazioni/qr-napoli.png',
   'qr-destinazioni': '/deck/destinazioni/qr-destinazioni.png',
@@ -446,13 +445,13 @@ export const PARTNER_DECK_TEMPLATE: DeckTemplate = {
       kicker: 'Chi siamo',
       title: 'Speaqi crea guide digitali multilingue innovative per le città.',
       items: [
-        { title: '10 città in Italia', text: 'e altre guide in produzione' },
+        { title: '9 guide in Italia', text: 'e altre in produzione' },
         { title: 'Da un link o da un QR', text: '' },
         { title: 'Nessuna app da scaricare', text: '' }
       ],
-      art: 'citta',
+      art: 'telefoni',
       fixed: true,
-      hint: 'Testi fissi: spiegano cosa fa Speaqi. Non cambiare i numeri.'
+      hint: 'Testi fissi: spiegano cosa fa Speaqi. Le guide in Italia sono quelle pubblicate su guides.speaqi.com.'
     }),
     slide({
       id: 'vantaggi-partner', kind: 'cards', kicker: 'I vantaggi per {{ente}}',
@@ -538,12 +537,17 @@ export const PARTNER_DECK_TEMPLATE: DeckTemplate = {
       note: '{{ente}}',
       title: 'Guide digitali delle città, nella tua lingua.',
       body: 'Il catalogo Speaqi con il vostro logo, pronto da condividere con i clienti.',
+      footnote: 'Fonte: guides.speaqi.com, novembre 2026.',
       items: [
-        { title: 'Milano', text: 'Disponibile' },
-        { title: 'Venezia', text: 'Disponibile' },
-        { title: 'Firenze', text: 'Disponibile' },
-        { title: 'Roma', text: 'Disponibile' },
-        { title: 'Napoli', text: 'Disponibile ora', highlight: true }
+        { title: 'Napoli', text: '501 luoghi' },
+        { title: 'Roma', text: '446 luoghi' },
+        { title: 'Milano', text: '288 luoghi' },
+        { title: 'Venezia', text: '244 luoghi' },
+        { title: 'Firenze', text: '230 luoghi' },
+        { title: 'Bologna', text: '217 luoghi' },
+        { title: 'Costiera Amalfitana', text: '213 luoghi' },
+        { title: 'Pompei', text: '112 luoghi' },
+        { title: 'Capri', text: '107 luoghi' }
       ],
       fixed: true,
       hint: 'Testo fisso. Il logo del partner e il suo nome compaiono nell’intestazione della pagina: non scrivere indirizzi web.'

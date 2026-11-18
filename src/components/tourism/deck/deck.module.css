@@ -247,8 +247,10 @@
 .vetrinaCopy { width: 54%; }
 .vetrinaCopy h2 { font-size: 72px; color: #fff; }
 .vetrinaLead { margin: 22px 0 0; font-size: 27px; line-height: 1.4; color: #cfd6e2; }
-.vetrinaCities { flex: 1; display: flex; flex-direction: column; gap: 10px; }
-.vetrinaCity { display: flex; flex-direction: column; padding: 8px 24px; border-radius: 18px; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .18); }
-.vetrinaCity b { font-family: var(--title); font-synthesis: none; font-weight: 400; font-size: 32px; }
+.vetrinaLink { margin: 26px 0 0; font-size: 28px; color: #cfd6e2; }
+.vetrinaLink b { color: #ff8a57; font-weight: 700; }
+.vetrinaCities { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.vetrinaCity { display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 8px 24px; border-radius: 14px; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .18); }
+.vetrinaCity b { font-family: var(--title); font-synthesis: none; font-weight: 400; font-size: 30px; }
 .vetrinaCity small { font-size: 16px; letter-spacing: .12em; text-transform: uppercase; color: #f0a98a; }
 .vetrinaCity.hl { border-color: #ff5a1f; background: rgba(255, 90, 31, .18); }
