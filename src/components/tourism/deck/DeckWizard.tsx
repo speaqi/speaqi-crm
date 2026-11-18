@@ -4,10 +4,11 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { apiFetch } from '@/lib/api'
 import { EntityPicker } from '../TourismResearch'
 import type { TourismEntity } from '@/lib/tourism'
+import { presentationModel } from '@/lib/office/presentations'
 import s from '../tourism.module.css'
 import e from './editor.module.css'
 
-type Prefill = { id: string; name: string; country_code?: string; website?: string | null }
+type Prefill = { id: string; name: string; country_code?: string; website?: string | null; type_code?: string | null }
 
 const countryName = (code?: string) => {
   if (!code) return ''
@@ -37,7 +38,7 @@ export default function DeckWizard({
   const [contatto, setContatto] = useState('')
   const [notes, setNotes] = useState(entity?.website ? `Sito: ${entity.website}\n` : '')
   const [files, setFiles] = useState<File[]>([])
-  const [modello, setModello] = useState<'destinazione' | 'partner'>('destinazione')
+  const [modello, setModello] = useState<'destinazione' | 'partner'>(presentationModel(entity?.type_code))
   const [generate, setGenerate] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')

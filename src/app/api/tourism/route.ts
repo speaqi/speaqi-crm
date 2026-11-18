@@ -581,7 +581,7 @@ export async function POST(request: NextRequest) {
       const { data, error } = await createServiceRoleClient().rpc('tourism_activate', {
         p_user_id: owner,
         p_entity_id: requireId(body.id),
-        p_payload: { origin: 'owner', version: body.version, email: email || null, website, city: textValue(body.city, 80) || null }
+        p_payload: { origin: 'owner', version: body.version, email: email || null, website, city: textValue(body.city, 80) || null, contact_id: body.contact_id ? requireId(body.contact_id) : null }
       })
       if (error) throw new TourismInputError(error.message)
       return tourismResponse({ ...data, crm_error_text: crmErrorText(data?.crm_error) })
