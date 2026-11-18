@@ -432,7 +432,7 @@ export const PARTNER_DECK_TEMPLATE: DeckTemplate = {
       id: 'cover',
       kind: 'cover',
       kicker: 'Una proposta Speaqi Guides',
-      title: 'Speaqi per\n{{ente}}',
+      title: 'Speaqi Guides\nper {{ente}}',
       body: 'Guide digitali multilingue: partiamo da {{destinazione}}, insieme.',
       art: 'cover',
       fixed: true,

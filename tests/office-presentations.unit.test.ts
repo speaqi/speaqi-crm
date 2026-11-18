@@ -68,8 +68,8 @@ test('presentazioni: timeout non ripaga e non approva; la pipeline conserva fail
   const f=fixture();let calls=0;const handler=presentationsHandler(f.db,{create:f.create,model:async()=>{calls++;throw new Error('Timeout')}})
   await assert.rejects(handler(f.ctx),/Timeout/);await handler(f.ctx);assert.equal(calls,1);assert.equal(f.db.tables.tourism_decks[0].status,'failed')
 })
-test('DMC e tour operator usano la base partner, conservando la città e il catalogo; una DMO usa la base destinazione',async()=>{
-  for (const type of ['dmc', 'tour_operator', 'dmo']) {
+test('DMC, tour operator, property manager e agenzie usano la base partner, conservando la città e il catalogo; una DMO usa la base destinazione',async()=>{
+  for (const type of ['dmc', 'tour_operator', 'property_manager', 'travel_agency', 'dmo']) {
     const f=fixture(); f.db.tables.tourism_entities[0].type_code=type
     const generate: any = async (_db:any,_service:any,deck:any) => ({...deck,status:'ready'})
     await presentationsHandler(f.db,{create:f.create,generate})(f.ctx)
