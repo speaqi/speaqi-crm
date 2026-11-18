@@ -24,25 +24,31 @@ import pathlib
 import re
 import uuid
 
-SHARED_DOMAINS = {'facebook.com', 'instagram.com', 'linkedin.com', 'youtube.com', 'twitter.com', 'x.com', 'tripadvisor.com', 'tripadvisor.it', 'booking.com', 'gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'libero.it', 'linktr.ee', 'sites.google.com', 'business.site', 'wa.me', 'whatsapp.com', 'wixsite.com', 'blogspot.com', 'wordpress.com', 'altervista.org', 'jimdo.com', 'webnode.it', 'paginegialle.it'}
+SHARED_DOMAINS = {'facebook.com', 'instagram.com', 'linkedin.com', 'youtube.com', 'twitter.com', 'x.com', 'tripadvisor.com', 'tripadvisor.it', 'booking.com', 'gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'libero.it', 'linktr.ee', 'sites.google.com', 'business.site', 'wa.me', 'whatsapp.com', 'wixsite.com', 'blogspot.com', 'wordpress.com', 'altervista.org', 'jimdo.com', 'webnode.it', 'paginegialle.it',
+                  # caselle e portali generici di Germania e Francia
+                  't-online.de', 'gmx.de', 'web.de', 'orange.fr', 'wanadoo.fr', 'free.fr', 'sfr.fr', 'laposte.net', 'pagesjaunes.fr', 'gelbeseiten.de'}
 
 # Order matters: the first rule that matches decides. Incoming/DMC first: it
 # is the most specific claim and the one Speaqi sells to first.
 TYPE_RULES = (
     ('cvb', re.compile(r'convention\s*(?:&|and)?\s*visitors?\s*bureau', re.I)),
-    ('dmo', re.compile(r'\b(?:dmo|destination marketing|tourism board|tourist board|ente (?:del|di promozione del) turismo)\b', re.I)),
-    ('dmc', re.compile(r'\b(?:dmc|destination management|incoming|receptive|inbound tour)', re.I)),
-    ('tour_operator', re.compile(r'\btour[\s-]?operator', re.I)),
-    ('travel_agency', re.compile(r'\b(?:agenzi[ae] (?:di )?viagg|travel agen|agenzia turistica)', re.I)),
+    ('dmo', re.compile(r'\b(?:dmo|destination marketing|tourism board|tourist board|ente (?:del|di promozione del) turismo|office de tourisme|comit[ée] (?:r[ée]gional|d[ée]partemental) du tourisme|tourismusverband|tourismus(?:-)?(?:marketing|gesellschaft|zentrale)|verkehrsverein)\b', re.I)),
+    ('dmc', re.compile(r'\b(?:dmc|destination management|incoming|receptive|inbound tour|agence r[ée]ceptive|r[ée]ceptif)', re.I)),
+    ('tour_operator', re.compile(r'\btour[\s-]?op[eé]rat(?:or|eur)|\breiseveranstalter|\bvoyagiste|\bgruppenreisen|\bstudienreisen|\bbusreisen|\bcircuits? (?:organis|accompagn)', re.I)),
+    ('travel_agency', re.compile(r'\b(?:agenzi[ae] (?:di )?viagg|travel agen|agenzia turistica|agence (?:de )?voyages?|reiseb[üu]ro|reiseagentur|reisevermittl|croisi[eè]res?)|kreuzfahrt', re.I)),
     # Managing other people's short-stay homes: that is what makes a property
     # manager a distributor. A single holiday home is accommodation, and an
     # estate agent without short-let management is neither.
-    ('property_manager', re.compile(r'property manag\w*.{0,120}(?:affitt\w* brev|short[\s-]?term|vacanz|holiday|turistic|airbnb|host|extra[\s-]?alberghier)|(?:affitt\w* brev|short[\s-]?term|vacanz|holiday|turistic|airbnb|extra[\s-]?alberghier).{0,120}property manag|gestion\w* (?:professional\w* )?(?:di |degli |delle )?(?:affitt\w* brev|case vacanz|appartamenti|immobili turistic|locazion\w* turistic|strutture extra)|\bco[\s-]?host|hosting management|short[\s-]?term rental (?:management|company|specialist)|specialized in short[\s-]?term rental', re.I)),
-    ('accommodation', re.compile(r'\b(?:hotels?|resorts?|albergh\w*|holiday homes?|case vacanz\w*|casa vacanz\w*|vacation rentals?|apartments?|appartamenti|b&b|agriturism\w*|residence)\b', re.I)),
-    ('tourism_supplier', re.compile(r'\b(?:tours?|escursion|visite guidate|guided|experiences?|esperienz|gite|itinerar)', re.I)),
+    ('property_manager', re.compile(r'property manag\w*.{0,120}(?:affitt\w* brev|short[\s-]?term|vacanz|holiday|turistic|airbnb|host|extra[\s-]?alberghier|ferien|saisonni)|(?:affitt\w* brev|short[\s-]?term|vacanz|holiday|turistic|airbnb|extra[\s-]?alberghier).{0,120}property manag|gestion\w* (?:professional\w* )?(?:di |degli |delle )?(?:affitt\w* brev|case vacanz|appartamenti|immobili turistic|locazion\w* turistic|strutture extra)|\bco[\s-]?host|hosting management|short[\s-]?term rental (?:management|company|specialist)|specialized in short[\s-]?term rental|conciergerie|gestion (?:de )?locations? (?:saisonni|de vacances)|location saisonni[eè]re.{0,80}gestion|(?:agency|agence|company|soci[ée]t[ée]).{0,60}(?:seasonal rentals?|vacation rentals? management|locations? saisonni[eè]res?)|ferienwohnungs?(?:-|\s)?(?:vermietung|verwaltung|vermittlung)|ferienhaus(?:-|\s)?(?:vermietung|verwaltung|vermittlung)', re.I)),
+    ('accommodation', re.compile(r'\b(?:hotels?|h[ôo]tels?|resorts?|albergh\w*|holiday homes?|case vacanz\w*|casa vacanz\w*|vacation rentals?|apartments?|appartamenti|b&b|agriturism\w*|residence|r[ée]sidences?|g[iî]tes?|chambres? d.h[ôo]tes|camping\w*|pension|gasthof|gasthaus|ferienwohnung\w*|ferienh[äa]us\w*|ferienpark|jugendherberge)\b|hotelgruppe|hotelkette', re.I)),
+    ('tourism_supplier', re.compile(r'\b(?:tours?|escursion|visite guidate|guided|experiences?|esperienz|gite|itinerar|excursions?|visites? guid[ée]es|stadtf[üu]hrung\w*|f[üu]hrungen|ausfl[üu]g\w*|erlebnis\w*)', re.I)),
+    ('cruise_line', re.compile(r'\b(?:cruises?|cruise line|river cruises?|flusskreuzfahrt\w*|reederei)\b', re.I)),
+    # Last: a German "… Reisen GmbH" or a French "… Voyages" sells trips even
+    # when the description is empty. Never decides before the specific rules.
+    ('travel_agency', re.compile(r'(?<![pP])reise|touristik|\btravel\b|voyage|\bs[ée]jours?\b|\bvacances\b|\burlaub', re.I)),
 )
 # A hotel company that runs more than one property can distribute to all of them.
-CHAIN_SIGNAL = re.compile(r'\b(?:hotels|resorts|alberghi|collection|group|gruppo|catena|chain|brand|hotel management company|gestione alberghier\w*|\d+\s+(?:strutture|properties|propriet\w*))\b', re.I)
+CHAIN_SIGNAL = re.compile(r'\b(?:hotels|h[ôo]tels|resorts|alberghi|collection|group|groupe|gruppe|gruppo|catena|cha[iî]ne|chain|brand|hotel management company|gestione alberghier\w*|hotelgruppe|hotelkette|\d+\s+(?:strutture|properties|propriet\w*|h[ôo]tels|[ée]tablissements|h[äa]user))\b', re.I)
 
 
 def name_key(value):
@@ -154,7 +160,7 @@ commit;
 """
 
 
-def compact_sql(records, owner):
+def compact_sql(records, owner, country='IT'):
     """Same import as import_sql, with each record sent as a short array and
     rebuilt inside Postgres. Used when the SQL has to travel through a tool
     call instead of psql: about a quarter of the size, same result."""
@@ -177,7 +183,7 @@ do {tag}
 declare v_records jsonb; v_result jsonb; v_rows jsonb := {literal(payload)}::jsonb;
 begin
   select coalesce(jsonb_agg(jsonb_build_object(
-    'kind','organization','name',x->>1,'country_code','IT','type_code',x->>2,
+    'kind','organization','name',x->>1,'country_code',{literal(country)},'type_code',x->>2,
     'website','https://'||(x->>3)||'/','aliases','[]'::jsonb,
     'external_ids',jsonb_strip_nulls(jsonb_build_object('leadocean',nullif(x->>0,''),
       'linkedin',case when x->>4<>'' then 'https://www.linkedin.com/company/'||(x->>4) end)),
@@ -188,7 +194,7 @@ begin
       'source_url',case when x->>4<>'' then 'https://www.linkedin.com/company/'||(x->>4) else 'https://'||(x->>3)||'/' end,
       'title',left('LeadOcean — '||(x->>1),200),
       'excerpt',left('Scheda azienda LeadOcean: settore '||coalesce(nullif(x->>8,''),'n.d.')||'; dipendenti '||coalesce(nullif(x->>7,''),'n.d.')
-        ||'; sede '||concat_ws(', ',nullif(x->>5,''),nullif(x->>6,''),'IT')||'. '||(x->>10),2000),
+        ||'; sede '||concat_ws(', ',nullif(x->>5,''),nullif(x->>6,''),{literal(country)})||'. '||(x->>10),2000),
       'fields',jsonb_build_array('name','country_code','type_code','website'),'method','import'))),'[]'::jsonb)
   into v_records
   from jsonb_array_elements(v_rows) x
@@ -238,8 +244,9 @@ def main():
     for stale in out.glob('import-*.sql'):
         stale.unlink()
     for index in range(0, len(records), args.batch_size):
-        build = compact_sql if args.compact else import_sql
-        (out / f'import-{index // args.batch_size:04}.sql').write_text(build(records[index:index + args.batch_size], owner))
+        batch = records[index:index + args.batch_size]
+        sql = compact_sql(batch, owner, country) if args.compact else import_sql(batch, owner)
+        (out / f'import-{index // args.batch_size:04}.sql').write_text(sql)
     report = {'items': len(items), 'records': len(records), 'held': dict(held),
               'types': dict(collections.Counter(r['type_code'] for r in records))}
     (out / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=1) + '\n')
