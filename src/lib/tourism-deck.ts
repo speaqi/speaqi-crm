@@ -461,6 +461,25 @@ export const PARTNER_DECK_TEMPLATE: DeckTemplate = {
       hint: 'Testi fissi: spiegano cosa fa Speaqi. Le guide in Italia sono quelle pubblicate su guides.speaqi.com.'
     }),
     slide({
+      id: 'vetrina',
+      kind: 'vetrina',
+      kicker: 'La vostra vetrina',
+      note: '{{ente}}',
+      title: 'Guide digitali delle città, nella tua lingua.',
+      body: 'Il catalogo Speaqi con il vostro logo, pronto da condividere con i clienti.',
+      items: [
+        { title: 'Napoli', text: '', art: 'guida-napoli' },
+        { title: 'Roma', text: '', art: 'guida-roma' },
+        { title: 'Milano', text: '', art: 'guida-milano' },
+        { title: 'Venezia', text: '', art: 'guida-venezia' },
+        { title: 'Firenze', text: '', art: 'guida-firenze' },
+        { title: 'Pompei', text: '', art: 'guida-pompei' },
+        { title: 'Capri', text: '', art: 'guida-capri' }
+      ],
+      fixed: true,
+      hint: 'Testo fisso. Il logo del partner e il suo nome compaiono nell’intestazione della pagina: non scrivere indirizzi web.'
+    }),
+    slide({
       id: 'vantaggi-partner', kind: 'cards', kicker: 'I vantaggi per {{ente}}',
       title: 'Più valore per i vostri clienti.\nPiù opportunità per voi.',
       items: [
@@ -536,25 +555,6 @@ export const PARTNER_DECK_TEMPLATE: DeckTemplate = {
       ],
       fixed: true,
       hint: 'Testi fissi: sono i tre modi che Speaqi offre oggi.'
-    }),
-    slide({
-      id: 'vetrina',
-      kind: 'vetrina',
-      kicker: 'La vostra vetrina',
-      note: '{{ente}}',
-      title: 'Guide digitali delle città, nella tua lingua.',
-      body: 'Il catalogo Speaqi con il vostro logo, pronto da condividere con i clienti.',
-      items: [
-        { title: 'Napoli', text: '', art: 'guida-napoli' },
-        { title: 'Roma', text: '', art: 'guida-roma' },
-        { title: 'Milano', text: '', art: 'guida-milano' },
-        { title: 'Venezia', text: '', art: 'guida-venezia' },
-        { title: 'Firenze', text: '', art: 'guida-firenze' },
-        { title: 'Pompei', text: '', art: 'guida-pompei' },
-        { title: 'Capri', text: '', art: 'guida-capri' }
-      ],
-      fixed: true,
-      hint: 'Testo fisso. Il logo del partner e il suo nome compaiono nell’intestazione della pagina: non scrivere indirizzi web.'
     }),
     slide({
       id: 'ospite',
