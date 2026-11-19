@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { apiFetch } from '@/lib/api'
-import { DEFAULT_BANK_TRANSFER_INSTRUCTIONS, DEFAULT_CONTRACT_TERMS, VIDEO_MAP_CONTRACT_TERMS } from '@/lib/quote-defaults'
+import { DEFAULT_BANK_TRANSFER_INSTRUCTIONS, DEFAULT_CONTRACT_TERMS } from '@/lib/quote-defaults'
+import { VIDEO_MAP_CONTRACT_TERMS } from '@/lib/video-map-contract'
 import { agencyParticularTerms, ensureAgencyContractTerms, isAgencyContract, AGENCY_GENERAL_TERMS } from '@/lib/agency-contract'
 import { defaultQuoteTemplate, quoteCompletionIssues } from '@/lib/commercial-proposal'
 import {
@@ -879,11 +880,11 @@ export default function PreventiviPage() {
           </div>
 
           <details style={{ margin: '12px 0' }}>
-            <summary>Tipo di contratto: Speaqi Agency o Tourism</summary>
+            <summary>Tipo di contratto: Video nella mappa o Speaqi Agency</summary>
             <p>Il modello si carica automaticamente dalla proposta. Per un preventivo manuale puoi scegliere qui la base e poi completarla.</p>
-            {(['agency', 'tourism'] as const).map(type => <button key={type} type="button" className="btn btn-ghost btn-sm" disabled={contractLocked || Boolean(agencyProject) && type !== 'agency'} onClick={() => {
-              if (confirm('Sostituire il testo contrattuale con la base scelta? Le voci restano quelle attuali.')) patchDraft({ contract_terms: defaultQuoteTemplate(type).contract_terms, status: 'draft' })
-            }}>Base {type === 'agency' ? 'Speaqi Agency' : 'Tourism'}</button>)}
+            {(['video_map', 'agency'] as const).map(type => <button key={type} type="button" className="btn btn-ghost btn-sm" disabled={contractLocked || Boolean(agencyProject) && type !== 'agency'} onClick={() => {
+              if (confirm('Sostituire il testo contrattuale con la base scelta? Le voci restano quelle attuali.')) patchDraft({ contract_terms: type === 'agency' ? defaultQuoteTemplate('agency').contract_terms : VIDEO_MAP_CONTRACT_TERMS, status: 'draft' })
+            }}>Base {type === 'agency' ? 'Speaqi Agency' : 'Video nella mappa'}</button>)}
           </details>
           <div className="quotes-preset-row">
             {PACKAGE_KEYS.map((key) => {

@@ -378,13 +378,23 @@ test('Agency richiede approvazione specifica anche senza abbonamento e conserva 
 })
 
 describe('contratto Video nella mappa', () => {
-  test('il pacchetto porta i termini con allegato, la piattaforma no', async () => {
-    const { VIDEO_MAP_CONTRACT_TERMS, DEFAULT_CONTRACT_TERMS } = await import('../src/lib/quote-defaults')
+  test('il pacchetto porta il contratto autonomo, la piattaforma no', async () => {
+    const { VIDEO_MAP_CONTRACT_TERMS } = await import('../src/lib/video-map-contract')
     const video = quoteDraftFromPackage('video_map', 'l1') as { contract_terms?: string }
     const platform = quoteDraftFromPackage('platform', 'l2') as { contract_terms?: string }
     assert.equal(video.contract_terms, VIDEO_MAP_CONTRACT_TERMS)
-    assert.ok(video.contract_terms!.startsWith(DEFAULT_CONTRACT_TERMS))
-    assert.match(video.contract_terms!, /Il video è fornito dal Cliente/)
+    assert.ok(video.contract_terms!.startsWith('CONTRATTO DI SERVIZIO “VIDEO NELLA MAPPA”'))
+    assert.ok(!video.contract_terms!.includes('TERMINI DI SERVIZIO – SPEAQI (SaaS)'))
+    assert.ok(!video.contract_terms!.includes('DA VERIFICARE'))
+    assert.ok(video.contract_terms!.length < 30000)
     assert.equal(platform.contract_terms, undefined)
+  })
+  test('ogni clausola approvata nel testo è nell\'approvazione specifica firmata', async () => {
+    const { VIDEO_MAP_CONTRACT_TERMS } = await import('../src/lib/video-map-contract')
+    const { SIGNATURE_RENEWAL_TEXT } = await import('../src/lib/server/quote-signature')
+    const block = VIDEO_MAP_CONTRACT_TERMS.split('APPROVAZIONE SPECIFICA DELLE CLAUSOLE')[1]
+    const refs = [...block.matchAll(/^\* Art\. ([\d.]+):/gm)].map(m => m[1])
+    assert.equal(refs.length, 12)
+    for (const r of refs) assert.ok(SIGNATURE_RENEWAL_TEXT.includes(r), `manca ${r}`)
   })
 })
