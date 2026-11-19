@@ -1,4 +1,5 @@
 import type { QuoteBillingInterval, QuoteLineItem, QuotePaymentMethod } from '@/types'
+import { VIDEO_MAP_CONTRACT_TERMS } from '@/lib/quote-defaults'
 
 export type SpeaqiPackageKey = 'platform' | 'video_map'
 
@@ -115,6 +116,7 @@ export function quoteDraftFromPackage(key: SpeaqiPackageKey, lineId: string) {
     title: p.quoteTitle,
     items: [quoteLineFromPackage(key, lineId)],
     billing_interval: billingInterval,
+    ...(key === 'video_map' ? { contract_terms: VIDEO_MAP_CONTRACT_TERMS } : {}),
     ...(billingInterval === 'year'
       ? { ...SUBSCRIPTION_PAYMENT_TERMS, payment_terms_note: SUBSCRIPTION_PAYMENT_TERMS_NOTE }
       : {}),

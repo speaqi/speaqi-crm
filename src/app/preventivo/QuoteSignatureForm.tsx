@@ -103,8 +103,7 @@ export function QuoteSignatureForm({ token, acceptanceToken, defaultSignerName, 
             onChange={(event) => setRenewalAccepted(event.target.checked)}
           />
           <span>
-            Approvo specificamente, ai sensi degli artt. 1341 e 1342 c.c., il rinnovo automatico annuale e le
-            clausole su durata, disdetta e limitazione di responsabilità.
+            Approvo specificamente, ai sensi degli artt. 1341 e 1342 c.c., il rinnovo automatico annuale, la disdetta e l’assenza di rimborsi, la sospensione, la limitazione di responsabilità, la modifica dei Termini e il Foro di Napoli esclusivo (artt. 2, 4, 5, 6, 9, 10, 11 e Allegato A4-A5).
           </span>
         </label>
       )}

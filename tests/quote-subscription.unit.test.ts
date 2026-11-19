@@ -376,3 +376,15 @@ test('Agency richiede approvazione specifica anche senza abbonamento e conserva 
   assert.equal(meta.specific_clauses_text, AGENCY_SPECIFIC_APPROVAL_TEXT)
   assert.equal(signatureTermsMeta(false).terms_url, '/termini-speaqi')
 })
+
+describe('contratto Video nella mappa', () => {
+  test('il pacchetto porta i termini con allegato, la piattaforma no', async () => {
+    const { VIDEO_MAP_CONTRACT_TERMS, DEFAULT_CONTRACT_TERMS } = await import('../src/lib/quote-defaults')
+    const video = quoteDraftFromPackage('video_map', 'l1') as { contract_terms?: string }
+    const platform = quoteDraftFromPackage('platform', 'l2') as { contract_terms?: string }
+    assert.equal(video.contract_terms, VIDEO_MAP_CONTRACT_TERMS)
+    assert.ok(video.contract_terms!.startsWith(DEFAULT_CONTRACT_TERMS))
+    assert.match(video.contract_terms!, /Il video è fornito dal Cliente/)
+    assert.equal(platform.contract_terms, undefined)
+  })
+})
