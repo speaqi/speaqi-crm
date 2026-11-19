@@ -1,5 +1,5 @@
 import type { QuoteBillingInterval, QuoteLineItem, QuotePaymentMethod } from '@/types'
-import { VIDEO_MAP_CONTRACT_TERMS } from '@/lib/quote-defaults'
+import { VIDEO_MAP_CONTRACT_TERMS } from '@/lib/video-map-contract'
 
 export type SpeaqiPackageKey = 'platform' | 'video_map'
 

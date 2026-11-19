@@ -11,7 +11,7 @@ export const SIGNATURE_MAX_BYTES = 200 * 1024
 export const SIGNATURE_ACCEPTED_TEXT =
   'Dichiaro di aver letto e accettato le condizioni contrattuali e i Termini di servizio Speaqi per questa offerta.'
 export const SIGNATURE_RENEWAL_TEXT =
-  'Approvo specificamente, ai sensi degli artt. 1341 e 1342 c.c., il rinnovo automatico annuale, la disdetta e l’assenza di rimborsi, la sospensione, la limitazione di responsabilità, la modifica dei Termini e il Foro di Napoli esclusivo (artt. 2, 4, 5, 6, 9, 10, 11 e Allegato A4-A5).'
+  'Approvo specificamente, ai sensi degli artt. 1341 e 1342 c.c., le clausole: 3.6 (manleva), 3.7 (sospensione e rimozione dei contenuti), 5.5 (nessuna garanzia di posizionamento), 6.2 (rinnovo automatico), 7.6 (sospensione per mancato pagamento), 8.5 e 8.6 (nessun rimborso per disdetta o rimozione anticipata), 10.4 e 10.6 (limitazione di responsabilità e danni), 12 (modifiche contrattuali), 14 (cessione del contratto), 15.2 (Foro esclusivo di Napoli).'
 
 export type SignatureCheck = { ok: true } | { ok: false; error: string }
 
