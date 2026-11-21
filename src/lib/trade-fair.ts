@@ -470,6 +470,7 @@ export const TRADE_FAIRS = [
   { slug: 'ttg-2026', label: 'TTG Travel Experience 2026', short: 'TTG 2026' },
   { slug: 'itb-2026', label: 'ITB Berlin 2026', short: 'ITB 2026' },
   { slug: 'itb-2027', label: 'ITB Berlin 2027', short: 'ITB 2027' },
+  { slug: 'bit-2026', label: 'BIT Milano 2026', short: 'BIT 2026' },
 ] as const
 
 export function tradeFairLabel(slug: string): string {
