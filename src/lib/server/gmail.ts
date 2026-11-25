@@ -280,12 +280,15 @@ function encodeMimeHeader(value: string) {
     : value
 }
 
-function encodeMessageBody(subject: string, to: string, html: string, text: string, messageIdHeader?: string) {
+function encodeMessageBody(subject: string, to: string, html: string, text: string, messageIdHeader?: string,
+  extra: { from?: string; inReplyTo?: string } = {}) {
   const boundary = `crm-${crypto.randomUUID()}`
   const raw = [
+    ...(extra.from ? [`From: ${extra.from}`] : []),
     `To: ${to}`,
     `Subject: ${encodeMimeHeader(subject)}`,
     ...(messageIdHeader ? [`Message-ID: ${messageIdHeader}`] : []),
+    ...(extra.inReplyTo ? [`In-Reply-To: ${extra.inReplyTo}`, `References: ${extra.inReplyTo}`] : []),
     'MIME-Version: 1.0',
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
     '',
@@ -608,7 +611,9 @@ function normalizeMessageRecord(
   const toEmails = uniqueEmails([getHeader(headers, 'to')])
   const ccEmails = uniqueEmails([getHeader(headers, 'cc')])
   const accountEmail = normalizeEmail(account.email)
-  const direction = normalizeEmail(fromEmail) === accountEmail ? 'outbound' : 'inbound'
+  // Un messaggio inviato da un alias («Invia come», es. info@) ha un altro mittente ma
+  // l'etichetta SENT: senza questo controllo diventava una risposta ricevuta.
+  const direction = normalizeEmail(fromEmail) === accountEmail || (message.labelIds || []).includes('SENT') ? 'outbound' : 'inbound'
   const subject = getHeader(headers, 'subject') || null
 
   return {
@@ -1417,4 +1422,75 @@ export async function updateContactDraft(
   if (!session) throw new Error('Gmail non collegato')
 
   return saveContactDraftWithSession(session, contact, { ...input, gmailDraftId })
+}
+
+
+/** L'indirizzo scelto non è fra quelli «Invia come» verificati del Gmail collegato. */
+export class GmailSendAsError extends Error {
+  constructor(from: string, account: string) {
+    super(`${from} non è fra gli indirizzi «Invia come» verificati di ${account}: aggiungilo in Gmail (Impostazioni → Account) o collega quella casella al CRM`)
+    this.name = 'GmailSendAsError'
+  }
+}
+
+/**
+ * Invio da un indirizzo scelto (alias «Invia come» verificato, o la casella stessa), nello
+ * stesso thread di un messaggio precedente quando c'è. Non tocca contatti né attività:
+ * chi chiama registra l'esito. Un 4xx è un rifiuto; rete o 5xx sono un esito incerto.
+ */
+export async function sendGmailAs(
+  supabase: any,
+  userId: string,
+  input: { from: string; fromName?: string; to: string; subject: string; text: string; html: string;
+    messageIdHeader: string; threadId?: string | null; inReplyTo?: string | null }
+) {
+  const account = await getGmailAccount(supabase, userId)
+  if (!account) throw new Error('Gmail non collegato')
+  const accessToken = await refreshAccessToken(account)
+  const from = normalizeEmail(input.from)
+  if (from !== normalizeEmail(account.email)) {
+    const aliases = await listGmailSendAs(accessToken)
+    const ok = (aliases.sendAs || []).some((item) => normalizeEmail(item.sendAsEmail) === from
+      && (!item.verificationStatus || item.verificationStatus === 'accepted'))
+    if (!ok) throw new GmailSendAsError(from, account.email)
+  }
+  const fromHeader = input.fromName ? `${encodeMimeHeader(input.fromName)} <${from}>` : from
+  const raw = encodeMessageBody(input.subject, input.to, input.html, input.text, input.messageIdHeader,
+    { from: fromHeader, inReplyTo: input.inReplyTo || undefined })
+  try {
+    const sent = await gmailApiRequest<{ id: string; threadId?: string }>(accessToken, '/users/me/messages/send', {
+      method: 'POST', body: JSON.stringify({ raw, ...(input.threadId ? { threadId: input.threadId } : {}) }),
+    })
+    return { account_email: account.email, message_id: sent.id, thread_id: sent.threadId || null }
+  } catch (error) {
+    if (error instanceof GmailRequestError && error.status >= 400 && error.status < 500) throw error
+    throw new GmailSendOutcomeError(error instanceof Error ? error.message : 'Esito invio Gmail incerto', 'unknown', null)
+  }
+}
+
+export type GmailFoundMessage = { id: string; threadId: string | null; from: string | null; subject: string | null
+  text: string; sentAt: string; sent: boolean }
+
+/** Cerca nella casella collegata (sintassi di ricerca di Gmail), al massimo `max` messaggi. */
+export async function searchGmail(supabase: any, userId: string, query: string, max = 10): Promise<GmailFoundMessage[]> {
+  const account = await getGmailAccount(supabase, userId)
+  if (!account) throw new Error('Gmail non collegato')
+  const accessToken = await refreshAccessToken(account)
+  const list = await listMessages(accessToken, query, Math.min(25, Math.max(1, max)))
+  const found: GmailFoundMessage[] = []
+  for (const item of list.messages || []) {
+    const message = await getMessage(accessToken, item.id)
+    const headers = message.payload?.headers || []
+    const bodies = collectBodies(message.payload)
+    const plain = bodies.plain.join('\n\n').trim()
+    found.push({
+      id: message.id, threadId: message.threadId || null,
+      from: uniqueEmails([getHeader(headers, 'from')])[0] || null,
+      subject: getHeader(headers, 'subject') || null,
+      text: plain || stripHtml(bodies.html.join('\n\n')) || message.snippet || '',
+      sentAt: getMessageTimestamp(message, headers),
+      sent: (message.labelIds || []).includes('SENT'),
+    })
+  }
+  return found
 }

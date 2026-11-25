@@ -52,6 +52,8 @@ export const AUTOMATION_JOBS: ScheduledJob[] = [
   {name:'office-maps-quality',cron:'0 4 * * *',description:'Qualità mappe: segnalazioni e correzioni da decidere',steps:[{path:'/api/automation/agents/maps_quality/run'}]},
   {name:'office-mymaps',cron:'30 1 * * *',description:'My Maps: turno ogni due giorni, massimo 150 candidati',steps:[{path:'/api/automation/agents/mymaps_builder/run'}]},
   { name:'office-director',cron:'30 7 * * 1-5',description:'Direttore: piano del giorno sulle opportunità; il lunedì anche le mappe che servono',steps:[{path:'/api/automation/agents/director/run'}] },
+  { name:'office-distribution',cron:'10 8 * * 1-5',timeZone:'Europe/Rome',description:'Distribuzione: 5 primi contatti e i promemoria, da approvare; nessun invio',steps:[{path:'/api/automation/agents/distribution/run'}] },
+  { name:'distribution-outreach',cron:'*/15 * * * *',description:'Distribuzione: risposte, poi invio delle email approvate in orario d’ufficio (solo con DISTRIBUTION_SEND_ENABLED)',steps:[{path:'/api/automation/distribution-outreach',body:{limit:4},timeoutMs:300_000}] },
   { name:'office-sales-followup',cron:'0 8 * * 1-5',description:'Commerciale: prepara fino a 15 bozze, nessun invio',steps:[{path:'/api/automation/agents/sales_followup/run'}] },
   { name: 'office-languages-voice', cron: '0 2 * * *', description: 'Lingue e voce: testi e audio delle mappe in coda, entro il budget', steps: [{ path: '/api/automation/agents/languages_voice/run' }] },
   { name: 'office-db-cleaner', cron: '30 4 * * 0', description: 'Pulizia database: doppioni e dati sporchi, unioni solo approvate', steps: [{ path: '/api/automation/agents/db_cleaner/run' }] },

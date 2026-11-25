@@ -1,5 +1,6 @@
 import { approveDirectorContact, startAfterApproval } from './office-director-orders'
 import { approveEnrichedCompany } from './office-company-enrichment'
+import { decideDistributionOutput } from './distribution-outreach'
 import { loadDeck, setApproval } from './tourism-decks'
 import { getOrCreateDeckPdf } from './tourism-deck-pdf'
 import { sendDeckToTelegram } from './office-deck-telegram'
@@ -22,6 +23,10 @@ export async function decideOfficeOutput(admin: Admin, userId: string, id: strin
       error: 'Aggiornamento dei lavori in corso. La proposta resta da decidere.' }
     if (supported.error) throw supported.error
   }
+  // Email dell'agente Distribuzione: approvare la mette in coda d'invio, rifiutare chiude il contatto.
+  const distribution = await decideDistributionOutput(admin, userId, id, status)
+  if (distribution && 'error' in distribution) return { ok: false, error: String(distribution.error), status: Number(distribution.status) || 409 }
+  if (distribution) return { ok: true, output: distribution.output, notice: distribution.notice }
   if (status === 'approved') {
     // Nuovo contatto dal Direttore: lo inserisce il codice del CRM, con le sue regole.
     const contact = await approveDirectorContact(admin, userId, id)

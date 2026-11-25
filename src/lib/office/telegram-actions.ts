@@ -56,12 +56,12 @@ export function deckKeyboard(input: { id: string; status: string; todo: number; 
 }
 
 /** Una proposta da decidere: titolo, le righe che servono e i due pulsanti. */
-export function proposalMessage(input: { id: string; title: string; lines: string[]; link: string }): { text: string; keyboard: TelegramKeyboard } {
-  const text = [`*${input.title.slice(0, 200)}*`, ...input.lines.filter(Boolean).map((line) => line.slice(0, 300)).slice(0, 8)].join('\n')
+export function proposalMessage(input: { id: string; title: string; lines: string[]; link: string; approveLabel?: string; rejectLabel?: string }): { text: string; keyboard: TelegramKeyboard } {
+  const text = [`*${input.title.slice(0, 200)}*`, ...input.lines.filter(Boolean).map((line) => line.slice(0, 1800)).slice(0, 8)].join('\n')
   return {
     text: text.slice(0, 3500),
     keyboard: [
-      [{ text: '✅ Approva', callback_data: outputData(input.id, 'approved') }, { text: '✖️ Rifiuta', callback_data: outputData(input.id, 'rejected') }],
+      [{ text: input.approveLabel || '✅ Approva', callback_data: outputData(input.id, 'approved') }, { text: input.rejectLabel || '✖️ Rifiuta', callback_data: outputData(input.id, 'rejected') }],
       [{ text: 'Apri nell’Ufficio', url: input.link }],
     ],
   }
@@ -70,6 +70,10 @@ export function proposalMessage(input: { id: string; title: string; lines: strin
 /** Le righe utili di una proposta del Direttore (nuovo contatto o partner), senza il JSON. */
 export function proposalLines(body: Record<string, any> | null | undefined): string[] {
   if (!body || typeof body !== 'object') return []
+  if (body.action === 'distribution_send') {
+    // L'email intera: si approva quello che si legge.
+    return [`A: ${String(body.to || '')}`, `Oggetto: ${String(body.subject || '')}`, '', String(body.text || '').slice(0, 1800)]
+  }
   if (body.action === 'create_contact') {
     const c = body.contact || {}
     return [
