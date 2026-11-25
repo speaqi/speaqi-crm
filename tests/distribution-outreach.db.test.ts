@@ -35,10 +35,10 @@ before(async () => {
     create table public.deals(id uuid primary key default gen_random_uuid(), user_id uuid not null);
     grant usage on schema public to authenticated, anon, service_role;
   `)
-  await db.exec(await readFile(new URL('../supabase/migrations/20261125100000_distribution_outreach.sql', import.meta.url), 'utf8'))
+  await db.exec(await readFile(new URL('../supabase/migrations/20261125124105_distribution_outreach.sql', import.meta.url), 'utf8'))
   await db.exec('grant select on all tables in schema public to authenticated')
   // Applicarla due volte non rompe niente.
-  await db.exec(await readFile(new URL('../supabase/migrations/20261125100000_distribution_outreach.sql', import.meta.url), 'utf8'))
+  await db.exec(await readFile(new URL('../supabase/migrations/20261125124105_distribution_outreach.sql', import.meta.url), 'utf8'))
 })
 
 test('tetto giornaliero: si prende solo fino al tetto, e un esito incerto conta', async () => {
