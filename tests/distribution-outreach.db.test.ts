@@ -39,7 +39,7 @@ before(async () => {
   await db.exec('grant select on all tables in schema public to authenticated')
   // Applicarla due volte non rompe niente.
   await db.exec(await readFile(new URL('../supabase/migrations/20261125124105_distribution_outreach.sql', import.meta.url), 'utf8'))
-  for (let i = 0; i < 2; i++) await db.exec(await readFile(new URL('../supabase/migrations/20261126100000_partner_profiles.sql', import.meta.url), 'utf8'))
+  for (let i = 0; i < 2; i++) await db.exec(await readFile(new URL('../supabase/migrations/20261126155013_partner_profiles.sql', import.meta.url), 'utf8'))
   await db.exec('grant select on all tables in schema public to authenticated')
 })
 
