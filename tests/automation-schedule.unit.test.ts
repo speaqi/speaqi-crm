@@ -47,6 +47,7 @@ describe('orari', () => {
     assert.deepEqual(names('2026-10-01T06:00:00Z'), [
       'commercial-outreach',
       'db-maintenance',
+      'distribution-outreach',
       'followups',
       'office-sales-followup',
       'office-work',

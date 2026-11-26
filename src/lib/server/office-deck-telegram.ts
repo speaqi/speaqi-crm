@@ -45,7 +45,9 @@ export async function sendProposalsToTelegram(admin: Admin, userId: string, outp
     .in('id', outputIds.slice(0, 10)).eq('status', 'pending')
   let sent = 0
   for (const output of (data || []) as Array<{ id: string; title: string; body: any }>) {
-    const message = proposalMessage({ id: output.id, title: output.title, lines: proposalLines(output.body), link: `${baseUrl()}/ufficio?uscita=${output.id}` })
+    const email = output.body?.action === 'distribution_send'
+    const message = proposalMessage({ id: output.id, title: output.title, lines: proposalLines(output.body), link: `${baseUrl()}/ufficio?uscita=${output.id}`,
+      ...(email ? { approveLabel: '✅ Approva e invia', rejectLabel: '✖️ Non scrivere' } : {}) })
     const result = await sendTelegramButtons(message.text, message.keyboard)
     if (result.ok) sent++
     else console.error('[telegram] proposta non inviata:', result.error)

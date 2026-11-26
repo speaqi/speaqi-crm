@@ -57,6 +57,8 @@ const DEFAULT_TABLES = [
   'office_agent_outputs',
   'office_budget_ledger',
   'office_agent_daily_quotas',
+  'distribution_outreach',
+  'distribution_outreach_messages',
   'tourism_taxonomy',
   'tourism_entities',
   'tourism_evidence',
