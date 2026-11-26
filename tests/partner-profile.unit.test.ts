@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { findPlaces, profilePartner } from '../src/lib/office/partner-profile'
+import { destinationDemand, findPlaces, guidesOf, profilePartner, segmentOfActivities, validateSiteReading } from '../src/lib/office/partner-profile'
 
 test('incoming a Napoli con email: si scrive, rivendita e pacchetti', () => {
   const p = profilePartner({ name: 'Worldtours', type_code: 'dmc', email: 'info@worldtours.it', website: 'https://worldtours.it',
@@ -65,4 +65,45 @@ test('una tecnologia o un altro mestiere non si scrive', () => {
   const p = profilePartner({ name: 'Lybra Tech', type_code: 'technology', email: 'info@lybra.tech', description: 'Software house: booking engine and channel manager for hotels in Rome.' })
   assert.equal(p.next, 'skip')
   assert.deepEqual(p.offers, ['partnership'])
+})
+
+test('guide da proporre: quelle dei posti, la sede per ultima; tutta Italia vuol dire tutto il catalogo', () => {
+  const p = profilePartner({ name: 'X', type_code: 'dmc', email: 'info@x.it', hq_city: 'Milano',
+    description: 'Incoming tour operator: private tours in Florence and Rome for foreign guests.' })
+  assert.deepEqual(guidesOf(p), ['roma', 'firenze', 'milano'])
+  const n = profilePartner({ name: 'Girolibero', type_code: 'tour_operator', email: 'info@g.it', description: 'Cycling holidays in Italy.' })
+  assert.ok(guidesOf(n).length >= 9)
+  assert.equal(segmentOfActivities(['hosting']), 'hospitality')
+  assert.equal(segmentOfActivities(['transport']), 'transport')
+})
+
+test('sito: valgono solo le frasi che stanno nella pagina; email solo d’ufficio e nella sua frase', () => {
+  const pages = [{ url: 'https://viaggi.it', text: 'Organizziamo tour privati a Roma e in Costiera Amalfitana per clienti stranieri.\nScrivici: info@viaggi.it' }]
+  const r = validateSiteReading({ pages, isMailbox: (e) => e.endsWith('@viaggi.it') && e.startsWith('info@'), model: {
+    what: { quote: 'Organizziamo tour privati a Roma e in Costiera Amalfitana per clienti stranieri.', url: 'https://viaggi.it' },
+    destinations: [{ quote: 'Facciamo anche la Sicilia tutto l’anno.', url: 'https://viaggi.it' }],
+    audience: null,
+    email: { value: 'INFO@viaggi.it', quote: 'Scrivici: info@viaggi.it', url: 'https://viaggi.it' },
+  } })
+  assert.equal(r.quotes.length, 2, 'la frase inventata sulla Sicilia si scarta')
+  assert.equal(r.email, 'info@viaggi.it')
+  const p = profilePartner({ name: 'Viaggi', type_code: 'other', website: 'https://viaggi.it', email: r.email, description: '', site_text: r.text, site_read: true })
+  assert.deepEqual(p.places.map((x) => x.key).sort(), ['costiera-amalfitana', 'roma'])
+  assert.equal(p.next, 'write')
+  const personal = validateSiteReading({ pages, isMailbox: () => false, model: { what: null, destinations: [], audience: null,
+    email: { value: 'info@viaggi.it', quote: 'Scrivici: info@viaggi.it', url: 'https://viaggi.it' } } })
+  assert.equal(personal.email, null)
+})
+
+test('sito già letto senza niente di utile: non si rilegge, e senza email non si scrive', () => {
+  const generic = 'Espositore TTG Travel Experience 2026. Categorie pubblicate: non disponibili.'
+  assert.equal(profilePartner({ name: 'Askos Tours', type_code: 'dmc', website: 'https://a.it', description: generic, site_read: true }).next, 'skip')
+  assert.equal(profilePartner({ name: 'Rome Tours', type_code: 'dmc', website: 'https://a.it', description: 'Incoming tours in Rome.', site_read: true }).next, 'no_contact')
+})
+
+test('domanda per destinazione: solo posti senza guida online, citati nel testo', () => {
+  const a = profilePartner({ name: 'A', type_code: 'dmc', email: 'info@a.it', description: 'Incoming DMC for Sicily and Rome.' })
+  const b = profilePartner({ name: 'B', type_code: 'dmc', description: 'Tours in Sicily.', hq_city: 'Torino' })
+  const demand = destinationDemand([{ ...a, email: 'info@a.it' }, { ...b, email: null }])
+  assert.deepEqual(demand.map((d) => [d.key, d.companies, d.withEmail]), [['sicilia', 2, 1]])
 })

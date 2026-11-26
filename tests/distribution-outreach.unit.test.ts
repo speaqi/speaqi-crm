@@ -131,7 +131,9 @@ test('risposte: automatiche, no, disiscrizione, persona; ritorni al mittente', (
 })
 
 test('impostazioni: pilota acceso di default, tetti rispettati', () => {
-  assert.deepEqual({ ...distributionSettings({}), cityOrder: undefined }, { dailyNew: 5, autopilot: false, cityOrder: undefined })
+  assert.deepEqual({ ...distributionSettings({}), cityOrder: undefined }, { dailyNew: 5, autopilot: false, cityOrder: undefined, siteReads: 20 })
+  assert.equal(distributionSettings({ site_reads: 500 }).siteReads, 60)
+  assert.equal(distributionSettings({ site_reads: 0 }).siteReads, 0)
   assert.equal(distributionSettings({ daily_new: 500 }).dailyNew, 20)
   assert.equal(distributionSettings({ autopilot: 'true' }).autopilot, false)
   assert.equal(distributionSettings({ autopilot: true }).autopilot, true)
@@ -146,4 +148,30 @@ test('Telegram: l’email intera e «Approva e invia»', () => {
   assert.equal(message.keyboard[0][0].text, '✅ Approva e invia')
   assert.deepEqual(parseTelegramAction(message.keyboard[0][0].callback_data), { kind: 'output', id, status: 'approved' })
   assert.ok(message.text.includes('sono Massimo'))
+})
+
+test('testi: più guide, tutta Italia e nomi inglesi delle città', () => {
+  const multi = buildDistributionMessage({ step: 1, language: 'it', segment: 'operator', guideSlug: 'roma', guides: ['firenze'] })
+  assert.ok(multi.subject.includes('Guide di Roma e di Firenze'))
+  assert.ok(multi.body.includes('Le guide di Roma e di Firenze sono online: https://guides.speaqi.com/roma e https://guides.speaqi.com/firenze'))
+  assert.ok(multi.body.includes('Cerchiamo partner che le propongano'))
+  const national = buildDistributionMessage({ step: 1, language: 'it', segment: 'operator', guideSlug: 'roma', national: true })
+  assert.ok(national.subject.startsWith('Guide delle città italiane'))
+  assert.ok(national.body.includes('Sono online le guide di Roma, Milano, Firenze, Venezia e Napoli'))
+  assert.deepEqual(national.body.match(/https?:\/\/\S+/g), ['https://guides.speaqi.com'])
+  const en = buildDistributionMessage({ step: 1, language: 'en', segment: 'operator', guideSlug: 'roma', guides: ['costiera-amalfitana'] })
+  assert.ok(en.subject.startsWith('Rome and Amalfi Coast city guides'))
+  assert.ok(!/\bRoma\b/.test(en.body))
+  const followup = buildDistributionMessage({ step: 2, language: 'it', segment: 'operator', guideSlug: 'napoli', guides: ['capri'] })
+  assert.ok(followup.body.includes('le guide di Napoli e di Capri (https://guides.speaqi.com/napoli)'))
+})
+
+test('testi: «della Costiera Amalfitana»', () => {
+  const one = buildDistributionMessage({ step: 1, language: 'it', segment: 'operator', guideSlug: 'costiera-amalfitana' })
+  assert.ok(one.subject.startsWith('Guide della Costiera Amalfitana per'))
+  assert.ok(one.body.includes('La guida della Costiera Amalfitana è online'))
+  const two = buildDistributionMessage({ step: 1, language: 'it', segment: 'operator', guideSlug: 'costiera-amalfitana', guides: ['capri'] })
+  assert.ok(two.body.includes('Le guide della Costiera Amalfitana e di Capri sono online'))
+  const three = buildDistributionMessage({ step: 1, language: 'it', segment: 'operator', guideSlug: 'napoli', guides: ['costiera-amalfitana', 'capri'] })
+  assert.ok(three.body.includes('Le guide di Napoli, della Costiera Amalfitana e di Capri sono online'))
 })

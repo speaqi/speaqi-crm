@@ -227,56 +227,104 @@ export function signature(language: Language) {
     : `${EMAIL_SENDER_NAME}\nFounder, Speaqi\n${GUIDES_HOME.replace('https://', '')}`
 }
 
-export type MessageInput = { step: number; language: Language; segment: Segment; guideSlug: string; hook?: string | null }
+export type MessageInput = {
+  step: number; language: Language; segment: Segment; guideSlug: string; hook?: string | null
+  /** Altre guide online dove lavora l'azienda (al massimo due in più, oltre alla principale). */
+  guides?: readonly string[]
+  /** Lavora in tutta Italia: si propone il catalogo, non una città. */
+  national?: boolean
+}
+
+const EN_CITY: Record<string, string> = {
+  roma: 'Rome', milano: 'Milan', venezia: 'Venice', firenze: 'Florence', napoli: 'Naples', pompei: 'Pompeii',
+  'costiera-amalfitana': 'Amalfi Coast', capri: 'Capri', bologna: 'Bologna',
+}
+export const cityName = (slug: string, language: Language) => (language === 'en' ? EN_CITY[slug] : undefined) || guideLabel(slug)
+const andList = (items: string[], language: Language) => items.length < 2 ? items.join('')
+  : `${items.slice(0, -1).join(', ')} ${language === 'it' ? 'e' : 'and'} ${items[items.length - 1]}`
+const CATALOG_CITIES = ['roma', 'milano', 'firenze', 'venezia', 'napoli']
+const ofIt = (slug: string) => (slug === 'costiera-amalfitana' ? 'della Costiera Amalfitana' : `di ${guideLabel(slug)}`)
+
+/** Di quali guide si parla: la principale, fino a due altre dove lavorano, o il catalogo. */
+function guidesLine(input: MessageInput) {
+  const lang = input.language
+  if (input.national) {
+    const names = andList(CATALOG_CITIES.map((c) => cityName(c, lang)), lang)
+    return {
+      subjectCity: lang === 'it' ? 'delle città italiane' : 'Italian city',
+      short: lang === 'it' ? `le guide di ${names}` : `the guides to ${names}`,
+      live: lang === 'it' ? `Sono online le guide di ${names}, e ne aggiungiamo altre: ${GUIDES_HOME}` : `The guides to ${names} are live, with more on the way: ${GUIDES_HOME}`,
+      link: GUIDES_HOME,
+    }
+  }
+  const slugs = [...new Set([input.guideSlug, ...(input.guides || [])])].slice(0, 3)
+  // «di Roma e della Costiera Amalfitana»: in italiano la preposizione va per posto.
+  const names = lang === 'it' ? andList(slugs.map(ofIt), lang).replace(/^di /, '') : andList(slugs.map((s) => cityName(s, lang)), lang)
+  const links = slugs.map(guideUrl).join(lang === 'it' ? ' e ' : ' and ')
+  const of = lang === 'it' ? (names.startsWith('della ') ? names : `di ${names}`) : names
+  if (slugs.length === 1) return {
+    subjectCity: lang === 'it' ? of : names,
+    short: lang === 'it' ? `la guida ${of}` : `the ${names} guide`,
+    live: lang === 'it' ? `La guida ${of} è online: ${links}` : `The ${names} guide is live: ${links}`,
+    link: guideUrl(slugs[0]),
+  }
+  return {
+    subjectCity: lang === 'it' ? of : names,
+    short: lang === 'it' ? `le guide ${of}` : `the guides to ${names}`,
+    live: lang === 'it' ? `Le guide ${of} sono online: ${links}` : `The guides to ${names} are live: ${links}`,
+    link: guideUrl(slugs[0]),
+  }
+}
 
 /**
  * Le tre email della sequenza. Le cifre (20%) e i link sono solo questi: sono le condizioni
  * del programma partner B2B (accordo standard del 31/10/2026) e le pagine delle guide.
  */
 export function buildDistributionMessage(input: MessageInput): { subject: string; body: string } {
-  const city = guideLabel(input.guideSlug)
-  const url = guideUrl(input.guideSlug)
+  const g = guidesLine(input)
   const audience = AUDIENCE[input.language][input.segment]
   const hook = input.hook ? `${input.hook.trim()}\n\n` : ''
+  const offerIt = g.short.startsWith('le ') ? 'le propongano' : 'la propongano'
+  const offerEn = g.short.startsWith('the guides') ? 'them' : 'it'
   if (input.language === 'it') {
-    const subject = `Guide di ${city} per i vostri clienti: proposta di collaborazione`
+    const subject = `Guide ${g.subjectCity} per i vostri clienti: proposta di collaborazione`
     if (input.step === 1) return { subject, body: [
       `Buongiorno,\nsono ${EMAIL_SENDER_NAME}, fondatore di Speaqi.`,
-      `${hook}Con Speaqi Guides pubblichiamo guide digitali delle città: mappa, itinerari e racconti audio e video dei luoghi, in più lingue, da aprire sul telefono senza installare niente. La guida di ${city} è online: ${url}`,
-      `Cerchiamo partner che la propongano ${audience}. Il modello è semplice:\n- un link e un QR con il vostro nome, e una vetrina con le guide che scegliete;\n- una commissione del 20% sul netto di ogni guida venduta tramite voi, senza costi né minimi;\n- per chi preferisce, codici prepagati da inserire nei vostri pacchetti.`,
+      `${hook}Con Speaqi Guides pubblichiamo guide digitali delle città: mappa, itinerari e racconti audio e video dei luoghi, in più lingue, da aprire sul telefono senza installare niente. ${g.live}`,
+      `Cerchiamo partner che ${offerIt} ${audience}. Il modello è semplice:\n- un link e un QR con il vostro nome, e una vetrina con le guide che scegliete;\n- una commissione del 20% sul netto di ogni guida venduta tramite voi, senza costi né minimi;\n- per chi preferisce, codici prepagati da inserire nei vostri pacchetti.`,
       'Se le interessa le mando la presentazione, oppure ci sentiamo dieci minuti quando le è comodo.',
       OPT_OUT.it, signature('it'),
     ].join('\n\n') }
     if (input.step === 2) return { subject: `Re: ${subject}`, body: [
       'Buongiorno,',
-      `riprendo in breve la mia email dei giorni scorsi: la guida di ${city} (${url}) da proporre ${audience}, con il 20% su ogni vendita e nessun costo per voi.`,
+      `riprendo in breve la mia email dei giorni scorsi: ${g.short} (${g.link}) da proporre ${audience}, con il 20% su ogni vendita e nessun costo per voi.`,
       'Le posso mandare la presentazione?',
       OPT_OUT.it, signature('it'),
     ].join('\n\n') }
     return { subject: `Re: ${subject}`, body: [
       'Buongiorno,',
-      `è l’ultima volta che le scrivo su questo. Se in futuro vorrete offrire ${audience} la guida di ${city} e quelle delle altre città, con una commissione su ogni vendita, mi basta una risposta a questa email.`,
+      `è l’ultima volta che le scrivo su questo. Se in futuro vorrete offrire ${audience} ${g.short} e quelle delle altre città, con una commissione su ogni vendita, mi basta una risposta a questa email.`,
       'Grazie dell’attenzione e buon lavoro.',
       signature('it'),
     ].join('\n\n') }
   }
-  const subject = `${city} city guides for your customers: partnership proposal`
+  const subject = `${g.subjectCity} city guides for your customers: partnership proposal`
   if (input.step === 1) return { subject, body: [
     `Hello,\nI’m ${EMAIL_SENDER_NAME}, founder of Speaqi.`,
-    `${hook}Speaqi Guides publishes digital city guides: a map, itineraries and audio and video stories of each place, in several languages, opened on the phone with nothing to install. The ${city} guide is live: ${url}`,
-    `We are looking for partners to offer it ${audience}. The model is simple:\n- a link and a QR code with your name, and a showcase with the guides you choose;\n- a 20% commission on the net amount of every guide sold through you, with no fees and no minimums;\n- if you prefer, prepaid codes to include in your packages.`,
+    `${hook}Speaqi Guides publishes digital city guides: a map, itineraries and audio and video stories of each place, in several languages, opened on the phone with nothing to install. ${g.live}`,
+    `We are looking for partners to offer ${offerEn} ${audience}. The model is simple:\n- a link and a QR code with your name, and a showcase with the guides you choose;\n- a 20% commission on the net amount of every guide sold through you, with no fees and no minimums;\n- if you prefer, prepaid codes to include in your packages.`,
     'If you are interested I can send you our presentation, or we can have a ten-minute call whenever suits you.',
     OPT_OUT.en, signature('en'),
   ].join('\n\n') }
   if (input.step === 2) return { subject: `Re: ${subject}`, body: [
     'Hello,',
-    `just a short follow-up on my email from the past days: the ${city} guide (${url}) to offer ${audience}, with 20% on every sale and no cost for you.`,
+    `just a short follow-up on my email from the past days: ${g.short} (${g.link}) to offer ${audience}, with 20% on every sale and no cost for you.`,
     'May I send you the presentation?',
     OPT_OUT.en, signature('en'),
   ].join('\n\n') }
   return { subject: `Re: ${subject}`, body: [
     'Hello,',
-    `this is the last time I write about this. If one day you would like to offer the ${city} guide and those of other cities ${audience}, with a commission on every sale, a reply to this email is all it takes.`,
+    `this is the last time I write about this. If one day you would like to offer ${g.short} and those of other cities ${audience}, with a commission on every sale, a reply to this email is all it takes.`,
     'Thank you for your time and all the best.',
     signature('en'),
   ].join('\n\n') }

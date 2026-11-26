@@ -72,6 +72,7 @@ export const BACKUP_TABLES = [
   'office_agent_daily_quotas',
   'distribution_outreach',
   'distribution_outreach_messages',
+  'partner_profiles',
   // Tourism Intelligence: l'elenco delle aziende turistiche e cio che si e' trovato.
   'tourism_taxonomy',
   'tourism_entities',
