@@ -39,6 +39,8 @@ before(async () => {
   await db.exec('grant select on all tables in schema public to authenticated')
   // Applicarla due volte non rompe niente.
   await db.exec(await readFile(new URL('../supabase/migrations/20261125124105_distribution_outreach.sql', import.meta.url), 'utf8'))
+  for (let i = 0; i < 2; i++) await db.exec(await readFile(new URL('../supabase/migrations/20261126155013_partner_profiles.sql', import.meta.url), 'utf8'))
+  await db.exec('grant select on all tables in schema public to authenticated')
 })
 
 test('tetto giornaliero: si prende solo fino al tetto, e un esito incerto conta', async () => {
@@ -75,5 +77,26 @@ test('RLS: il proprietario legge, nessuno scrive dal client, la RPC è del servi
   await asUser(OTHER)
   const others = (await db.query<{ n: number }>(`select count(*)::int n from distribution_outreach where user_id='${OWNER}'`)).rows[0].n
   assert.equal(others, 0)
+  await db.exec('reset role')
+})
+
+test('profili dei partner: una riga per ente, valori controllati, sola lettura per il proprietario', async () => {
+  await db.exec('reset role')
+  const entity = (await db.query<{ id: string }>(`insert into tourism_entities(user_id,name) values($1,'Profilo') returning id`, [OWNER])).rows[0].id
+  await db.query(`insert into partner_profiles(user_id,entity_id,activities,audience,places,guide_slugs,value,next)
+    values($1,$2,'{incoming}','foreign','[{"key":"roma"}]','{roma}',80,'write')`, [OWNER, entity])
+  await assert.rejects(db.query(`insert into partner_profiles(user_id,entity_id,value,next) values($1,$2,50,'write')`, [OWNER, entity]), 'una riga per ente')
+  const other = (await db.query<{ id: string }>(`insert into tourism_entities(user_id,name) values($1,'Altro') returning id`, [OWNER])).rows[0].id
+  await assert.rejects(db.query(`insert into partner_profiles(user_id,entity_id,value,next) values($1,$2,150,'write')`, [OWNER, other]))
+  await assert.rejects(db.query(`insert into partner_profiles(user_id,entity_id,value,next) values($1,$2,50,'boh')`, [OWNER, other]))
+  await assert.rejects(db.query(`insert into partner_profiles(user_id,entity_id,value,next,site_email) values($1,$2,50,'write','non-email')`, [OWNER, other]))
+  // I promemoria ricordano le guide della prima email.
+  const o = await outreach(OWNER, 40)
+  await db.query(`update distribution_outreach set guides='{roma,firenze}', national=false where id=$1`, [o.outreach])
+  await asUser(OWNER)
+  assert.equal((await db.query<{ n: number }>(`select count(*)::int n from partner_profiles`)).rows[0].n, 1)
+  await assert.rejects(db.query(`update partner_profiles set value=1`))
+  await asUser(OTHER)
+  assert.equal((await db.query<{ n: number }>(`select count(*)::int n from partner_profiles`)).rows[0].n, 0)
   await db.exec('reset role')
 })

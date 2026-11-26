@@ -6,6 +6,9 @@ import { sendProposalsToTelegram } from './office-deck-telegram'
 import { sendNotificationText, sendTelegramButtons } from './whatsapp'
 import { opportunityPatch } from '../opportunities'
 import { guideLabel } from '../tourism-distribution'
+import { segmentOfActivities, type Activity } from '../office/partner-profile'
+import { DEFAULT_SITE_READS, MAX_SITE_READS, loadDestinationDemand, loadProfileRows, readPartnerSites, refreshPartnerProfiles } from './partner-profiles'
+import { addOfficeOutputOnce } from './office-agents/shared'
 import {
   DEFAULT_CITY_ORDER, DEFAULT_DAILY_NEW, DISTRIBUTION_FROM_DEFAULT, DISTRIBUTION_STEPS, MAX_DAILY_NEW,
   acceptHook, buildDistributionMessage, classifyReply, dayRotation, emailDomain, isBounce, nextDueAfterStep, outcomeOf,
@@ -32,22 +35,25 @@ export const distributionDailyCap = () => {
   return Number.isFinite(value) && value >= 0 ? Math.min(value, 100) : 20
 }
 
-export type DistributionSettings = { dailyNew: number; autopilot: boolean; cityOrder: string[] }
+export type DistributionSettings = { dailyNew: number; autopilot: boolean; cityOrder: string[]; siteReads: number }
 export function distributionSettings(raw: Record<string, unknown> | null | undefined): DistributionSettings {
   const s = raw || {}
   const daily = Math.floor(Number(s.daily_new))
+  const reads = Math.floor(Number(s.site_reads))
   const cities = Array.isArray(s.city_order) ? s.city_order.filter((c): c is string => typeof c === 'string' && /^[a-z-]{3,40}$/.test(c)) : []
   return {
     dailyNew: Number.isFinite(daily) && daily >= 0 ? Math.min(daily, MAX_DAILY_NEW) : DEFAULT_DAILY_NEW,
     // Pilota acceso di default: ogni email aspetta il clic del titolare.
     autopilot: s.autopilot === true,
     cityOrder: cities.length ? cities : [...DEFAULT_CITY_ORDER],
+    // Siti letti per giro, solo per chi ne ha bisogno (manca l'email o i dati sono scarni).
+    siteReads: Number.isFinite(reads) && reads >= 0 ? Math.min(reads, MAX_SITE_READS) : DEFAULT_SITE_READS,
   }
 }
 
 type OutreachRow = {
   id: string; user_id: string; entity_id: string; contact_id: string | null; deal_id: string | null; email: string; email_domain: string
-  guide_slug: string | null; segment: Segment; language: Language; status: string; step: number; next_due_at: string | null
+  guide_slug: string | null; guides: string[] | null; national: boolean | null; segment: Segment; language: Language; status: string; step: number; next_due_at: string | null
   gmail_thread_id: string | null; last_rfc_message_id: string | null; last_sent_at: string | null; last_checked_at: string | null
   created_at: string; reply: Record<string, unknown> | null
 }
@@ -139,6 +145,59 @@ async function insertMessage(admin: Admin, ctx: AgentContext, outreach: Pick<Out
   return outputId
 }
 
+type ProfileState = { ok: boolean; profiles: number | null; sites: { read: number; found: number; emails: number; errors: number } | null; error?: string }
+
+/**
+ * Profili dei partner: ricalcolo (una volta al giorno, gratis) e lettura dei siti che servono.
+ * Senza la tabella (migration non applicata) si torna alla selezione di prima.
+ */
+async function prepareProfiles(admin: Admin, ctx: AgentContext, settings: DistributionSettings, now: Date): Promise<ProfileState> {
+  try {
+    const refreshed = await refreshPartnerProfiles(admin, ctx.agent.user_id, { now })
+    const sites = settings.siteReads ? await readPartnerSites(admin, ctx, { limit: settings.siteReads, now }) : null
+    if (sites?.read) ctx.log(`Siti letti: ${sites.read}, con frasi utili ${sites.found}, email trovate ${sites.emails}, errori ${sites.errors}`)
+    return { ok: true, profiles: refreshed.refreshed ? refreshed.profiles : null, sites }
+  } catch (error) {
+    if (error instanceof BudgetExceeded) return { ok: true, profiles: null, sites: null, error: 'budget finito durante la lettura dei siti' }
+    const message = errorMessage(error, 'errore')
+    ctx.log(`Profili dei partner non disponibili (${message}): selezione dalla classifica di Tourism Intelligence`)
+    return { ok: false, profiles: null, sites: null, error: message }
+  }
+}
+
+type CandidateRow = DistributionRow & { description: string | null; guides?: string[]; national?: boolean; activities?: string[] }
+
+/**
+ * Da chi si sceglie: in Italia i profili pronti (guida online e casella, strutture ricettive
+ * escluse); fuori dall'Italia la classifica di Tourism Intelligence come prima.
+ */
+async function loadCandidateRows(admin: Admin, ctx: AgentContext, _settings: DistributionSettings, state: ProfileState): Promise<CandidateRow[]> {
+  const legacy = (await loadDistributionRows(admin, ctx.agent.user_id)).filter((r) => r.type_code !== 'accommodation')
+  if (!state.ok) return legacy
+  const profiles = await loadProfileRows(admin, ctx.agent.user_id)
+  return [...profiles, ...legacy.filter((r) => r.country_code !== 'IT')]
+}
+
+const isoWeek = (d: Date) => {
+  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+  const day = t.getUTCDay() || 7
+  t.setUTCDate(t.getUTCDate() + 4 - day)
+  const start = new Date(Date.UTC(t.getUTCFullYear(), 0, 1))
+  return `${t.getUTCFullYear()}-W${String(Math.ceil(((t.getTime() - start.getTime()) / 86400000 + 1) / 7)).padStart(2, '0')}`
+}
+
+/** Una volta a settimana: quali guide ci chiedono e non abbiamo. Nessuna spesa. */
+async function weeklyDemandReport(admin: Admin, ctx: AgentContext, now: Date, state: ProfileState) {
+  if (!state.ok) return
+  const demand = await loadDestinationDemand(admin, ctx.agent.user_id)
+  if (!demand.length) return
+  const week = isoWeek(now)
+  const lines = demand.slice(0, 25).map((d) => `${d.label}${d.coverage === 'planned' ? ' (in lista StudioMap)' : ''}: ${d.companies} aziende, ${d.withEmail} con email`)
+  await addOfficeOutputOnce(admin, ctx, `distribution:demand:${week}`, { kind: 'report', title: `Guide che ci chiedono — settimana ${week}`,
+    body: { righe: lines, destinazioni: demand.slice(0, 40),
+      nota: 'Aziende italiane (strutture ricettive escluse) che nella descrizione o sul sito nominano una destinazione senza guida online. Serve a scegliere le prossime guide: nessuna email parte per queste.' } })
+}
+
 /**
  * Il giro del mattino: prepara i promemoria dovuti e i primi contatti di oggi. Nessun invio:
  * con il pilota ogni email aspetta il clic, senza la parte comunque il job d'invio in orario d'ufficio.
@@ -149,13 +208,15 @@ export async function prepareDistributionMessages(admin: Admin, ctx: AgentContex
   const outputs: string[] = []
   let followups = 0
   const nameOf = new Map<string, string>()
+  const profileState = await prepareProfiles(admin, ctx, settings, now)
 
   // 1. Promemoria dovuti: tappa precedente inviata, nessuna risposta, nessun messaggio già pronto.
   const due = checked(await admin.from('distribution_outreach').select('*, entity:tourism_entities(name)').eq('user_id', userId)
     .eq('status', 'active').gte('step', 1).lt('step', DISTRIBUTION_STEPS).lte('next_due_at', now.toISOString()).limit(100)) as Array<OutreachRow & { entity: { name: string } | null }>
   for (const row of due || []) {
     const step = row.step + 1
-    const message = buildDistributionMessage({ step, language: row.language, segment: row.segment, guideSlug: row.guide_slug || 'roma' })
+    const message = buildDistributionMessage({ step, language: row.language, segment: row.segment, guideSlug: row.guide_slug || 'roma',
+      guides: row.guides || [], national: Boolean(row.national) })
     const name = row.entity?.name || row.email
     const outputId = await insertMessage(admin, ctx, { ...row, name }, step, message, settings.autopilot)
     if (outputId) outputs.push(outputId)
@@ -173,21 +234,27 @@ export async function prepareDistributionMessages(admin: Admin, ctx: AgentContex
   const skipped: string[] = []
   if (wanted > 0) {
     const [rows, existing] = await Promise.all([
-      loadDistributionRows(admin, userId),
+      loadCandidateRows(admin, ctx, settings, profileState),
       admin.from('distribution_outreach').select('entity_id,email,email_domain').eq('user_id', userId).limit(20_000),
     ])
     const prior = checked(existing) as Array<{ entity_id: string; email: string; email_domain: string }>
     const descriptions = new Map(rows.map((r) => [r.entity_id, r.description]))
+    const extra = new Map(rows.map((r) => [r.entity_id, r]))
     const pool = selectDistributionCandidates({ rows, limit: wanted * 4, cityOrder: settings.cityOrder, rotation: dayRotation(now),
       excludedEntityIds: prior.map((p) => p.entity_id), excludedDomains: prior.map((p) => p.email_domain), excludedEmails: prior.map((p) => p.email) })
     for (const candidate of pool) {
       if (created >= wanted) break
       const blocked = await blockedFor(admin, userId, candidate)
       if (blocked) { skipped.push(`${candidate.name}: ${blocked}`); continue }
+      const info = extra.get(candidate.entity_id)
+      const national = Boolean(info?.national)
+      // Le guide dei posti in cui lavora (la principale per prima), o il catalogo per chi lavora in tutta Italia.
+      const guides = national ? [] : (info?.guides || []).filter((g) => g !== candidate.guide_slug).slice(0, 2)
+      const segment = info?.activities?.length ? segmentOfActivities(info.activities as Activity[]) : candidate.segment
       const hook = await writeHook(ctx, { ...candidate, description: descriptions.get(candidate.entity_id) || null })
-      const message = buildDistributionMessage({ step: 1, language: candidate.language, segment: candidate.segment, guideSlug: candidate.guide_slug, hook })
+      const message = buildDistributionMessage({ step: 1, language: candidate.language, segment, guideSlug: candidate.guide_slug, hook, guides, national })
       const outreach = await admin.from('distribution_outreach').insert({ user_id: userId, entity_id: candidate.entity_id, email: candidate.email,
-        email_domain: emailDomain(candidate.email), guide_slug: candidate.guide_slug, segment: candidate.segment, language: candidate.language,
+        email_domain: emailDomain(candidate.email), guide_slug: candidate.guide_slug, ...(profileState.ok ? { guides, national } : {}), segment, language: candidate.language,
         status: 'active', step: 0, next_due_at: null }).select('id,user_id,email').single()
       if (outreach.error) {
         if ((outreach.error as { code?: string }).code === '23505') continue
@@ -201,7 +268,9 @@ export async function prepareDistributionMessages(admin: Admin, ctx: AgentContex
   }
   if (outputs.length) await sendProposalsToTelegram(admin, userId, outputs).catch((e) => ctx.log(`Telegram: ${errorMessage(e, 'errore')}`))
   if (skipped.length) ctx.log(`Saltati: ${skipped.slice(0, 20).join('; ')}`)
-  return { created, followups, pending: outputs.length, skipped: skipped.length, autopilot: settings.autopilot }
+  await weeklyDemandReport(admin, ctx, now, profileState).catch((e) => ctx.log(`Domanda per destinazione: ${errorMessage(e, 'errore')}`))
+  return { created, followups, pending: outputs.length, skipped: skipped.length, autopilot: settings.autopilot,
+    profiles: profileState.profiles, sites: profileState.sites }
 }
 
 // ——— Decisione (clic nell'Ufficio o su Telegram) ———
@@ -240,7 +309,7 @@ async function ensureCrm(admin: Admin, userId: string, outreach: OutreachRow, en
   if (!contactId) {
     try {
       const result = checked(await admin.rpc('tourism_activate', { p_user_id: userId, p_entity_id: outreach.entity_id, p_payload: {
-        origin: 'director', identity: { quote: 'Contattato dall’agente Distribuzione su incarico del titolare.' } } })) as { contact_id: string | null; crm_error: string | null }
+        origin: 'director', email: outreach.email, identity: { quote: 'Contattato dall’agente Distribuzione su incarico del titolare.' } } })) as { contact_id: string | null; crm_error: string | null }
       contactId = result?.contact_id || null
     } catch { /* l'ente non si attiva: si cerca comunque il contatto per email */ }
     if (!contactId) {
