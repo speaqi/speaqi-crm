@@ -61,7 +61,7 @@ function profileOf(entity: EntityRow, stored?: StoredProfile | null, site?: { te
 
 const rowOf = (userId: string, entityId: string, p: PartnerProfile, now: string) => ({
   user_id: userId, entity_id: entityId, activities: p.activities, audience: p.audience, places: p.places, guide_slugs: guidesOf(p),
-  national: p.national, offers: p.offers, value: p.value, next: p.next, why: p.why, thin: p.thin, computed_at: now,
+  national: p.national, offers: p.offers, value: p.value, next: p.next, why: p.why, thin: p.thin, abroad: p.abroad, computed_at: now,
 })
 
 /** Ricalcola tutti i profili (gratis: niente rete, niente modello). Salta se è già stato fatto di recente. */
@@ -131,8 +131,9 @@ export async function readPartnerSites(admin: Admin, ctx: AgentContext, options:
  * Le righe per la selezione dell'agente: solo i profili `write` (guida online e una casella),
  * con le guide dei posti in cui lavorano. La fascia viene dal valore del profilo.
  */
-export async function loadProfileRows(admin: Admin, userId: string): Promise<Array<DistributionRow & { description: string | null; guides: string[]; national: boolean; activities: string[] }>> {
-  const out: Array<DistributionRow & { description: string | null; guides: string[]; national: boolean; activities: string[] }> = []
+export type ProfileRow = DistributionRow & { description: string | null; guides: string[]; national: boolean; activities: string[]; offer: 'resale' | 'abroad'; abroad: string[] }
+export async function loadProfileRows(admin: Admin, userId: string): Promise<ProfileRow[]> {
+  const out: ProfileRow[] = []
   const status = new Map<string, { status: string; quick_win: boolean }>()
   for (let from = 0; from < 50_000; from += PAGE) {
     const page = checked(await admin.from('tourism_distribution').select('entity_id,commercial_status,quick_win').eq('user_id', userId)
@@ -142,8 +143,8 @@ export async function loadProfileRows(admin: Admin, userId: string): Promise<Arr
   }
   for (let from = 0; from < 50_000; from += PAGE) {
     const page = checked(await admin.from('partner_profiles')
-      .select('entity_id,value,guide_slugs,national,activities,site_email,site_quotes,entity:tourism_entities!inner(name,type_code,country_code,website,email,disabled,details)')
-      .eq('user_id', userId).eq('next', 'write').order('entity_id').range(from, from + PAGE - 1)) as any[]
+      .select('entity_id,value,next,abroad,guide_slugs,national,activities,site_email,site_quotes,entity:tourism_entities!inner(name,type_code,country_code,website,email,disabled,details)')
+      .eq('user_id', userId).in('next', ['write', 'write_abroad']).order('entity_id').range(from, from + PAGE - 1)) as any[]
     for (const row of page || []) {
       const e = row.entity
       if (!e || e.disabled) continue
@@ -152,7 +153,8 @@ export async function loadProfileRows(admin: Admin, userId: string): Promise<Arr
       out.push({ entity_id: row.entity_id, name: e.name, type_code: e.type_code, country_code: e.country_code, website: e.website,
         email: e.email || row.site_email, score: Number(row.value) || 0, tier: tierOfValue(Number(row.value) || 0), quick_win: Boolean(s?.quick_win),
         guide_slugs: row.guide_slugs || [], commercial_status: s?.status || 'new', description: description || null,
-        guides: row.guide_slugs || [], national: Boolean(row.national), activities: row.activities || [] })
+        guides: row.guide_slugs || [], national: Boolean(row.national), activities: row.activities || [],
+        offer: row.next === 'write_abroad' ? 'abroad' : 'resale', abroad: row.abroad || [] })
     }
     if (!page || page.length < PAGE) break
   }

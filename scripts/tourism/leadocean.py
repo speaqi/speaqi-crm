@@ -43,9 +43,9 @@ TYPE_RULES = (
     ('accommodation', re.compile(r'\b(?:hotels?|h[ôo]tels?|resorts?|albergh\w*|holiday homes?|case vacanz\w*|casa vacanz\w*|vacation rentals?|apartments?|appartamenti|b&b|agriturism\w*|residence|r[ée]sidences?|g[iî]tes?|chambres? d.h[ôo]tes|camping\w*|pension|gasthof|gasthaus|ferienwohnung\w*|ferienh[äa]us\w*|ferienpark|jugendherberge)\b|hotelgruppe|hotelkette', re.I)),
     ('tourism_supplier', re.compile(r'\b(?:tours?|escursion|visite guidate|guided|experiences?|esperienz|gite|itinerar|excursions?|visites? guid[ée]es|stadtf[üu]hrung\w*|f[üu]hrungen|ausfl[üu]g\w*|erlebnis\w*)', re.I)),
     ('cruise_line', re.compile(r'\b(?:cruises?|cruise line|river cruises?|flusskreuzfahrt\w*|reederei)\b', re.I)),
-    # Last: a German "… Reisen GmbH" or a French "… Voyages" sells trips even
+    # Last: a German "… Reisen GmbH", a French "… Voyages" or an Italian "… Viaggi" sells trips even
     # when the description is empty. Never decides before the specific rules.
-    ('travel_agency', re.compile(r'(?<![pP])reise|touristik|\btravel\b|voyage|\bs[ée]jours?\b|\bvacances\b|\burlaub', re.I)),
+    ('travel_agency', re.compile(r'(?<![pP])reise|touristik|\btravel\b|voyage|\bs[ée]jours?\b|\bvacances\b|\burlaub|\bviagg[io]\b|\bviaggiturismo\b', re.I)),
 )
 # A hotel company that runs more than one property can distribute to all of them.
 CHAIN_SIGNAL = re.compile(r'\b(?:hotels|h[ôo]tels|resorts|alberghi|collection|group|groupe|gruppe|gruppo|catena|cha[iî]ne|chain|brand|hotel management company|gestione alberghier\w*|hotelgruppe|hotelkette|\d+\s+(?:strutture|properties|propriet\w*|h[ôo]tels|[ée]tablissements|h[äa]user))\b', re.I)

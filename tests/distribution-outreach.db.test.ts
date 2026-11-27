@@ -40,6 +40,7 @@ before(async () => {
   // Applicarla due volte non rompe niente.
   await db.exec(await readFile(new URL('../supabase/migrations/20261125124105_distribution_outreach.sql', import.meta.url), 'utf8'))
   for (let i = 0; i < 2; i++) await db.exec(await readFile(new URL('../supabase/migrations/20261126155013_partner_profiles.sql', import.meta.url), 'utf8'))
+  for (let i = 0; i < 2; i++) await db.exec(await readFile(new URL('../supabase/migrations/20261127154008_distribution_abroad.sql', import.meta.url), 'utf8'))
   await db.exec('grant select on all tables in schema public to authenticated')
 })
 
@@ -99,4 +100,14 @@ test('profili dei partner: una riga per ente, valori controllati, sola lettura p
   await asUser(OTHER)
   assert.equal((await db.query<{ n: number }>(`select count(*)::int n from partner_profiles`)).rows[0].n, 0)
   await db.exec('reset role')
+})
+
+test('guide estere: passo «write_abroad» e proposta «abroad» ammessi, il resto no', async () => {
+  const cols = (await db.query<{ table_name: string; column_name: string }>(`select table_name, column_name from information_schema.columns
+    where (table_name = 'partner_profiles' and column_name = 'abroad') or (table_name = 'distribution_outreach' and column_name in ('offer','abroad'))`)).rows
+  assert.equal(cols.length, 3)
+  const checks = (await db.query<{ def: string }>(`select pg_get_constraintdef(oid) as def from pg_constraint
+    where conname in ('partner_profiles_next_check','distribution_outreach_offer_check')`)).rows.map((r) => r.def).join(' ')
+  assert.match(checks, /write_abroad/)
+  assert.match(checks, /'abroad'/)
 })
