@@ -1,4 +1,5 @@
 import { isAgencyContract, AGENCY_GENERAL_TERMS } from '@/lib/agency-contract'
+import { isVideoMapContract } from '@/lib/video-map-contract'
 import { NextRequest } from 'next/server'
 import { sendQuoteContractAcceptanceEmail } from '@/lib/email'
 import { errorMessage } from '@/lib/server/http'
@@ -41,7 +42,8 @@ export async function POST(request: NextRequest) {
     if (agency && !String(billing?.contract_terms || '').includes(AGENCY_GENERAL_TERMS)) {
       return Response.json({ error: 'Le condizioni Agency devono essere aggiornate dal team prima della firma.' }, { status: 409 })
     }
-    const parsed = parseSignPayload(body, { requireRenewalClause: billing?.billing_interval === 'year', requireAgencyClauses: agency })
+    const videoMap = !agency && isVideoMapContract(billing || {})
+    const parsed = parseSignPayload(body, { requireRenewalClause: billing?.billing_interval === 'year' || videoMap, requireAgencyClauses: agency })
     if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 })
     const input = parsed.value
 
@@ -52,7 +54,7 @@ export async function POST(request: NextRequest) {
       p_signature_png: input.signaturePng,
       p_ip: clientIp(request.headers),
       p_user_agent: (request.headers.get('user-agent') || '').slice(0, 500),
-      p_terms_meta: signatureTermsMeta(input.renewalAccepted, agency),
+      p_terms_meta: signatureTermsMeta(input.renewalAccepted, agency, videoMap),
     })
     if (error) return Response.json({ error: errorMessage(error, 'Firma non registrata') }, { status: 500 })
 

@@ -1,5 +1,6 @@
 import { AGENCY_ACCEPTED_TEXT, AGENCY_SPECIFIC_APPROVAL_TEXT, AGENCY_CONTRACT_CODE, AGENCY_CONTRACT_DATE, AGENCY_CONTRACT_URL } from '../agency-contract'
 import { QUOTE_TERMS_LAST_UPDATED_IT } from '@/lib/quote-defaults'
+import { VIDEO_MAP_ACCEPTED_TEXT, VIDEO_MAP_CONTRACT_CODE, VIDEO_MAP_CONTRACT_DATE, VIDEO_MAP_CONTRACT_URL, VIDEO_MAP_SPECIFIC_APPROVAL_TEXT } from '../video-map-contract'
 
 const PNG_PREFIX = 'data:image/png;base64,'
 const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
@@ -90,12 +91,34 @@ export function clientIp(headers: Headers) {
   return headers.get('x-real-ip')?.trim() || null
 }
 
-export function signatureTermsMeta(renewalAccepted: boolean, agency = false) {
+/**
+ * Cosa resta scritto nella firma: documento, versione e il testo esatto delle
+ * caselle spuntate. Per il Video nella mappa la casella dell'abbonamento e'
+ * l'approvazione specifica degli articoli del contratto SPEAQI-VIDEOMAP-v1.0;
+ * un preventivo annuale con i testi di prima conserva il testo di prima.
+ */
+export type SignatureTermsMeta = {
+  terms_url: string
+  terms_last_updated: string
+  accepted_text: string
+  document_code?: string
+  specific_clauses_accepted?: boolean
+  specific_clauses_text?: string
+  renewal_clause_text?: string
+}
+
+export function signatureTermsMeta(renewalAccepted: boolean, agency = false, videoMap = false): SignatureTermsMeta {
   if (agency) return {
     terms_url: AGENCY_CONTRACT_URL, terms_last_updated: AGENCY_CONTRACT_DATE,
     document_code: AGENCY_CONTRACT_CODE, accepted_text: AGENCY_ACCEPTED_TEXT,
     specific_clauses_accepted: true, specific_clauses_text: AGENCY_SPECIFIC_APPROVAL_TEXT,
     ...(renewalAccepted ? { renewal_clause_text: SIGNATURE_RENEWAL_TEXT } : {}),
+  }
+  if (videoMap) return {
+    terms_url: VIDEO_MAP_CONTRACT_URL, terms_last_updated: VIDEO_MAP_CONTRACT_DATE,
+    document_code: VIDEO_MAP_CONTRACT_CODE, accepted_text: VIDEO_MAP_ACCEPTED_TEXT,
+    specific_clauses_accepted: renewalAccepted, specific_clauses_text: VIDEO_MAP_SPECIFIC_APPROVAL_TEXT,
+    ...(renewalAccepted ? { renewal_clause_text: VIDEO_MAP_SPECIFIC_APPROVAL_TEXT } : {}),
   }
   return {
     terms_url: '/termini-speaqi',

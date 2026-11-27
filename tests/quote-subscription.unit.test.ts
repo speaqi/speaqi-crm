@@ -378,13 +378,46 @@ test('Agency richiede approvazione specifica anche senza abbonamento e conserva 
 })
 
 describe('contratto Video nella mappa', () => {
-  test('il pacchetto porta i termini con allegato, la piattaforma no', async () => {
+  test('il pacchetto porta il contratto SPEAQI-VIDEOMAP-v1.0 del 19/11, non i Termini SaaS; la piattaforma no', async () => {
     const { VIDEO_MAP_CONTRACT_TERMS, DEFAULT_CONTRACT_TERMS } = await import('../src/lib/quote-defaults')
+    const { VIDEO_MAP_GENERAL_TERMS, isVideoMapContract } = await import('../src/lib/video-map-contract')
     const video = quoteDraftFromPackage('video_map', 'l1') as { contract_terms?: string }
     const platform = quoteDraftFromPackage('platform', 'l2') as { contract_terms?: string }
     assert.equal(video.contract_terms, VIDEO_MAP_CONTRACT_TERMS)
-    assert.ok(video.contract_terms!.startsWith(DEFAULT_CONTRACT_TERMS))
-    assert.match(video.contract_terms!, /Il video è fornito dal Cliente/)
+    assert.equal(video.contract_terms, VIDEO_MAP_GENERAL_TERMS)
+    assert.ok(!video.contract_terms!.includes(DEFAULT_CONTRACT_TERMS))
+    assert.match(video.contract_terms!, /Codice documento: SPEAQI-VIDEOMAP-v1\.0\nVersione: 1\.0\nData: 19 novembre 2026/)
+    assert.match(video.contract_terms!, /6\.2\. Alla scadenza, il servizio si rinnova automaticamente/)
+    assert.match(video.contract_terms!, /\* Art\. 15\.2: Foro esclusivo di Napoli\./)
+    assert.ok(isVideoMapContract(video))
     assert.equal(platform.contract_terms, undefined)
+    assert.ok(!isVideoMapContract({ contract_terms: DEFAULT_CONTRACT_TERMS }))
+  })
+
+  test('il vecchio allegato del 18/11 non vale come contratto nuovo', async () => {
+    const { isVideoMapContract } = await import('../src/lib/video-map-contract')
+    assert.ok(!isVideoMapContract({ contract_terms: 'ALLEGATO – VIDEO NELLA MAPPA SPEAQI\n\nCodice documento: SPEAQI-VIDEOMAP-v1.0\nData: 18 novembre 2026' }))
+  })
+
+  test('il documento scaricabile e la pagina hanno lo stesso testo', async () => {
+    const { readFileSync } = await import('node:fs')
+    const path = await import('node:path')
+    const { VIDEO_MAP_GENERAL_TERMS } = await import('../src/lib/video-map-contract')
+    const file = readFileSync(path.join(process.cwd(), 'public/contratti/SPEAQI-VIDEOMAP-v1.0.txt'), 'utf8')
+    assert.equal(file.trimEnd(), VIDEO_MAP_GENERAL_TERMS)
+  })
+
+  test('la firma salva il documento e il testo esatto dell’approvazione specifica', async () => {
+    const { VIDEO_MAP_CONTRACT_CODE, VIDEO_MAP_SPECIFIC_APPROVAL_TEXT } = await import('../src/lib/video-map-contract')
+    const meta = signatureTermsMeta(true, false, true)
+    assert.equal(meta.terms_url, '/termini-speaqi-video')
+    assert.equal(meta.terms_last_updated, '19 novembre 2026')
+    assert.equal(meta.document_code, VIDEO_MAP_CONTRACT_CODE)
+    assert.equal(meta.renewal_clause_text, VIDEO_MAP_SPECIFIC_APPROVAL_TEXT)
+    assert.equal(meta.specific_clauses_text, VIDEO_MAP_SPECIFIC_APPROVAL_TEXT)
+    for (const article of ['3.6', '3.7', '5.5', '6.2', '7.6', '8.5', '8.6', '10.4', '10.6', '12 ', '14 ', '15.2']) {
+      assert.ok(VIDEO_MAP_SPECIFIC_APPROVAL_TEXT.includes(` ${article}`), article)
+    }
+    assert.equal(signatureTermsMeta(true).terms_url, '/termini-speaqi')
   })
 })

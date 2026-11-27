@@ -1,6 +1,7 @@
 'use client'
 
 import { AGENCY_ACCEPTED_TEXT, AGENCY_SPECIFIC_APPROVAL_TEXT, AGENCY_CONTRACT_URL } from '@/lib/agency-contract'
+import { VIDEO_MAP_ACCEPTED_TEXT, VIDEO_MAP_CONTRACT_URL, VIDEO_MAP_SPECIFIC_APPROVAL_TEXT } from '@/lib/video-map-contract'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useRef, useState } from 'react'
@@ -11,6 +12,8 @@ type QuoteSignatureFormProps = {
   acceptanceToken: string
   defaultSignerName?: string | null
   isAgency?: boolean
+  /** Contratto «Video nella mappa» SPEAQI-VIDEOMAP-v1.0: testi e link suoi. */
+  isVideoMap?: boolean
   isSubscription: boolean
 }
 
@@ -20,7 +23,8 @@ type QuoteSignatureFormProps = {
  * automatico (artt. 1341-1342 c.c.). Dopo la firma la pagina si ricarica e
  * compare il pagamento con carta.
  */
-export function QuoteSignatureForm({ token, acceptanceToken, defaultSignerName, isSubscription, isAgency = false }: QuoteSignatureFormProps) {
+export function QuoteSignatureForm({ token, acceptanceToken, defaultSignerName, isSubscription, isAgency = false, isVideoMap = false }: QuoteSignatureFormProps) {
+  const needsRenewal = isSubscription || isVideoMap
   const router = useRouter()
   const padRef = useRef<SignaturePadHandle | null>(null)
   const [signerName, setSignerName] = useState(defaultSignerName || '')
@@ -38,7 +42,7 @@ export function QuoteSignatureForm({ token, acceptanceToken, defaultSignerName, 
     const signature = padRef.current?.toDataUrl()
     if (!signature) return setError('Firma nel riquadro prima di confermare.')
     if (!accepted) return setError('Devi accettare le condizioni contrattuali.')
-    if (isSubscription && !renewalAccepted) return setError('Devi approvare il rinnovo automatico annuale.')
+    if (needsRenewal && !renewalAccepted) return setError(isVideoMap ? 'Devi approvare specificamente le clausole del contratto.' : 'Devi approvare il rinnovo automatico annuale.')
 
     if (isAgency && !specificClausesAccepted) return setError('Devi approvare specificamente le clausole Agency.')
     setLoading(true)
@@ -85,7 +89,7 @@ export function QuoteSignatureForm({ token, acceptanceToken, defaultSignerName, 
       <label className="public-quote-contract-check">
         <input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} />
         <span>
-          {isAgency ? <>{AGENCY_ACCEPTED_TEXT} <Link href={AGENCY_CONTRACT_URL} target="_blank" rel="noopener noreferrer">Leggi le condizioni generali Agency</Link></> : <>
+          {isAgency ? <>{AGENCY_ACCEPTED_TEXT} <Link href={AGENCY_CONTRACT_URL} target="_blank" rel="noopener noreferrer">Leggi le condizioni generali Agency</Link></> : isVideoMap ? <>{VIDEO_MAP_ACCEPTED_TEXT} <Link href={VIDEO_MAP_CONTRACT_URL} target="_blank" rel="noopener noreferrer">Leggi il contratto</Link></> : <>
           Dichiaro di aver letto e accettato le condizioni contrattuali e i{' '}
           <Link href="/termini-speaqi" target="_blank" rel="noopener noreferrer">Termini di servizio Speaqi</Link>{' '}per questa offerta.
           </>}
@@ -95,7 +99,7 @@ export function QuoteSignatureForm({ token, acceptanceToken, defaultSignerName, 
         <input type="checkbox" checked={specificClausesAccepted} onChange={event => setSpecificClausesAccepted(event.target.checked)} />
         <span>{AGENCY_SPECIFIC_APPROVAL_TEXT}</span>
       </label>}
-      {isSubscription && (
+      {needsRenewal && (
         <label className="public-quote-contract-check">
           <input
             type="checkbox"
@@ -103,7 +107,7 @@ export function QuoteSignatureForm({ token, acceptanceToken, defaultSignerName, 
             onChange={(event) => setRenewalAccepted(event.target.checked)}
           />
           <span>
-            Approvo specificamente, ai sensi degli artt. 1341 e 1342 c.c., il rinnovo automatico annuale, la disdetta e l’assenza di rimborsi, la sospensione, la limitazione di responsabilità, la modifica dei Termini e il Foro di Napoli esclusivo (artt. 2, 4, 5, 6, 9, 10, 11 e Allegato A4-A5).
+            {isVideoMap ? VIDEO_MAP_SPECIFIC_APPROVAL_TEXT : 'Approvo specificamente, ai sensi degli artt. 1341 e 1342 c.c., il rinnovo automatico annuale, la disdetta e l’assenza di rimborsi, la sospensione, la limitazione di responsabilità, la modifica dei Termini e il Foro di Napoli esclusivo (artt. 2, 4, 5, 6, 9, 10, 11 e Allegato A4-A5).'}
           </span>
         </label>
       )}
@@ -111,7 +115,7 @@ export function QuoteSignatureForm({ token, acceptanceToken, defaultSignerName, 
       <button
         type="submit"
         className="public-quote-contract-submit"
-        disabled={loading || !hasInk || !accepted || (isSubscription && !renewalAccepted) || (isAgency && !specificClausesAccepted)}
+        disabled={loading || !hasInk || !accepted || (needsRenewal && !renewalAccepted) || (isAgency && !specificClausesAccepted)}
       >
         {loading ? 'Registrazione firma…' : isSubscription ? 'Firma e vai al pagamento' : 'Firma il contratto'}
       </button>
