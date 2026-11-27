@@ -1,4 +1,5 @@
 import { isAgencyContract } from '@/lib/agency-contract'
+import { isVideoMapContract, VIDEO_MAP_CONTRACT_FILE } from '@/lib/video-map-contract'
 import { BrandLockup } from '@/components/layout/BrandLockup'
 import { resolvePublicBankInstructions } from '@/lib/quote-defaults'
 import { confirmSubscriptionCheckout } from '@/lib/server/quote-payments'
@@ -138,6 +139,7 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
   const quote: Quote = loaded
 
   const isAgency = isAgencyContract(quote)
+  const isVideoMap = !isAgency && isVideoMapContract(quote)
   const items = safeItems(quote.items)
   const lockedChoices = quote.status === 'accepted' || quote.status === 'paid' || Boolean(quote.contract_signer_email)
   // Stripe solo per l'abbonamento annuale, e solo dopo la firma. Gli altri
@@ -427,6 +429,7 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
             <h2 id="contratto">Contratto</h2>
             {quote.contract_terms && <div className="public-quote-contract-body" style={{ whiteSpace: 'pre-wrap', marginBottom: 24 }}>{quote.contract_terms}</div>}
             {isAgency && <p><a href="/contratti/SPEAQI-AGENCY-CGC-v1.0.txt" download>Scarica le condizioni generali Speaqi Agency</a></p>}
+            {isVideoMap && <p><a href={VIDEO_MAP_CONTRACT_FILE} download>Scarica il contratto Video nella mappa</a></p>}
             {(isSubscription || isAgency) && hasSignature ? (
               <div>
                 <div className="public-quote-contract-badge">Contratto firmato</div>
@@ -443,6 +446,7 @@ export default async function PreventivoPage({ searchParams }: PreventivoPagePro
                 defaultSignerName={quote.customer_name}
                 isSubscription={isSubscription}
                 isAgency={isAgency}
+                isVideoMap={isVideoMap}
               />
             ) : isAgency && quote.contract_signer_email ? (
               <div><div className="public-quote-contract-badge">Contratto accettato</div><p>{quote.contract_signer_email} · {formatDate(quote.contract_accepted_at)}</p></div>
