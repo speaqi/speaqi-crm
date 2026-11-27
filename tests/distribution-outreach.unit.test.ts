@@ -131,7 +131,8 @@ test('risposte: automatiche, no, disiscrizione, persona; ritorni al mittente', (
 })
 
 test('impostazioni: pilota acceso di default, tetti rispettati', () => {
-  assert.deepEqual({ ...distributionSettings({}), cityOrder: undefined }, { dailyNew: 5, autopilot: false, cityOrder: undefined, siteReads: 20 })
+  assert.deepEqual({ ...distributionSettings({}), cityOrder: undefined }, { dailyNew: 5, autopilot: false, cityOrder: undefined, siteReads: 20, abroad: true })
+  assert.equal(distributionSettings({ abroad: false }).abroad, false)
   assert.equal(distributionSettings({ site_reads: 500 }).siteReads, 60)
   assert.equal(distributionSettings({ site_reads: 0 }).siteReads, 0)
   assert.equal(distributionSettings({ daily_new: 500 }).dailyNew, 20)
@@ -174,4 +175,25 @@ test('testi: «della Costiera Amalfitana»', () => {
   assert.ok(two.body.includes('Le guide della Costiera Amalfitana e di Capri sono online'))
   const three = buildDistributionMessage({ step: 1, language: 'it', segment: 'operator', guideSlug: 'napoli', guides: ['costiera-amalfitana', 'capri'] })
   assert.ok(three.body.includes('Le guide di Napoli, della Costiera Amalfitana e di Capri sono online'))
+})
+
+test('guide estere: email con le città, senza prezzi né link inventati', async () => {
+  const { buildDistributionMessage: build, selectAbroadCandidates, interleaveCandidates } = await import('../src/lib/office/distribution-outreach')
+  const m = build({ step: 1, language: 'it', segment: 'agency', guideSlug: '', offer: 'abroad', abroad: ['Parigi', 'Londra'] })
+  assert.match(m.subject, /Parigi e Londra/)
+  assert.match(m.body, /su richiesta/)
+  assert.match(m.body, /codici prepagati/)
+  assert.doesNotMatch(m.body, /\d+\s*%|€/)
+  assert.deepEqual([...m.body.matchAll(/https?:\/\/\S+/g)].map((x) => x[0]), ['https://guides.speaqi.com'])
+  const m2 = build({ step: 2, language: 'it', segment: 'agency', guideSlug: '', offer: 'abroad', abroad: ['Parigi', 'Londra'] })
+  assert.equal(m2.subject, `Re: ${m.subject}`)
+  const generic = build({ step: 1, language: 'it', segment: 'agency', guideSlug: '', offer: 'abroad' })
+  assert.match(generic.subject, /dove mandate i vostri clienti/)
+  const picked = selectAbroadCandidates({ rows: [
+    row({ entity_id: 'a', score: 60, guide_slugs: [] }), row({ entity_id: 'b', score: 90, guide_slugs: [] }),
+    row({ entity_id: 'c', score: 80, guide_slugs: [], email: 'mario.rossi@c.it' }), row({ entity_id: 'd', score: 70, guide_slugs: [], email: 'booking@b.it' }),
+  ], limit: 5 })
+  assert.deepEqual(picked.map((p) => p.entity_id), ['b', 'a'])
+  const mixed = interleaveCandidates(picked, [{ ...picked[0], entity_id: 'x' }, { ...picked[1], entity_id: 'y', domain: 'y.it' }])
+  assert.deepEqual(mixed.map((p) => p.entity_id), ['b', 'a', 'y'])
 })

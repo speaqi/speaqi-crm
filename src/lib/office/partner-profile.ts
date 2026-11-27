@@ -22,9 +22,9 @@ export type Activity =
   | 'other'
 
 export type Audience = 'foreign' | 'domestic' | 'corporate' | 'unknown'
-export type Offer = 'resale' | 'packages' | 'destination' | 'partnership' | 'none'
+export type Offer = 'resale' | 'packages' | 'destination' | 'partnership' | 'custom_guides' | 'none'
 export type Coverage = 'online' | 'planned' | 'missing'
-export type NextStep = 'write' | 'find_email' | 'read_site' | 'guide_needed' | 'destination_body' | 'no_contact' | 'skip'
+export type NextStep = 'write' | 'write_abroad' | 'find_email' | 'read_site' | 'guide_needed' | 'destination_body' | 'no_contact' | 'skip'
 
 export type ProfileInput = {
   name: string
@@ -56,6 +56,9 @@ export type PartnerProfile = {
   why: string[]
   /** I dati non dicono abbastanza: descrizione assente o generica. */
   thin: boolean
+  /** Vende viaggi all'estero: le città estere che nomina (anche nessuna). */
+  sellsAbroad: boolean
+  abroad: string[]
 }
 
 const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -134,6 +137,59 @@ const MISSING: Place[] = [
   ['veneto', 'Veneto', ['veneto']], ['campania', 'Campania', ['campania']], ['cilento', 'Cilento', ['cilento', 'paestum']],
 ].map(([key, label, aliases]) => ({ key: key as string, label: label as string, coverage: 'missing' as const, aliases: aliases as string[] }))
 
+
+// ——— Viaggi all'estero (agenzie e tour operator outgoing) ———
+
+/** Città e paesi esteri: per proporre la guida della città dove mandano i clienti. */
+const ABROAD: Array<[string, string[]]> = [
+  ['Parigi', ['parigi', 'paris']], ['Londra', ['londra', 'london']], ['Barcellona', ['barcellona', 'barcelona']],
+  ['Madrid', ['madrid']], ['Lisbona', ['lisbona', 'lisbon', 'lisboa']], ['Porto', ['oporto', 'porto portogallo']],
+  ['Amsterdam', ['amsterdam']], ['Berlino', ['berlino', 'berlin']], ['Monaco di Baviera', ['monaco di baviera', 'munich']],
+  ['Vienna', ['vienna', 'wien']], ['Praga', ['praga', 'prague']], ['Budapest', ['budapest']], ['Cracovia', ['cracovia', 'krakow']],
+  ['Atene', ['atene', 'athens']], ['Istanbul', ['istanbul']], ['Dublino', ['dublino', 'dublin']], ['Edimburgo', ['edimburgo', 'edinburgh']],
+  ['Copenaghen', ['copenaghen', 'copenhagen']], ['Stoccolma', ['stoccolma', 'stockholm']], ['Siviglia', ['siviglia', 'sevilla', 'seville']],
+  ['Valencia', ['valencia']], ['Malta', ['malta', 'la valletta']], ['Bruxelles', ['bruxelles', 'brussels']], ['Zurigo', ['zurigo', 'zurich']],
+  ['New York', ['new york']], ['Los Angeles', ['los angeles']], ['San Francisco', ['san francisco']], ['Miami', ['miami']],
+  ['Las Vegas', ['las vegas']], ['Chicago', ['chicago']], ['Washington', ['washington']], ['Boston', ['boston']], ['Toronto', ['toronto']],
+  ['Città del Messico', ['citta del messico', 'mexico city']], ['L\'Avana', ['l.avana', 'havana']], ['Buenos Aires', ['buenos aires']],
+  ['Rio de Janeiro', ['rio de janeiro']], ['Lima', ['lima peru']], ['Tokyo', ['tokyo', 'tokio']], ['Kyoto', ['kyoto']], ['Osaka', ['osaka']],
+  ['Seoul', ['seoul']], ['Pechino', ['pechino', 'beijing']], ['Shanghai', ['shanghai']], ['Hong Kong', ['hong kong']],
+  ['Singapore', ['singapore']], ['Bangkok', ['bangkok']], ['Bali', ['bali']], ['Hanoi', ['hanoi']], ['Dubai', ['dubai']],
+  ['Abu Dhabi', ['abu dhabi']], ['Doha', ['doha']], ['Il Cairo', ['il cairo', 'cairo']], ['Marrakech', ['marrakech', 'marrakesh']],
+  ['Gerusalemme', ['gerusalemme', 'jerusalem']], ['Petra', ['petra']], ['Città del Capo', ['citta del capo', 'cape town']],
+  ['Sydney', ['sydney']], ['Melbourne', ['melbourne']], ['Reykjavik', ['reykjavik']],
+  ['Spagna', ['spagna', 'spain']], ['Francia', ['francia', 'france']], ['Portogallo', ['portogallo', 'portugal']],
+  ['Grecia', ['grecia', 'greece', 'isole greche', 'santorini', 'mykonos', 'creta']], ['Croazia', ['croazia', 'croatia', 'dubrovnik', 'spalato']],
+  ['Irlanda', ['irlanda', 'ireland']], ['Scozia', ['scozia', 'scotland']], ['Islanda', ['islanda', 'iceland']], ['Norvegia', ['norvegia', 'norway', 'fiordi']],
+  ['Turchia', ['turchia', 'turkey', 'cappadocia']], ['Egitto', ['egitto', 'egypt', 'sharm']], ['Marocco', ['marocco', 'morocco']],
+  ['Tunisia', ['tunisia']], ['Giordania', ['giordania', 'jordan']], ['Israele', ['israele', 'israel', 'terra santa', 'holy land']],
+  ['Stati Uniti', ['stati uniti', 'united states', 'america']], ['Canada', ['canada']], ['Messico', ['messico', 'mexico']], ['Cuba', ['cuba']],
+  ['Caraibi', ['caraibi', 'caribbean', 'santo domingo', 'repubblica dominicana']], ['Brasile', ['brasile', 'brazil']], ['Argentina', ['argentina']],
+  ['Perù', ['peru']], ['Giappone', ['giappone', 'japan']], ['Cina', ['cina', 'china']], ['Thailandia', ['thailandia', 'thailand']],
+  ['Vietnam', ['vietnam']], ['India', ['india', 'rajasthan']], ['Sri Lanka', ['sri lanka']], ['Maldive', ['maldive', 'maldives']],
+  ['Indonesia', ['indonesia']], ['Australia', ['australia']], ['Nuova Zelanda', ['nuova zelanda', 'new zealand']],
+  ['Kenya', ['kenya']], ['Tanzania', ['tanzania', 'zanzibar']], ['Sudafrica', ['sudafrica', 'south africa']], ['Namibia', ['namibia']],
+  ['Emirati Arabi', ['emirati', 'emirates']], ['Oman', ['oman']], ['Mauritius', ['mauritius']], ['Seychelles', ['seychelles']],
+]
+const ABROAD_PATTERNS = ABROAD.map(([label, aliases]) => ({ label, re: new RegExp(`(^|[^a-z])(${aliases.map((a) => a.replace(/ /g, '\\s+')).join('|')})([^a-z]|$)`) }))
+
+/** Paesi e zone (non città), con la preposizione italiana: «in Tanzania», «negli Stati Uniti». */
+export const ABROAD_REGIONS: Readonly<Record<string, string>> = Object.fromEntries([
+  'Spagna', 'Francia', 'Portogallo', 'Grecia', 'Croazia', 'Irlanda', 'Scozia', 'Islanda', 'Norvegia', 'Turchia', 'Egitto', 'Marocco',
+  'Tunisia', 'Giordania', 'Israele', 'Canada', 'Messico', 'Brasile', 'Argentina', 'Perù', 'Giappone', 'Cina', 'Thailandia', 'Vietnam',
+  'India', 'Sri Lanka', 'Indonesia', 'Australia', 'Nuova Zelanda', 'Kenya', 'Tanzania', 'Sudafrica', 'Namibia', 'Oman',
+].map((c) => [c, `in ${c}`]).concat([['Stati Uniti', 'negli Stati Uniti'], ['Emirati Arabi', 'negli Emirati Arabi'], ['Caraibi', 'ai Caraibi'],
+  ['Maldive', 'alle Maldive'], ['Seychelles', 'alle Seychelles'], ['Mauritius', 'a Mauritius'], ['Cuba', 'a Cuba'], ['Malta', 'a Malta'], ['Bali', 'a Bali']]))
+
+/** Le destinazioni estere nominate nel testo, nell'ordine dell'elenco (al massimo 8). */
+export function findAbroad(text: string): string[] {
+  const t = fold(text)
+  return ABROAD_PATTERNS.filter((p) => p.re.test(t)).map((p) => p.label).slice(0, 8)
+}
+
+/** Vende viaggi fuori dall'Italia, anche senza nominare un posto. */
+const OUTBOUND = /\b(outgoing|viaggi (nel|in tutto il) mondo|in tutto il mondo|all over the world|worldwide|lungo raggio|long haul|viaggi all.estero|estero|destinazioni internazionali|viaggi di nozze|honeymoons?|capitali europee|tour (in|nel) mondo|viaggi organizzati|crocier\w*|cruises?|safari|tour operator (generalista|outgoing))\b/
+
 const PLACES: Place[] = [...ONLINE, ...PLANNED, ...MISSING]
 const PLACE_PATTERNS = PLACES.map((p) => ({ place: p, re: new RegExp(`(^|[^a-z])(${p.aliases.map((a) => a.replace(/ /g, '\\s+')).join('|')})([^a-z]|$)`) }))
 
@@ -165,7 +221,7 @@ function audienceOf(t: string, activities: Activity[]): Audience {
 
 const OFFERS: Record<Activity, Offer[]> = {
   incoming: ['resale', 'packages'], experiences: ['resale'], transport: ['resale'], mice: ['packages'], education: ['packages'],
-  outgoing: ['packages'], hosting: ['resale'], promoter: ['destination'], attraction: ['resale'], tech: ['partnership'], media: ['partnership'], other: [],
+  outgoing: ['packages', 'custom_guides'], hosting: ['resale'], promoter: ['destination'], attraction: ['resale'], tech: ['partnership'], media: ['partnership'], other: [],
 }
 
 const BASE: Record<Activity, number> = {
@@ -193,6 +249,13 @@ export function profilePartner(input: ProfileInput): PartnerProfile {
   for (const p of hq) if (!places.some((q) => q.key === p.key)) places.push({ key: p.key, label: p.label, coverage: p.coverage, guide: p.guide, from: 'hq' })
 
   const national = !places.some((p) => p.from === 'text') && NATIONAL.test(t)
+  const abroad = findAbroad(`${input.name} ${description}`)
+  // Vende viaggi all'estero: un'agenzia (che non sia solo incoming) o un tour operator che lo dice.
+  const incomingOnly = activities[0] === 'incoming' && !OUTBOUND.test(t) && !abroad.length
+  // Chi affitta case o fa l'immobiliare non manda clienti all'estero, anche se si chiama agenzia.
+  const rentals = /\b(affitt\w*|case vacanz\w*|casa vacanze|immobiliar\w*|holiday (homes|rentals)|villas? (for )?rent\w*)\b/.test(t)
+  const agencyLike = !rentals && (activities.includes('outgoing') || ['travel_agency', 'tour_operator'].includes(String(input.type_code)))
+  const sellsAbroad = agencyLike && !incomingOnly && (OUTBOUND.test(t) || abroad.length > 0 || (activities[0] === 'outgoing' && !national && !FOREIGN.test(t)))
   const audience = audienceOf(t, activities)
   const offers = [...new Set(activities.flatMap((a) => OFFERS[a]))].filter((o) => o !== 'none') as Offer[]
   if (!offers.length) offers.push('none')
@@ -215,6 +278,7 @@ export function profilePartner(input: ProfileInput): PartnerProfile {
   if (/51|201|501|1001|5001|10001/.test(String(input.employees || ''))) value += 8
   else if (/11-50/.test(String(input.employees || ''))) value += 5
   if (thin) value -= 8
+  if (sellsAbroad) { value += 20 + Math.min(10, 3 * abroad.length); why.push(abroad.length ? `vende viaggi all'estero (${abroad.slice(0, 4).join(', ')})` : "vende viaggi all'estero") }
   value = Math.max(0, Math.min(100, value))
 
   const main = activities[0]
@@ -229,7 +293,12 @@ export function profilePartner(input: ProfileInput): PartnerProfile {
   else if (reachable) next = input.email ? 'write' : input.website ? 'find_email' : 'no_contact'
   else if (places.length) next = 'guide_needed'
   else next = input.website && value >= 40 ? 'read_site' : 'skip'
-  if (next === 'write' && value < 35) next = 'skip'
+  // Guide di città estere su richiesta: per chi vende viaggi all'estero vale più della rivendita
+  // delle guide italiane, a meno che il testo dica che lavora proprio dove le abbiamo (la sede no).
+  if (sellsAbroad && !lodging && !onlineText.length && ['write', 'skip', 'guide_needed', 'read_site', 'find_email', 'no_contact'].includes(next)) {
+    next = input.email ? 'write_abroad' : input.website ? 'find_email' : 'no_contact'
+  }
+  if ((next === 'write' || next === 'write_abroad') && value < 35) next = 'skip'
   if (input.site_read) {
     if (next === 'read_site') { next = 'skip'; why.push('sito letto: niente che serva') }
     if (next === 'find_email') next = 'no_contact'
@@ -237,7 +306,8 @@ export function profilePartner(input: ProfileInput): PartnerProfile {
 
   if (next === 'guide_needed') why.push(`chiede ${places.filter((p) => p.coverage !== 'online').map((p) => p.label).join(', ')}`)
   if (thin) why.push('dati scarsi')
-  return { activities, audience, places, offers, national, value, next, why, thin }
+  if (sellsAbroad && !offers.includes('custom_guides')) offers.push('custom_guides')
+  return { activities, audience, places, offers: offers.length > 1 ? offers.filter((o) => o !== 'none') : offers, national, value, next, why, thin, sellsAbroad, abroad }
 }
 
 export const ACTIVITY_LABELS: Record<Activity, string> = {
@@ -247,10 +317,10 @@ export const ACTIVITY_LABELS: Record<Activity, string> = {
 }
 export const OFFER_LABELS: Record<Offer, string> = {
   resale: 'Rivendita guide (link, QR, 20%)', packages: 'Codici prepagati nei pacchetti', destination: 'Guida della destinazione per l’ente',
-  partnership: 'Partnership (integrazione o contenuti)', none: 'Niente da proporre',
+  partnership: 'Partnership (integrazione o contenuti)', custom_guides: 'Guide di città estere su richiesta, a pacchetti', none: 'Niente da proporre',
 }
 export const NEXT_LABELS: Record<NextStep, string> = {
-  write: 'Scrivere: guida online e email', find_email: 'Guida online, manca l’email: leggere solo la pagina contatti',
+  write: 'Scrivere: guida online e email', write_abroad: 'Scrivere: guide di città estere su richiesta', find_email: 'Guida online, manca l’email: leggere solo la pagina contatti',
   read_site: 'Leggere il sito: dati scarsi, potenziale alto', guide_needed: 'Lavora dove non abbiamo la guida',
   destination_body: 'Ente: proposta di guida della destinazione', no_contact: 'Guida online, ma senza sito né email', skip: 'Per ora no',
 }
@@ -301,7 +371,7 @@ export function sitePrompt(name: string, pages: readonly SitePage[]) {
   return [
     `Leggi le pagine del sito di "${name}" (azienda del turismo) e copia ALLA LETTERA le frasi che dicono:`,
     '- what: cosa fa l\'azienda (tour, escursioni, trasferimenti, viaggi su misura, eventi…), una frase;',
-    '- destinations: in quali città o zone d\'Italia organizza o vende (fino a 6 frasi, solo se nominano un posto);',
+    '- destinations: in quali città, zone o paesi (in Italia o all\'estero) organizza o vende (fino a 6 frasi, solo se nominano un posto);',
     '- audience: a chi vende (turisti stranieri, gruppi, scuole, aziende…), una frase;',
     '- email: la casella d\'ufficio (info@, booking@…) sul loro dominio, con la frase in cui compare. Mai indirizzi personali.',
     'Ogni frase deve stare nel testo così com\'è; url è la pagina da cui viene. Se un dato non c\'è, null o lista vuota.',

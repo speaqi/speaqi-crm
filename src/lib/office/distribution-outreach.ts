@@ -5,6 +5,7 @@
 
 import { guideLabel } from '../tourism-distribution'
 import { EMAIL_SENDER_NAME } from '../email-ai-framework'
+import { ABROAD_REGIONS } from './partner-profile'
 
 export const DISTRIBUTION_STEPS = 3
 /** Giorni lavorativi fra una tappa e la successiva: la 2 dopo 4, la 3 dopo altri 6. */
@@ -151,6 +152,47 @@ export function selectDistributionCandidates(input: {
   return picked
 }
 
+/**
+ * I contatti per le guide di città estere: aziende che vendono viaggi all'estero, con una
+ * casella d'ufficio, dal valore più alto; un contatto per dominio. Nessuna guida da avere online.
+ */
+export function selectAbroadCandidates(input: {
+  rows: readonly DistributionRow[]
+  limit: number
+  excludedEntityIds?: Iterable<string>
+  excludedDomains?: Iterable<string>
+  excludedEmails?: Iterable<string>
+}): DistributionCandidate[] {
+  const limit = Math.max(0, Math.floor(input.limit))
+  if (!limit) return []
+  const skipEntities = new Set(input.excludedEntityIds || [])
+  const seenDomains = new Set([...(input.excludedDomains || [])].map((d) => d.toLowerCase()))
+  const skipEmails = new Set([...(input.excludedEmails || [])].map((e) => e.toLowerCase()))
+  const sorted = [...input.rows].sort((a, b) => b.score - a.score || a.entity_id.localeCompare(b.entity_id))
+  const picked: DistributionCandidate[] = []
+  for (const row of sorted) {
+    if (picked.length >= limit) break
+    if (!['new', 'qualified'].includes(row.commercial_status) || skipEntities.has(row.entity_id)) continue
+    const email = String(row.email || '').trim().toLowerCase()
+    if (!acceptableMailbox(email) || skipEmails.has(email)) continue
+    const domain = emailDomain(email)
+    if (seenDomains.has(domain)) continue
+    seenDomains.add(domain)
+    picked.push({ ...row, email, domain, guide_slug: '', segment: segmentOf(row.type_code), language: languageOf(row.country_code) })
+  }
+  return picked
+}
+
+/** Alterna due elenchi (rivendita e guide estere), senza ripetere un dominio. */
+export function interleaveCandidates(a: readonly DistributionCandidate[], b: readonly DistributionCandidate[]): DistributionCandidate[] {
+  const out: DistributionCandidate[] = []
+  const domains = new Set<string>()
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    for (const c of [a[i], b[i]]) if (c && !domains.has(c.domain)) { domains.add(c.domain); out.push(c) }
+  }
+  return out
+}
+
 // ——— Calendario ———
 
 /** Aggiunge giorni lavorativi (lun-ven), all'ora di partenza. */
@@ -233,7 +275,13 @@ export type MessageInput = {
   guides?: readonly string[]
   /** Lavora in tutta Italia: si propone il catalogo, non una città. */
   national?: boolean
+  /** `abroad`: guide di città estere su richiesta, a pacchetti (agenzie che vendono viaggi all'estero). */
+  offer?: Offer
+  /** Le destinazioni estere che nominano (nomi italiani), per dire di quali città parliamo. */
+  abroad?: readonly string[]
 }
+
+export type Offer = 'resale' | 'abroad'
 
 const EN_CITY: Record<string, string> = {
   roma: 'Rome', milano: 'Milan', venezia: 'Venice', firenze: 'Florence', napoli: 'Naples', pompei: 'Pompeii',
@@ -281,6 +329,7 @@ function guidesLine(input: MessageInput) {
  * del programma partner B2B (accordo standard del 31/10/2026) e le pagine delle guide.
  */
 export function buildDistributionMessage(input: MessageInput): { subject: string; body: string } {
+  if (input.offer === 'abroad') return buildAbroadMessage(input)
   const g = guidesLine(input)
   const audience = AUDIENCE[input.language][input.segment]
   const hook = input.hook ? `${input.hook.trim()}\n\n` : ''
@@ -325,6 +374,69 @@ export function buildDistributionMessage(input: MessageInput): { subject: string
   return { subject: `Re: ${subject}`, body: [
     'Hello,',
     `this is the last time I write about this. If one day you would like to offer ${g.short} and those of other cities ${audience}, with a commission on every sale, a reply to this email is all it takes.`,
+    'Thank you for your time and all the best.',
+    signature('en'),
+  ].join('\n\n') }
+}
+
+/**
+ * Guide di città estere su richiesta, per chi vende viaggi all'estero. Nessun prezzo: le
+ * città si preparano dopo l'accordo e i pacchetti si quotano a parte. Le funzioni nominate
+ * esistono già (mappa, itinerari, audio e video, più lingue, uso offline, codici prepagati).
+ */
+function buildAbroadMessage(input: MessageInput): { subject: string; body: string } {
+  const lang = input.language
+  const hook = input.hook ? `${input.hook.trim()}\n\n` : ''
+  const places = [...new Set(input.abroad || [])]
+  // Città: «una guida di Parigi e Londra». Paesi: «le città dove mandate i vostri clienti in Tanzania».
+  const cities = places.filter((p) => !ABROAD_REGIONS[p]).slice(0, 3)
+  const regions = places.filter((p) => ABROAD_REGIONS[p]).slice(0, 3)
+  if (lang === 'it') {
+    const named = cities.length ? andList(cities, lang) : ''
+    const inRegions = regions.length ? andList(regions.map((r) => ABROAD_REGIONS[r]), lang) : ''
+    const subject = named ? `Una guida di ${named} per i vostri clienti`
+      : inRegions ? `Guide delle città per i vostri viaggi ${inRegions}` : 'Le guide delle città dove mandate i vostri clienti'
+    const where = named ? `delle città dove mandate i vostri clienti, a partire da ${named}`
+      : inRegions ? `delle città dove mandate i vostri clienti ${inRegions}` : 'delle città dove mandate i vostri clienti'
+    if (input.step === 1) return { subject, body: [
+      `Buongiorno,\nsono ${EMAIL_SENDER_NAME}, fondatore di Speaqi.`,
+      `${hook}Con Speaqi Guides facciamo guide digitali delle città: mappa, itinerari e racconti audio e video dei luoghi, in più lingue, da aprire sul telefono senza installare niente e da usare anche offline. Le guide già online sono qui: ${GUIDES_HOME}`,
+      `Vi proponiamo di preparare le guide ${where}:\n- le città le scegliete voi e le prepariamo su richiesta;\n- le date ai clienti insieme al viaggio, con pacchetti di codici prepagati da inserire nelle vostre proposte;\n- il cliente apre la guida dal telefono e la usa durante tutto il soggiorno.`,
+      'Se le interessa, mi dica quali città vi servirebbero e le preparo una proposta per i pacchetti.',
+      OPT_OUT.it, signature('it'),
+    ].join('\n\n') }
+    if (input.step === 2) return { subject: `Re: ${subject}`, body: [
+      'Buongiorno,',
+      `riprendo in breve la mia email dei giorni scorsi: le guide ${where}, preparate su richiesta e date ai clienti con codici prepagati nei vostri pacchetti.`,
+      'Quali città vi servirebbero?',
+      OPT_OUT.it, signature('it'),
+    ].join('\n\n') }
+    return { subject: `Re: ${subject}`, body: [
+      'Buongiorno,',
+      'è l’ultima volta che le scrivo su questo. Se in futuro vorrete dare ai vostri clienti la guida della città in cui li mandate, mi basta una risposta con il nome della città.',
+      'Grazie dell’attenzione e buon lavoro.',
+      signature('it'),
+    ].join('\n\n') }
+  }
+  const named = andList([...cities, ...regions].slice(0, 3), lang)
+  const subject = named ? `City guides for your trips to ${named}` : 'City guides for the places you send your customers'
+  const where = named ? `for the cities you send your customers to in ${named}` : 'for the cities you send your customers to'
+  if (input.step === 1) return { subject, body: [
+    `Hello,\nI’m ${EMAIL_SENDER_NAME}, founder of Speaqi.`,
+    `${hook}Speaqi Guides makes digital city guides: a map, itineraries and audio and video stories of each place, in several languages, opened on the phone with nothing to install and usable offline. Our live guides are here: ${GUIDES_HOME}`,
+    `We would like to prepare guides ${where}:\n- you choose the cities and we prepare them on request;\n- you give them to your customers with the trip, as packs of prepaid codes included in your offers;\n- your customers open the guide on their phone and use it throughout their stay.`,
+    'If you are interested, tell me which cities you would need and I will prepare a proposal for the packs.',
+    OPT_OUT.en, signature('en'),
+  ].join('\n\n') }
+  if (input.step === 2) return { subject: `Re: ${subject}`, body: [
+    'Hello,',
+    `just a short follow-up on my email from the past days: guides ${where}, prepared on request and given to your customers as prepaid codes in your packages.`,
+    'Which cities would you need?',
+    OPT_OUT.en, signature('en'),
+  ].join('\n\n') }
+  return { subject: `Re: ${subject}`, body: [
+    'Hello,',
+    'this is the last time I write about this. If one day you would like to give your customers a guide to the city you send them to, a reply with the name of the city is all it takes.',
     'Thank you for your time and all the best.',
     signature('en'),
   ].join('\n\n') }

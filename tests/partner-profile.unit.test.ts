@@ -107,3 +107,34 @@ test('domanda per destinazione: solo posti senza guida online, citati nel testo'
   const demand = destinationDemand([{ ...a, email: 'info@a.it' }, { ...b, email: null }])
   assert.deepEqual(demand.map((d) => [d.key, d.companies, d.withEmail]), [['sicilia', 2, 1]])
 })
+
+test('agenzia che vende viaggi all’estero: guide di città estere su richiesta', () => {
+  const p = profilePartner({ name: 'Viaggi del Sole', type_code: 'travel_agency', email: 'info@viaggidelsole.it', website: 'https://viaggidelsole.it',
+    hq_city: 'Roma', description: 'Agenzia di viaggi: tour di gruppo a Parigi, Londra e New York, viaggi di nozze alle Maldive e crociere nel Mediterraneo.' })
+  assert.equal(p.sellsAbroad, true)
+  assert.deepEqual(p.abroad, ['Parigi', 'Londra', 'New York', 'Maldive'])
+  assert.ok(p.offers.includes('custom_guides'))
+  assert.equal(p.next, 'write_abroad')
+})
+
+test('agenzia estero senza email ma con sito: prima si cerca la casella', () => {
+  const p = profilePartner({ name: 'Mondo Tour', type_code: 'tour_operator', website: 'https://mondotour.it',
+    description: 'Tour operator outgoing: viaggi in Giappone, Thailandia e Stati Uniti su misura.' })
+  assert.equal(p.sellsAbroad, true)
+  assert.equal(p.next, 'find_email')
+})
+
+test('incoming puro non è un’agenzia estero, e «usa» non è gli Stati Uniti', () => {
+  const p = profilePartner({ name: 'Napoli Incoming', type_code: 'dmc', email: 'info@napoliincoming.it',
+    description: 'Incoming DMC in Naples: private tours for international guests. Il cliente usa la nostra app.' })
+  assert.equal(p.sellsAbroad, false)
+  assert.deepEqual(p.abroad, [])
+  assert.equal(p.next, 'write')
+})
+
+test('tour operator incoming che dice di lavorare a Roma resta sulla rivendita', () => {
+  const p = profilePartner({ name: 'Roma Tours', type_code: 'tour_operator', email: 'info@romatours.it',
+    description: 'Tour operator: tours in Rome and the Vatican for international guests, and trips to Paris.' })
+  assert.equal(p.sellsAbroad, true)
+  assert.equal(p.next, 'write')
+})

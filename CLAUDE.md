@@ -51,6 +51,15 @@ Il giro automatico per chiudere accordi con i partner di Tourism Intelligence: l
 - Limiti: regole sulle parole; per gli enti il territorio non è affidabile (una descrizione che cita gli aeroporti di Milano e Venezia); gli elenchi delle guide online e in lavorazione sono scritti nel codice (`ONLINE`, `PLANNED`).
 - Test: `tests/partner-profile.unit.test.ts`; migration in `tests/distribution-outreach.db.test.ts`.
 
+### Guide di città estere per le agenzie (27/11/2026)
+
+- **Seconda proposta dello stesso giro** (stesse regole: 5 nuovi al giorno in tutto, pilota con approvazione, sequenza di tre email). Alle aziende italiane che **vendono viaggi all'estero** si propone di preparare, **su richiesta e dopo l'accordo**, le guide delle città dove mandano i clienti, date con **pacchetti di codici prepagati** (`map_prepaid_batches`). Nessun prezzo nell'email: le città e i pacchetti si quotano dopo la risposta.
+- **Chi** (`profilePartner`): `sellsAbroad` = agenzia o tour operator (non chi affitta case o fa l'immobiliare, non l'incoming puro) che dice di vendere all'estero (`OUTBOUND`: outgoing, viaggi nel mondo, crociere, viaggi di nozze…) o nomina una destinazione estera (`findAbroad`, elenco `ABROAD`, paesi con la preposizione in `ABROAD_REGIONS`). Passo `write_abroad` (con casella) o `find_email` (si legge la pagina contatti). Chi nel testo dice di lavorare dove abbiamo la guida italiana resta sulla rivendita.
+- **Email** (`buildAbroadMessage`): nomina fino a tre città («una guida di Parigi e Londra») o i paesi («per i vostri viaggi in Tanzania»); l'unico link è `guides.speaqi.com`. Le due liste (rivendita ed estero) si alternano (`interleaveCandidates`); `settings.abroad: false` spegne l'estero.
+- **Dati**: migration **`20261127101500_distribution_abroad.sql`** (solo aggiunte: `partner_profiles.abroad`, passo `write_abroad`; `distribution_outreach.offer`/`abroad`, così i promemoria parlano delle stesse città). **Prima la migration, poi il codice.**
+- Prova sul catalogo vero (27/11/2026, 4.429 aziende italiane): 792 vendono all'estero, 76 pronte da scrivere, 699 con la sola pagina contatti da leggere.
+- **Import LeadOcean del 27/11/2026**: 1.958 aziende italiane nuove in Tourism Intelligence (521 agenzie, 240 tour operator, 125 DMC, 1.057 escursioni ed esperienze), `UNVERIFIED`, senza email (LeadOcean dà solo quelle delle persone): la casella d'ufficio la cerca l'agente sul sito.
+
 ## Ufficio — sala di controllo delle città (12/11/2026)
 
 - **La vista di partenza di `/ufficio` è «Città»**, non più il 3D (`ProductionBoard`, `src/components/office/`): una riga per città di StudioMap, otto fasi (Luoghi, Testi, Temi, Presentazione, Itinerari, Controlli, Su Speaqi, Online) e la prima cosa che manca. In testa: città, online, online con arretrati, in produzione, luoghi, stima per scrivere temi e presentazioni mancanti, credito OpenRouter di StudioMap. La riga si apre: stato di ogni fase, «Apri in StudioMap ↗» sulla sezione giusta (`/?map=<slug>&view=…`), e «Fallo fare al Direttore» dove il Direttore ha già un ordine (oggi solo Controlli → «Controlla la mappa di X»).
